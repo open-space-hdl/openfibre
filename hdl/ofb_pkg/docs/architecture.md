@@ -1,0 +1,52 @@
+# ofb_pkg: Architecture and Design Description
+
+## 1. Structure
+
+`ofb_pkg` is a single VHDL package (`hdl/ofb_pkg/src/ofb_pkg.vhd`) without entities.
+
+| Section | Content |
+| --- | --- |
+| Characters and words | `Char_t` (8 bit), `Word_t` (32 bit, character 0 in bits 7:0), `WordK_t` (one K flag per character), K flag patterns `KCtrl_c`, `KData_c`, `KPad_c` |
+| K-codes | `K0_0_c` to `K30_7_c` and names by function (`CharComma_c`, `CharEop_c`, ...) |
+| Control word symbols | `Sym<Name>_c` for every entry of ECSS Table 5-12 |
+| Fixed control words | `WordSkip_c`, `WordIdle_c`, `WordInit1_c`, `WordInit2_c`, `WordInvInit1_c`, `WordInvInit2_c`, `WordPad_c`, `WordRetry_c`, `WordRxErr_c` |
+| Fields | Capability bit indices, LOS_Cause values, EBF status bits, sequence number polarity bit |
+| Word functions | `wordInit3`, `wordStandby`, `wordLostSignal`, `wordActive`, `wordAlign`, `wordSdf`, `wordEdf`, `wordSbf`, `wordEbf`, `wordSif`, `wordFct`, `wordAck`, `wordNack`, `wordFull` |
+| CRC | `crc16Update`, `crc8Update`, `crc8Word3`, seeds, polynomials, `olo_base_crc` settings |
+| PRBS | `prbsWord`, `prbsNextState` (reference model), `olo_base_prbs` settings |
+
+## 2. Data formats
+
+A word is transmitted character 0 first. The K flag of character i is bit i of `WordK_t`:
+
+| Bits | 31:24 | 23:16 | 15:8 | 7:0 |
+| --- | --- | --- | --- | --- |
+| Character | 3 | 2 | 1 | 0 (sent first) |
+| Example: SKIP | D31.3 | D31.3 | D14.6 | K28.7 |
+| Example: EDF | CRC_MS | CRC_LS | SEQ_NUM | K28.0 |
+
+## 3. CRC
+
+Both CRCs process the least significant bit of each character first. Implemented bit-serially with the reflected
+polynomial (0x8408 for CRC-16, 0xE0 for CRC-8) they directly give the CRC value as ECSS defines it (Figures 5-45 and
+5-47), without output reflection or XOR. The K flag is not part of the CRC; a K-code contributes its data value.
+
+`olo_base_crc` computes the same values with `Polynomial_g` = 0x1021 / 0x07, `InitialValue_g` = seed,
+`BitOrder_g` = `ByteOrder_g` = "LSB_FIRST" and `BitflipOutput_g` = true. Partial last words use `In_Be`
+(for example the EDF word, of which only characters 0 and 1 are covered).
+
+## 4. PRBS
+
+The ECSS random number generator (Figure 5-41) is a Galois LFSR: the output is D15, the register shifts towards
+D15 and the output is fed back into D0, D3, D4 and D5. `prbsWord` returns the next 32 output bits (bit 0 first,
+which is the least significant bit of character 0) and `prbsNextState` the register after these 32 steps.
+
+`olo_base_prbs` is a Fibonacci LFSR whose output is its state. It produces the same sequence with the reciprocal
+polynomial x^16 + x^13 + x^12 + x^11 + 1 (`PrbsPolynomial_c`) and the state 0xFFE8 (`PrbsSeed_c`), which holds the
+first 16 bits of the ECSS sequence. With `BitsPerSymbol_g` = 32, bit 0 of `Out_Data` is the first bit. Loading
+`PrbsSeed_c` through `State_New` / `State_Set` re-seeds the generator (data scrambling re-seeds at every data frame,
+ECSS 5.7.6.2.1d).
+
+## 5. Timing and behaviour
+
+The functions are pure and synthesisable; `crc8Word3` and the word functions unroll to combinational logic.

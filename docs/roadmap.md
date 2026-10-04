@@ -17,7 +17,7 @@ the state of every module; a module is done when its verification report is writ
 
 | Module | Blocks (architecture section 7) | Phase | Status |
 | --- | --- | --- | --- |
-| `ofb_pkg` | Common constants and types (ECSS symbols, control words) | 1 | In work |
+| `ofb_pkg` | Common constants and types (ECSS symbols, control words, CRC, PRBS) | 1 | Done |
 | `tb` (shared) | Verification helpers, behavioural PA model, SpaceFibre reference model | 1, 2 | In work |
 | `ofb_lane` | LN-1 lane initialisation, LN-2 transmitter, LN-3 receiver, LN-4 parallel loopback | 2 | Planned |
 | `ofb_multilane` | ML-1 to ML-6 | 2 (bypass, column codec), 4 | Planned |
