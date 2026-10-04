@@ -123,7 +123,7 @@ begin
             NumVc_g        => RowNumVc_c,
             VcOutDepth_g   => 128,
             VcInDepth_g    => 128,
-            ErbWords_g     => 256,
+            ErbRows_g      => 256,
             ErbDataItems_g => 8,
             ErbFctItems_g  => 4,
             ErbBcItems_g   => 2

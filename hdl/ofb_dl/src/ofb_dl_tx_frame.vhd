@@ -7,8 +7,9 @@
 -- Description
 ---------------------------------------------------------------------------------------------------
 -- Transmit scheduler and frame assembler of the Data Link layer (DT-5, DT-6, DT-8): selects the
--- next word by the precedence of ECSS 5.3.10c, builds the frames and control words, numbers them
--- (ECSS 5.7.6.3.1) and computes the CRC-8 (ECSS 5.7.6.5).
+-- next row by the precedence of ECSS 5.3.10c, builds the frames and control words, numbers them
+-- (ECSS 5.7.6.3.1) and computes the CRC-8 (ECSS 5.7.6.5). A data row carries NumLanes_g words, every
+-- other word is a replicated row of one word.
 --
 -- Documentation: hdl/ofb_dl/docs/architecture.md (section 3.5)
 
@@ -29,6 +30,9 @@ library work;
 -- Entity
 ---------------------------------------------------------------------------------------------------
 entity ofb_dl_tx_frame is
+    generic (
+        NumLanes_g : positive range 1 to 4 := 1
+    );
     port (
         -- Control Ports
         Clk             : in    std_logic;
@@ -48,8 +52,8 @@ entity ofb_dl_tx_frame is
         SndData_Valid   : in    std_logic;
         SndData_Vc      : in    std_logic_vector(4 downto 0);
         SndData_Len     : in    std_logic_vector(6 downto 0);
-        Pay_Data        : in    Word_t;
-        Pay_K           : in    WordK_t;
+        Pay_Data        : in    std_logic_vector(32*NumLanes_g-1 downto 0);
+        Pay_K           : in    std_logic_vector(4*NumLanes_g-1 downto 0);
         Pay_Valid       : in    std_logic;
         Pay_Ready       : out   std_logic;
         Sent_Valid      : out   std_logic;
@@ -66,8 +70,9 @@ entity ofb_dl_tx_frame is
         RxPolarity      : in    std_logic;
         Ev_RxError      : in    std_logic; -- RXERR or CRC error received
         -- Rows to the Multi-Lane layer
-        TxRow_Data      : out   Word_t;
-        TxRow_K         : out   WordK_t;
+        TxRow_Data      : out   std_logic_vector(32*NumLanes_g-1 downto 0);
+        TxRow_K         : out   std_logic_vector(4*NumLanes_g-1 downto 0);
+        TxRow_Mask      : out   std_logic_vector(NumLanes_g-1 downto 0);
         TxRow_Replicate : out   std_logic;
         TxRow_Valid     : out   std_logic;
         TxRow_Ready     : in    std_logic;
@@ -84,13 +89,14 @@ end entity;
 ---------------------------------------------------------------------------------------------------
 architecture rtl of ofb_dl_tx_frame is
 
-    constant AckGap_c    : natural := 15;
-    constant FullCycle_c : natural := 64;
+    constant AckGap_c    : natural  := 15;
+    constant FullCycle_c : natural  := 64;
+    constant N_c         : positive := NumLanes_g;
 
     type TwoProcess_r is record
-        -- Output register
-        OData    : Word_t;
-        OK       : WordK_t;
+        -- Output register (word 0 of a replicated row in bits 31:0)
+        OData    : std_logic_vector(32*NumLanes_g-1 downto 0);
+        OK       : std_logic_vector(4*NumLanes_g-1 downto 0);
         ORepl    : std_logic;
         OValid   : std_logic;
         -- Sequence numbers
@@ -138,6 +144,9 @@ begin
         variable Sent_v  : std_logic;
         variable Kind_v  : ErbKind_t;
         variable Retry_v : std_logic;
+        variable OWord_v : Word_t;
+        variable OK_v    : WordK_t;
+        variable Row_v   : boolean;
     begin
         -- Hold variables stable
         v := r;
@@ -149,6 +158,9 @@ begin
         Retry_v  := '0';
         Adv_v    := '0';
         PayRd_v  := '0';
+        OWord_v  := (others => '0');
+        OK_v     := KCtrl_c;
+        Row_v    := false;
         IsAck_v  := false;
         Done_v   := false;
 
@@ -158,11 +170,10 @@ begin
         if Load_v then
             v.OValid := '1';
             v.ORepl  := '1';
-            v.OK     := KCtrl_c;
 
             -- 1: RETRY, the open frames are abandoned
             if Retry_Req = '1' then
-                v.OData    := WordRetry_c;
+                OWord_v    := WordRetry_c;
                 Retry_v    := '1';
                 v.TxSeq    := unsigned(Retry_Seq);
                 v.TxPol    := not r.TxPol;
@@ -176,7 +187,7 @@ begin
                     v.TxSeq  := r.TxSeq + 1;
                     Seq_v    := r.TxPol & std_logic_vector(r.TxSeq + 1);
                     Word_v   := wordEbf(SndBc_Delayed & SndBc_Late, Seq_v, x"00");
-                    v.OData  := wordEbf(SndBc_Delayed & SndBc_Late, Seq_v, crc8Chars(r.BcCrc, Word_v, 3));
+                    OWord_v  := wordEbf(SndBc_Delayed & SndBc_Late, Seq_v, crc8Chars(r.BcCrc, Word_v, 3));
                     v.BcOpen := false;
                     Sent_v   := '1';
                     Kind_v   := ErbBc_c;
@@ -187,8 +198,8 @@ begin
                     else
                         Word_v := SndBc_Data(63 downto 32);
                     end if;
-                    v.OData := Word_v;
-                    v.OK    := KData_c;
+                    OWord_v := Word_v;
+                    OK_v    := KData_c;
                     v.BcCrc := crc8Chars(r.BcCrc, Word_v, 4);
                     v.BcIdx := r.BcIdx + 1;
                 end if;
@@ -196,7 +207,7 @@ begin
             -- 3: broadcast frame (inside a data frame, or ending an idle frame)
             elsif SndBc_Valid = '1' then
                 Word_v     := wordSbf(SndBc_Channel, SndBc_Type);
-                v.OData    := Word_v;
+                OWord_v    := Word_v;
                 v.BcCrc    := crc8Chars(Crc8Seed_c, Word_v, 4);
                 v.BcOpen   := true;
                 v.BcIdx    := 1;
@@ -204,23 +215,23 @@ begin
 
             -- 4: NACK, ACK (at least 15 words after the previous ACK)
             elsif r.NackPend = '1' then
-                v.OData    := wordNack(not RxPolarity & RxSeqCount);
+                OWord_v    := wordNack(not RxPolarity & RxSeqCount);
                 v.NackPend := '0';
             elsif r.AckPend = '1' and r.AckGap = AckGap_c then
-                v.OData   := wordAck(RxPolarity & RxSeqCount);
+                OWord_v   := wordAck(RxPolarity & RxSeqCount);
                 v.AckPend := '0';
                 IsAck_v   := true;
 
             -- 5: FCT
             elsif SndFct_Valid = '1' then
                 v.TxSeq := r.TxSeq + 1;
-                v.OData := wordFct(SndFct_Mult, SndFct_Vc, r.TxPol & std_logic_vector(r.TxSeq + 1));
+                OWord_v := wordFct(SndFct_Mult, SndFct_Vc, r.TxPol & std_logic_vector(r.TxSeq + 1));
                 Sent_v  := '1';
                 Kind_v  := ErbFct_c;
 
             -- 6: FULL
             elsif r.FullPend = '1' then
-                v.OData    := wordFull(r.TxPol & std_logic_vector(r.TxSeq));
+                OWord_v    := wordFull(r.TxPol & std_logic_vector(r.TxSeq));
                 v.FullPend := '0';
                 v.FullCnt  := 0;
 
@@ -228,13 +239,13 @@ begin
             elsif r.DataOpen then
                 if r.DataLeft = 0 then
                     v.TxSeq    := r.TxSeq + 1;
-                    v.OData    := wordEdf(r.TxPol & std_logic_vector(r.TxSeq + 1), x"0000");
+                    OWord_v    := wordEdf(r.TxPol & std_logic_vector(r.TxSeq + 1), x"0000");
                     v.DataOpen := false;
                     Sent_v     := '1';
                     Kind_v     := ErbData_c;
                 elsif Pay_Valid = '1' then
-                    v.OData    := Pay_Data;
-                    v.OK       := Pay_K;
+                    -- Data row of N words
+                    Row_v      := true;
                     v.ORepl    := '0';
                     v.DataLeft := r.DataLeft - 1;
                     PayRd_v    := '1';
@@ -245,24 +256,35 @@ begin
 
             -- 8: data frame
             elsif SndData_Valid = '1' then
-                v.OData    := wordSdf(SndData_Vc);
+                OWord_v    := wordSdf(SndData_Vc);
                 v.DataOpen := true;
                 v.DataLeft := to_integer(unsigned(SndData_Len));
                 v.IdleOpen := false;
 
             -- 9: idle frame
             elsif not r.IdleOpen or r.PrbsCnt = MaxFrameWords_c then
-                v.OData    := wordSif(r.TxPol & std_logic_vector(r.TxSeq));
+                OWord_v    := wordSif(r.TxPol & std_logic_vector(r.TxSeq));
                 v.IdleOpen := true;
                 v.PrbsCnt  := 0;
             else
-                v.OData   := PrbsData;
-                v.OK      := KData_c;
+                OWord_v   := PrbsData;
+                OK_v      := KData_c;
                 v.PrbsCnt := r.PrbsCnt + 1;
                 Adv_v     := '1';
             end if;
 
-            -- Words since the last ACK, words while the buffer is full
+            -- Output row: the data row, or one word in word 0
+            if Row_v then
+                v.OData := Pay_Data;
+                v.OK    := Pay_K;
+            else
+                v.OData              := (others => '0');
+                v.OK                 := (others => '0');
+                v.OData(31 downto 0) := OWord_v;
+                v.OK(3 downto 0)     := OK_v;
+            end if;
+
+            -- Rows since the last ACK, rows while the buffer is full
             if IsAck_v then
                 v.AckGap := 0;
             elsif v.OValid = '1' and r.AckGap < AckGap_c then
@@ -310,6 +332,7 @@ begin
     TxRow_Data      <= r.OData;
     TxRow_K         <= r.OK;
     TxRow_Replicate <= r.ORepl;
+    TxRow_Mask      <= (others => '1') when r.ORepl = '0' else std_logic_vector(to_unsigned(1, N_c));
     TxRow_Valid     <= r.OValid;
     TxPolarity      <= r.TxPol;
     Ev_WordSent     <= r.OValid and TxRow_Ready;

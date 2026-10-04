@@ -31,6 +31,9 @@ library work;
 -- Entity
 ---------------------------------------------------------------------------------------------------
 entity ofb_core_th is
+    generic (
+        NumLanes_g : positive range 1 to 4 := 1
+    );
     port (
         MgmtClk : out   std_logic;
         Rst     : out   std_logic
@@ -48,14 +51,17 @@ architecture sim of ofb_core_th is
     signal MgmtI   : std_logic := '0';
     signal RstI    : std_logic := '1';
 
-    type VcDataArray_t is array (0 to 1) of std_logic_vector(32*CoreNumVc_c-1 downto 0);
-    type VcKArray_t is array (0 to 1) of std_logic_vector(4*CoreNumVc_c-1 downto 0);
+    constant N_c : positive := NumLanes_g;
+
+    type VcDataArray_t is array (0 to 1) of std_logic_vector(32*N_c*CoreNumVc_c-1 downto 0);
+    type VcKArray_t is array (0 to 1) of std_logic_vector(4*N_c*CoreNumVc_c-1 downto 0);
     type VcBitArray_t is array (0 to 1) of std_logic_vector(CoreNumVc_c-1 downto 0);
     type BcDataArray_t is array (0 to 1) of std_logic_vector(63 downto 0);
     type BcUserArray_t is array (0 to 1) of std_logic_vector(17 downto 0);
     type BitArray_t is array (0 to 1) of std_logic;
-    type WordArray_t is array (0 to 1) of Word_t;
-    type KArray_t is array (0 to 1) of WordK_t;
+    type WordArray_t is array (0 to 1) of std_logic_vector(32*N_c-1 downto 0);
+    type KArray_t is array (0 to 1) of std_logic_vector(4*N_c-1 downto 0);
+    type LaneArray_t is array (0 to 1) of std_logic_vector(N_c-1 downto 0);
     type AddrArray_t is array (0 to 1) of std_logic_vector(11 downto 0);
     type DataArray_t is array (0 to 1) of std_logic_vector(31 downto 0);
     type StrbArray_t is array (0 to 1) of std_logic_vector(3 downto 0);
@@ -101,12 +107,12 @@ architecture sim of ofb_core_th is
     signal PhyRxK     : KArray_t;
     signal PhyRxCode  : KArray_t;
     signal PhyRxDisp  : KArray_t;
-    signal PhyRxValid : BitArray_t;
-    signal TxEnable   : BitArray_t;
-    signal RxEnable   : BitArray_t;
-    signal CdrEnable  : BitArray_t;
-    signal RxInvert   : BitArray_t;
-    signal NoSignal   : BitArray_t;
+    signal PhyRxValid : LaneArray_t;
+    signal TxEnable   : LaneArray_t;
+    signal RxEnable   : LaneArray_t;
+    signal CdrEnable  : LaneArray_t;
+    signal RxInvert   : LaneArray_t;
+    signal NoSignal   : LaneArray_t;
 
 begin
 
@@ -157,7 +163,9 @@ begin
 
         i_core : entity work.ofb_core
             generic map (
-                NumVc_g => CoreNumVc_c
+                NumVc_g     => CoreNumVc_c,
+                NumLanes_g  => N_c,
+                VcInDepth_g => 256 * N_c
             )
             port map (
                 Rst               => RstI,
@@ -205,12 +213,12 @@ begin
                 PhyRx_K           => PhyRxK(i),
                 PhyRx_CodeErr     => PhyRxCode(i),
                 PhyRx_DispErr     => PhyRxDisp(i),
-                PhyRx_Valid(0)    => PhyRxValid(i),
-                Phy_TxEnable(0)   => TxEnable(i),
-                Phy_RxEnable(0)   => RxEnable(i),
-                Phy_CdrEnable(0)  => CdrEnable(i),
-                Phy_RxInvert(0)   => RxInvert(i),
-                Phy_NoSignal(0)   => NoSignal(i)
+                PhyRx_Valid       => PhyRxValid(i),
+                Phy_TxEnable      => TxEnable(i),
+                Phy_RxEnable      => RxEnable(i),
+                Phy_CdrEnable     => CdrEnable(i),
+                Phy_RxInvert      => RxInvert(i),
+                Phy_NoSignal      => NoSignal(i)
             );
 
         -------------------------------------------------------------------------------------------
@@ -228,6 +236,9 @@ begin
                 variable Data_v  : Word_t;
                 variable K_v     : WordK_t;
                 variable Raw_v   : std_logic_vector(36 downto 0);
+                variable Pos_v   : natural  := 0;
+                variable BeatD_v : std_logic_vector(32*N_c-1 downto 0);
+                variable BeatK_v : std_logic_vector(4*N_c-1 downto 0);
 
                 impure function randInt (lo : natural; hi : natural) return natural is
                 begin
@@ -235,20 +246,38 @@ begin
                     return lo + natural(floor(Rand_v * real(hi - lo + 1)));
                 end function;
 
+                -- Word into the beat of N words; the beat is sent when it is full or flushed
                 procedure sendWord (
-                    data : Word_t;
-                    k    : WordK_t) is
+                    data  : Word_t;
+                    k     : WordK_t;
+                    flush : boolean := false) is
                 begin
-                    SVcData(i)(32*v+31 downto 32*v) <= data;
-                    SVcUser(i)(4*v+3 downto 4*v)    <= k;
-                    SVcValid(i)(v)                  <= '1';
+                    BeatD_v(32*Pos_v+31 downto 32*Pos_v) := data;
+                    BeatK_v(4*Pos_v+3 downto 4*Pos_v)    := k;
+                    Pos_v                                := Pos_v + 1;
+                    if flush then
 
-                    loop
-                        wait until rising_edge(UserClk);
-                        exit when SVcReady(i)(v) = '1';
-                    end loop;
+                        -- Rest of the beat: Fill words
+                        while Pos_v < N_c loop
+                            BeatD_v(32*Pos_v+31 downto 32*Pos_v) := x"FBFBFBFB";
+                            BeatK_v(4*Pos_v+3 downto 4*Pos_v)    := "1111";
+                            Pos_v                                := Pos_v + 1;
+                        end loop;
 
-                    SVcValid(i)(v) <= '0';
+                    end if;
+                    if Pos_v = N_c then
+                        Pos_v                                      := 0;
+                        SVcData(i)(32*N_c*(v+1)-1 downto 32*N_c*v) <= BeatD_v;
+                        SVcUser(i)(4*N_c*(v+1)-1 downto 4*N_c*v)   <= BeatK_v;
+                        SVcValid(i)(v)                             <= '1';
+
+                        loop
+                            wait until rising_edge(UserClk);
+                            exit when SVcReady(i)(v) = '1';
+                        end loop;
+
+                        SVcValid(i)(v) <= '0';
+                    end if;
                 end procedure;
 
             -- Generator
@@ -260,7 +289,7 @@ begin
                     if i = 0 and v = 0 and RawQueue_v.count > 0 then
                         -- Raw words (expected words are added by the sequencer)
                         Raw_v := RawQueue_v.pop;
-                        sendWord(Raw_v(31 downto 0), Raw_v(35 downto 32));
+                        sendWord(Raw_v(31 downto 0), Raw_v(35 downto 32), true);
                     elsif Sent_v < CoreCfg(i).Vc(v).Packets then
                         Left_v := randInt(1, CoreCfg(i).Vc(v).MaxLen);
                         Term_v := false;
@@ -283,7 +312,8 @@ begin
                             end loop;
 
                             CoreSb_v.add_expected(1 + (1 - i) * CoreNumVc_c + v, K_v & Data_v);
-                            sendWord(Data_v, K_v);
+                            -- Every packet starts in a new beat
+                            sendWord(Data_v, K_v, Term_v);
                         end loop;
 
                         Sent_v := Sent_v + 1;
@@ -299,8 +329,17 @@ begin
             begin
                 if rising_edge(UserClk) then
                     if MVcValid(i)(v) = '1' and MVcReady(i)(v) = '1' then
-                        CoreSb_v.check_received(1 + i * CoreNumVc_c + v,
-                                                MVcUser(i)(4*v+3 downto 4*v) & MVcData(i)(32*v+31 downto 32*v));
+
+                        -- Words of four Fills carry no N-Char and are not compared
+                        for w in 0 to N_c-1 loop
+                            if MVcUser(i)(4*(N_c*v+w)+3 downto 4*(N_c*v+w)) /= "1111" or
+                               MVcData(i)(32*(N_c*v+w)+31 downto 32*(N_c*v+w)) /= x"FBFBFBFB" then
+                                CoreSb_v.check_received(1 + i * CoreNumVc_c + v,
+                                                        MVcUser(i)(4*(N_c*v+w)+3 downto 4*(N_c*v+w)) &
+                                                        MVcData(i)(32*(N_c*v+w)+31 downto 32*(N_c*v+w)));
+                            end if;
+                        end loop;
+
                     end if;
                     uniform(Seed1_v, Seed2_v, Rand_v);
                     if Rand_v * 100.0 < real(CoreCfg(i).Vc(v).ReadyPct) then
@@ -376,38 +415,42 @@ begin
     end generate;
 
     -----------------------------------------------------------------------------------------------
-    -- Behavioural Physical adapters and channel (lane clock)
+    -- Behavioural Physical adapters and channel (lane clock), one per lane
     -----------------------------------------------------------------------------------------------
-    i_pa : entity work.ofb_tb_pa_model
-        generic map (
-            Instance_g => 0
-        )
-        port map (
-            Clk          => LaneClk,
-            A_Tx_Data    => PhyTxData(0),
-            A_Tx_K       => PhyTxK(0),
-            A_TxEnable   => TxEnable(0),
-            A_RxEnable   => RxEnable(0),
-            A_CdrEnable  => CdrEnable(0),
-            A_RxInvert   => RxInvert(0),
-            A_Rx_Data    => PhyRxData(0),
-            A_Rx_K       => PhyRxK(0),
-            A_Rx_CodeErr => PhyRxCode(0),
-            A_Rx_DispErr => PhyRxDisp(0),
-            A_Rx_Valid   => PhyRxValid(0),
-            A_NoSignal   => NoSignal(0),
-            B_Tx_Data    => PhyTxData(1),
-            B_Tx_K       => PhyTxK(1),
-            B_TxEnable   => TxEnable(1),
-            B_RxEnable   => RxEnable(1),
-            B_CdrEnable  => CdrEnable(1),
-            B_RxInvert   => RxInvert(1),
-            B_Rx_Data    => PhyRxData(1),
-            B_Rx_K       => PhyRxK(1),
-            B_Rx_CodeErr => PhyRxCode(1),
-            B_Rx_DispErr => PhyRxDisp(1),
-            B_Rx_Valid   => PhyRxValid(1),
-            B_NoSignal   => NoSignal(1)
-        );
+    g_pa : for l in 0 to N_c-1 generate
+
+        i_pa : entity work.ofb_tb_pa_model
+            generic map (
+                Instance_g => l
+            )
+            port map (
+                Clk          => LaneClk,
+                A_Tx_Data    => PhyTxData(0)(32*l+31 downto 32*l),
+                A_Tx_K       => PhyTxK(0)(4*l+3 downto 4*l),
+                A_TxEnable   => TxEnable(0)(l),
+                A_RxEnable   => RxEnable(0)(l),
+                A_CdrEnable  => CdrEnable(0)(l),
+                A_RxInvert   => RxInvert(0)(l),
+                A_Rx_Data    => PhyRxData(0)(32*l+31 downto 32*l),
+                A_Rx_K       => PhyRxK(0)(4*l+3 downto 4*l),
+                A_Rx_CodeErr => PhyRxCode(0)(4*l+3 downto 4*l),
+                A_Rx_DispErr => PhyRxDisp(0)(4*l+3 downto 4*l),
+                A_Rx_Valid   => PhyRxValid(0)(l),
+                A_NoSignal   => NoSignal(0)(l),
+                B_Tx_Data    => PhyTxData(1)(32*l+31 downto 32*l),
+                B_Tx_K       => PhyTxK(1)(4*l+3 downto 4*l),
+                B_TxEnable   => TxEnable(1)(l),
+                B_RxEnable   => RxEnable(1)(l),
+                B_CdrEnable  => CdrEnable(1)(l),
+                B_RxInvert   => RxInvert(1)(l),
+                B_Rx_Data    => PhyRxData(1)(32*l+31 downto 32*l),
+                B_Rx_K       => PhyRxK(1)(4*l+3 downto 4*l),
+                B_Rx_CodeErr => PhyRxCode(1)(4*l+3 downto 4*l),
+                B_Rx_DispErr => PhyRxDisp(1)(4*l+3 downto 4*l),
+                B_Rx_Valid   => PhyRxValid(1)(l),
+                B_NoSignal   => NoSignal(1)(l)
+            );
+
+    end generate;
 
 end architecture;

@@ -30,7 +30,7 @@ Byte addresses, 32-bit registers. RO read only, RW read / write, W1 write one (c
 
 | Address | Name | Bits | Access | Reset | Content |
 | --- | --- | --- | --- | --- | --- |
-| 0x000 | ID | 31:0 | RO | 0x0FB10002 | OpenFibre, register map version 2 |
+| 0x000 | ID | 31:0 | RO | 0x0FB10003 | OpenFibre, register map version 3 |
 | 0x004 | GENERICS | 7:0, 11:8 | RO | | NumVc_g, NumLanes_g |
 | 0x008 | DL_CTRL | 0, 1, 8 | W1, W1, RW | 0, 0, 1 | LinkReset, InterfaceReset, DataScrambled |
 | 0x00C | DL_BC_INTERVAL | 15:0 | RW | 40 | Words per broadcast credit (4 / Normalised Expected Broadcast Bandwidth) |
@@ -45,13 +45,15 @@ Byte addresses, 32-bit registers. RO read only, RW read / write, W1 write one (c
 | 0x034 | VC_INPUT_OVERFLOW | NumVc-1:0 | W1C | 0 | Input buffer overflow per VC |
 | 0x038 | VC_CREDIT_OVERFLOW | NumVc-1:0 | W1C | 0 | FCT credit counter overflow per VC |
 | 0x03C | VC_FRAMING_ERROR | NumVc-1:0 | W1C | 0 | Framing error of the Network interface per VC |
-| 0x040 | ML_STATUS | 3:0, 7:4, 9:8 | RO | | Data-sending lanes, data-receiving lanes, alignment state |
+| 0x040 | ML_STATUS | 3:0, 7:4, 9:8, 10 | RO | | Data-sending lanes, data-receiving lanes, alignment state, bypass |
 | 0x044 | IRQ_MASK | 9:0, 19:16 | RW | 0 | Interrupt enable for DL_ERRORS bits 9:0 and LANE_EVENTS bits 3:0 of any lane |
 | 0x048 | VC_BW_OVER | NumVc-1:0 | W1C | 0 | Bandwidth over use per VC |
 | 0x04C | VC_BW_UNDER | NumVc-1:0 | W1C | 0 | Bandwidth under use per VC |
 | 0x050 | VC_IDLE_LIMIT | 31:0 | RW | 156250 | Virtual Channel Idle Time Limit in words (1 ms at 6.25 Gbit/s) |
 | 0x054 | SCHED_STATUS | 5:0 | RO | | Current time-slot |
-| 0x100 + 0x20 i | LANE_CTRL | 0, 1, 2, 3, 4, 15:8 | RW | 0, 1, 0, 0, 0, 0 | LaneStart, AutoStart, LaneReset, near-end parallel loopback, far-end parallel loopback, Standby Reason |
+| 0x058 | ML_CTRL | 2:0, 8 | RW | NumLanes_g, 0 | Maximum number of data-sending lanes (taken over at link reset), Multi-Lane bypass |
+| 0x05C | ML_MISALIGNED | 15:0 | RO, write clears | 0 | Misaligned conditions in Near-End Ready or Both-Ends Ready (saturating) |
+| 0x100 + 0x20 i | LANE_CTRL | 0, 1, 2, 3, 4, 5, 6, 15:8 | RW | 0, 1, 0, 0, 0, 1, 1, 0 | LaneStart, AutoStart, LaneReset, near-end parallel loopback, far-end parallel loopback, TxEn, RxEn, Standby Reason |
 | 0x104 + 0x20 i | LANE_STATUS | 3:0, 4, 5, 15:8, 23:16 | RO | | Lane state, RX polarity, NoSignal, RXERR counter, far-end capabilities |
 | 0x108 + 0x20 i | LANE_EVENTS | 3:0 | W1C | 0 | RXERR overflow, timeout, far-end standby, far-end lost signal |
 | 0x10C + 0x20 i | LANE_REASONS | 7:0, 15:8 | RO | | Far-end Standby Reason, far-end LOST_SIGNAL reason |

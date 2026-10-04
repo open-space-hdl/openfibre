@@ -8,7 +8,7 @@ an interrupt. It contains the crossings between the management clock and the clo
 
 | Block | Function | State |
 | --- | --- | --- |
-| MG-1 | Register file, AXI4-Lite access, configuration and status crossings | Complete for one lane |
+| MG-1 | Register file, AXI4-Lite access, configuration and status crossings | Complete for 1 to 4 lanes |
 | MG-2 | Sticky error flags, event counters, interrupt | Complete for the events of phase 2 |
 | MG-3 | EDAC monitor | Hardening phase |
 | MG-4 | Reset per clock domain | In `ofb_core` |
@@ -20,7 +20,8 @@ an interrupt. It contains the crossings between the management clock and the clo
 | --- | --- | --- |
 | MG-IF-01 | The configuration parameters of Table 5-36 for the Data Link, Multi-Lane, Lane and Physical layers shall be readable and writable through an AXI4-Lite slave. | 5.9.3a, b, 6.5 |
 | MG-IF-02 | The status parameters of Table 5-37 shall be readable through the AXI4-Lite slave. | 5.9.4a, b |
-| MG-CF-01 | The configuration parameters shall take the reset values of Table 5-36 on reset and on Interface Reset: DataScrambled set, Normalised Expected Broadcast Bandwidth 10 % (40 words per broadcast credit), LaneStart de-asserted, AutoStart asserted, LaneReset and parallel loopback de-asserted, Standby Reason 0. | 5.9.3c, 5.7.9.2b |
+| MG-CF-01 | The configuration parameters shall take the reset values of Table 5-36 on reset and on Interface Reset: DataScrambled set, Normalised Expected Broadcast Bandwidth 10 % (40 words per broadcast credit), LaneStart de-asserted, AutoStart asserted, LaneReset and parallel loopback de-asserted, Standby Reason 0, TxEn and RxEn asserted, maximum number of data-sending lanes `NumLanes_g`, Multi-Lane bypass de-asserted. | 5.9.3c, 5.7.9.2b, Table 5-36 |
+| MG-ML-01 | The Multi-Lane parameters TxEn and RxEn (per lane), the maximum number of data-sending lanes and the bypass shall be passed to the Multi-Lane layer (lane clock), the maximum number of data-sending lanes also to the Data Link layer (core clock); the bypass state and the Misaligned events (counted) of the Multi-Lane layer shall be readable. | 5.6.1p, q, 5.6.3a, Tables 5-36, 5-37 |
 | MG-CF-02 | Link Reset and Interface Reset shall be commands: a write of one sends one pulse to the Data Link layer. | 5.7.1j, Table 5-36 |
 | MG-ST-01 | Error events shall set sticky flags, cleared by writing one; the Link Reset command shall clear the status of the Data Link layer (sticky flags and counters). | 5.9.4d, e |
 | MG-ST-02 | The number of error recovery attempts shall be counted, and the CRC-16, CRC-8, frame and sequence errors and the lane timeouts in saturating counters; a write clears a counter. | 5.7.7.1k, l, Table 5-37 |

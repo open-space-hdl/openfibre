@@ -140,8 +140,11 @@ begin
                     v.K       := KCtrl_c;
                     v.SkipCnt := 0;
                 else
-                    Ready_v   := '1';
-                    v.SkipCnt := r.SkipCnt + 1;
+                    Ready_v := '1';
+                    -- The own interval only counts without the SKIP request of the Multi-Lane layer
+                    if not SkipExternal_g then
+                        v.SkipCnt := r.SkipCnt + 1;
+                    end if;
                     if In_Valid = '1' then
                         v.Data := In_Data;
                         v.K    := In_K;

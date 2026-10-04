@@ -7,7 +7,8 @@
 -- Description
 ---------------------------------------------------------------------------------------------------
 -- Error recovery buffer of the Data Link layer (DT-7, ECSS 5.7.7.1, 5.7.7.2.3, 5.7.7.2.4): holds
--- data segments, FCTs and broadcast messages from their admission until they are acknowledged,
+-- data segments (rows of NumLanes_g words), FCTs and broadcast messages from their admission until
+-- they are acknowledged,
 -- presents the next item of every kind for sending, processes ACKs and NACKs and requests the
 -- RETRY of an error recovery.
 --
@@ -32,10 +33,11 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_dl_erb is
     generic (
-        Words_g     : positive := 512; -- Data words (power of two)
-        DataItems_g : positive := 32;
-        FctItems_g  : positive := 16;
-        BcItems_g   : positive := 4
+        NumLanes_g  : positive range 1 to 4 := 1;
+        Rows_g      : positive              := 512; -- Data rows (power of two)
+        DataItems_g : positive              := 32;
+        FctItems_g  : positive              := 16;
+        BcItems_g   : positive              := 4
     );
     port (
         -- Control Ports
@@ -43,8 +45,8 @@ entity ofb_dl_erb is
         Rst              : in    std_logic;
         Ctrl_LinkReset   : in    std_logic;
         -- Admission of new items
-        WrData_Data      : in    Word_t;
-        WrData_K         : in    WordK_t;
+        WrData_Data      : in    std_logic_vector(32*NumLanes_g-1 downto 0);
+        WrData_K         : in    std_logic_vector(4*NumLanes_g-1 downto 0);
         WrData_Valid     : in    std_logic;
         WrData_Commit    : in    std_logic; -- The words written since the last commit form an item
         WrData_Vc        : in    std_logic_vector(4 downto 0);
@@ -58,7 +60,7 @@ entity ofb_dl_erb is
         WrBc_Delayed     : in    std_logic;
         WrBc_Late        : in    std_logic;
         -- Space
-        Data_FreeWords   : out   std_logic_vector(log2ceil(Words_g+1)-1 downto 0);
+        Data_FreeRows    : out   std_logic_vector(log2ceil(Rows_g+1)-1 downto 0);
         Data_ItemFree    : out   std_logic;
         Fct_ItemFree     : out   std_logic;
         Bc_ItemFree      : out   std_logic;
@@ -75,8 +77,8 @@ entity ofb_dl_erb is
         SndData_Valid    : out   std_logic;
         SndData_Vc       : out   std_logic_vector(4 downto 0);
         SndData_Len      : out   std_logic_vector(6 downto 0);
-        Pay_Data         : out   Word_t;
-        Pay_K            : out   WordK_t;
+        Pay_Data         : out   std_logic_vector(32*NumLanes_g-1 downto 0);
+        Pay_K            : out   std_logic_vector(4*NumLanes_g-1 downto 0);
         Pay_Valid        : out   std_logic;
         Pay_Ready        : in    std_logic;
         -- The next item of a kind was sent with a sequence number
@@ -103,8 +105,10 @@ end entity;
 ---------------------------------------------------------------------------------------------------
 architecture rtl of ofb_dl_erb is
 
-    constant AddrWidth_c : positive := log2ceil(Words_g);
+    constant AddrWidth_c : positive := log2ceil(Rows_g);
     constant LogDepth_c  : positive := 128;
+    constant N_c         : positive := NumLanes_g;
+    constant Width_c     : positive := 36 * N_c;
 
     type VcArray_t is array (natural range <>) of std_logic_vector(4 downto 0);
     type LenArray_t is array (natural range <>) of natural range 0 to MaxFrameWords_c;
@@ -121,12 +125,12 @@ architecture rtl of ofb_dl_erb is
         DHead      : natural range 0 to DataItems_g-1;
         DNum       : natural range 0 to DataItems_g;
         DSent      : natural range 0 to DataItems_g;
-        -- Data words
+        -- Data rows
         WrPtr      : unsigned(AddrWidth_c-1 downto 0);
         WrCnt      : natural range 0 to MaxFrameWords_c;
         FreePtr    : unsigned(AddrWidth_c-1 downto 0);
-        Used       : natural range 0 to Words_g;
-        -- Read-ahead of the data words
+        Used       : natural range 0 to Rows_g;
+        -- Read-ahead of the data rows
         RdPtr      : unsigned(AddrWidth_c-1 downto 0);
         FetchOff   : natural range 0 to DataItems_g;
         FetchLeft  : natural range 0 to MaxFrameWords_c;
@@ -170,14 +174,14 @@ architecture rtl of ofb_dl_erb is
     signal EvOutReady : std_logic;
 
     -- RAM and read-ahead FIFO
-    signal RamWrData  : std_logic_vector(35 downto 0);
+    signal RamWrData  : std_logic_vector(Width_c-1 downto 0);
     signal RamRdEna   : std_logic;
-    signal RamRdData  : std_logic_vector(35 downto 0);
+    signal RamRdData  : std_logic_vector(Width_c-1 downto 0);
     signal RamRdValid : std_logic;
     signal PfRst      : std_logic;
     signal PfInValid  : std_logic;
     signal PfLevel    : std_logic_vector(3 downto 0);
-    signal PfData     : std_logic_vector(35 downto 0);
+    signal PfData     : std_logic_vector(Width_c-1 downto 0);
     signal PfValid    : std_logic;
     signal PfReady    : std_logic;
 
@@ -191,8 +195,8 @@ architecture rtl of ofb_dl_erb is
 
 begin
 
-    assert 2**AddrWidth_c = Words_g
-        report "ofb_dl_erb: Words_g must be a power of two"
+    assert 2**AddrWidth_c = Rows_g
+        report "ofb_dl_erb: Rows_g must be a power of two"
         severity failure;
     assert DataItems_g + FctItems_g + BcItems_g <= 127
         report "ofb_dl_erb: at most 127 items can wait for acknowledgement"
@@ -240,9 +244,9 @@ begin
         Pop_v     := '0';
         RdEna_v   := '0';
 
-        -- Admission: data words, data item, FCT, broadcast message. The range checks are redundant
+        -- Admission: data rows, data item, FCT, broadcast message. The range checks are redundant
         -- (the admission checks the space) but keep transient delta-cycle values in range.
-        if WrData_Valid = '1' and r.Used < Words_g and r.WrCnt < MaxFrameWords_c then
+        if WrData_Valid = '1' and r.Used < Rows_g and r.WrCnt < MaxFrameWords_c then
             v.WrPtr := r.WrPtr + 1;
             v.WrCnt := r.WrCnt + 1;
             v.Used  := r.Used + 1;
@@ -355,7 +359,7 @@ begin
             -- coverage on
         end case;
 
-        -- Read-ahead of the data words of the items in send order. After a NACK it stops until the
+        -- Read-ahead of the data rows of the items in send order. After a NACK it stops until the
         -- RETRY is sent and all reads in flight have returned, then restarts at the oldest item.
         if r.RamRdValid = '1' then
             v.InFlight := r.InFlight - 1;
@@ -423,8 +427,8 @@ begin
             SndBc_Valid <= '1';
         end if;
         -- Space and status
-        Data_FreeWords <= std_logic_vector(to_unsigned(Words_g - r.Used, Data_FreeWords'length));
-        Data_ItemFree  <= '0';
+        Data_FreeRows <= std_logic_vector(to_unsigned(Rows_g - r.Used, Data_FreeRows'length));
+        Data_ItemFree <= '0';
         if r.DNum < DataItems_g then
             Data_ItemFree <= '1';
         end if;
@@ -437,7 +441,7 @@ begin
             Bc_ItemFree <= '1';
         end if;
         Stat_Full <= '0';
-        if r.Used = Words_g or r.DNum = DataItems_g or r.FNum = FctItems_g or r.BNum = BcItems_g then
+        if r.Used = Rows_g or r.DNum = DataItems_g or r.FNum = FctItems_g or r.BNum = BcItems_g then
             Stat_Full <= '1';
         end if;
         Stat_Empty <= '0';
@@ -490,14 +494,14 @@ begin
     end process;
 
     -----------------------------------------------------------------------------------------------
-    -- Data words: RAM and read-ahead FIFO
+    -- Data rows: RAM and read-ahead FIFO
     -----------------------------------------------------------------------------------------------
     RamWrData <= WrData_K & WrData_Data;
 
     i_ram : entity olo.olo_ft_ram_sdp
         generic map (
-            Depth_g => Words_g,
-            Width_g => 36
+            Depth_g => Rows_g,
+            Width_g => Width_c
         )
         port map (
             Clk      => Clk,
@@ -515,7 +519,7 @@ begin
 
     i_pf_fifo : entity olo.olo_base_fifo_sync
         generic map (
-            Width_g => 36,
+            Width_g => Width_c,
             Depth_g => 8
         )
         port map (
@@ -529,8 +533,8 @@ begin
             Out_Ready => PfReady
         );
 
-    Pay_Data  <= PfData(31 downto 0);
-    Pay_K     <= PfData(35 downto 32);
+    Pay_Data  <= PfData(32*N_c-1 downto 0);
+    Pay_K     <= PfData(36*N_c-1 downto 32*N_c);
     Pay_Valid <= PfValid and not r.Restart and not r.RetryReq;
     PfReady   <= Pay_Ready and not r.Restart and not r.RetryReq;
 

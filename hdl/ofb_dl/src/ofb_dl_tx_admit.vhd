@@ -7,8 +7,8 @@
 -- Description
 ---------------------------------------------------------------------------------------------------
 -- Admission of new items into the error recovery buffer (DT-4 and the admission part of DT-5):
--- medium access among the VCs with a data segment ready (round robin, phase 2), copy of the data
--- segment, broadcast messages and FCT requests (round robin, ECSS 5.7.3.2d).
+-- VC selected by the medium access controller, copy of the data segment (rows of NumLanes_g
+-- words), broadcast messages and FCT requests (round robin, ECSS 5.7.3.2d).
 --
 -- Documentation: hdl/ofb_dl/docs/architecture.md (section 3.3)
 
@@ -31,6 +31,7 @@ library work;
 entity ofb_dl_tx_admit is
     generic (
         NumVc_g        : positive range 1 to 32 := 8;
+        NumLanes_g     : positive range 1 to 4  := 1;
         FreeWidth_g    : positive               := 10
     );
     port (
@@ -41,16 +42,16 @@ entity ofb_dl_tx_admit is
         Cfg_FctMult    : in    std_logic_vector(2 downto 0);
         -- Output VC buffers
         Seg_Ready      : in    std_logic_vector(NumVc_g-1 downto 0);
-        Seg_Words      : in    std_logic_vector(7*NumVc_g-1 downto 0);
+        Seg_Rows       : in    std_logic_vector(7*NumVc_g-1 downto 0);
         Vc_Flushed     : in    std_logic_vector(NumVc_g-1 downto 0); -- Output VC buffer flushed (continuous mode)
         -- Medium access controller
         Mac_Grant      : in    std_logic_vector(NumVc_g-1 downto 0);
         Mac_GrantValid : in    std_logic;
         Ev_SegSent     : out   std_logic;
         SegSent_Vc     : out   std_logic_vector(4 downto 0);
-        SegSent_Words  : out   std_logic_vector(6 downto 0);
-        VcRd_Data      : in    std_logic_vector(32*NumVc_g-1 downto 0);
-        VcRd_K         : in    std_logic_vector(4*NumVc_g-1 downto 0);
+        SegSent_Rows   : out   std_logic_vector(6 downto 0);
+        VcRd_Data      : in    std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
+        VcRd_K         : in    std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
         VcRd_Valid     : in    std_logic_vector(NumVc_g-1 downto 0);
         VcRd_Ready     : out   std_logic_vector(NumVc_g-1 downto 0);
         -- Broadcast output buffer
@@ -66,8 +67,8 @@ entity ofb_dl_tx_admit is
         Fct_Req        : in    std_logic_vector(NumVc_g-1 downto 0);
         Fct_Ack        : out   std_logic_vector(NumVc_g-1 downto 0);
         -- Error recovery buffer
-        WrData_Data    : out   Word_t;
-        WrData_K       : out   WordK_t;
+        WrData_Data    : out   std_logic_vector(32*NumLanes_g-1 downto 0);
+        WrData_K       : out   std_logic_vector(4*NumLanes_g-1 downto 0);
         WrData_Valid   : out   std_logic;
         WrData_Commit  : out   std_logic;
         WrData_Vc      : out   std_logic_vector(4 downto 0);
@@ -80,7 +81,7 @@ entity ofb_dl_tx_admit is
         WrBc_Type      : out   Char_t;
         WrBc_Delayed   : out   std_logic;
         WrBc_Late      : out   std_logic;
-        Data_FreeWords : in    std_logic_vector(FreeWidth_g-1 downto 0);
+        Data_FreeRows  : in    std_logic_vector(FreeWidth_g-1 downto 0);
         Data_ItemFree  : in    std_logic;
         Fct_ItemFree   : in    std_logic;
         Bc_ItemFree    : in    std_logic;
@@ -93,7 +94,8 @@ end entity;
 ---------------------------------------------------------------------------------------------------
 architecture rtl of ofb_dl_tx_admit is
 
-    constant SettleCycles_c : natural := 3;
+    constant SettleCycles_c : natural  := 3;
+    constant N_c            : positive := NumLanes_g;
 
     signal Copying  : std_logic;
     signal CopyDone : natural range 0 to MaxFrameWords_c;
@@ -136,14 +138,14 @@ begin
     p_take : process (all) is
     begin
         SegTake <= '0';
-        if Copying = '0' and Settle = 0 and Data_ItemFree = '1' and unsigned(Data_FreeWords) /= 0 and SegValid = '1' then
+        if Copying = '0' and Settle = 0 and Data_ItemFree = '1' and unsigned(Data_FreeRows) /= 0 and SegValid = '1' then
             SegTake <= '1';
         end if;
     end process;
 
     p_copy : process (Clk) is
-        variable Vc_v    : natural range 0 to NumVc_g-1;
-        variable Words_v : natural;
+        variable Vc_v   : natural range 0 to NumVc_g-1;
+        variable Rows_v : natural;
     begin
         if rising_edge(Clk) then
             Ev_SegSent <= '0';
@@ -151,31 +153,31 @@ begin
                 Settle <= Settle - 1;
             end if;
             if SegTake = '1' then
-                Vc_v    := oneHotIdx(SegGrant);
-                Words_v := to_integer(unsigned(Seg_Words(7*Vc_v+6 downto 7*Vc_v)));
-                Words_v := minimum(Words_v, to_integer(unsigned(Data_FreeWords)));
-                if Words_v > 0 then
+                Vc_v   := oneHotIdx(SegGrant);
+                Rows_v := to_integer(unsigned(Seg_Rows(7*Vc_v+6 downto 7*Vc_v)));
+                Rows_v := minimum(Rows_v, to_integer(unsigned(Data_FreeRows)));
+                if Rows_v > 0 then
                     Copying  <= '1';
                     CopyVc   <= Vc_v;
-                    CopyLeft <= Words_v;
+                    CopyLeft <= Rows_v;
                     CopyDone <= 0;
                 end if;
             elsif Copying = '1' and Vc_Flushed(CopyVc) = '1' then
                 -- Buffer flushed in continuous mode: the words copied so far form the segment
-                Copying       <= '0';
-                Settle        <= SettleCycles_c;
-                Ev_SegSent    <= '1';
-                SegSent_Vc    <= std_logic_vector(to_unsigned(CopyVc, 5));
-                SegSent_Words <= std_logic_vector(to_unsigned(CopyDone, 7));
+                Copying      <= '0';
+                Settle       <= SettleCycles_c;
+                Ev_SegSent   <= '1';
+                SegSent_Vc   <= std_logic_vector(to_unsigned(CopyVc, 5));
+                SegSent_Rows <= std_logic_vector(to_unsigned(CopyDone, 7));
             elsif Copying = '1' and VcRd_Valid(CopyVc) = '1' then
                 CopyLeft <= CopyLeft - 1;
                 CopyDone <= CopyDone + 1;
                 if CopyLeft = 1 then
-                    Copying       <= '0';
-                    Settle        <= SettleCycles_c;
-                    Ev_SegSent    <= '1';
-                    SegSent_Vc    <= std_logic_vector(to_unsigned(CopyVc, 5));
-                    SegSent_Words <= std_logic_vector(to_unsigned(CopyDone + 1, 7));
+                    Copying      <= '0';
+                    Settle       <= SettleCycles_c;
+                    Ev_SegSent   <= '1';
+                    SegSent_Vc   <= std_logic_vector(to_unsigned(CopyVc, 5));
+                    SegSent_Rows <= std_logic_vector(to_unsigned(CopyDone + 1, 7));
                 end if;
             end if;
             if Rst = '1' or Ctrl_LinkReset = '1' then
@@ -191,8 +193,8 @@ begin
         VcRd_Ready    <= (others => '0');
         WrData_Valid  <= '0';
         WrData_Commit <= '0';
-        WrData_Data   <= VcRd_Data(32*CopyVc+31 downto 32*CopyVc);
-        WrData_K      <= VcRd_K(4*CopyVc+3 downto 4*CopyVc);
+        WrData_Data   <= VcRd_Data(32*N_c*(CopyVc+1)-1 downto 32*N_c*CopyVc);
+        WrData_K      <= VcRd_K(4*N_c*(CopyVc+1)-1 downto 4*N_c*CopyVc);
         WrData_Vc     <= std_logic_vector(to_unsigned(CopyVc, 5));
         if Copying = '1' and Vc_Flushed(CopyVc) = '1' then
             WrData_Commit <= '1';

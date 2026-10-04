@@ -38,7 +38,7 @@ entity ofb_dl is
         BcOutDepth_g     : positive               := 4;
         BcInDepth_g      : positive               := 4;
         FrameBufDepth_g  : positive               := 128;
-        ErbWords_g       : positive               := 512;
+        ErbRows_g        : positive               := 512;
         ErbDataItems_g   : positive               := 32;
         ErbFctItems_g    : positive               := 16;
         ErbBcItems_g     : positive               := 4;
@@ -54,12 +54,12 @@ entity ofb_dl is
         UserClk               : in    std_logic;
         UserRst               : in    std_logic;
         -- Virtual channels (UserClk)
-        TxVc_Data             : in    std_logic_vector(32*NumVc_g-1 downto 0);
-        TxVc_K                : in    std_logic_vector(4*NumVc_g-1 downto 0);
+        TxVc_Data             : in    std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
+        TxVc_K                : in    std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
         TxVc_Valid            : in    std_logic_vector(NumVc_g-1 downto 0);
         TxVc_Ready            : out   std_logic_vector(NumVc_g-1 downto 0);
-        RxVc_Data             : out   std_logic_vector(32*NumVc_g-1 downto 0);
-        RxVc_K                : out   std_logic_vector(4*NumVc_g-1 downto 0);
+        RxVc_Data             : out   std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
+        RxVc_K                : out   std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
         RxVc_Valid            : out   std_logic_vector(NumVc_g-1 downto 0);
         RxVc_Ready            : in    std_logic_vector(NumVc_g-1 downto 0);
         -- Broadcast messages (UserClk)
@@ -104,6 +104,7 @@ entity ofb_dl is
         Cfg_LinkReset         : in    std_logic                     := '0';
         Cfg_InterfaceReset    : in    std_logic                     := '0';
         Cfg_BcInterval        : in    std_logic_vector(15 downto 0) := x"0028";
+        Cfg_MaxDataLanes      : in    std_logic_vector(2 downto 0)  := "000"; -- 0: NumLanes_g
         -- Register writes of the MIB for the quality of service (core clock)
         Reg_Wr                : in    std_logic                     := '0';
         Reg_Addr              : in    std_logic_vector(11 downto 0) := (others => '0');
@@ -136,21 +137,26 @@ end entity;
 ---------------------------------------------------------------------------------------------------
 architecture rtl of ofb_dl is
 
-    constant FreeWidth_c : positive := log2ceil(ErbWords_g + 1);
+    constant FreeWidth_c : positive := log2ceil(ErbRows_g + 1);
+    constant N_c         : positive := NumLanes_g;
 
     -- Link reset, configuration reset
     signal LinkReset   : std_logic;
     signal ConfigReset : std_logic;
     signal LaneReset   : std_logic;
+    signal MaxLanes    : natural range 1 to NumLanes_g;
+    signal SegRowsCfg  : std_logic_vector(6 downto 0);
+    signal FrameWords  : std_logic_vector(8 downto 0);
+    signal FctMult     : std_logic_vector(2 downto 0);
     signal ResetFlag   : std_logic;
     signal ErrLinkRst  : std_logic;
     signal ProtErr     : std_logic;
 
     -- Output VC buffers
     signal SegReady  : std_logic_vector(NumVc_g-1 downto 0);
-    signal SegWords  : std_logic_vector(7*NumVc_g-1 downto 0);
-    signal VcRdData  : std_logic_vector(32*NumVc_g-1 downto 0);
-    signal VcRdK     : std_logic_vector(4*NumVc_g-1 downto 0);
+    signal SegRows   : std_logic_vector(7*NumVc_g-1 downto 0);
+    signal VcRdData  : std_logic_vector(32*N_c*NumVc_g-1 downto 0);
+    signal VcRdK     : std_logic_vector(4*N_c*NumVc_g-1 downto 0);
     signal VcRdValid : std_logic_vector(NumVc_g-1 downto 0);
     signal VcRdReady : std_logic_vector(NumVc_g-1 downto 0);
     signal VcEmpty   : std_logic_vector(NumVc_g-1 downto 0);
@@ -190,16 +196,17 @@ architecture rtl of ofb_dl is
     -- Input VC buffers
     signal FctReq      : std_logic_vector(NumVc_g-1 downto 0);
     signal FctAck      : std_logic_vector(NumVc_g-1 downto 0);
-    signal VcWrData    : Word_t;
-    signal VcWrK       : WordK_t;
+    signal VcWrData    : std_logic_vector(32*N_c-1 downto 0);
+    signal VcWrK       : std_logic_vector(4*N_c-1 downto 0);
+    signal VcWrMask    : std_logic_vector(N_c-1 downto 0);
     signal VcWrValid   : std_logic_vector(NumVc_g-1 downto 0);
     signal VcWrReady   : std_logic_vector(NumVc_g-1 downto 0);
     signal VcOverflow  : std_logic_vector(NumVc_g-1 downto 0);
     signal BufOverflow : std_logic;
 
     -- Error recovery buffer
-    signal WrDataData   : Word_t;
-    signal WrDataK      : WordK_t;
+    signal WrDataData   : std_logic_vector(32*N_c-1 downto 0);
+    signal WrDataK      : std_logic_vector(4*N_c-1 downto 0);
     signal WrDataValid  : std_logic;
     signal WrDataCommit : std_logic;
     signal WrDataVc     : std_logic_vector(4 downto 0);
@@ -212,7 +219,7 @@ architecture rtl of ofb_dl is
     signal WrBcType     : Char_t;
     signal WrBcDelayed  : std_logic;
     signal WrBcLate     : std_logic;
-    signal FreeWords    : std_logic_vector(FreeWidth_c-1 downto 0);
+    signal FreeRows     : std_logic_vector(FreeWidth_c-1 downto 0);
     signal DataItemFree : std_logic;
     signal FctItemFree  : std_logic;
     signal BcItemFree   : std_logic;
@@ -228,8 +235,8 @@ architecture rtl of ofb_dl is
     signal SndDataValid : std_logic;
     signal SndDataVc    : std_logic_vector(4 downto 0);
     signal SndDataLen   : std_logic_vector(6 downto 0);
-    signal PayData      : Word_t;
-    signal PayK         : WordK_t;
+    signal PayData      : std_logic_vector(32*N_c-1 downto 0);
+    signal PayK         : std_logic_vector(4*N_c-1 downto 0);
     signal PayValid     : std_logic;
     signal PayReady     : std_logic;
     signal SentValid    : std_logic;
@@ -249,8 +256,9 @@ architecture rtl of ofb_dl is
     -- Receive checks
     signal RxPolarity  : std_logic;
     signal RxSeqCount  : std_logic_vector(6 downto 0);
-    signal FrData      : Word_t;
-    signal FrK         : WordK_t;
+    signal FrData      : std_logic_vector(32*N_c-1 downto 0);
+    signal FrK         : std_logic_vector(4*N_c-1 downto 0);
+    signal FrMask      : std_logic_vector(N_c-1 downto 0);
     signal FrVc        : std_logic_vector(4 downto 0);
     signal FrValid     : std_logic;
     signal FrCommit    : std_logic;
@@ -273,10 +281,6 @@ architecture rtl of ofb_dl is
     signal RxError     : std_logic;
 
 begin
-
-    assert NumLanes_g = 1
-        report "ofb_dl: only NumLanes_g = 1 is implemented"
-        severity failure;
 
     -----------------------------------------------------------------------------------------------
     -- Link reset (DC-1)
@@ -301,8 +305,32 @@ begin
             Stat_State            => Stat_LinkResetState
         );
 
-    Ctrl_ConfigReset  <= ConfigReset;
-    Ml_LinkReset      <= LinkReset;
+    Ctrl_ConfigReset <= ConfigReset;
+    Ml_LinkReset     <= LinkReset;
+
+    -- Maximum number of data-sending lanes P, taken over while the link is reset (Table 5-36):
+    -- data segment and idle frame of 64 x P words, FCT multiplier M = P, frame length check
+    p_max_lanes : process (Clk) is
+        variable Max_v : natural range 0 to 7;
+    begin
+        if rising_edge(Clk) then
+            Max_v := to_integer(unsigned(Cfg_MaxDataLanes));
+            if LinkReset = '1' then
+                if Max_v = 0 or Max_v > N_c then
+                    MaxLanes <= N_c;
+                else
+                    MaxLanes <= Max_v;
+                end if;
+            end if;
+            if Rst = '1' then
+                MaxLanes <= N_c;
+            end if;
+        end if;
+    end process;
+
+    SegRowsCfg        <= std_logic_vector(to_unsigned(segmentRows(MaxLanes, N_c), 7));
+    FrameWords        <= std_logic_vector(to_unsigned(MaxFrameWords_c * MaxLanes, 9));
+    FctMult           <= std_logic_vector(to_unsigned(MaxLanes - 1, 3));
     Ml_LaneReset      <= LaneReset;
     Ml_NearCapability <= "00000" & Cfg_DataScrambled & '0' & ResetFlag;
 
@@ -317,14 +345,15 @@ begin
 
         i_vc_out : entity work.ofb_dl_vc_out
             generic map (
+                NumLanes_g    => N_c,
                 Depth_g       => VcOutDepth_g,
                 CreditWidth_g => CreditWidth_g
             )
             port map (
                 UserClk           => UserClk,
                 UserRst           => UserRst,
-                In_Data           => TxVc_Data(32*i+31 downto 32*i),
-                In_K              => TxVc_K(4*i+3 downto 4*i),
+                In_Data           => TxVc_Data(32*N_c*(i+1)-1 downto 32*N_c*i),
+                In_K              => TxVc_K(4*N_c*(i+1)-1 downto 4*N_c*i),
                 In_Valid          => TxVc_Valid(i),
                 In_Ready          => TxVc_Ready(i),
                 Cfg_Continuous    => CfgContinU(i),
@@ -332,12 +361,13 @@ begin
                 Clk               => Clk,
                 Rst               => Rst,
                 Ctrl_LinkReset    => LinkReset,
+                Cfg_SegRows       => SegRowsCfg,
                 Fct_Valid         => FctValid,
                 Fct_Mult          => FctRxMult,
                 Seg_Ready         => SegReady(i),
-                Seg_Words         => SegWords(7*i+6 downto 7*i),
-                Rd_Data           => VcRdData(32*i+31 downto 32*i),
-                Rd_K              => VcRdK(4*i+3 downto 4*i),
+                Seg_Rows          => SegRows(7*i+6 downto 7*i),
+                Rd_Data           => VcRdData(32*N_c*(i+1)-1 downto 32*N_c*i),
+                Rd_K              => VcRdK(4*N_c*(i+1)-1 downto 4*N_c*i),
                 Rd_Valid          => VcRdValid(i),
                 Rd_Ready          => VcRdReady(i),
                 Rd_Flushed        => VcFlushed(i),
@@ -503,21 +533,22 @@ begin
     i_admit : entity work.ofb_dl_tx_admit
         generic map (
             NumVc_g     => NumVc_g,
+            NumLanes_g  => N_c,
             FreeWidth_g => FreeWidth_c
         )
         port map (
             Clk            => Clk,
             Rst            => Rst,
             Ctrl_LinkReset => LinkReset,
-            Cfg_FctMult    => "000",
+            Cfg_FctMult    => FctMult,
             Seg_Ready      => SegReady,
-            Seg_Words      => SegWords,
+            Seg_Rows       => SegRows,
             Vc_Flushed     => VcFlushed,
             Mac_Grant      => MacGrant,
             Mac_GrantValid => MacValid,
             Ev_SegSent     => SegSent,
             SegSent_Vc     => SegSentVc,
-            SegSent_Words  => SegSentLen,
+            SegSent_Rows   => SegSentLen,
             VcRd_Data      => VcRdData,
             VcRd_K         => VcRdK,
             VcRd_Valid     => VcRdValid,
@@ -546,7 +577,7 @@ begin
             WrBc_Type      => WrBcType,
             WrBc_Delayed   => WrBcDelayed,
             WrBc_Late      => WrBcLate,
-            Data_FreeWords => FreeWords,
+            Data_FreeRows  => FreeRows,
             Data_ItemFree  => DataItemFree,
             Fct_ItemFree   => FctItemFree,
             Bc_ItemFree    => BcItemFree,
@@ -555,7 +586,8 @@ begin
 
     i_erb : entity work.ofb_dl_erb
         generic map (
-            Words_g     => ErbWords_g,
+            NumLanes_g  => N_c,
+            Rows_g      => ErbRows_g,
             DataItems_g => ErbDataItems_g,
             FctItems_g  => ErbFctItems_g,
             BcItems_g   => ErbBcItems_g
@@ -578,7 +610,7 @@ begin
             WrBc_Type        => WrBcType,
             WrBc_Delayed     => WrBcDelayed,
             WrBc_Late        => WrBcLate,
-            Data_FreeWords   => FreeWords,
+            Data_FreeRows    => FreeRows,
             Data_ItemFree    => DataItemFree,
             Fct_ItemFree     => FctItemFree,
             Bc_ItemFree      => BcItemFree,
@@ -615,6 +647,9 @@ begin
     TxIdle <= '1' when VcEmpty = (VcEmpty'range => '1') and FctReq = (FctReq'range => '0') and BcValid = '0' else '0';
 
     i_tx_frame : entity work.ofb_dl_tx_frame
+        generic map (
+            NumLanes_g => N_c
+        )
         port map (
             Clk             => Clk,
             Rst             => Rst,
@@ -648,8 +683,9 @@ begin
             RxSeqCount      => RxSeqCount,
             RxPolarity      => RxPolarity,
             Ev_RxError      => RxError,
-            TxRow_Data      => TxRow_Data(31 downto 0),
-            TxRow_K         => TxRow_K(3 downto 0),
+            TxRow_Data      => TxRow_Data,
+            TxRow_K         => TxRow_K,
+            TxRow_Mask      => TxRow_Mask,
             TxRow_Replicate => TxRow_Replicate,
             TxRow_Valid     => TxRow_Valid,
             TxRow_Ready     => TxRow_Ready,
@@ -659,7 +695,6 @@ begin
             Ev_Retry        => Ev_Retry
         );
 
-    TxRow_Mask       <= (others => '1');
     Ev_ProtocolError <= ProtErr;
     Stat_ErbEmpty    <= ErbEmpty;
 
@@ -667,18 +702,24 @@ begin
     -- Receive checks (DR-1, DR-2, DR-4) and receive error state machine (DR-3)
     -----------------------------------------------------------------------------------------------
     i_rx_check : entity work.ofb_dl_rx_check
+        generic map (
+            NumLanes_g => N_c
+        )
         port map (
             Clk            => Clk,
             Rst            => Rst,
             Ctrl_LinkReset => LinkReset,
-            In_Data        => RxRow_Data(31 downto 0),
-            In_K           => RxRow_K(3 downto 0),
+            In_Data        => RxRow_Data,
+            In_K           => RxRow_K,
+            In_Mask        => RxRow_Mask,
             In_CrcErr      => RxRow_CrcErr,
             In_Valid       => RxRow_Valid,
+            Cfg_FrameWords => FrameWords,
             RxPolarity     => RxPolarity,
             RxSeqCount     => RxSeqCount,
             Fr_Data        => FrData,
             Fr_K           => FrK,
+            Fr_Mask        => FrMask,
             Fr_Vc          => FrVc,
             Fr_Valid       => FrValid,
             Fr_Commit      => FrCommit,
@@ -727,8 +768,9 @@ begin
     -----------------------------------------------------------------------------------------------
     i_rx_buf : entity work.ofb_dl_rx_buf
         generic map (
-            NumVc_g => NumVc_g,
-            Depth_g => FrameBufDepth_g
+            NumVc_g    => NumVc_g,
+            NumLanes_g => N_c,
+            Depth_g    => FrameBufDepth_g
         )
         port map (
             Clk            => Clk,
@@ -736,12 +778,14 @@ begin
             Ctrl_LinkReset => LinkReset,
             Fr_Data        => FrData,
             Fr_K           => FrK,
+            Fr_Mask        => FrMask,
             Fr_Vc          => FrVc,
             Fr_Valid       => FrValid,
             Fr_Commit      => FrCommit,
             Fr_Drop        => FrDrop,
             Vc_Data        => VcWrData,
             Vc_K           => VcWrK,
+            Vc_Mask        => VcWrMask,
             Vc_Valid       => VcWrValid,
             Vc_Ready       => VcWrReady,
             Ev_VcOverflow  => VcOverflow,
@@ -754,22 +798,25 @@ begin
 
         i_vc_in : entity work.ofb_dl_vc_in
             generic map (
-                Depth_g => VcInDepth_g
+                NumLanes_g => N_c,
+                Depth_g    => VcInDepth_g
             )
             port map (
                 Clk            => Clk,
                 Rst            => Rst,
                 Ctrl_LinkReset => LinkReset,
+                Cfg_FctMult    => FctMult,
                 In_Data        => VcWrData,
                 In_K           => VcWrK,
+                In_Mask        => VcWrMask,
                 In_Valid       => VcWrValid(i),
                 In_Ready       => VcWrReady(i),
                 Fct_Req        => FctReq(i),
                 Fct_Ack        => FctAck(i),
                 UserClk        => UserClk,
                 UserRst        => UserRst,
-                Out_Data       => RxVc_Data(32*i+31 downto 32*i),
-                Out_K          => RxVc_K(4*i+3 downto 4*i),
+                Out_Data       => RxVc_Data(32*N_c*(i+1)-1 downto 32*N_c*i),
+                Out_K          => RxVc_K(4*N_c*(i+1)-1 downto 4*N_c*i),
                 Out_Valid      => RxVc_Valid(i),
                 Out_Ready      => RxVc_Ready(i)
             );

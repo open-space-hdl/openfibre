@@ -31,22 +31,27 @@ All blocks except the user side of the four buffer kinds run on `Clk` with the s
 - Sequence number helpers: `seqCount`, `seqPol`, modulo-128 difference `seqDiff`.
 - `crc8Chars(crc, word, n)`: CRC-8 over the first n characters of a word (running CRC of broadcast frames).
 - `wordHasEnd(data, k)`: the word contains an EOP or EEP; `wordLastIsEnd(data, k)`: character 3 is EOP, EEP or Fill.
+- Rows: `rowWord`, `rowKflags` (word i of a row), `countMask` (words of a mask), `segmentRows(P, N)` (64 x P / N rows),
+  `WordFill_c` (a word of four Fills).
 
 ## 3. Sub-block descriptions
 
 ### 3.1 ofb_dl_vc_out (DT-1, DT-2), one per VC
 
-- Buffer: `olo_ft_fifo_async` (36 bits: data and K flags, `VcOutDepth_g` words), `UserClk` to `Clk`.
+- Buffer: `olo_ft_fifo_async` (36 x N bits: a beat of N words with K flags, `VcOutDepth_g` beats), `UserClk` to
+  `Clk`. A beat is a data row (section 3.13).
 - Link reset: the read side resets the FIFO (`Out_Rst`); the reset reaches the user side as `In_RstOut`. The user side
-  then enters spill mode when the last word written did not end with EOP, EEP or Fill (character 3): words are accepted
-  and discarded up to and including the next word with an EOP or EEP.
-- End-of-packet count: the user side counts words with an EOP or EEP in a Gray-coded counter, which crosses with
-  `olo_ft_cc_bits`; the read side counts the words it reads. A difference not equal to zero means that the buffer holds
+  then enters spill mode when the last character written (character 3 of the last word of the beat) was not EOP, EEP or
+  Fill: the words up to and including the next word with an EOP or EEP are replaced by Fill words, and a beat of such
+  words only is accepted and discarded.
+- End-of-packet count: the user side counts beats with an EOP or EEP in a Gray-coded counter, which crosses with
+  `olo_ft_cc_bits`; the read side counts the beats it reads. A difference not equal to zero means that the buffer holds
   an EOP or EEP. The crossed value lags, so the read side never sees an EOP that is not yet in the buffer.
-- Credit: `Credit` (`CreditWidth_g` bits) + (M x 64) per received FCT (`Fct_Valid`), - 1 per word read; overflow sets
-  the counter to its maximum and pulses `Ev_CreditOverflow`; cleared on link reset.
-- Segment: `Seg_Ready = Credit > 0 and Level > 0 and (Level >= 64 or Eop or Full)`,
-  `Seg_Words = min(Level, 64, Credit)` (`Level` is the read-side level of the FIFO, which never exceeds the true level).
+- Credit in words: `Credit` (`CreditWidth_g` bits) + (M x 64) per received FCT (`Fct_Valid`), - N per row read;
+  overflow sets the counter to its maximum and pulses `Ev_CreditOverflow`; cleared on link reset.
+- Segment in rows: `Seg_Ready = Credit >= N and Level > 0 and (Level >= Cfg_SegRows or Eop or Full)`,
+  `Seg_Rows = min(Level, Cfg_SegRows, Credit / N)` (`Level` is the read-side level of the FIFO, which never exceeds the
+  true level; `Cfg_SegRows` = 64 x P / N).
 - Continuous mode (user side, `Cfg_Continuous`): when a word arrives while the buffer has at most one free entry, or no
   lane is active (`Ctrl_LaneActive`, crossed to the user clock) while the buffer holds words other than its own EEP,
   the buffer is reset from the user side, an EEP word (EEP, Fill, Fill, Fill) is written after the reset, and when the
@@ -86,7 +91,7 @@ waiting to be sent or resent.
 | --- | --- | --- |
 | Broadcast (`ErbBcItems_g`) | Data, channel, B_TYPE, DELAYED, LATE, sent-once flag | In the entry |
 | FCT (`ErbFctItems_g`) | VC, multiplier | In the entry |
-| Data (`ErbDataItems_g`) | VC, length | Ring of `ErbWords_g` words in `olo_ft_ram_sdp` |
+| Data (`ErbDataItems_g`) | VC, length in rows | Ring of `ErbRows_g` rows in `olo_ft_ram_sdp` |
 
 - Send-order log: a circular list of the kinds of the sent items in sequence-number order (at most 127 entries). An
   item sent by `ofb_dl_tx_frame` (`Sent_Valid`, `Sent_Kind`) advances `Send` of its queue and appends its kind.
@@ -155,20 +160,27 @@ request (the newer replaces the older).
 
 ### 3.8 ofb_dl_rx_buf (DR-5)
 
-The last data word of the current frame is held in a register, so that it can be written with `Last` once the frame
-ends: on the next data word it is written as a normal word, on commit with `Last`, on drop with `Last` and `In_Drop`.
-The frame buffer is an `olo_ft_fifo_packet` (41 bits: data, K, VC; 128 words): only committed frames reach its output.
-The output is distributed to the input VC buffer of the VC stored with every word; a word for a full input VC buffer is
-an overflow (`Ev_Overflow` per VC).
+The last data row of the current frame is held in a register, so that it can be written with `Last` once the frame
+ends: on the next data row it is written as a normal row, on commit with `Last`, on drop with `Last` and `In_Drop`.
+The frame buffer is an `olo_ft_fifo_packet` (37 x N + 5 bits: data, K, word mask, VC; `FrameBufDepth_g` rows): only
+committed frames reach its output. The output is distributed to the input VC buffer of the VC stored with every row;
+a row for a full input VC buffer is an overflow (`Ev_Overflow` per VC).
 
 ### 3.9 ofb_dl_vc_in (DR-6), one per VC
 
-- Buffer: `olo_ft_fifo_async` (36 bits, `VcInDepth_g` words), `Clk` to `UserClk`; link reset resets it from the write
-  side.
-- FCT requests: a counter of FCTs to send, set to `VcInDepth_g / 64` on link reset, + 1 for every 64 words read by the
-  Network layer (pulse through `olo_ft_cc_pulse`), - 1 for every FCT admitted.
-- User side after link reset: when the last word read did not end with EOP, EEP or Fill, a word EEP, Fill, Fill, Fill is
-  read first.
+- Buffer: N banks, each an `olo_ft_fifo_async` (36 bits, `VcInDepth_g / N` words), `Clk` to `UserClk`; link reset
+  resets them from the write side. The words of a received row (1 to N words, mask) are written to the banks in turn,
+  starting at the bank `WrBank` that follows the last word written, so that the buffer holds the words without gaps:
+  an FCT of M x 64 words is exactly M x 64 words of space, however the far end packed its rows.
+- Read side: beats of N words from the banks in turn, starting at `RdBank`. A beat is offered when N words are
+  available or a word with an EOP or EEP is among the available words; it then ends with that word and the rest of the
+  beat is Fill words (DL-RW-06). All banks have the same crossing latency, so the available words are contiguous from
+  `RdBank`.
+- FCT requests: a counter of free blocks of 64 words, set to `VcInDepth_g / 64` on link reset, + 1 for every 64 words
+  read by the Network layer (pulse through `ofb_cc_pulse`), - M for every FCT admitted; an FCT is requested while at
+  least M blocks are free (M = `Cfg_FctMult` + 1).
+- User side after link reset: when the last character read was not EOP, EEP or Fill, a beat EEP, Fill, ... is read
+  first.
 
 ### 3.10 ofb_dl_bc_in (DR-7)
 
@@ -210,21 +222,36 @@ set the reset values of DL-QS-07.
 - Current time-slot: SCHEDULE.request of the Network layer (crossed with a small FIFO); with `ScheduleBcType_g` >= 0
   also data byte 0 of received broadcast messages of that type.
 
+### 3.13 Rows of several words (phase 4)
+
+| Block | Row handling |
+| --- | --- |
+| Top level | `MaxLanes` (P): `Cfg_MaxDataLanes` (1 to N, other values N) taken over while `LinkReset` is asserted. Derived: `SegRowsCfg` = 64 x P / N rows, `FrameWords` = 64 x P words, `FctMult` = P - 1 |
+| `ofb_dl_vc_out` | Beats of N words are data rows; credit in words, segment in rows (section 3.1) |
+| `ofb_dl_tx_admit` | Copies `Seg_Rows` rows (at most the free rows of the error recovery buffer); the medium access controller counts rows |
+| `ofb_dl_erb` | RAM of `ErbRows_g` rows of 36 x N bits, item lengths in rows |
+| `ofb_dl_tx_frame` | A payload row is sent as a data row (`TxRow_Mask` all ones, `TxRow_Replicate` 0); every other word (SDF, EDF, control words, broadcast and idle words) is word 0 of a replicated row (`TxRow_Mask` = 0..01) |
+| `ofb_dl_rx_check` | Word 0 identifies the row. A data row in RxDataFrame adds the words of its mask to the frame length, which may not exceed `FrameWords`; the row goes with its mask to the frame buffer. In a broadcast frame word 0 is the broadcast word |
+| `ofb_dl_rx_buf` | Rows with mask (section 3.8) |
+| `ofb_dl_vc_in` | Banked word buffer, beats to the user (section 3.9) |
+
+The units of the medium access controller (words sent, segment lengths) are rows; the bandwidth fractions are ratios
+of rows and stay correct for every number of data-sending lanes.
+
 ## 4. Top-level ports (`ofb_dl`)
 
 | Group | Ports |
 | --- | --- |
 | Clocks | `Clk`, `Rst`, `UserClk`, `UserRst` |
-| VC ports (`UserClk`) | `TxVc_Data` (32 x NumVc), `TxVc_K` (4 x NumVc), `TxVc_Valid`, `TxVc_Ready`; `RxVc_Data`, `RxVc_K`, `RxVc_Valid`, `RxVc_Ready` |
+| VC ports (`UserClk`) | `TxVc_Data` (32 x N x NumVc), `TxVc_K` (4 x N x NumVc), `TxVc_Valid`, `TxVc_Ready`; `RxVc_Data`, `RxVc_K`, `RxVc_Valid`, `RxVc_Ready` (beats of N words per VC) |
 | Broadcast (`UserClk`) | `TxBc_Data` (64), `TxBc_Channel`, `TxBc_Type`, `TxBc_Delayed`, `TxBc_Valid`, `TxBc_Ready`; `RxBc_Data`, `RxBc_Channel`, `RxBc_Type`, `RxBc_Delayed`, `RxBc_Late`, `RxBc_Valid`, `RxBc_Ready` |
 | Multi-Lane layer | `TxRow_*`, `RxRow_*` (section 2.1 of the `ofb_multilane` architecture), `Ml_LinkReset`, `Ml_LaneReset`, `Ml_NearCapability`, `Ml_FarCapability`, `Ml_FarCapabilityValid`, `Ml_FarCapabilityIdle`, `Ml_LaneActive` |
-| Configuration | `Cfg_DataScrambled`, `Cfg_LinkReset`, `Cfg_InterfaceReset`, `Cfg_BcInterval`; QoS register writes `Reg_Wr`, `Reg_Addr`, `Reg_Data` (core clock) |
+| Configuration | `Cfg_DataScrambled`, `Cfg_LinkReset`, `Cfg_InterfaceReset`, `Cfg_BcInterval`, `Cfg_MaxDataLanes`; QoS register writes `Reg_Wr`, `Reg_Addr`, `Reg_Data` (core clock) |
 | Schedule (`UserClk`) | `Sched_TimeSlot`, `Sched_Valid` (SCHEDULE.request) |
 | Status | `Stat_*` levels and `Ev_*` events of DL-ST-01; `Stat_BwOver`, `Stat_BwUnder` per VC, `Stat_TimeSlot` |
 
 ## 5. Open points
 
-- Phase 4: rows of more than one word.
 - The selection tree of `ofb_dl_mac` has five comparison levels in one cycle; timing is checked in the hardening phase.
 - The data payload RAM is `olo_ft_ram_sdp`; the scrubbing variant is introduced with the hardening phase.
 - The item entries of the error recovery buffer are registers (small), not `olo_ft_ram_sdp` as foreseen in the core

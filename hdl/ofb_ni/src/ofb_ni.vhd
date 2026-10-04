@@ -25,20 +25,21 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_ni is
     generic (
-        NumVc_g : positive range 1 to 32 := 8
+        NumVc_g    : positive range 1 to 32 := 8;
+        NumLanes_g : positive range 1 to 4  := 1 -- Words per beat of the VC ports
     );
     port (
         -- Control Ports (user clock)
         Clk           : in    std_logic;
         Rst           : in    std_logic;
         -- User: words to send per VC (TUSER: K flag per character)
-        S_Vc_TData    : in    std_logic_vector(32*NumVc_g-1 downto 0);
-        S_Vc_TUser    : in    std_logic_vector(4*NumVc_g-1 downto 0);
+        S_Vc_TData    : in    std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
+        S_Vc_TUser    : in    std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
         S_Vc_TValid   : in    std_logic_vector(NumVc_g-1 downto 0);
         S_Vc_TReady   : out   std_logic_vector(NumVc_g-1 downto 0);
         -- User: received words per VC
-        M_Vc_TData    : out   std_logic_vector(32*NumVc_g-1 downto 0);
-        M_Vc_TUser    : out   std_logic_vector(4*NumVc_g-1 downto 0);
+        M_Vc_TData    : out   std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
+        M_Vc_TUser    : out   std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
         M_Vc_TValid   : out   std_logic_vector(NumVc_g-1 downto 0);
         M_Vc_TReady   : in    std_logic_vector(NumVc_g-1 downto 0);
         -- User: broadcast messages to send (TUSER: channel 7:0, B_TYPE 15:8, DELAYED 16)
@@ -55,12 +56,12 @@ entity ofb_ni is
         S_Sched_Slot  : in    std_logic_vector(5 downto 0) := (others => '0');
         S_Sched_Valid : in    std_logic                    := '0';
         -- Data Link layer
-        TxVc_Data     : out   std_logic_vector(32*NumVc_g-1 downto 0);
-        TxVc_K        : out   std_logic_vector(4*NumVc_g-1 downto 0);
+        TxVc_Data     : out   std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
+        TxVc_K        : out   std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
         TxVc_Valid    : out   std_logic_vector(NumVc_g-1 downto 0);
         TxVc_Ready    : in    std_logic_vector(NumVc_g-1 downto 0);
-        RxVc_Data     : in    std_logic_vector(32*NumVc_g-1 downto 0);
-        RxVc_K        : in    std_logic_vector(4*NumVc_g-1 downto 0);
+        RxVc_Data     : in    std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
+        RxVc_K        : in    std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
         RxVc_Valid    : in    std_logic_vector(NumVc_g-1 downto 0);
         RxVc_Ready    : out   std_logic_vector(NumVc_g-1 downto 0);
         TxBc_Data     : out   std_logic_vector(63 downto 0);
@@ -94,15 +95,18 @@ begin
     g_vc : for i in 0 to NumVc_g-1 generate
 
         i_vc : entity work.ofb_ni_vc
+            generic map (
+                NumLanes_g => NumLanes_g
+            )
             port map (
                 Clk         => Clk,
                 Rst         => Rst,
-                In_Data     => S_Vc_TData(32*i+31 downto 32*i),
-                In_K        => S_Vc_TUser(4*i+3 downto 4*i),
+                In_Data     => S_Vc_TData(32*NumLanes_g*(i+1)-1 downto 32*NumLanes_g*i),
+                In_K        => S_Vc_TUser(4*NumLanes_g*(i+1)-1 downto 4*NumLanes_g*i),
                 In_Valid    => S_Vc_TValid(i),
                 In_Ready    => S_Vc_TReady(i),
-                Out_Data    => TxVc_Data(32*i+31 downto 32*i),
-                Out_K       => TxVc_K(4*i+3 downto 4*i),
+                Out_Data    => TxVc_Data(32*NumLanes_g*(i+1)-1 downto 32*NumLanes_g*i),
+                Out_K       => TxVc_K(4*NumLanes_g*(i+1)-1 downto 4*NumLanes_g*i),
                 Out_Valid   => TxVc_Valid(i),
                 Out_Ready   => TxVc_Ready(i),
                 Ev_FrameErr => Ev_FrameErr(i)

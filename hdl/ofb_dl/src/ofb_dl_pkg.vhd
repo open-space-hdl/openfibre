@@ -75,6 +75,26 @@ package ofb_dl_pkg is
         data : in Word_t;
         k    : in WordK_t) return boolean;
 
+    -- Word of four Fills, K flags all set
+    constant WordFill_c : Word_t := CharFill_c & CharFill_c & CharFill_c & CharFill_c;
+
+    -- A word of a row (index i, row of n words)
+    function rowWord (
+        data : in std_logic_vector;
+        i    : in natural) return Word_t;
+
+    function rowKflags (
+        k : in std_logic_vector;
+        i : in natural) return WordK_t;
+
+    -- Number of set bits of a word mask
+    function countMask (mask : in std_logic_vector) return natural;
+
+    -- Data segment and idle frame size in rows of n words for P data-sending lanes: 64 x P words
+    function segmentRows (
+        p : in natural;
+        n : in positive) return natural;
+
 end package;
 
 ---------------------------------------------------------------------------------------------------
@@ -174,6 +194,45 @@ package body ofb_dl_pkg is
     begin
         Char3_v := data(31 downto 24);
         return k(3) = '1' and (Char3_v = CharEop_c or Char3_v = CharEep_c or Char3_v = CharFill_c);
+    end function;
+
+    function rowWord (
+        data : in std_logic_vector;
+        i    : in natural) return Word_t is
+        variable Data_v : std_logic_vector(data'length-1 downto 0);
+    begin
+        Data_v := data;
+        return Data_v(32*i+31 downto 32*i);
+    end function;
+
+    function rowKflags (
+        k : in std_logic_vector;
+        i : in natural) return WordK_t is
+        variable K_v : std_logic_vector(k'length-1 downto 0);
+    begin
+        K_v := k;
+        return K_v(4*i+3 downto 4*i);
+    end function;
+
+    function countMask (mask : in std_logic_vector) return natural is
+        variable Cnt_v : natural;
+    begin
+        Cnt_v := 0;
+
+        for i in mask'range loop
+            if mask(i) = '1' then
+                Cnt_v := Cnt_v + 1;
+            end if;
+        end loop;
+
+        return Cnt_v;
+    end function;
+
+    function segmentRows (
+        p : in natural;
+        n : in positive) return natural is
+    begin
+        return (MaxFrameWords_c * p) / n;
     end function;
 
 end package body;

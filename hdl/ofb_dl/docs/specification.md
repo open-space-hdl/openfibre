@@ -22,9 +22,10 @@ The module consists of the blocks of the architecture (sections 7.2 and 7.3):
 | DC-1 | `ofb_dl_link_reset` | Link reset state machine |
 | DC-2 | in `ofb_dl` | Status and event outputs for the MIB |
 
-This issue covers phases 2 and 3 of the roadmap: one lane (`NumLanes_g = 1`, rows of one word, FCT multiplier and
-data segment multiplier 1), up to 32 virtual channels, the quality of service of ECSS 5.7.4 (priority, bandwidth
-reservation, schedule; section 2.13) and the continuous mode.
+This issue covers phases 2 to 4 of the roadmap: up to 32 virtual channels, the quality of service of ECSS 5.7.4
+(priority, bandwidth reservation, schedule; section 2.13), the continuous mode, and rows of `NumLanes_g` words for a
+Multi-Lane layer with 1 to 4 lanes (section 2.14). With `NumLanes_g = 1` a row is one word and the FCT multiplier
+and the data segment multiplier are 1.
 
 Clock domains: the user side of the VC and broadcast buffers runs on `UserClk`, everything else on `Clk` (the core
 clock). The rows to and from the Multi-Lane layer are on `Clk`; the crossing to the lane clock is in the core top
@@ -36,7 +37,7 @@ level.
 
 | ID | Requirement | ECSS |
 | --- | --- | --- |
-| DL-IF-01 | For every VC the Data Link layer shall accept words of four N-Chars or Fills (32 bits, one K flag per character) from the Network layer with a valid / ready handshake on `UserClk`, and pass received words to the Network layer with a valid / ready handshake. | 5.7.1b, c, 5.7.2.1 |
+| DL-IF-01 | For every VC the Data Link layer shall accept beats of `NumLanes_g` words of four N-Chars or Fills (32 bits per word, one K flag per character, word 0 first) from the Network layer with a valid / ready handshake on `UserClk`, and pass received beats to the Network layer with a valid / ready handshake. | 5.7.1b, c, 5.7.2.1 |
 | DL-IF-02 | The Data Link layer shall accept broadcast messages (8 data bytes, broadcast channel, B_TYPE, DELAYED flag) with a valid / ready handshake and pass received broadcast messages (with DELAYED and LATE flags) with a valid strobe on `UserClk`. | 5.7.1b, c, 5.3.8.4 |
 | DL-IF-03 | The Data Link layer shall pass rows to the Multi-Lane layer with a valid / ready handshake and receive rows with a valid strobe and a CRC-16 error flag, as defined by the interface of `ofb_multilane`. | 5.7.1e, f |
 | DL-IF-04 | The Data Link layer shall drive link reset, LaneReset and the near-end capability (INIT3LinkResetFlag, DataScrambled) of the Multi-Lane layer, and use its far-end capability event and its lane active indication. | 5.7.1g to i |
@@ -46,10 +47,10 @@ level.
 
 | ID | Requirement | ECSS |
 | --- | --- | --- |
-| DL-VO-01 | Every VC shall have an output VC buffer of `VcOutDepth_g` words (at least 64 words, 256 N-Chars), which accepts words while it is not full and keeps their order. | 5.7.2.2a to f |
+| DL-VO-01 | Every VC shall have an output VC buffer of `VcOutDepth_g` beats (at least 64 words, 256 N-Chars), which accepts beats while it is not full and keeps their order. | 5.7.2.2a to f |
 | DL-VO-02 | On link reset the output VC buffer shall be flushed; if the last character written by the Network layer was not an EOP, EEP or Fill, all new words shall be discarded up to and including the next word with an EOP or EEP. | 5.7.2.2g, 5.7.10a.1 to 3 |
-| DL-VO-03 | The output VC buffer shall indicate a data segment ready when its FCT credit counter is greater than zero and it contains 64 words, a word with an EOP or EEP, or is full. | 5.7.3.1b |
-| DL-VO-04 | A data segment shall have at most `min(64, credit, words in the buffer, free words of the error recovery buffer)` words, so that the input VC buffer at the far end has room for it. | 5.7.3.1d, 5.7.4.1c, 5.3.8.2c |
+| DL-VO-03 | The output VC buffer shall indicate a data segment ready when its FCT credit counter allows at least one row and it contains a full segment, a word with an EOP or EEP, or is full. | 5.7.3.1b |
+| DL-VO-04 | A data segment shall have at most `min(segment size, credit, words in the buffer, free space of the error recovery buffer)` words in whole rows, the segment size being 64 x P words (DL-RW-03), so that the input VC buffer at the far end has room for it. | 5.7.3.1d, 5.7.4.1c, 5.3.8.2c |
 | DL-CR-01 | Every VC shall have an FCT credit counter of `CreditWidth_g` bits (at least four FCTs) that is increased by M x 64 words for every received FCT of the VC, decreased by the words sent, set to zero on link reset and not changed on LaneReset. | 5.7.3.1a, e to h, j, k |
 | DL-CR-02 | An FCT that would overflow the credit counter shall leave it unchanged at its maximum value and raise the credit overflow status of the VC. | 5.7.3.1i |
 
@@ -127,8 +128,8 @@ level.
 
 | ID | Requirement | ECSS |
 | --- | --- | --- |
-| DL-VI-01 | Every VC shall have an input VC buffer of `VcInDepth_g` words (at least 64 words) on `UserClk`, which keeps the order of the received N-Chars and Fills. | 5.7.2.3a, b, 5.3.7.2d |
-| DL-VI-02 | After link reset an input VC buffer shall request one FCT for every 64 words of space, and one further FCT every time the Network layer has read 64 words; FCT requests of several VCs shall be served in round-robin order. | 5.7.3.2b to d |
+| DL-VI-01 | Every VC shall have an input VC buffer of `VcInDepth_g` words (at least 64 x `NumLanes_g` words) on `UserClk`, which stores the received words without gaps and keeps the order of the received N-Chars and Fills. | 5.7.2.3a, b, 5.3.7.2d |
+| DL-VI-02 | After link reset an input VC buffer shall request one FCT (multiplier M = P, DL-RW-03) for every M x 64 words of space, and one further FCT every time the Network layer has read M x 64 words; FCT requests of several VCs shall be served in round-robin order. | 5.7.3.2b to d |
 | DL-VI-03 | A word received for a full input VC buffer is an overflow: the link shall be reset and the input buffer overflow status of the VC raised. | 5.7.3.2e |
 | DL-VI-04 | On link reset the input VC buffers shall be flushed; if the last character read by the Network layer was not an EOP, EEP or Fill, an EEP shall be the next character read. | 5.7.2.3d, 5.7.10a.4 to 7 |
 | DL-BI-01 | Accepted broadcast messages shall be passed to the Network layer through a broadcast input buffer of `BcInDepth_g` messages; a message that finds the buffer full shall be discarded and counted. | 5.7.6.7c |
@@ -161,6 +162,19 @@ level.
 | DL-QS-07 | On Interface Reset: priority lowest, factor of VC0 for 10 % (10.0), of the other VCs the minimum bandwidth (factor 0xFFFF), all time-slots allocated, bandwidth credits zero. | 5.7.4.5q, r, 5.7.4.6h, Table 5-36 |
 | DL-CM-01 | In continuous mode (per VC), when the output VC buffer is about to become full or no lane is active while the buffer is not empty, the buffer shall be flushed, an EEP placed in it, and the rest of an incomplete packet discarded up to and including its EOP or EEP; the VC then accepts words without back-pressure. | 5.7.2.2h, i |
 
+### 2.14 Rows of several words (phase 4)
+
+`N` is `NumLanes_g`. A row is the unit of the transmit and receive row streams of the Multi-Lane layer (DL-IF-03).
+
+| ID | Requirement | ECSS |
+| --- | --- | --- |
+| DL-RW-01 | A data row shall carry N words of one data frame; the words of a data segment shall be the beats of the output VC buffer in order. Every other word (control words, words of broadcast and idle frames) shall be a row of one word with the replicate flag. | 5.6.4.1, 5.6.4.2a, 5.6.4.3a, 5.6.4.4a |
+| DL-RW-02 | The maximum number of data-sending lanes P (1 to N, management parameter) shall be taken over only while the link reset state machine resets the link. | Table 5-36 |
+| DL-RW-03 | A data segment and an idle frame shall have at most 64 x P words, the FCTs sent shall carry the multiplier M = P, and a received data frame or idle frame with more than 64 x P words shall be a frame error. | 5.6.4.2i, 5.3.8.2c, 5.7.3.2c, 5.7.8, Table 5-36 |
+| DL-RW-04 | The FCT credit counter shall be decreased by N words for every data row sent. | 5.7.3.1f |
+| DL-RW-05 | A received data row may hold 1 to N words (mask, word 0 first); every word shall count for the frame length and be stored in the input VC buffer. | 5.6.5c, 5.7.8 |
+| DL-RW-06 | The Network layer shall read the input VC buffer in beats of N words; a beat shall end after a word with an EOP or EEP, its remaining words being words of four Fills, or when N words are available. | 5.7.2.3, 5.7.2.2 note |
+
 ## 3. Error conditions
 
 | Condition | Reaction |
@@ -178,11 +192,11 @@ level.
 | Generic | Default | Description |
 | --- | --- | --- |
 | `NumVc_g` | 8 | Number of virtual channels (1 to 32) |
-| `NumLanes_g` | 1 | Number of lanes (phase 2: 1) |
-| `VcOutDepth_g` | 128 | Output VC buffer, words |
-| `VcInDepth_g` | 256 | Input VC buffer, words (multiple of 64) |
+| `NumLanes_g` | 1 | Words per row (number of lanes of the Multi-Lane layer, 1 to 4) |
+| `VcOutDepth_g` | 128 | Output VC buffer, beats of `NumLanes_g` words |
+| `VcInDepth_g` | 256 | Input VC buffer, words (multiple of 64 x `NumLanes_g`) |
 | `BcOutDepth_g`, `BcInDepth_g` | 4 | Broadcast buffers, messages |
-| `ErbWords_g` | 512 | Error recovery buffer, data words |
+| `ErbRows_g` | 512 | Error recovery buffer, data rows |
 | `ErbDataItems_g`, `ErbFctItems_g`, `ErbBcItems_g` | 32, 16, 4 | Error recovery buffer, items per kind (sum below 128) |
 | `CreditWidth_g` | 12 | FCT credit counter width (words) |
 
@@ -195,3 +209,5 @@ level.
 | Frame interrupted by RETRY | Every item is complete in the error recovery buffer before it is sent (store and forward), so an interrupted frame is resent completely |
 | Frame error | Not a NACK condition by itself (5.7.7.2.2a); the missing frame is detected by the sequence number of the next frame, SIF or FULL |
 | NACK polarity | NACKs carry the inverse of the Receive Polarity Flag (notes of 5.7.7.3.2c to 5.7.7.3.5b) |
+| FCT multiplier and data segment multiplier (Table 5-36) | Both equal the maximum number of data-sending lanes P, taken over at link reset; both ends of a link use the same P (the frame length check of 5.7.8 uses the own parameter) |
+| Beats of the VC ports with several lanes | A beat is a row of the data frame; the user fills a beat after the end of a packet with Fill words (note of 5.7.2.2d: more Fills can be needed to keep the packet cargo word alignment with a wider port). Received beats end at the end of a packet |

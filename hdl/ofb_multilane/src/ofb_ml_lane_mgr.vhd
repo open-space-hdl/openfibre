@@ -81,6 +81,7 @@ architecture rtl of ofb_ml_lane_mgr is
 
     type TwoProcess_r is record
         BypassFar : std_logic;
+        MaxLanes  : natural range 1 to NumLanes_g;
         NearCap   : std_logic_vector(8*NumLanes_g-1 downto 0);
         Scramble  : std_logic_vector(NumLanes_g-1 downto 0);
         RxOnly    : std_logic_vector(NumLanes_g-1 downto 0);
@@ -207,10 +208,15 @@ begin
         end loop;
 
         -- Lane sets (ML-LM-13): data-sending lanes are the lowest active transmitting lanes
+        -- The maximum is taken over on link reset or while no lane is Active (Table 5-36)
         Max_v := to_integer(unsigned(Cfg_MaxDataLanes));
         if Max_v = 0 or Max_v > NumLanes_g then
             Max_v := NumLanes_g;
         end if;
+        if Dl_LaneReset = '1' or Active_v = (Active_v'range => '0') then
+            v.MaxLanes := Max_v;
+        end if;
+        Max_v  := r.MaxLanes;
         v.Act  := Active_v;
         v.Tx   := (others => '0');
         v.Data := (others => '0');
@@ -313,6 +319,7 @@ begin
             r <= r_next;
             if Rst = '1' then
                 r.BypassFar <= '0';
+                r.MaxLanes  <= NumLanes_g;
                 r.NearCap   <= (others => '0');
                 r.Scramble  <= (others => '0');
                 r.RxOnly    <= (others => '0');

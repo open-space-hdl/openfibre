@@ -21,3 +21,4 @@ registers to the layers is verified with the core testbench.
 | `test_status` (TC-MG-03) | Data Link, Has Credit, lane and Multi-Lane status read through the status crossings | MG-IF-02, MG-CC-01 |
 | `test_qos_registers` (TC-MG-05) | Reset values of the QoS registers, write and read back, VN 0 fixed for VC 0, forwarding of the writes to the core clock, bandwidth status and time-slot, Interface Reset | MG-IF-01, MG-IF-02, MG-CF-01 |
 | `test_events` (TC-MG-04) | Events of the three domains set sticky flags and counters; W1C; interrupt with mask; Link Reset clears the Data Link status and keeps the lane flags | MG-ST-01 to 03 |
+| `test_multilane_registers` (TC-MG-06) | Reset values of TxEn, RxEn, maximum number of data-sending lanes and bypass in the lane and core domains; written values reach both domains; ML_STATUS with the bypass bit; Misaligned events counted and cleared; Interface Reset restores ML_CTRL and LANE_CTRL | MG-ML-01, MG-CF-01 |
