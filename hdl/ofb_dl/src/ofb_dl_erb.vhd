@@ -116,47 +116,47 @@ architecture rtl of ofb_dl_erb is
 
     type TwoProcess_r is record
         -- Data items
-        DVc       : VcArray_t(0 to DataItems_g-1);
-        DLen      : LenArray_t(0 to DataItems_g-1);
-        DHead     : natural range 0 to DataItems_g-1;
-        DNum      : natural range 0 to DataItems_g;
-        DSent     : natural range 0 to DataItems_g;
+        DVc        : VcArray_t(0 to DataItems_g-1);
+        DLen       : LenArray_t(0 to DataItems_g-1);
+        DHead      : natural range 0 to DataItems_g-1;
+        DNum       : natural range 0 to DataItems_g;
+        DSent      : natural range 0 to DataItems_g;
         -- Data words
-        WrPtr     : unsigned(AddrWidth_c-1 downto 0);
-        WrCnt     : natural range 0 to MaxFrameWords_c;
-        FreePtr   : unsigned(AddrWidth_c-1 downto 0);
-        Used      : natural range 0 to Words_g;
+        WrPtr      : unsigned(AddrWidth_c-1 downto 0);
+        WrCnt      : natural range 0 to MaxFrameWords_c;
+        FreePtr    : unsigned(AddrWidth_c-1 downto 0);
+        Used       : natural range 0 to Words_g;
         -- Read-ahead of the data words
-        RdPtr     : unsigned(AddrWidth_c-1 downto 0);
-        FetchOff  : natural range 0 to DataItems_g;
-        FetchLeft : natural range 0 to MaxFrameWords_c;
-        InFlight  : natural range 0 to 7;
-        Restart   : std_logic;
+        RdPtr      : unsigned(AddrWidth_c-1 downto 0);
+        FetchOff   : natural range 0 to DataItems_g;
+        FetchLeft  : natural range 0 to MaxFrameWords_c;
+        InFlight   : natural range 0 to 7;
+        Restart    : std_logic;
         RamRdValid : std_logic;
         -- FCT items
-        FVc       : VcArray_t(0 to FctItems_g-1);
-        FMult     : MultArray_t(0 to FctItems_g-1);
-        FHead     : natural range 0 to FctItems_g-1;
-        FNum      : natural range 0 to FctItems_g;
-        FSent     : natural range 0 to FctItems_g;
+        FVc        : VcArray_t(0 to FctItems_g-1);
+        FMult      : MultArray_t(0 to FctItems_g-1);
+        FHead      : natural range 0 to FctItems_g-1;
+        FNum       : natural range 0 to FctItems_g;
+        FSent      : natural range 0 to FctItems_g;
         -- Broadcast items
-        BMsg      : BcArray_t(0 to BcItems_g-1);
-        BOnce     : std_logic_vector(0 to BcItems_g-1);
-        BHead     : natural range 0 to BcItems_g-1;
-        BNum      : natural range 0 to BcItems_g;
-        BSent     : natural range 0 to BcItems_g;
+        BMsg       : BcArray_t(0 to BcItems_g-1);
+        BOnce      : std_logic_vector(0 to BcItems_g-1);
+        BHead      : natural range 0 to BcItems_g-1;
+        BNum       : natural range 0 to BcItems_g;
+        BSent      : natural range 0 to BcItems_g;
         -- Send-order log
-        LKind     : KindArray_t(0 to LogDepth_c-1);
-        LHead     : natural range 0 to LogDepth_c-1;
-        LNum      : natural range 0 to LogDepth_c;
+        LKind      : KindArray_t(0 to LogDepth_c-1);
+        LHead      : natural range 0 to LogDepth_c-1;
+        LNum       : natural range 0 to LogDepth_c;
         -- ACK / NACK processing
-        EvState   : EvFsm_t;
-        EvNack    : std_logic;
-        EvSeq     : SeqCount_t;
-        DelLeft   : natural range 0 to LogDepth_c;
-        LastAck   : SeqCount_t;
-        RetryReq  : std_logic;
-        ProtErr   : std_logic;
+        EvState    : EvFsm_t;
+        EvNack     : std_logic;
+        EvSeq      : SeqCount_t;
+        DelLeft    : natural range 0 to LogDepth_c;
+        LastAck    : SeqCount_t;
+        RetryReq   : std_logic;
+        ProtErr    : std_logic;
     end record;
 
     signal r, r_next : TwoProcess_r;
@@ -240,26 +240,27 @@ begin
         Pop_v     := '0';
         RdEna_v   := '0';
 
-        -- Admission: data words, data item, FCT, broadcast message
-        if WrData_Valid = '1' then
+        -- Admission: data words, data item, FCT, broadcast message. The range checks are redundant
+        -- (the admission checks the space) but keep transient delta-cycle values in range.
+        if WrData_Valid = '1' and r.Used < Words_g and r.WrCnt < MaxFrameWords_c then
             v.WrPtr := r.WrPtr + 1;
             v.WrCnt := r.WrCnt + 1;
             v.Used  := r.Used + 1;
         end if;
-        if WrData_Commit = '1' and v.WrCnt > 0 then
+        if WrData_Commit = '1' and v.WrCnt > 0 and r.DNum < DataItems_g then
             Idx_v         := wrapAdd(r.DHead, r.DNum, DataItems_g);
             v.DVc(Idx_v)  := WrData_Vc;
             v.DLen(Idx_v) := v.WrCnt;
             v.DNum        := r.DNum + 1;
             v.WrCnt       := 0;
         end if;
-        if WrFct_Valid = '1' then
+        if WrFct_Valid = '1' and r.FNum < FctItems_g then
             Idx_v          := wrapAdd(r.FHead, r.FNum, FctItems_g);
             v.FVc(Idx_v)   := WrFct_Vc;
             v.FMult(Idx_v) := WrFct_Mult;
             v.FNum         := r.FNum + 1;
         end if;
-        if WrBc_Valid = '1' then
+        if WrBc_Valid = '1' and r.BNum < BcItems_g then
             Idx_v          := wrapAdd(r.BHead, r.BNum, BcItems_g);
             v.BMsg(Idx_v)  := WrBc_Late & WrBc_Delayed & WrBc_Type & WrBc_Channel & WrBc_Data;
             v.BOnce(Idx_v) := '0';
@@ -267,17 +268,17 @@ begin
         end if;
 
         -- Items sent with a sequence number (ignored until the RETRY of a NACK is sent)
-        if Sent_Valid = '1' and r.RetryReq = '0' then
-            if Sent_Kind = ErbData_c then
+        if Sent_Valid = '1' and r.RetryReq = '0' and r.LNum < LogDepth_c - 1 then
+            if Sent_Kind = ErbData_c and r.DSent < DataItems_g then
                 v.DSent := r.DSent + 1;
-            elsif Sent_Kind = ErbFct_c then
+            elsif Sent_Kind = ErbFct_c and r.FSent < FctItems_g then
                 v.FSent := r.FSent + 1;
-            else
+            elsif Sent_Kind = ErbBc_c and r.BSent < BcItems_g then
                 v.BOnce(wrapAdd(r.BHead, r.BSent, BcItems_g)) := '1';
-                v.BSent                                        := r.BSent + 1;
+                v.BSent                                       := r.BSent + 1;
             end if;
             v.LKind(wrapAdd(r.LHead, r.LNum, LogDepth_c)) := Sent_Kind;
-            v.LNum                                         := r.LNum + 1;
+            v.LNum                                        := r.LNum + 1;
         end if;
 
         -- ACK / NACK processing
@@ -293,11 +294,11 @@ begin
                             -- Inconsistent sequence count: protocol error, link reset
                             v.ProtErr := '1';
                         else
-                            v.EvNack   := EvOut(8);
-                            v.EvSeq    := Seq_v;
-                            v.DelLeft  := Diff_v;
-                            v.LastAck  := Seq_v;
-                            v.EvState  := Delete_s;
+                            v.EvNack  := EvOut(8);
+                            v.EvSeq   := Seq_v;
+                            v.DelLeft := Diff_v;
+                            v.LastAck := Seq_v;
+                            v.EvState := Delete_s;
                         end if;
                     end if;
                 end if;
@@ -457,25 +458,25 @@ begin
         if rising_edge(Clk) then
             r <= r_next;
             if Rst = '1' or Ctrl_LinkReset = '1' then
-                r.DHead     <= 0;
-                r.DNum      <= 0;
-                r.DSent     <= 0;
-                r.WrPtr     <= (others => '0');
-                r.WrCnt     <= 0;
-                r.FreePtr   <= (others => '0');
-                r.Used      <= 0;
-                r.FHead     <= 0;
-                r.FNum      <= 0;
-                r.FSent     <= 0;
-                r.BHead     <= 0;
-                r.BNum      <= 0;
-                r.BSent     <= 0;
-                r.LHead     <= 0;
-                r.LNum      <= 0;
-                r.EvState   <= Idle_s;
-                r.LastAck   <= (others => '0');
-                r.RetryReq  <= '0';
-                r.ProtErr   <= '0';
+                r.DHead    <= 0;
+                r.DNum     <= 0;
+                r.DSent    <= 0;
+                r.WrPtr    <= (others => '0');
+                r.WrCnt    <= 0;
+                r.FreePtr  <= (others => '0');
+                r.Used     <= 0;
+                r.FHead    <= 0;
+                r.FNum     <= 0;
+                r.FSent    <= 0;
+                r.BHead    <= 0;
+                r.BNum     <= 0;
+                r.BSent    <= 0;
+                r.LHead    <= 0;
+                r.LNum     <= 0;
+                r.EvState  <= Idle_s;
+                r.LastAck  <= (others => '0');
+                r.RetryReq <= '0';
+                r.ProtErr  <= '0';
                 -- Reads in flight are discarded, the read-ahead restarts
                 r.Restart   <= '1';
                 r.FetchOff  <= 0;

@@ -65,15 +65,15 @@ architecture rtl of ofb_dl_rx_buf is
     signal HeldData  : std_logic_vector(Width_c-1 downto 0);
     signal HeldValid : std_logic;
 
-    signal FifoRst    : std_logic;
-    signal InData     : std_logic_vector(Width_c-1 downto 0);
-    signal InValid    : std_logic;
-    signal InLast     : std_logic;
-    signal InDrop     : std_logic;
-    signal InReady    : std_logic;
-    signal OutData    : std_logic_vector(Width_c-1 downto 0);
-    signal OutValid   : std_logic;
-    signal OutVc      : natural range 0 to 31;
+    signal FifoRst  : std_logic;
+    signal InData   : std_logic_vector(Width_c-1 downto 0);
+    signal InValid  : std_logic;
+    signal InLast   : std_logic;
+    signal InDrop   : std_logic;
+    signal InReady  : std_logic;
+    signal OutData  : std_logic_vector(Width_c-1 downto 0);
+    signal OutValid : std_logic;
+    signal OutVc    : natural range 0 to 31;
 
 begin
 
@@ -110,7 +110,8 @@ begin
         generic map (
             Width_g      => Width_c,
             Depth_g      => Depth_g,
-            FeatureSet_g => "DROP_ONLY"
+            FeatureSet_g => "DROP_SKIP_ONLY",
+            MaxPackets_g => 16
         )
         port map (
             Clk       => Clk,

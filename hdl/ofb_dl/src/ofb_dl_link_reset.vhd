@@ -113,9 +113,9 @@ begin
     Ev_FarEndLinkReset <= FarEv;
 
     with State select Stat_State <=
-        "00" when ConfigReset_s,
-        "01" when NearEndReset_s,
-        "10" when CheckFarEnd_s,
-        "11" when others;
+         "00" when ConfigReset_s,
+         "01" when NearEndReset_s,
+         "10" when CheckFarEnd_s,
+         "11" when others;
 
 end architecture;

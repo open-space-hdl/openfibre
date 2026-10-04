@@ -86,16 +86,16 @@ end entity;
 ---------------------------------------------------------------------------------------------------
 architecture rtl of ofb_dl_tx_admit is
 
-    signal Copying   : std_logic;
-    signal CopyVc    : natural range 0 to NumVc_g-1;
-    signal CopyLeft  : natural range 0 to MaxFrameWords_c;
-    signal SegGrant  : std_logic_vector(NumVc_g-1 downto 0);
-    signal SegValid  : std_logic;
-    signal SegTake   : std_logic;
-    signal FctGrant  : std_logic_vector(NumVc_g-1 downto 0);
-    signal FctValid  : std_logic;
-    signal FctTake   : std_logic;
-    signal ArbRst    : std_logic;
+    signal Copying  : std_logic;
+    signal CopyVc   : natural range 0 to NumVc_g-1;
+    signal CopyLeft : natural range 0 to MaxFrameWords_c;
+    signal SegGrant : std_logic_vector(NumVc_g-1 downto 0);
+    signal SegValid : std_logic;
+    signal SegTake  : std_logic;
+    signal FctGrant : std_logic_vector(NumVc_g-1 downto 0);
+    signal FctValid : std_logic;
+    signal FctTake  : std_logic;
+    signal ArbRst   : std_logic;
 
     function oneHotIdx (oh : std_logic_vector) return natural is
         variable Idx_v : natural;
@@ -131,8 +131,13 @@ begin
             Out_Valid => SegValid
         );
 
-    SegTake <= '1' when Copying = '0' and Data_ItemFree = '1' and unsigned(Data_FreeWords) /= 0 and
-                        SegValid = '1' else '0';
+    p_take : process (all) is
+    begin
+        SegTake <= '0';
+        if Copying = '0' and Data_ItemFree = '1' and unsigned(Data_FreeWords) /= 0 and SegValid = '1' then
+            SegTake <= '1';
+        end if;
+    end process;
 
     p_copy : process (Clk) is
         variable Vc_v    : natural range 0 to NumVc_g-1;

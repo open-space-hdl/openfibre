@@ -125,33 +125,33 @@ architecture rtl of ofb_dl is
     constant FreeWidth_c : positive := log2ceil(ErbWords_g + 1);
 
     -- Link reset
-    signal LinkReset   : std_logic;
-    signal LaneReset   : std_logic;
-    signal ResetFlag   : std_logic;
-    signal ErrLinkRst  : std_logic;
-    signal ProtErr     : std_logic;
+    signal LinkReset  : std_logic;
+    signal LaneReset  : std_logic;
+    signal ResetFlag  : std_logic;
+    signal ErrLinkRst : std_logic;
+    signal ProtErr    : std_logic;
 
     -- Output VC buffers
-    signal SegReady    : std_logic_vector(NumVc_g-1 downto 0);
-    signal SegWords    : std_logic_vector(7*NumVc_g-1 downto 0);
-    signal VcRdData    : std_logic_vector(32*NumVc_g-1 downto 0);
-    signal VcRdK       : std_logic_vector(4*NumVc_g-1 downto 0);
-    signal VcRdValid   : std_logic_vector(NumVc_g-1 downto 0);
-    signal VcRdReady   : std_logic_vector(NumVc_g-1 downto 0);
-    signal VcEmpty     : std_logic_vector(NumVc_g-1 downto 0);
-    signal FctRxVc     : std_logic_vector(4 downto 0);
-    signal FctRxMult   : std_logic_vector(2 downto 0);
-    signal FctRxValid  : std_logic;
+    signal SegReady   : std_logic_vector(NumVc_g-1 downto 0);
+    signal SegWords   : std_logic_vector(7*NumVc_g-1 downto 0);
+    signal VcRdData   : std_logic_vector(32*NumVc_g-1 downto 0);
+    signal VcRdK      : std_logic_vector(4*NumVc_g-1 downto 0);
+    signal VcRdValid  : std_logic_vector(NumVc_g-1 downto 0);
+    signal VcRdReady  : std_logic_vector(NumVc_g-1 downto 0);
+    signal VcEmpty    : std_logic_vector(NumVc_g-1 downto 0);
+    signal FctRxVc    : std_logic_vector(4 downto 0);
+    signal FctRxMult  : std_logic_vector(2 downto 0);
+    signal FctRxValid : std_logic;
 
     -- Broadcast output buffer
-    signal BcData      : std_logic_vector(63 downto 0);
-    signal BcChannel   : Char_t;
-    signal BcType      : Char_t;
-    signal BcDelayed   : std_logic;
-    signal BcLate      : std_logic;
-    signal BcValid     : std_logic;
-    signal BcReady     : std_logic;
-    signal BcCredit    : std_logic;
+    signal BcData    : std_logic_vector(63 downto 0);
+    signal BcChannel : Char_t;
+    signal BcType    : Char_t;
+    signal BcDelayed : std_logic;
+    signal BcLate    : std_logic;
+    signal BcValid   : std_logic;
+    signal BcReady   : std_logic;
+    signal BcCredit  : std_logic;
 
     -- Input VC buffers
     signal FctReq      : std_logic_vector(NumVc_g-1 downto 0);
@@ -207,10 +207,10 @@ architecture rtl of ofb_dl is
     signal ErbEmpty     : std_logic;
 
     -- Transmit framer
-    signal TxIdle      : std_logic;
-    signal TxPolarity  : std_logic;
-    signal WordSent    : std_logic;
-    signal BcSent      : std_logic;
+    signal TxIdle     : std_logic;
+    signal TxPolarity : std_logic;
+    signal WordSent   : std_logic;
+    signal BcSent     : std_logic;
 
     -- Receive checks
     signal RxPolarity  : std_logic;

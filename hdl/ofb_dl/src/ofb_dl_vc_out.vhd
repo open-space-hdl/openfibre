@@ -73,15 +73,15 @@ architecture rtl of ofb_dl_vc_out is
     constant EopWidth_c   : positive := LevelWidth_c + 1;
     constant CreditMax_c  : natural  := 2**CreditWidth_g - 1;
 
-    signal FifoIn    : std_logic_vector(35 downto 0);
-    signal FifoOut   : std_logic_vector(35 downto 0);
-    signal FifoInVld : std_logic;
-    signal FifoInRdy : std_logic;
+    signal FifoIn     : std_logic_vector(35 downto 0);
+    signal FifoOut    : std_logic_vector(35 downto 0);
+    signal FifoInVld  : std_logic;
+    signal FifoInRdy  : std_logic;
     signal FifoOutRst : std_logic;
-    signal UsrRstOut : std_logic;
-    signal OutValid  : std_logic;
-    signal OutFull   : std_logic;
-    signal OutLevel  : std_logic_vector(LevelWidth_c-1 downto 0);
+    signal UsrRstOut  : std_logic;
+    signal OutValid   : std_logic;
+    signal OutFull    : std_logic;
+    signal OutLevel   : std_logic_vector(LevelWidth_c-1 downto 0);
 
     -- User side
     signal LastEnd  : std_logic;

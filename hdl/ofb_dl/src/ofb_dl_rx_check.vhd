@@ -420,11 +420,11 @@ begin
     Ev_RxErr      <= r.RxErr;
 
     with r.State select Stat_State <=
-        "000" when Nothing_s,
-        "001" when Data_s,
-        "010" when Bcst_s,
-        "011" when BcstData_s,
-        "100" when others;
+         "000" when Nothing_s,
+         "001" when Data_s,
+         "010" when Bcst_s,
+         "011" when BcstData_s,
+         "100" when others;
 
     -----------------------------------------------------------------------------------------------
     -- Sequential Process

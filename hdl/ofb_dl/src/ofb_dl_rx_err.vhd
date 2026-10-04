@@ -88,9 +88,9 @@ begin
     RxPolarity <= '1' when State = ValidNeg_s or State = ErrorNeg_s else '0';
 
     with State select Stat_State <=
-        "00" when ValidPos_s,
-        "01" when ValidNeg_s,
-        "10" when ErrorPos_s,
-        "11" when others;
+         "00" when ValidPos_s,
+         "01" when ValidNeg_s,
+         "10" when ErrorPos_s,
+         "11" when others;
 
 end architecture;
