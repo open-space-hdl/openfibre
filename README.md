@@ -19,6 +19,7 @@ on the QSFP connector, 6.25 Gbit/s per lane). See [docs/roadmap.md](docs/roadmap
 | Document | Content |
 | --- | --- |
 | [docs/architecture.md](docs/architecture.md) | Architecture: layers, building blocks, owned ECSS clauses, Open Logic usage, verification |
+| [docs/user_guide.md](docs/user_guide.md) | Integration: sources, generics, clocks, interfaces, programming sequence, synthesis |
 | [docs/conventions.md](docs/conventions.md) | Coding, verification and repository conventions |
 | [docs/roadmap.md](docs/roadmap.md) | Development plan and module status |
 | [docs/compliance.md](docs/compliance.md) | ECSS compliance matrix: requirements and test cases of every clause (generated) |
