@@ -23,7 +23,7 @@ the state of every module; a module is done when its verification report is writ
 | `ofb_multilane` | ML-1 to ML-6 | 2 (bypass, column codec), 4 | Done (1 to 4 lanes: alignment, asymmetric links, unidirectional and hot redundant lanes, bypass) |
 | `ofb_dl` | DT-1 to DT-8, DR-1 to DR-7, DC-1, DC-2 (Data Link layer) | 2, 3 (QoS, continuous mode), 4 (rows of several words) | Done (priority, bandwidth reservation, schedule, continuous mode; rows of 1 to 4 words, banked input VC buffer) |
 | `ofb_ni` | NI-1 to NI-4 | 2 (NI-1, NI-3), 3 (NI-2, NI-4), 4 (beats) | Done (VC ports of 1 to 4 words per beat with framing check, broadcast port, schedule port; VN number in the MIB) |
-| `ofb_mib` | MG-1 to MG-4, TA-1 | 2, 4 (Multi-Lane registers), 5 (MG-3 EDAC monitor), later (TA-1) | Phase 4 done (MG-1, MG-2 with QoS and Multi-Lane registers; MG-4 in the core top level) |
+| `ofb_mib` | MG-1 to MG-4, TA-1 | 2, 4 (Multi-Lane registers), 5 (MG-3 EDAC monitor), later (TA-1) | Done except TA-1 (MG-1, MG-2 with QoS and Multi-Lane registers, MG-3 EDAC monitor with error injection; MG-4 in the core top level) |
 | `ofb_pa_gty` | PA-1 for the Versal GTY (PA-2, PA-3 in the transceiver) | 2 | Planned |
 | `ofb_core` | Core top level | 2, 4, 5 | Phase 4 done (1 to 4 lanes, four clock domains, core testbench with 1, 2 and 4 lanes) |
 | `ofb_vck190` | VCK190 board top level and constraints | 5 | Planned |

@@ -23,6 +23,7 @@ library ieee;
 
 library olo;
     use olo.olo_base_pkg_math.all;
+    use olo.olo_ft_pkg_ecc.all;
 
 library work;
     use work.ofb_pkg.all;
@@ -34,6 +35,7 @@ library work;
 entity ofb_dl_erb is
     generic (
         NumLanes_g  : positive range 1 to 4 := 1;
+        ClkFreq_g   : real                  := 200.0e6; -- Clock frequency for the scrubber
         Rows_g      : positive              := 512; -- Data rows (power of two)
         DataItems_g : positive              := 32;
         FctItems_g  : positive              := 16;
@@ -96,7 +98,12 @@ entity ofb_dl_erb is
         -- Status
         Stat_Full        : out   std_logic;
         Stat_Empty       : out   std_logic;
-        Ev_ProtocolError : out   std_logic
+        Ev_ProtocolError : out   std_logic;
+        -- EDAC (MG-3): injection into the next row written, events of the RAM and the FIFOs
+        EccInj_Valid     : in    std_logic := '0';
+        EccInj_Double    : in    std_logic := '0';
+        Ev_EccSec        : out   std_logic;
+        Ev_EccDed        : out   std_logic
     );
 end entity;
 
@@ -185,6 +192,16 @@ architecture rtl of ofb_dl_erb is
     signal PfValid    : std_logic;
     signal PfReady    : std_logic;
 
+    -- ECC events
+    signal RamSec   : std_logic;
+    signal RamDed   : std_logic;
+    signal ScrubSec : std_logic;
+    signal ScrubDed : std_logic;
+    signal EvSec    : std_logic;
+    signal EvDed    : std_logic;
+    signal PfSec    : std_logic;
+    signal PfDed    : std_logic;
+
     function wrapAdd (
         idx   : natural;
         add   : natural;
@@ -209,19 +226,21 @@ begin
     EvIn      <= Nack_Valid & AckNack_Seq;
     EvInValid <= Ack_Valid or Nack_Valid;
 
-    i_ev_fifo : entity olo.olo_base_fifo_sync
+    i_ev_fifo : entity olo.olo_ft_fifo_sync
         generic map (
             Width_g => 9,
             Depth_g => 8
         )
         port map (
-            Clk       => Clk,
-            Rst       => EvRst,
-            In_Data   => EvIn,
-            In_Valid  => EvInValid,
-            Out_Data  => EvOut,
-            Out_Valid => EvOutValid,
-            Out_Ready => EvOutReady
+            Clk        => Clk,
+            Rst        => EvRst,
+            In_Data    => EvIn,
+            In_Valid   => EvInValid,
+            Out_Data   => EvOut,
+            Out_Valid  => EvOutValid,
+            Out_Ready  => EvOutReady,
+            Out_EccSec => EvSec,
+            Out_EccDed => EvDed
         );
 
     -----------------------------------------------------------------------------------------------
@@ -498,40 +517,59 @@ begin
     -----------------------------------------------------------------------------------------------
     RamWrData <= WrData_K & WrData_Data;
 
-    i_ram : entity olo.olo_ft_ram_sdp
+    -- Frames may wait long for their ACK: the scrubber removes accumulated single errors
+    i_ram : entity olo.olo_ft_ram_sdp_scrub
         generic map (
-            Depth_g => Rows_g,
-            Width_g => Width_c
+            Depth_g      => Rows_g,
+            Width_g      => Width_c,
+            ScrubClkHz_g => ClkFreq_g
         )
         port map (
-            Clk      => Clk,
-            Wr_Addr  => std_logic_vector(r.WrPtr),
-            Wr_Ena   => WrData_Valid,
-            Wr_Data  => RamWrData,
-            Rd_Addr  => std_logic_vector(r.RdPtr),
-            Rd_Ena   => RamRdEna,
-            Rd_Data  => RamRdData,
-            Rd_Valid => RamRdValid
+            Clk            => Clk,
+            Rst            => Rst,
+            Wr_Addr        => std_logic_vector(r.WrPtr),
+            Wr_Ena         => WrData_Valid,
+            Wr_Data        => RamWrData,
+            Rd_Addr        => std_logic_vector(r.RdPtr),
+            Rd_Ena         => RamRdEna,
+            Rd_Data        => RamRdData,
+            Rd_Valid       => RamRdValid,
+            Rd_EccSec      => RamSec,
+            Rd_EccDed      => RamDed,
+            ErrInj_BitFlip => eccInjPattern(eccCodewordWidth(Width_c), EccInj_Double),
+            ErrInj_Valid   => EccInj_Valid,
+            Scrub_EccSec   => ScrubSec,
+            Scrub_EccDed   => ScrubDed,
+            Scrub_PassDone => open,
+            Scrub_Overrun  => open
         );
 
     PfRst     <= '1' when Rst = '1' or (r.Restart = '1' and r.InFlight = 0) else '0';
     PfInValid <= RamRdValid and not r.Restart and not r.RetryReq;
 
-    i_pf_fifo : entity olo.olo_base_fifo_sync
+    i_pf_fifo : entity olo.olo_ft_fifo_sync
         generic map (
             Width_g => Width_c,
             Depth_g => 8
         )
         port map (
-            Clk       => Clk,
-            Rst       => PfRst,
-            In_Data   => RamRdData,
-            In_Valid  => PfInValid,
-            In_Level  => PfLevel,
-            Out_Data  => PfData,
-            Out_Valid => PfValid,
-            Out_Ready => PfReady
+            Clk        => Clk,
+            Rst        => PfRst,
+            In_Data    => RamRdData,
+            In_Valid   => PfInValid,
+            In_Level   => PfLevel,
+            Out_Data   => PfData,
+            Out_Valid  => PfValid,
+            Out_Ready  => PfReady,
+            Out_EccSec => PfSec,
+            Out_EccDed => PfDed
         );
+
+    -- ECC events (MG-3): user reads of the RAM, scrubber, words read from the FIFOs
+    Ev_EccSec <= (RamSec and RamRdValid) or ScrubSec or (EvSec and EvOutValid and EvOutReady) or
+                 (PfSec and PfValid and PfReady);
+    Ev_EccDed <= (RamDed and RamRdValid) or ScrubDed or (EvDed and EvOutValid and EvOutReady) or
+                 (PfDed and PfValid and PfReady);
 
     Pay_Data  <= PfData(32*N_c-1 downto 0);
     Pay_K     <= PfData(36*N_c-1 downto 32*N_c);

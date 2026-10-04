@@ -45,7 +45,8 @@ entity ofb_dl is
         CreditWidth_g    : positive               := 12;
         NumPrio_g        : positive range 2 to 16 := 4;
         BwCreditLimit_g  : positive               := 16384;
-        ScheduleBcType_g : integer                := -1 -- Broadcast type that sets the time-slot (-1: none)
+        ScheduleBcType_g : integer                := -1; -- Broadcast type that sets the time-slot (-1: none)
+        ClkFreq_g        : real                   := 200.0e6 -- Clock frequency (scrubber of the ERB)
     );
     port (
         -- Clocks and resets
@@ -66,7 +67,7 @@ entity ofb_dl is
         TxBc_Data             : in    std_logic_vector(63 downto 0);
         TxBc_Channel          : in    Char_t;
         TxBc_Type             : in    Char_t;
-        TxBc_Delayed          : in    std_logic                     := '0';
+        TxBc_Delayed          : in    std_logic                                    := '0';
         TxBc_Valid            : in    std_logic;
         TxBc_Ready            : out   std_logic;
         RxBc_Data             : out   std_logic_vector(63 downto 0);
@@ -75,10 +76,10 @@ entity ofb_dl is
         RxBc_Delayed          : out   std_logic;
         RxBc_Late             : out   std_logic;
         RxBc_Valid            : out   std_logic;
-        RxBc_Ready            : in    std_logic                     := '1';
+        RxBc_Ready            : in    std_logic                                    := '1';
         -- Schedule (UserClk): SCHEDULE.request
-        Sched_TimeSlot        : in    std_logic_vector(5 downto 0)  := (others => '0');
-        Sched_Valid           : in    std_logic                     := '0';
+        Sched_TimeSlot        : in    std_logic_vector(5 downto 0)                 := (others => '0');
+        Sched_Valid           : in    std_logic                                    := '0';
         -- Rows to and from the Multi-Lane layer
         TxRow_Data            : out   std_logic_vector(32*NumLanes_g-1 downto 0);
         TxRow_K               : out   std_logic_vector(4*NumLanes_g-1 downto 0);
@@ -100,15 +101,15 @@ entity ofb_dl is
         Ml_FarCapabilityIdle  : in    std_logic;
         Ml_LaneActive         : in    std_logic;
         -- Configuration
-        Cfg_DataScrambled     : in    std_logic                     := '1';
-        Cfg_LinkReset         : in    std_logic                     := '0';
-        Cfg_InterfaceReset    : in    std_logic                     := '0';
-        Cfg_BcInterval        : in    std_logic_vector(15 downto 0) := x"0028";
-        Cfg_MaxDataLanes      : in    std_logic_vector(2 downto 0)  := "000"; -- 0: NumLanes_g
+        Cfg_DataScrambled     : in    std_logic                                    := '1';
+        Cfg_LinkReset         : in    std_logic                                    := '0';
+        Cfg_InterfaceReset    : in    std_logic                                    := '0';
+        Cfg_BcInterval        : in    std_logic_vector(15 downto 0)                := x"0028";
+        Cfg_MaxDataLanes      : in    std_logic_vector(2 downto 0)                 := "000"; -- 0: NumLanes_g
         -- Register writes of the MIB for the quality of service (core clock)
-        Reg_Wr                : in    std_logic                     := '0';
-        Reg_Addr              : in    std_logic_vector(11 downto 0) := (others => '0');
-        Reg_Data              : in    std_logic_vector(31 downto 0) := (others => '0');
+        Reg_Wr                : in    std_logic                                    := '0';
+        Reg_Addr              : in    std_logic_vector(11 downto 0)                := (others => '0');
+        Reg_Data              : in    std_logic_vector(31 downto 0)                := (others => '0');
         -- Status (Ev_*: one-cycle events)
         Stat_HasCredit        : out   std_logic_vector(NumVc_g-1 downto 0);
         Ev_CreditOverflow     : out   std_logic_vector(NumVc_g-1 downto 0);
@@ -128,7 +129,14 @@ entity ofb_dl is
         Stat_WordIdState      : out   std_logic_vector(2 downto 0);
         Stat_BwOver           : out   std_logic_vector(NumVc_g-1 downto 0);
         Stat_BwUnder          : out   std_logic_vector(NumVc_g-1 downto 0);
-        Stat_TimeSlot         : out   std_logic_vector(5 downto 0)
+        Stat_TimeSlot         : out   std_logic_vector(5 downto 0);
+        -- EDAC (MG-3): SEC events in bits EccChannels_c-1:0, DED events above, per channel in the
+        -- clock domain of its read side (core / user); injection commands (single error in the low
+        -- bits, double error in the high bits) in the clock domain of its write side
+        Ecc_Core              : out   std_logic_vector(2*EccChannels_c-1 downto 0);
+        Ecc_User              : out   std_logic_vector(2*EccChannels_c-1 downto 0);
+        EccInj_Core           : in    std_logic_vector(2*EccChannels_c-1 downto 0) := (others => '0');
+        EccInj_User           : in    std_logic_vector(2*EccChannels_c-1 downto 0) := (others => '0')
     );
 end entity;
 
@@ -138,6 +146,7 @@ end entity;
 architecture rtl of ofb_dl is
 
     constant FreeWidth_c : positive := log2ceil(ErbRows_g + 1);
+    constant Ch_c        : positive := EccChannels_c;
     constant N_c         : positive := NumLanes_g;
 
     -- Link reset, configuration reset
@@ -280,6 +289,26 @@ architecture rtl of ofb_dl is
     signal RxErr       : std_logic;
     signal RxError     : std_logic;
 
+    -- EDAC
+    signal VcOutSec  : std_logic_vector(NumVc_g-1 downto 0);
+    signal VcOutDed  : std_logic_vector(NumVc_g-1 downto 0);
+    signal VcInSec   : std_logic_vector(NumVc_g-1 downto 0);
+    signal VcInDed   : std_logic_vector(NumVc_g-1 downto 0);
+    signal ErbSec    : std_logic;
+    signal ErbDed    : std_logic;
+    signal BufSec    : std_logic;
+    signal BufDed    : std_logic;
+    signal BcOutSec  : std_logic;
+    signal BcOutDed  : std_logic;
+    signal BcInSec   : std_logic;
+    signal BcInDed   : std_logic;
+    signal SchedSec  : std_logic;
+    signal SchedDed  : std_logic;
+    signal InjVcOut  : std_logic;
+    signal InjVcOutD : std_logic;
+    signal InjVcIn   : std_logic;
+    signal InjVcInD  : std_logic;
+
 begin
 
     -----------------------------------------------------------------------------------------------
@@ -373,7 +402,11 @@ begin
                 Rd_Flushed        => VcFlushed(i),
                 Stat_HasCredit    => Stat_HasCredit(i),
                 Stat_Empty        => VcEmpty(i),
-                Ev_CreditOverflow => Ev_CreditOverflow(i)
+                Ev_CreditOverflow => Ev_CreditOverflow(i),
+                EccInj_Valid      => InjVcOut,
+                EccInj_Double     => InjVcOutD,
+                Ev_EccSec         => VcOutSec(i),
+                Ev_EccDed         => VcOutDed(i)
             );
 
     end generate;
@@ -409,7 +442,11 @@ begin
             Out_Late        => BcLate,
             Out_Valid       => BcValid,
             Out_Ready       => BcReady,
-            Bc_Credit       => BcCredit
+            Bc_Credit       => BcCredit,
+            EccInj_Valid    => EccInj_User(EccChBcOut_c) or EccInj_User(Ch_c + EccChBcOut_c),
+            EccInj_Double   => EccInj_User(Ch_c + EccChBcOut_c),
+            Ev_EccSec       => BcOutSec,
+            Ev_EccDed       => BcOutDed
         );
 
     -----------------------------------------------------------------------------------------------
@@ -470,15 +507,17 @@ begin
             Depth_g => 4
         )
         port map (
-            In_Clk    => UserClk,
-            In_Rst    => UserRst,
-            In_Data   => Sched_TimeSlot,
-            In_Valid  => Sched_Valid,
-            Out_Clk   => Clk,
-            Out_Rst   => Rst,
-            Out_Data  => SchedSlot,
-            Out_Valid => SchedValid,
-            Out_Ready => '1'
+            In_Clk     => UserClk,
+            In_Rst     => UserRst,
+            In_Data    => Sched_TimeSlot,
+            In_Valid   => Sched_Valid,
+            Out_Clk    => Clk,
+            Out_Rst    => Rst,
+            Out_Data   => SchedSlot,
+            Out_Valid  => SchedValid,
+            Out_Ready  => '1',
+            Out_EccSec => SchedSec,
+            Out_EccDed => SchedDed
         );
 
     p_timeslot : process (Clk) is
@@ -587,6 +626,7 @@ begin
     i_erb : entity work.ofb_dl_erb
         generic map (
             NumLanes_g  => N_c,
+            ClkFreq_g   => ClkFreq_g,
             Rows_g      => ErbRows_g,
             DataItems_g => ErbDataItems_g,
             FctItems_g  => ErbFctItems_g,
@@ -641,7 +681,11 @@ begin
             Retry_Done       => RetryDone,
             Stat_Full        => ErbFull,
             Stat_Empty       => ErbEmpty,
-            Ev_ProtocolError => ProtErr
+            Ev_ProtocolError => ProtErr,
+            EccInj_Valid     => EccInj_Core(EccChErb_c) or EccInj_Core(Ch_c + EccChErb_c),
+            EccInj_Double    => EccInj_Core(Ch_c + EccChErb_c),
+            Ev_EccSec        => ErbSec,
+            Ev_EccDed        => ErbDed
         );
 
     TxIdle <= '1' when VcEmpty = (VcEmpty'range => '1') and FctReq = (FctReq'range => '0') and BcValid = '0' else '0';
@@ -789,7 +833,11 @@ begin
             Vc_Valid       => VcWrValid,
             Vc_Ready       => VcWrReady,
             Ev_VcOverflow  => VcOverflow,
-            Ev_BufOverflow => BufOverflow
+            Ev_BufOverflow => BufOverflow,
+            EccInj_Valid   => EccInj_Core(EccChFrameBuf_c) or EccInj_Core(Ch_c + EccChFrameBuf_c),
+            EccInj_Double  => EccInj_Core(Ch_c + EccChFrameBuf_c),
+            Ev_EccSec      => BufSec,
+            Ev_EccDed      => BufDed
         );
 
     Ev_InputOverflow <= VcOverflow;
@@ -818,7 +866,11 @@ begin
                 Out_Data       => RxVc_Data(32*N_c*(i+1)-1 downto 32*N_c*i),
                 Out_K          => RxVc_K(4*N_c*(i+1)-1 downto 4*N_c*i),
                 Out_Valid      => RxVc_Valid(i),
-                Out_Ready      => RxVc_Ready(i)
+                Out_Ready      => RxVc_Ready(i),
+                EccInj_Valid   => InjVcIn,
+                EccInj_Double  => InjVcInD,
+                Ev_EccSec      => VcInSec(i),
+                Ev_EccDed      => VcInDed(i)
             );
 
     end generate;
@@ -828,24 +880,56 @@ begin
             Depth_g => BcInDepth_g
         )
         port map (
-            Clk         => Clk,
-            Rst         => Rst,
-            In_Data     => RxBcData,
-            In_Channel  => RxBcChannel,
-            In_Type     => RxBcType,
-            In_Delayed  => RxBcDelayed,
-            In_Late     => RxBcLate,
-            In_Valid    => RxBcValid,
-            Ev_Discard  => Ev_BcDiscard,
-            UserClk     => UserClk,
-            UserRst     => UserRst,
-            Out_Data    => RxBc_Data,
-            Out_Channel => RxBc_Channel,
-            Out_Type    => RxBc_Type,
-            Out_Delayed => RxBc_Delayed,
-            Out_Late    => RxBc_Late,
-            Out_Valid   => RxBc_Valid,
-            Out_Ready   => RxBc_Ready
+            Clk           => Clk,
+            Rst           => Rst,
+            In_Data       => RxBcData,
+            In_Channel    => RxBcChannel,
+            In_Type       => RxBcType,
+            In_Delayed    => RxBcDelayed,
+            In_Late       => RxBcLate,
+            In_Valid      => RxBcValid,
+            Ev_Discard    => Ev_BcDiscard,
+            UserClk       => UserClk,
+            UserRst       => UserRst,
+            Out_Data      => RxBc_Data,
+            Out_Channel   => RxBc_Channel,
+            Out_Type      => RxBc_Type,
+            Out_Delayed   => RxBc_Delayed,
+            Out_Late      => RxBc_Late,
+            Out_Valid     => RxBc_Valid,
+            Out_Ready     => RxBc_Ready,
+            EccInj_Valid  => EccInj_Core(EccChBcIn_c) or EccInj_Core(Ch_c + EccChBcIn_c),
+            EccInj_Double => EccInj_Core(Ch_c + EccChBcIn_c),
+            Ev_EccSec     => BcInSec,
+            Ev_EccDed     => BcInDed
         );
+
+    -----------------------------------------------------------------------------------------------
+    -- EDAC events and injection (MG-3)
+    -----------------------------------------------------------------------------------------------
+    InjVcOut  <= EccInj_User(EccChVcOut_c) or EccInj_User(Ch_c + EccChVcOut_c);
+    InjVcOutD <= EccInj_User(Ch_c + EccChVcOut_c);
+    InjVcIn   <= EccInj_Core(EccChVcIn_c) or EccInj_Core(Ch_c + EccChVcIn_c);
+    InjVcInD  <= EccInj_Core(Ch_c + EccChVcIn_c);
+
+    p_ecc : process (all) is
+    begin
+        Ecc_Core                         <= (others => '0');
+        Ecc_User                         <= (others => '0');
+        Ecc_Core(EccChVcOut_c)           <= or VcOutSec;
+        Ecc_Core(Ch_c + EccChVcOut_c)    <= or VcOutDed;
+        Ecc_Core(EccChErb_c)             <= ErbSec;
+        Ecc_Core(Ch_c + EccChErb_c)      <= ErbDed;
+        Ecc_Core(EccChFrameBuf_c)        <= BufSec;
+        Ecc_Core(Ch_c + EccChFrameBuf_c) <= BufDed;
+        Ecc_Core(EccChBcOut_c)           <= BcOutSec;
+        Ecc_Core(Ch_c + EccChBcOut_c)    <= BcOutDed;
+        Ecc_Core(EccChCtrl_c)            <= SchedSec and SchedValid;
+        Ecc_Core(Ch_c + EccChCtrl_c)     <= SchedDed and SchedValid;
+        Ecc_User(EccChVcIn_c)            <= or VcInSec;
+        Ecc_User(Ch_c + EccChVcIn_c)     <= or VcInDed;
+        Ecc_User(EccChBcIn_c)            <= BcInSec;
+        Ecc_User(Ch_c + EccChBcIn_c)     <= BcInDed;
+    end process;
 
 end architecture;

@@ -10,7 +10,7 @@ an interrupt. It contains the crossings between the management clock and the clo
 | --- | --- | --- |
 | MG-1 | Register file, AXI4-Lite access, configuration and status crossings | Complete for 1 to 4 lanes |
 | MG-2 | Sticky error flags, event counters, interrupt | Complete for the events of phase 2 |
-| MG-3 | EDAC monitor | Hardening phase |
+| MG-3 | EDAC monitor | Complete |
 | MG-4 | Reset per clock domain | In `ofb_core` |
 | TA-1 | Lane test access | Later |
 
@@ -26,6 +26,9 @@ an interrupt. It contains the crossings between the management clock and the clo
 | MG-ST-01 | Error events shall set sticky flags, cleared by writing one; the Link Reset command shall clear the status of the Data Link layer (sticky flags and counters). | 5.9.4d, e |
 | MG-ST-02 | The number of error recovery attempts shall be counted, and the CRC-16, CRC-8, frame and sequence errors and the lane timeouts in saturating counters; a write clears a counter. | 5.7.7.1k, l, Table 5-37 |
 | MG-ST-03 | An interrupt output shall be asserted while a sticky flag enabled in the interrupt mask is set. | none (implementation) |
+| MG-ED-01 | The SEC and DED events of every fault-tolerant buffer of the core shall be counted per channel (output VC buffers, error recovery buffer, frame buffer, input VC buffers, broadcast output and input buffers, transmit and receive row crossings, control crossings) in saturating 16-bit counters; a DED shall set a sticky flag of its channel, a SEC a common sticky flag. | none (fault tolerance, architecture P5) |
+| MG-ED-02 | The counters of a selected channel shall be readable and clearable; the flags and all counters shall be clearable at once; the DED flags and the SEC flag shall be interrupt sources. | none |
+| MG-ED-03 | A single or double bit error shall be injectable into the next word written into the buffers of a selected channel. | none (verification of the EDAC paths) |
 | MG-CC-01 | Configuration levels shall cross to the core and lane clock domains with `olo_ft_cc_bits`, commands and events with `olo_ft_cc_pulse`, multi-bit status values with `olo_base_cc_status`. | none (architecture section 6) |
 
 ## 3. Register map

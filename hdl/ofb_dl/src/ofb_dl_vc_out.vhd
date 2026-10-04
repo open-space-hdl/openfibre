@@ -22,6 +22,7 @@ library ieee;
 library olo;
     use olo.olo_base_pkg_math.all;
     use olo.olo_base_pkg_logic.all;
+    use olo.olo_ft_pkg_ecc.all;
 
 library work;
     use work.ofb_pkg.all;
@@ -46,6 +47,8 @@ entity ofb_dl_vc_out is
         In_Ready          : out   std_logic;
         Cfg_Continuous    : in    std_logic                    := '0'; -- Continuous mode (UserClk)
         Ctrl_LaneActive   : in    std_logic                    := '1'; -- A lane is active (UserClk)
+        EccInj_Valid      : in    std_logic                    := '0'; -- Error injection into the next beat (UserClk)
+        EccInj_Double     : in    std_logic                    := '0';
         -- Core clock side
         Clk               : in    std_logic;
         Rst               : in    std_logic;
@@ -65,7 +68,9 @@ entity ofb_dl_vc_out is
         -- Status
         Stat_HasCredit    : out   std_logic;
         Stat_Empty        : out   std_logic;
-        Ev_CreditOverflow : out   std_logic
+        Ev_CreditOverflow : out   std_logic;
+        Ev_EccSec         : out   std_logic; -- Corrected single error in a beat read
+        Ev_EccDed         : out   std_logic  -- Uncorrectable double error in a beat read
     );
 end entity;
 
@@ -93,6 +98,8 @@ architecture rtl of ofb_dl_vc_out is
     signal OutValid   : std_logic;
     signal OutFull    : std_logic;
     signal OutLevel   : std_logic_vector(LevelWidth_c-1 downto 0);
+    signal FifoSec    : std_logic;
+    signal FifoDed    : std_logic;
 
     -- User side
     signal LastEnd  : std_logic;
@@ -279,23 +286,31 @@ begin
             ReadyRstState_g => '0'
         )
         port map (
-            In_Clk     => UserClk,
-            In_Rst     => FifoInRst,
-            In_RstOut  => UsrRstOut,
-            In_Data    => FifoIn,
-            In_Valid   => FifoInVld,
-            In_Ready   => FifoInRdy,
-            In_Empty   => InEmpty,
-            In_Level   => InLevel,
-            Out_Clk    => Clk,
-            Out_Rst    => FifoOutRst,
-            Out_RstOut => OutRstOut,
-            Out_Data   => FifoOut,
-            Out_Valid  => OutValid,
-            Out_Ready  => Rd_Ready,
-            Out_Full   => OutFull,
-            Out_Level  => OutLevel
+            In_Clk            => UserClk,
+            In_Rst            => FifoInRst,
+            In_RstOut         => UsrRstOut,
+            In_Data           => FifoIn,
+            In_Valid          => FifoInVld,
+            In_Ready          => FifoInRdy,
+            In_Empty          => InEmpty,
+            In_Level          => InLevel,
+            Out_Clk           => Clk,
+            Out_Rst           => FifoOutRst,
+            Out_RstOut        => OutRstOut,
+            Out_Data          => FifoOut,
+            Out_Valid         => OutValid,
+            Out_Ready         => Rd_Ready,
+            Out_Full          => OutFull,
+            Out_Level         => OutLevel,
+            Out_EccSec        => FifoSec,
+            Out_EccDed        => FifoDed,
+            In_ErrInj_BitFlip => eccInjPattern(eccCodewordWidth(Width_c), EccInj_Double),
+            In_ErrInj_Valid   => EccInj_Valid
         );
+
+    -- ECC events of the beats read (MG-3)
+    Ev_EccSec <= FifoSec and OutValid and Rd_Ready;
+    Ev_EccDed <= FifoDed and OutValid and Rd_Ready;
 
     Rd_Data    <= FifoOut(32*N_c-1 downto 0);
     Rd_K       <= FifoOut(36*N_c-1 downto 32*N_c);

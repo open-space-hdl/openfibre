@@ -21,6 +21,7 @@ library ieee;
     use ieee.numeric_std.all;
 
 library olo;
+    use olo.olo_ft_pkg_ecc.all;
 
 library work;
     use work.ofb_pkg.all;
@@ -45,6 +46,8 @@ entity ofb_dl_vc_in is
         In_Mask        : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '1');
         In_Valid       : in    std_logic;
         In_Ready       : out   std_logic;
+        EccInj_Valid   : in    std_logic                               := '0'; -- Error injection into the next word of bank 0
+        EccInj_Double  : in    std_logic                               := '0';
         Fct_Req        : out   std_logic; -- At least one FCT is to be sent
         Fct_Ack        : in    std_logic; -- One FCT was taken for sending
         -- User clock side
@@ -53,7 +56,9 @@ entity ofb_dl_vc_in is
         Out_Data       : out   std_logic_vector(32*NumLanes_g-1 downto 0);
         Out_K          : out   std_logic_vector(4*NumLanes_g-1 downto 0);
         Out_Valid      : out   std_logic;
-        Out_Ready      : in    std_logic
+        Out_Ready      : in    std_logic;
+        Ev_EccSec      : out   std_logic; -- Corrected single error in a word read (UserClk)
+        Ev_EccDed      : out   std_logic
     );
 end entity;
 
@@ -81,6 +86,9 @@ architecture rtl of ofb_dl_vc_in is
     signal BankVld   : std_logic_vector(N_c-1 downto 0);
     signal BankRdy   : std_logic_vector(N_c-1 downto 0);
     signal UsrRstIn  : std_logic_vector(N_c-1 downto 0);
+    signal BankSec   : std_logic_vector(N_c-1 downto 0);
+    signal BankDed   : std_logic_vector(N_c-1 downto 0);
+    signal BankInj   : std_logic_vector(N_c-1 downto 0);
 
     -- Core side
     signal WrBank  : Bank_t;
@@ -165,23 +173,29 @@ begin
     -----------------------------------------------------------------------------------------------
     g_bank : for b in 0 to N_c-1 generate
 
+        BankInj(b) <= EccInj_Valid when b = 0 else '0';
+
         i_fifo : entity olo.olo_ft_fifo_async
             generic map (
                 Width_g => 36,
                 Depth_g => Depth_g / N_c
             )
             port map (
-                In_Clk     => Clk,
-                In_Rst     => FifoRst,
-                In_Data    => BankIn(b),
-                In_Valid   => BankInVld(b),
-                In_Ready   => BankInRdy(b),
-                Out_Clk    => UserClk,
-                Out_Rst    => UserRst,
-                Out_RstOut => UsrRstIn(b),
-                Out_Data   => BankOut(b),
-                Out_Valid  => BankVld(b),
-                Out_Ready  => BankRdy(b)
+                In_Clk            => Clk,
+                In_Rst            => FifoRst,
+                In_Data           => BankIn(b),
+                In_Valid          => BankInVld(b),
+                In_Ready          => BankInRdy(b),
+                Out_Clk           => UserClk,
+                Out_Rst           => UserRst,
+                Out_RstOut        => UsrRstIn(b),
+                Out_Data          => BankOut(b),
+                Out_Valid         => BankVld(b),
+                Out_Ready         => BankRdy(b),
+                Out_EccSec        => BankSec(b),
+                Out_EccDed        => BankDed(b),
+                In_ErrInj_BitFlip => eccInjPattern(eccCodewordWidth(36), EccInj_Double),
+                In_ErrInj_Valid   => BankInj(b)
             );
 
     end generate;
@@ -313,6 +327,10 @@ begin
 
         end if;
     end process;
+
+    -- ECC events of the words read from the banks (MG-3)
+    Ev_EccSec <= '1' when (BankSec and BankVld and BankRdy) /= (BankSec'range => '0') else '0';
+    Ev_EccDed <= '1' when (BankDed and BankVld and BankRdy) /= (BankDed'range => '0') else '0';
 
     -- One-cycle pulse per 64 words read (olo_ft_cc_pulse alone stretches the pulse to 2 cycles)
     i_blk_cc : entity work.ofb_cc_pulse

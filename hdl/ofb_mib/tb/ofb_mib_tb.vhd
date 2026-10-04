@@ -31,6 +31,7 @@ library vunit_lib;
     context vunit_lib.vunit_run_context;
 
 library work;
+    use work.ofb_pkg.all;
     use work.ofb_tb_pkg.all;
 
 ---------------------------------------------------------------------------------------------------
@@ -118,6 +119,21 @@ architecture sim of ofb_mib_tb is
     -- User domain
     signal NiEv : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
 
+    -- EDAC monitor: events per domain, injection commands and their counts
+    subtype EccVec_t is std_logic_vector(2*EccChannels_c-1 downto 0);
+
+    type InjCnt_t is array (0 to 2*EccChannels_c-1) of natural;
+
+    signal EccCore    : EccVec_t := (others => '0');
+    signal EccUser    : EccVec_t := (others => '0');
+    signal EccLane    : EccVec_t := (others => '0');
+    signal EccInjCore : EccVec_t;
+    signal EccInjUser : EccVec_t;
+    signal EccInjLane : EccVec_t;
+    signal InjCntCore : InjCnt_t := (others => 0);
+    signal InjCntUser : InjCnt_t := (others => 0);
+    signal InjCntLane : InjCnt_t := (others => 0);
+
 begin
 
     i_ti_uvvm_engine : entity uvvm_vvc_framework.ti_uvvm_engine;
@@ -187,7 +203,7 @@ begin
 
             -- TC-MG-01: identification and reset values
             if run("test_reset_values") then
-                chk(16#000#, x"0FB10003", "ID");
+                chk(16#000#, x"0FB10004", "ID");
                 chk(16#004#, x"00000104", "Generics");
                 chk(16#008#, x"00000100", "DataScrambled set");
                 chk(16#00C#, x"00000028", "Broadcast interval 40");
@@ -296,6 +312,72 @@ begin
                 wr(16#008#, x"00000002");
                 chk(16#058#, x"00000001", "Interface Reset restores ML_CTRL");
                 chk(16#100#, x"00000062", "Interface Reset restores TxEn and RxEn");
+
+            -- TC-MG-07: EDAC monitor: events of the three domains counted per channel, DED flags,
+            -- corrected-error flag, interrupt, clears; injection commands to the write domain of the
+            -- channel; injection into the QoS write FIFO of the MIB (channel Ctrl)
+            elsif run("test_edac") then
+
+                for i in 1 to 3 loop
+                    wait until rising_edge(CoreClk);
+                    EccCore(EccChErb_c) <= '1';
+                    wait until rising_edge(CoreClk);
+                    EccCore(EccChErb_c) <= '0';
+                    cycles(4);
+                end loop;
+
+                for i in 1 to 2 loop
+                    wait until rising_edge(UserClk);
+                    EccUser(EccChVcIn_c) <= '1';
+                    wait until rising_edge(UserClk);
+                    EccUser(EccChVcIn_c) <= '0';
+                    cycles(4);
+                end loop;
+
+                wait until rising_edge(LaneClk);
+                EccLane(EccChannels_c + EccChCcTx_c) <= '1';
+                wait until rising_edge(LaneClk);
+                EccLane(EccChannels_c + EccChCcTx_c) <= '0';
+                cycles(10);
+                wr(16#064#, x"00000001");
+                chk(16#068#, x"00000003", "Three corrected errors in the error recovery buffer");
+                wr(16#064#, x"00000003");
+                chk(16#068#, x"00000002", "Two corrected errors in the input VC buffers");
+                wr(16#064#, x"00000006");
+                chk(16#068#, x"00010000", "One uncorrectable error in the transmit row crossing");
+                chk(16#060#, x"00010040", "DED flag of channel 6, corrected error seen");
+                -- Interrupt on an uncorrectable error
+                wr(16#044#, x"01000000");
+                cycles(5);
+                check_value(Irq, '1', error, "Interrupt on DED");
+                -- Clear of the selected channel, then of all flags and counters
+                wr(16#068#, x"00000000");
+                chk(16#068#, x"00000000", "Channel 6 cleared");
+                chk(16#060#, x"00010000", "DED flag of channel 6 cleared with its counters");
+                wr(16#064#, x"00000001");
+                chk(16#068#, x"00000003", "Channel 1 kept");
+                wr(16#060#, x"00000000");
+                chk(16#060#, x"00000000", "All flags cleared");
+                chk(16#068#, x"00000000", "All counters cleared");
+                cycles(5);
+                check_value(Irq, '0', error, "No interrupt after the clear");
+                -- Injection commands to the write domain of the channel
+                wr(16#06C#, std_logic_vector(to_unsigned(EccChVcOut_c, 32)));
+                wr(16#06C#, x"00000100" or std_logic_vector(to_unsigned(EccChCcRx_c, 32)));
+                wr(16#06C#, std_logic_vector(to_unsigned(EccChErb_c, 32)));
+                cycles(20);
+                check_value(InjCntUser(EccChVcOut_c), 1, error, "Single error into the output VC buffers (user)");
+                check_value(InjCntLane(EccChannels_c + EccChCcRx_c), 1, error,
+                            "Double error into the receive row crossing (lane)");
+                check_value(InjCntCore(EccChErb_c), 1, error, "Single error into the error recovery buffer (core)");
+                check_value(InjCntCore(EccChVcOut_c) + InjCntLane(EccChVcOut_c), 0, error, "Only to the write domain");
+                -- Injection into the QoS write FIFO: the next forwarded write is corrected and counted
+                wr(16#06C#, std_logic_vector(to_unsigned(EccChCtrl_c, 32)));
+                wr(16#410#, x"00050100");
+                cycles(20);
+                check_value(RegWrLast, x"410" & x"00050100", error, "Corrected QoS write forwarded");
+                wr(16#064#, std_logic_vector(to_unsigned(EccChCtrl_c, 32)));
+                chk(16#068#, x"00000001", "Corrected error in the control crossings");
 
             -- TC-MG-04: sticky flags, counters, interrupt, Link Reset clears the Data Link status
             elsif run("test_events") then
@@ -466,7 +548,13 @@ begin
             Ml_Bypass             => MlBypass,
             UserClk               => UserClk,
             UserRst               => Rst,
-            Ni_EvFrameErr         => NiEv
+            Ni_EvFrameErr         => NiEv,
+            Ecc_Core              => EccCore,
+            Ecc_User              => EccUser,
+            Ecc_Lane              => EccLane,
+            EccInj_Core           => EccInjCore,
+            EccInj_User           => EccInjUser,
+            EccInj_Lane           => EccInjLane
         );
 
     -- Count the command pulses and the register writes
@@ -483,6 +571,46 @@ begin
             if IfResetCmd = '1' then
                 IfResetCnt <= IfResetCnt + 1;
             end if;
+        end if;
+    end process;
+
+    -- Injection commands counted per bit in their domain
+    p_inj_core : process (CoreClk) is
+    begin
+        if rising_edge(CoreClk) then
+
+            for i in 0 to 2*EccChannels_c-1 loop
+                if EccInjCore(i) = '1' then
+                    InjCntCore(i) <= InjCntCore(i) + 1;
+                end if;
+            end loop;
+
+        end if;
+    end process;
+
+    p_inj_user : process (UserClk) is
+    begin
+        if rising_edge(UserClk) then
+
+            for i in 0 to 2*EccChannels_c-1 loop
+                if EccInjUser(i) = '1' then
+                    InjCntUser(i) <= InjCntUser(i) + 1;
+                end if;
+            end loop;
+
+        end if;
+    end process;
+
+    p_inj_lane : process (LaneClk) is
+    begin
+        if rising_edge(LaneClk) then
+
+            for i in 0 to 2*EccChannels_c-1 loop
+                if EccInjLane(i) = '1' then
+                    InjCntLane(i) <= InjCntLane(i) + 1;
+                end if;
+            end loop;
+
         end if;
     end process;
 

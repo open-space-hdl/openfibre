@@ -19,6 +19,7 @@ library ieee;
     use ieee.std_logic_1164.all;
 
 library olo;
+    use olo.olo_ft_pkg_ecc.all;
 
 library work;
     use work.ofb_pkg.all;
@@ -74,7 +75,13 @@ entity ofb_core_cc is
         Ml_FarCapabilityIdle    : in    std_logic;
         Ml_LaneActive           : in    std_logic;
         -- Receive row lost because the crossing FIFO was full (lane clock, one cycle)
-        Ev_RxOverflow           : out   std_logic
+        Ev_RxOverflow           : out   std_logic;
+        -- EDAC (MG-3): SEC events in bits EccChannels_c-1:0, DED events above, in the clock domain
+        -- of the read side; injection commands (single, double) in the clock domain of the write side
+        Ecc_Core                : out   std_logic_vector(2*EccChannels_c-1 downto 0);
+        Ecc_Lane                : out   std_logic_vector(2*EccChannels_c-1 downto 0);
+        EccInj_Core             : in    std_logic_vector(2*EccChannels_c-1 downto 0) := (others => '0');
+        EccInj_Lane             : in    std_logic_vector(2*EccChannels_c-1 downto 0) := (others => '0')
     );
 end entity;
 
@@ -84,6 +91,7 @@ end entity;
 architecture rtl of ofb_core_cc is
 
     constant RowW_c : positive := 37 * NumLanes_g + 1;
+    constant Ch_c   : positive := EccChannels_c;
 
     signal TxIn      : std_logic_vector(RowW_c-1 downto 0);
     signal TxOut     : std_logic_vector(RowW_c-1 downto 0);
@@ -95,6 +103,15 @@ architecture rtl of ofb_core_cc is
     signal ActiveIn  : std_logic_vector(0 downto 0);
     signal CapIn     : std_logic_vector(8 downto 0);
     signal CapOut    : std_logic_vector(8 downto 0);
+    signal CapValid  : std_logic;
+    signal TxValid   : std_logic;
+    signal RxValid   : std_logic;
+    signal TxSec     : std_logic;
+    signal TxDed     : std_logic;
+    signal RxSec     : std_logic;
+    signal RxDed     : std_logic;
+    signal CapSec    : std_logic;
+    signal CapDed    : std_logic;
 
 begin
 
@@ -117,17 +134,23 @@ begin
             ReadyRstState_g => '0'
         )
         port map (
-            In_Clk    => CoreClk,
-            In_Rst    => CoreFlush,
-            In_Data   => TxIn,
-            In_Valid  => Dl_TxRow_Valid,
-            In_Ready  => Dl_TxRow_Ready,
-            Out_Clk   => LaneClk,
-            Out_Rst   => LaneRst,
-            Out_Data  => TxOut,
-            Out_Valid => Ml_TxRow_Valid,
-            Out_Ready => Ml_TxRow_Ready
+            In_Clk            => CoreClk,
+            In_Rst            => CoreFlush,
+            In_Data           => TxIn,
+            In_Valid          => Dl_TxRow_Valid,
+            In_Ready          => Dl_TxRow_Ready,
+            Out_Clk           => LaneClk,
+            Out_Rst           => LaneRst,
+            Out_Data          => TxOut,
+            Out_Valid         => TxValid,
+            Out_Ready         => Ml_TxRow_Ready,
+            Out_EccSec        => TxSec,
+            Out_EccDed        => TxDed,
+            In_ErrInj_BitFlip => eccInjPattern(eccCodewordWidth(RowW_c), EccInj_Core(Ch_c + EccChCcTx_c)),
+            In_ErrInj_Valid   => EccInj_Core(EccChCcTx_c) or EccInj_Core(Ch_c + EccChCcTx_c)
         );
+
+    Ml_TxRow_Valid <= TxValid;
 
     RxIn            <= Ml_RxRow_CrcErr & Ml_RxRow_Mask & Ml_RxRow_K & Ml_RxRow_Data;
     Dl_RxRow_Data   <= RxOut(32*NumLanes_g-1 downto 0);
@@ -142,17 +165,23 @@ begin
             Depth_g => 16
         )
         port map (
-            In_Clk    => LaneClk,
-            In_Rst    => LaneRst,
-            In_Data   => RxIn,
-            In_Valid  => Ml_RxRow_Valid,
-            In_Ready  => RxReady,
-            Out_Clk   => CoreClk,
-            Out_Rst   => CoreFlush,
-            Out_Data  => RxOut,
-            Out_Valid => Dl_RxRow_Valid,
-            Out_Ready => '1'
+            In_Clk            => LaneClk,
+            In_Rst            => LaneRst,
+            In_Data           => RxIn,
+            In_Valid          => Ml_RxRow_Valid,
+            In_Ready          => RxReady,
+            Out_Clk           => CoreClk,
+            Out_Rst           => CoreFlush,
+            Out_Data          => RxOut,
+            Out_Valid         => RxValid,
+            Out_Ready         => '1',
+            Out_EccSec        => RxSec,
+            Out_EccDed        => RxDed,
+            In_ErrInj_BitFlip => eccInjPattern(eccCodewordWidth(RowW_c), EccInj_Lane(Ch_c + EccChCcRx_c)),
+            In_ErrInj_Valid   => EccInj_Lane(EccChCcRx_c) or EccInj_Lane(Ch_c + EccChCcRx_c)
         );
+
+    Dl_RxRow_Valid <= RxValid;
 
     -----------------------------------------------------------------------------------------------
     -- Control
@@ -215,15 +244,34 @@ begin
             Depth_g => 4
         )
         port map (
-            In_Clk    => LaneClk,
-            In_Rst    => LaneRst,
-            In_Data   => CapIn,
-            In_Valid  => Ml_FarCapabilityValid,
-            Out_Clk   => CoreClk,
-            Out_Rst   => CoreRst,
-            Out_Data  => CapOut,
-            Out_Valid => Dl_FarCapabilityValid,
-            Out_Ready => '1'
+            In_Clk     => LaneClk,
+            In_Rst     => LaneRst,
+            In_Data    => CapIn,
+            In_Valid   => Ml_FarCapabilityValid,
+            Out_Clk    => CoreClk,
+            Out_Rst    => CoreRst,
+            Out_Data   => CapOut,
+            Out_Valid  => CapValid,
+            Out_Ready  => '1',
+            Out_EccSec => CapSec,
+            Out_EccDed => CapDed
         );
+
+    Dl_FarCapabilityValid <= CapValid;
+
+    -----------------------------------------------------------------------------------------------
+    -- EDAC events of the words read (MG-3)
+    -----------------------------------------------------------------------------------------------
+    p_ecc : process (all) is
+    begin
+        Ecc_Core                     <= (others => '0');
+        Ecc_Lane                     <= (others => '0');
+        Ecc_Lane(EccChCcTx_c)        <= TxSec and TxValid and Ml_TxRow_Ready;
+        Ecc_Lane(Ch_c + EccChCcTx_c) <= TxDed and TxValid and Ml_TxRow_Ready;
+        Ecc_Core(EccChCcRx_c)        <= RxSec and RxValid;
+        Ecc_Core(Ch_c + EccChCcRx_c) <= RxDed and RxValid;
+        Ecc_Core(EccChCtrl_c)        <= CapSec and CapValid;
+        Ecc_Core(Ch_c + EccChCtrl_c) <= CapDed and CapValid;
+    end process;
 
 end architecture;
