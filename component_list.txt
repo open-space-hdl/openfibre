@@ -3,3 +3,4 @@ hdl/ofb_pkg
 hdl/ofb_lane
 hdl/ofb_multilane
 hdl/ofb_dl
+hdl/ofb_ni

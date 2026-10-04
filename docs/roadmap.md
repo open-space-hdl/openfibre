@@ -22,7 +22,7 @@ the state of every module; a module is done when its verification report is writ
 | `ofb_lane` | LN-1 lane initialisation, LN-2 transmitter, LN-3 receiver, LN-4 parallel loopback | 2 | Done (1 word per clock) |
 | `ofb_multilane` | ML-1 to ML-6 | 2 (bypass, column codec), 4 | Phase 2 done (bypass, column codec with scrambling) |
 | `ofb_dl` | DT-1 to DT-8, DR-1 to DR-7, DC-1, DC-2 (Data Link layer) | 2, 3 (QoS, continuous mode), 4 (rows of several words) | Phase 2 done (one lane, round-robin medium access) |
-| `ofb_ni` | NI-1 to NI-4 | 2, 3 | Planned |
+| `ofb_ni` | NI-1 to NI-4 | 2 (NI-1, NI-3), 3 (NI-2, NI-4) | Phase 2 done (VC ports with framing check, broadcast port) |
 | `ofb_mib` | MG-1 to MG-4, TA-1 | 2 | Planned |
 | `ofb_pa_gty` | PA-1 for the Versal GTY (PA-2, PA-3 in the transceiver) | 2 | Planned |
 | `ofb_core` | Core top level | 2 | Planned |
