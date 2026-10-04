@@ -62,19 +62,27 @@ architecture rtl of ofb_ml_lane_mgr is
 
     signal Active   : std_logic;
     signal Scramble : std_logic;
+    signal NearCap  : Char_t;
 
 begin
 
     Active <= '1' when Lane_State = LaneStateActive_c else '0';
 
-    -- Scramble enable: the DataScrambled bit sent in INIT3, held while the lane is Active
-    p_scramble : process (Clk) is
+    -- Near-end capability: held while the lane is in Connected, so that all INIT3 words of one
+    -- initialisation carry the same value (the INIT3LinkResetFlag may change in the middle).
+    -- Scramble enable: the DataScrambled bit sent in INIT3, held while the lane is Active.
+    p_cap : process (Clk) is
     begin
         if rising_edge(Clk) then
+            if Lane_State /= LaneStateConnected_c then
+                NearCap <= Dl_NearCapability(7 downto CapMultiLane_c + 1) & '0' &
+                           Dl_NearCapability(CapMultiLane_c - 1 downto 0);
+            end if;
             if Active = '0' then
-                Scramble <= Dl_NearCapability(CapDataScrambled_c);
+                Scramble <= NearCap(CapDataScrambled_c);
             end if;
             if Rst = '1' then
+                NearCap  <= (others => '0');
                 Scramble <= '0';
             end if;
         end if;
@@ -85,8 +93,7 @@ begin
     Lane_TxOnly         <= '0';
     Lane_RxOnly         <= '0';
     Lane_FarEndActive   <= '0';
-    Lane_NearCapability <= Dl_NearCapability(7 downto CapMultiLane_c + 1) & '0' &
-                           Dl_NearCapability(CapMultiLane_c - 1 downto 0);
+    Lane_NearCapability <= NearCap;
 
     -- Data Link layer
     Dl_FarCapability      <= Lane_FarCapability;

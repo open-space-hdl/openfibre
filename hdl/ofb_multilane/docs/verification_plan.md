@@ -44,6 +44,7 @@ Lane clock 156.25 MHz. Simulator: GHDL.
 | `test_lane_control` (TC-ML-22) | TxOnly, RxOnly and FarEndActive de-asserted; LaneReset from the Data Link layer restarts the lane; lane active, data-sending / receiving lanes and alignment state follow the lane; far-end capability event and value with the MultiLane bit cleared | ML-IF-04 to 06, ML-LM-01 to 04, ML-LM-06 |
 | `test_ml_ctrl_discard` (TC-ML-23) | PAD, ACTIVE and ALIGN sent from A are not passed up at B; the words around them are | ML-BP-02 |
 | `test_link_reset_flush` (TC-ML-24) | A row held while the lane is not Active is discarded by link reset and not received at the far end | ML-BP-03 |
+| `test_capability_hold` (TC-ML-25) | The near-end capability changed while the lane is in Connected: the far end receives the value held in Connected, the new value in the next initialisation | ML-LM-03 |
 
 ## 4. Coverage analysis
 

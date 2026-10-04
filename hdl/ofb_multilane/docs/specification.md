@@ -44,7 +44,7 @@ Data Link clock domain is outside this module (core top level).
 | --- | --- | --- |
 | ML-LM-01 | With one lane, FarEndActive, TxOnly and RxOnly shall be de-asserted. | 5.6.1i (note), 5.6.3 |
 | ML-LM-02 | LaneReset of the lane shall follow the LaneReset request of the Data Link layer. | 5.6.1j, 5.7.9.3b.2 |
-| ML-LM-03 | The near-end capability of the Data Link layer shall be passed to the lane; the MultiLane bit shall be 0 with one lane. | 5.6.1n, 5.3.3.8e |
+| ML-LM-03 | The near-end capability of the Data Link layer shall be passed to the lane and held constant while the lane is in Connected, so that all INIT3 words of one initialisation carry the same value; the MultiLane bit shall be 0 with one lane. | 5.6.1n, 5.3.3.8e, 5.7.9 |
 | ML-LM-04 | The far-end capability event and value of the lane shall be passed to the Data Link layer. | 5.6.1m, o |
 | ML-LM-05 | The scramble enable of the transmitter shall be the DataScrambled bit of the near-end capability, held constant while the lane is Active, so that it is the value the far end received in INIT3. The unscramble enable of the receiver shall be the INIT3DataScrambled bit of the far-end capability. | 5.7.6.2.1a, 5.7.6.2.2a |
 | ML-LM-06 | With one lane, the lane shall be data-sending and data-receiving and the alignment state Both-Ends Ready while it is Active; otherwise no lane shall be data-sending or data-receiving and the alignment state shall be Not Ready. | 5.6.1q, 5.6.3 |

@@ -271,6 +271,28 @@ begin
                                 "TxOnly, RxOnly, FarEndActive never asserted at " & to_string(i));
                 end loop;
 
+            -- TC-ML-25: the near-end capability is held while the lane is in Connected
+            elsif run("test_capability_hold") then
+                MlCfg(0).NearCapability <= x"01";
+                MlCfg(0).LaneStart      <= '1';
+                MlCfg(1).LaneStart      <= '1';
+
+                while MlStat(0).LaneState /= LaneStateConnected_c loop
+                    cycles(1);
+                end loop;
+
+                -- INIT3LinkResetFlag cleared in the middle of Connected
+                MlCfg(0).NearCapability <= x"00";
+                waitActive;
+                check_value(MlStat(1).FarCapability, x"03", error, "B received the value held in Connected");
+                check_value(MlStat(0).LaneNearCap, x"00", error, "New value passed to the lane after Connected");
+                MlCfg(0).LaneReset      <= '1';
+                cycles(10);
+                MlCfg(0).LaneReset      <= '0';
+                cycles(10);
+                waitActive;
+                check_value(MlStat(1).FarCapability, x"02", error, "New value sent in the next initialisation");
+
             -- TC-ML-23: PAD, ACTIVE and ALIGN are not passed to the Data Link layer
             elsif run("test_ml_ctrl_discard") then
                 startLink;
