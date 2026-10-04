@@ -103,6 +103,8 @@ def set_simulator_options(vu):
     # UVVM uses shared variables of non-protected types; GHDL accepts them with -frelaxed
     vu.add_compile_option("ghdl.a_flags", ["-frelaxed", "-Wno-hide", "-Wno-shared"])
     vu.set_sim_option("ghdl.elab_flags", ["-frelaxed"])
+    # Large word arrays in testbench processes exceed the default stack limit of GHDL
+    vu.set_sim_option("ghdl.sim_flags", ["--max-stack-alloc=0"])
     vu.set_sim_option("disable_ieee_warnings", True)
     vu.add_compile_option("modelsim.vcom_flags", ["-suppress", "1346,1236,1090"])
     vu.set_sim_option("modelsim.vsim_flags", ["-suppress", "3009,3473,8684,8683"])

@@ -1,6 +1,22 @@
-# OpenFibre: Open Logic fix_only_config.yml plus loop_statement_200, loop_statement_203 and signal_017
+# OpenFibre: Open Logic fix_only_config.yml plus formatting-only rules (no identifier case changes)
 fix:
     rule:
+        variable_assignment_004: all
+        type_016: all
+        case_007: all
+        case_010: all
+        type_009: all
+        type_005: all
+        type_008: all
+        process_026: all
+        package_401: all
+        signal_015: all
+        declarative_part_400: all
+        variable_assignment_008: all
+        package_body_400: all
+        package_body_401: all
+        type_200: all
+        subprogram_body_400: all
         loop_statement_200: all
         loop_statement_203: all
         signal_017: all
