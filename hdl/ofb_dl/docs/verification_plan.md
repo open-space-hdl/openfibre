@@ -72,6 +72,8 @@ Simulator: GHDL.
 | --- | --- | --- |
 | `test_qos_priority_schedule` (TC-DL-21) | Both VCs excluded from time-slot 1: no data; SCHEDULE.request to slot 0: both ready at once, all frames of the priority-0 VC first | DL-QS-01, 02, 04, 06, DL-MAC-01 |
 | `test_continuous_mode` (TC-DL-22) | Continuous mode: 140 words for a buffer of 128 without credit are accepted without back-pressure; flush, EEP, rest of the packet discarded; without an active lane the next packet is flushed as well | DL-CM-01 |
+| `test_full_after_rxerr` (TC-DL-23) | RXERR with an empty error recovery buffer: no FULL; RXERR while a data frame waits for acknowledgement and nothing else is to be sent: FULL with the current sequence number | DL-TS-06 |
+| `test_bc_input_discard` (TC-DL-24) | Six broadcast frames while the user does not read: four messages buffered, two discarded and counted; the four are delivered afterwards | DL-BI-01 |
 
 ### 3.5 Rows of several words (core testbench)
 
@@ -88,7 +90,6 @@ of this module keep one lane.
 
 ## 4. Coverage analysis
 
-Every requirement of the specification (phase 2 scope, sections 2.1 to 2.12) is covered by at least one test case. Not
-covered by a dedicated test: the FULL after an RXERR or CRC error with nothing else to send (DL-TS-06, second part),
-the configuration reset output of DC-1 (checked with the MIB) and the broadcast input buffer discard (DL-BI-01, needs a
-user that does not read broadcast messages). These are added with the MIB and core benches.
+Every requirement of the specification is covered by at least one test case; the rows of several words (section 2.14)
+are covered by the core testbench (section 3.5). The configuration reset output of DC-1 is checked with the MIB
+(Interface Reset, TC-MG-05 and TC-MG-06).

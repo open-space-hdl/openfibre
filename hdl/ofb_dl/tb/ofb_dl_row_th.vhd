@@ -88,6 +88,7 @@ architecture sim of ofb_dl_row_th is
     signal EvRetry   : std_logic;
     signal EvProt    : std_logic;
     signal EvFarRst  : std_logic;
+    signal EvBcDisc  : std_logic;
     signal ErbEmpty  : std_logic;
     signal RxErrSt   : std_logic_vector(1 downto 0);
     signal WordIdSt  : std_logic_vector(2 downto 0);
@@ -152,7 +153,7 @@ begin
             RxBc_Delayed          => open,
             RxBc_Late             => open,
             RxBc_Valid            => RxBcValid,
-            RxBc_Ready            => '1',
+            RxBc_Ready            => RowCfg.BcReady,
             Sched_TimeSlot        => SchedSlot,
             Sched_Valid           => SchedVld,
             TxRow_Data            => TxRowData,
@@ -188,6 +189,7 @@ begin
             Ev_Retry              => EvRetry,
             Ev_ProtocolError      => EvProt,
             Ev_FarEndLinkReset    => EvFarRst,
+            Ev_BcDiscard          => EvBcDisc,
             Stat_ErbEmpty         => ErbEmpty,
             Stat_LinkResetState   => LinkState,
             Stat_RxErrState       => RxErrSt,
@@ -348,7 +350,8 @@ begin
                            CreditOvfs => 0,
                            InputOvfs => 0,
                            FarEndResets => 0,
-                           BcRx => 0);
+                           BcRx => 0,
+                           BcDiscards => 0);
                 Init_v := false;
             end if;
             if EvRetry = '1' then
@@ -377,6 +380,9 @@ begin
             end if;
             if EvFarRst = '1' then
                 Stat_v.FarEndResets := Stat_v.FarEndResets + 1;
+            end if;
+            if EvBcDisc = '1' then
+                Stat_v.BcDiscards := Stat_v.BcDiscards + 1;
             end if;
             Stat_v.LinkState   := LinkState;
             Stat_v.RxErrState  := RxErrSt;
@@ -442,7 +448,7 @@ begin
         variable Cnt_v : natural := 0;
     begin
         if rising_edge(UserClk) then
-            if RxBcValid = '1' then
+            if RxBcValid = '1' and RowCfg.BcReady = '1' then
                 Cnt_v := Cnt_v + 1;
             end if;
             BcRxCount <= Cnt_v;

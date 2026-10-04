@@ -271,6 +271,24 @@ begin
             return to_integer(unsigned(word(22 downto 16)));
         end function;
 
+        -- Broadcast frame with a correct CRC-8: SBF, two data words, EBF with the sequence number
+        procedure rxBroadcast (
+            seq  : natural;
+            data : std_logic_vector(63 downto 0)) is
+            variable Crc_v : Char_t;
+            variable Ebf_v : Word_t;
+        begin
+            Crc_v := crc8Chars(Crc8Seed_c, wordSbf(x"07", x"21"), 4);
+            Crc_v := crc8Chars(Crc_v, data(31 downto 0), 4);
+            Crc_v := crc8Chars(Crc_v, data(63 downto 32), 4);
+            Ebf_v := wordEbf("00", std_logic_vector(to_unsigned(seq, 8)), x"00");
+            Ebf_v := wordEbf("00", std_logic_vector(to_unsigned(seq, 8)), crc8Chars(Crc_v, Ebf_v, 3));
+            rxWord(wordSbf(x"07", x"21"));
+            rxData(data(31 downto 0));
+            rxData(data(63 downto 32));
+            rxWord(Ebf_v);
+        end procedure;
+
     -- Test cases
     begin
         test_runner_setup(runner, runner_cfg);
@@ -734,6 +752,52 @@ begin
                 RowCfg.LaneActive <= '1';
                 cycles(300);
                 check_value(txPayload, 2, error, "Second EEP after the flush without active lane");
+
+            -- TC-DL-23: FULL after an RXERR when nothing else is to be sent but items wait for
+            -- acknowledgement (ECSS 5.7.7.1r); no FULL with an empty error recovery buffer
+            elsif run("test_full_after_rxerr") then
+                waitLinkInit(10 us);
+                cycles(400);
+                waitErbEmpty(10 us);
+                TxLog_v.clear;
+                rxWord(WordRxErr_c);
+                waitRxIdle;
+                cycles(100);
+                check_value(txCount(KindFull), 0, error, "No FULL after RXERR with an empty buffer");
+                -- One data frame without acknowledgement
+                RowCfg.AutoAck <= false;
+                rxFct(0, 1);
+                userPacket(0, 4);
+                cycles(300);
+                check_value(RowStat.ErbEmpty, '0', error, "Data frame waits for acknowledgement");
+                TxLog_v.clear;
+                cycles(200);
+                check_value(txCount(KindFull), 0, error, "No FULL before the RXERR");
+                rxWord(WordRxErr_c);
+                waitRxIdle;
+                cycles(100);
+                Pos_v          := txFind(KindFull, 0);
+                check_value(Pos_v >= 0, error, "FULL after RXERR with items waiting");
+                check_value(txWord(Pos_v), wordFull(x"05"), error, "FULL with the current sequence number");
+
+            -- TC-DL-24: a broadcast message that finds the broadcast input buffer full is discarded and
+            -- counted
+            elsif run("test_bc_input_discard") then
+                waitLinkInit(10 us);
+                cycles(400);
+                RowCfg.BcReady <= '0';
+
+                for i in 1 to 6 loop
+                    rxBroadcast(i, std_logic_vector(to_unsigned(i, 64)));
+                end loop;
+
+                waitRxIdle;
+                cycles(100);
+                check_value(RowStat.BcDiscards, 2, error, "Two messages discarded (buffer of 4)");
+                check_value(RowStat.SeqErrs, 0, error, "Broadcast frames in sequence");
+                RowCfg.BcReady <= '1';
+                cycles(100);
+                check_value(RowStat.BcRx, 4, error, "Four messages delivered");
 
             -- TC-DL-19: FCT credit limits the data, credit overflow
             elsif run("test_credit") then
