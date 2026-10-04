@@ -25,7 +25,7 @@ the state of every module; a module is done when its verification report is writ
 | `ofb_ni` | NI-1 to NI-4 | 2 (NI-1, NI-3), 3 (NI-2, NI-4) | Phase 2 done (VC ports with framing check, broadcast port) |
 | `ofb_mib` | MG-1 to MG-4, TA-1 | 2, 5 (MG-3 EDAC monitor), later (TA-1) | Phase 2 done (MG-1, MG-2; MG-4 in the core top level) |
 | `ofb_pa_gty` | PA-1 for the Versal GTY (PA-2, PA-3 in the transceiver) | 2 | Planned |
-| `ofb_core` | Core top level | 2 | Planned |
+| `ofb_core` | Core top level | 2, 4, 5 | Phase 2 done (one lane, four clock domains, core testbench) |
 | `ofb_vck190` | VCK190 board top level and constraints | 5 | Planned |
 
 ## Dependencies outside this repository

@@ -157,6 +157,7 @@ begin
                 Dl_NearCapability          => MlCfg(i).NearCapability,
                 Dl_FarCapability           => FarCap(i),
                 Dl_FarCapabilityValid      => FarCapValid(i),
+                Dl_FarCapabilityIdle       => open,
                 Dl_LaneActive              => LaneActive(i),
                 LaneTx_Data                => LaneTxData(i),
                 LaneTx_K                   => LaneTxK(i),

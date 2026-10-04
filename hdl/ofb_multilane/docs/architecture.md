@@ -97,6 +97,7 @@ state.
 | `Lane_NearCapability` | Register: `Dl_NearCapability` with the MultiLane bit (3) cleared, held while lane 0 is in Connected (the link reset state machine may change the INIT3LinkResetFlag in the middle of an INIT3 exchange; a changed value would restart the INIT3 count of the far end, which could then miss the flag) |
 | `Dl_FarCapability`, `Dl_FarCapabilityValid` | Far-end capability value and event of lane 0 |
 | `Dl_LaneActive` | Lane 0 is Active |
+| `Dl_FarCapabilityIdle` | Lane 0 is not Active (valid with `Dl_FarCapabilityValid`) |
 | `Enc_Scramble` | Register: follows the DataScrambled bit of `Lane_NearCapability` while lane 0 is not Active, held while it is Active |
 | `Dec_Unscramble` | DataScrambled bit of the far-end capability of lane 0 (the Lane layer keeps it) |
 | `Stat_DataSendingLanes`, `Stat_DataReceivingLanes` | Lane 0 is Active |
@@ -128,6 +129,7 @@ state.
 | `Dl_NearCapability` | in | 8 | Near-end INIT3 capability (LinkReset flag, DataScrambled) |
 | `Dl_FarCapability`, `Dl_FarCapabilityValid` | out | 8, 1 | Far-end capability and its event |
 | `Dl_LaneActive` | out | 1 | At least one lane is Active |
+| `Dl_FarCapabilityIdle` | out | 1 | With the capability event: no lane was Active |
 | `LaneTx_Data`, `LaneTx_K` | out | 32N, 4N | Words to the Lane layers |
 | `LaneTx_Valid` / `LaneTx_Ready` | out / in | N | Handshake per lane |
 | `LaneRx_Data`, `LaneRx_K`, `LaneRx_Valid` | in | 32N, 4N, N | Words from the Lane layers |

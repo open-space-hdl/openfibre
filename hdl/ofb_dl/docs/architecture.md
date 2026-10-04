@@ -176,9 +176,12 @@ an overflow (`Ev_Overflow` per VC).
 | ConfigReset | Link reset, LaneReset, configuration reset | NearEndReset |
 | NearEndReset | Link reset, LaneReset | Interface Reset: ConfigReset; otherwise CheckFarEnd |
 | CheckFarEnd | INIT3LinkResetFlag = 1 | Interface Reset: ConfigReset; Link Reset or link error: NearEndReset; capability event with flag 1: LinkInit |
-| LinkInit | INIT3LinkResetFlag = 0 | Interface Reset: ConfigReset; Link Reset or link error: NearEndReset; no lane active and capability event with flag 1: NearEndReset, `Ev_FarEndLinkReset` |
+| LinkInit | INIT3LinkResetFlag = 0 | Interface Reset: ConfigReset; Link Reset or link error: NearEndReset; capability event with flag 1 received while no lane was active (`Ml_FarCapabilityIdle`): NearEndReset, `Ev_FarEndLinkReset` |
 
-Reset enters ConfigReset. Link errors are the protocol error of DT-7 and the overflows of DR-5 and DR-6.
+Reset enters ConfigReset. Link errors are the protocol error of DT-7 and the overflows of DR-5 and DR-6. The condition
+"all lanes not active" is evaluated by the Multi-Lane layer at the capability event and passed with it
+(`Ml_FarCapabilityIdle`): the lane becomes active a few cycles after the event, and a lane active level that crosses
+to the core clock separately can arrive before the event (found with the core testbench).
 
 ## 4. Top-level ports (`ofb_dl`)
 
@@ -187,7 +190,7 @@ Reset enters ConfigReset. Link errors are the protocol error of DT-7 and the ove
 | Clocks | `Clk`, `Rst`, `UserClk`, `UserRst` |
 | VC ports (`UserClk`) | `TxVc_Data` (32 x NumVc), `TxVc_K` (4 x NumVc), `TxVc_Valid`, `TxVc_Ready`; `RxVc_Data`, `RxVc_K`, `RxVc_Valid`, `RxVc_Ready` |
 | Broadcast (`UserClk`) | `TxBc_Data` (64), `TxBc_Channel`, `TxBc_Type`, `TxBc_Delayed`, `TxBc_Valid`, `TxBc_Ready`; `RxBc_Data`, `RxBc_Channel`, `RxBc_Type`, `RxBc_Delayed`, `RxBc_Late`, `RxBc_Valid`, `RxBc_Ready` |
-| Multi-Lane layer | `TxRow_*`, `RxRow_*` (section 2.1 of the `ofb_multilane` architecture), `Ml_LinkReset`, `Ml_LaneReset`, `Ml_NearCapability`, `Ml_FarCapability`, `Ml_FarCapabilityValid`, `Ml_LaneActive` |
+| Multi-Lane layer | `TxRow_*`, `RxRow_*` (section 2.1 of the `ofb_multilane` architecture), `Ml_LinkReset`, `Ml_LaneReset`, `Ml_NearCapability`, `Ml_FarCapability`, `Ml_FarCapabilityValid`, `Ml_FarCapabilityIdle`, `Ml_LaneActive` |
 | Configuration | `Cfg_DataScrambled`, `Cfg_LinkReset`, `Cfg_InterfaceReset`, `Cfg_BcInterval` |
 | Status | `Stat_*` levels and `Ev_*` events of DL-ST-01 |
 

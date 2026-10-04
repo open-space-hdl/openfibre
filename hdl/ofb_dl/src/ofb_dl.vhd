@@ -91,6 +91,7 @@ entity ofb_dl is
         Ml_NearCapability     : out   Char_t;
         Ml_FarCapability      : in    Char_t;
         Ml_FarCapabilityValid : in    std_logic;
+        Ml_FarCapabilityIdle  : in    std_logic;
         Ml_LaneActive         : in    std_logic;
         -- Configuration
         Cfg_DataScrambled     : in    std_logic                     := '1';
@@ -258,7 +259,7 @@ begin
             Err_LinkReset         => ErrLinkRst,
             Ml_FarCapability      => Ml_FarCapability,
             Ml_FarCapabilityValid => Ml_FarCapabilityValid,
-            Ml_LaneActive         => Ml_LaneActive,
+            Ml_FarCapabilityIdle  => Ml_FarCapabilityIdle,
             Ctrl_LinkReset        => LinkReset,
             Ctrl_LaneReset        => LaneReset,
             Ctrl_ConfigReset      => Ctrl_ConfigReset,

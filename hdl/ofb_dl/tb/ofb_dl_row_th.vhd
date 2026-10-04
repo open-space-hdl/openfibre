@@ -167,6 +167,7 @@ begin
             Ml_NearCapability     => open,
             Ml_FarCapability      => FarCap,
             Ml_FarCapabilityValid => FarCapV,
+            Ml_FarCapabilityIdle  => '1',
             Ml_LaneActive         => RowCfg.LaneActive,
             Cfg_LinkReset         => RowCfg.LinkReset,
             Cfg_BcInterval        => RowCfg.BcInterval,
