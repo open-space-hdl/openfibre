@@ -57,6 +57,7 @@ The module consists of four blocks of the architecture (section 7.5):
 | LN-TX-03 | In Active a SKIP word shall be inserted every 5000 words; SKIP has the highest precedence and may be inserted within any frame. | 5.5.3d, 5.3.10c, d |
 | LN-TX-04 | STANDBY words shall carry the configured Standby Reason, LOST_SIGNAL words the LOS_Cause in bits 1:0. | 5.3.3.9, 5.3.3.10 |
 | LN-TX-05 | iINIT1 and iINIT2 shall never be generated. | 5.3.3.5e, 5.3.3.7e |
+| LN-TX-06 | With `SkipExternal_g`, the SKIP word shall be inserted in Active in the cycle of the SKIP request of the Multi-Lane layer instead of the own interval, so that all lanes of a link send SKIP in the same cycle. | 5.6.4.5a |
 
 ### 2.4 Lane receiver (LN-3)
 
@@ -94,6 +95,7 @@ The module consists of four blocks of the architecture (section 7.5):
 | `InitTimeoutWords_g` | 5000 | Initialisation timeout in words |
 | `InitPrbsWords_g` | 64 | PRBS data words after each INIT1 / INIT2 (0 to 64) |
 | `SkipIntervalWords_g` | 5000 | Words between two SKIP words in Active |
+| `SkipExternal_g` | false | SKIP on the request `Ctrl_SkipReq` of the Multi-Lane layer (multi-lane link) |
 | `RxErrLeakWords_g` | 16384 | Received words per decrement of the RXERR counter (15000 to 16384) |
 
 One word per clock cycle (`WordsPerCycle_g` = 2 of the architecture is not implemented yet).

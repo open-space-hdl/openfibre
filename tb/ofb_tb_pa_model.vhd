@@ -8,7 +8,8 @@
 ---------------------------------------------------------------------------------------------------
 -- Behavioural model of two Physical adapters connected by a lane (both directions), at the symbol
 -- stream of the Lane layer: 8B/10B encoding with running disparity, channel effects (disconnection,
--- crossed pair, symbol offset, bit errors) and decoding with code and disparity error flags.
+-- crossed pair, symbol offset, bit errors, skew in words) and decoding with code and disparity
+-- error flags.
 --
 -- What this model does NOT reproduce:
 -- - Different clocks at both ends (both ends use Clk; no elastic buffer, no SKIP removal).
@@ -76,6 +77,21 @@ architecture sim of ofb_tb_pa_model is
     type Symbols_t is array (0 to 7) of Code_t;
     type Present_t is array (0 to 7) of boolean;
 
+    -- Receiver output, delayed by the skew
+    type RxWord_t is record
+        Data     : Word_t;
+        K        : WordK_t;
+        Code     : WordK_t;
+        Disp     : WordK_t;
+        Valid    : std_logic;
+        NoSignal : std_logic;
+    end record;
+
+    type Delay_t is array (0 to 7) of RxWord_t;
+
+    constant RxIdle_c : RxWord_t := (Data => (others => '0'), K => (others => '0'), Code => (others => '0'),
+                                     Disp => (others => '0'), Valid => '0', NoSignal => '1');
+
     -- One direction of the channel: transmitter at end X, receiver at end Y
     procedure direction (
         signal tx_data    : in    Word_t;
@@ -90,6 +106,7 @@ architecture sim of ofb_tb_pa_model is
         variable flips    : inout natural;
         variable buf      : inout Symbols_t;
         variable present  : inout Present_t;
+        variable dly      : inout Delay_t;
         signal rx_data    : out   Word_t;
         signal rx_k       : out   WordK_t;
         signal rx_code    : out   WordK_t;
@@ -102,6 +119,7 @@ architecture sim of ofb_tb_pa_model is
         variable Present_v : boolean;
         variable AllPres_v : boolean;
         variable FlipBit_v : natural range 0 to 9;
+        variable Rx_v      : RxWord_t;
     begin
 
         -- Shift: the previous four symbols move to positions 0 to 3
@@ -140,10 +158,11 @@ architecture sim of ofb_tb_pa_model is
             AllPres_v := AllPres_v and present(4-ctrl.Offset+j);
         end loop;
 
+        Rx_v := dly(0);
         if AllPres_v then
-            no_signal <= '0';
+            Rx_v.NoSignal := '0';
         else
-            no_signal <= '1';
+            Rx_v.NoSignal := '1';
         end if;
         if AllPres_v and rx_enable = '1' and cdr_enable = '1' then
 
@@ -152,20 +171,34 @@ architecture sim of ofb_tb_pa_model is
                 if rx_invert = '1' then
                     Code_v := not Code_v;
                 end if;
-                Dec_v                     := decode(Code_v, dec_rd);
-                dec_rd                    := Dec_v.Rd;
-                rx_data(8*j+7 downto 8*j) <= Dec_v.Char;
-                rx_k(j)                   <= Dec_v.K;
-                rx_code(j)                <= Dec_v.CodeErr;
-                rx_disp(j)                <= Dec_v.DispErr;
+                Dec_v                       := decode(Code_v, dec_rd);
+                dec_rd                      := Dec_v.Rd;
+                Rx_v.Data(8*j+7 downto 8*j) := Dec_v.Char;
+                Rx_v.K(j)                   := Dec_v.K;
+                Rx_v.Code(j)                := Dec_v.CodeErr;
+                Rx_v.Disp(j)                := Dec_v.DispErr;
             end loop;
 
-            rx_valid <= '1';
+            Rx_v.Valid := '1';
         else
-            rx_valid <= '0';
-            rx_code  <= (others => '0');
-            rx_disp  <= (others => '0');
+            Rx_v.Valid := '0';
+            Rx_v.Code  := (others => '0');
+            Rx_v.Disp  := (others => '0');
         end if;
+
+        -- Skew: delay line of words, the output is taken at the current skew
+        for i in 7 downto 1 loop
+            dly(i) := dly(i-1);
+        end loop;
+
+        dly(0)    := Rx_v;
+        Rx_v      := dly(ctrl.Skew);
+        rx_data   <= Rx_v.Data;
+        rx_k      <= Rx_v.K;
+        rx_code   <= Rx_v.Code;
+        rx_disp   <= Rx_v.Disp;
+        rx_valid  <= Rx_v.Valid;
+        no_signal <= Rx_v.NoSignal;
     end procedure;
 
 begin
@@ -176,10 +209,11 @@ begin
         variable Flips_v   : natural   := 0;
         variable Buf_v     : Symbols_t := (others => (others => '0'));
         variable Present_v : Present_t := (others => false);
+        variable Dly_v     : Delay_t   := (others => RxIdle_c);
     begin
         if rising_edge(Clk) then
             direction(A_Tx_Data, A_Tx_K, A_TxEnable, B_RxEnable, B_CdrEnable, B_RxInvert,
-                      PaCtrl(Instance_g).AtoB, EncRd_v, DecRd_v, Flips_v, Buf_v, Present_v,
+                      PaCtrl(Instance_g).AtoB, EncRd_v, DecRd_v, Flips_v, Buf_v, Present_v, Dly_v,
                       B_Rx_Data, B_Rx_K, B_Rx_CodeErr, B_Rx_DispErr, B_Rx_Valid, B_NoSignal);
         end if;
     end process;
@@ -190,10 +224,11 @@ begin
         variable Flips_v   : natural   := 0;
         variable Buf_v     : Symbols_t := (others => (others => '0'));
         variable Present_v : Present_t := (others => false);
+        variable Dly_v     : Delay_t   := (others => RxIdle_c);
     begin
         if rising_edge(Clk) then
             direction(B_Tx_Data, B_Tx_K, B_TxEnable, A_RxEnable, A_CdrEnable, A_RxInvert,
-                      PaCtrl(Instance_g).BtoA, EncRd_v, DecRd_v, Flips_v, Buf_v, Present_v,
+                      PaCtrl(Instance_g).BtoA, EncRd_v, DecRd_v, Flips_v, Buf_v, Present_v, Dly_v,
                       A_Rx_Data, A_Rx_K, A_Rx_CodeErr, A_Rx_DispErr, A_Rx_Valid, A_NoSignal);
         end if;
     end process;

@@ -8,7 +8,7 @@
 ---------------------------------------------------------------------------------------------------
 -- Lane transmitter (LN-2): sends the lane control words of the current initialisation state, the
 -- words of the Multi-Lane layer in Active, IDLE when there is nothing to send and a SKIP every
--- SkipIntervalWords_g words.
+-- SkipIntervalWords_g words, or on the SKIP request of the Multi-Lane layer (SkipExternal_g).
 --
 -- Documentation: hdl/ofb_lane/docs/architecture.md (section 2.2)
 
@@ -31,7 +31,8 @@ library work;
 entity ofb_lane_tx is
     generic (
         InitPrbsWords_g     : natural range 0 to 64 := 64;
-        SkipIntervalWords_g : positive              := 5000
+        SkipIntervalWords_g : positive              := 5000;
+        SkipExternal_g      : boolean               := false
     );
     port (
         -- Control Ports
@@ -42,6 +43,7 @@ entity ofb_lane_tx is
         Ctrl_Capability    : in    Char_t;
         Ctrl_LosCause      : in    LosCause_t;
         Ctrl_StandbyReason : in    Char_t;
+        Ctrl_SkipReq       : in    std_logic := '0'; -- SKIP request of the Multi-Lane layer
         -- Words of the Multi-Lane layer
         In_Data            : in    Word_t;
         In_K               : in    WordK_t;
@@ -99,7 +101,12 @@ begin
         v.Mode           := Ctrl_Mode;
         Ready_v          := '0';
         Advance_v        := '0';
-        SkipDue_v        := (r.SkipCnt = SkipIntervalWords_g-1);
+        if SkipExternal_g then
+            -- All lanes of a multi-lane link send SKIP in the same cycle (ECSS 5.6.4.5a)
+            SkipDue_v := Ctrl_SkipReq = '1';
+        else
+            SkipDue_v := (r.SkipCnt = SkipIntervalWords_g-1);
+        end if;
 
         case Ctrl_Mode is
 

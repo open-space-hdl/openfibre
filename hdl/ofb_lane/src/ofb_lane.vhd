@@ -30,6 +30,7 @@ entity ofb_lane is
         InitTimeoutWords_g  : positive              := 5000;
         InitPrbsWords_g     : natural range 0 to 64 := 64;
         SkipIntervalWords_g : positive              := 5000;
+        SkipExternal_g      : boolean               := false; -- SKIP on Ctrl_SkipReq (multi-lane)
         RxErrLeakWords_g    : positive              := 16384
     );
     port (
@@ -46,6 +47,7 @@ entity ofb_lane is
         RxWord_Valid             : out   std_logic;
         -- Lane control from / to the Multi-Lane layer
         Ctrl_LaneReset           : in    std_logic := '0';
+        Ctrl_SkipReq             : in    std_logic := '0';
         Ctrl_TxOnly              : in    std_logic := '0';
         Ctrl_RxOnly              : in    std_logic := '0';
         Ctrl_FarEndActive        : in    std_logic := '0';
@@ -202,12 +204,14 @@ begin
     i_tx : entity work.ofb_lane_tx
         generic map (
             InitPrbsWords_g     => InitPrbsWords_g,
-            SkipIntervalWords_g => SkipIntervalWords_g
+            SkipIntervalWords_g => SkipIntervalWords_g,
+            SkipExternal_g      => SkipExternal_g
         )
         port map (
             Clk                => Clk,
             Rst                => Rst,
             Ctrl_Mode          => TxMode,
+            Ctrl_SkipReq       => Ctrl_SkipReq,
             Ctrl_Capability    => TxCapability,
             Ctrl_LosCause      => TxLosCause,
             Ctrl_StandbyReason => Cfg_StandbyReason,
