@@ -211,7 +211,7 @@ every layer.
 | VC stream (one per VC) | User and Network interface | NumLanes_g x 32-bit N-Chars (32 to 128 bit, O2), one K flag per byte in `TUSER` (EOP, EEP, Fill) | AXI4-Stream |
 | Broadcast stream | User and Network interface | One broadcast message (8 bytes); broadcast channel, B_TYPE, DELAYED and LATE flags in `TUSER` | AXI4-Stream |
 | Frame source stream (one per source) | VC / broadcast buffers and transmit scheduler | Row of N-Chars with valid mask, `Last` = end of packet or 64-word frame limit | Valid / ready |
-| Transmit row stream | Data Link and Multi-Lane layers | One row: up to `MaxDataLanes_g` x (32 bit + 4 K flags) with a word mask, or one control word; frame kind; `Last` = end of frame | Valid / ready through `olo_ft_fifo_async` |
+| Transmit row stream | Data Link and Multi-Lane layers | One row: up to `MaxDataLanes_g` x (32 bit + 4 K flags) with a word mask, or one control word; replicate flag (word 0 goes to every data-sending lane: control words, broadcast and idle frame words) | Valid / ready through `olo_ft_fifo_async` |
 | Receive row stream | Multi-Lane and Data Link layers | One aligned row, or one control word; per-column CRC-16 result on EDF rows; RXERR flag | Valid, no back-pressure (the Data Link layer is never slower than the link) |
 | Lane word stream (one per lane) | Multi-Lane and Lane layers | 1 or 2 words of 32 bit + 4 K flags | Valid / ready (transmit), valid (receive) |
 | Lane control | Multi-Lane and Lane layers | LaneReset, TxOnly, RxOnly, FarEndActive, near-end capability; lane state, far-end capability event | Levels and one-cycle events (ECSS 5.6.1g to o) |
