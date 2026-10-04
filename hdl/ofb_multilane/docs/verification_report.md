@@ -8,13 +8,13 @@ Run on 2026-10-04 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 | Testbench | Tests | Passed |
 | --- | --- | --- |
 | `ofb_ml_codec_tb` (ML-3, ML-4) | 9 | 9 |
-| `ofb_multilane_tb` (layer, one lane) | 5 | 5 |
+| `ofb_multilane_tb` (layer, one lane) | 6 | 6 |
 
-Full regression of the repository: 63 of 63 tests pass.
+Full regression of the repository: 81 of 81 tests pass (after the Data Link layer).
 
 ## 2. Summary
 
-All 14 test cases pass; every requirement of the specification (phase 2 scope) is covered (see the verification
+All 15 test cases pass; every requirement of the specification (phase 2 scope) is covered (see the verification
 plan). The column encoder reproduces ECSS Figures 5-42 and 5-44 bit-exactly, and the decoder restores them. VSG
 reports no errors and no warnings.
 
@@ -26,6 +26,7 @@ Defects found during verification:
 | Finding | Fix |
 | --- | --- |
 | TC-ML-24: the one-cycle link reset pulse of the sequencer did not cover a rising clock edge (testbench timing) | Sequencer aligned to the falling edge before the pulse |
+| Found during the design of the link reset state machine: a capability change in the middle of Connected can make the far end miss the INIT3LinkResetFlag | Capability held while the lane is in Connected (TC-ML-25, mutation checked) |
 
 Observations:
 

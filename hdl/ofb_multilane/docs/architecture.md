@@ -94,10 +94,10 @@ state.
 | --- | --- |
 | `Lane_Reset` | `Dl_LaneReset` |
 | `Lane_TxOnly`, `Lane_RxOnly`, `Lane_FarEndActive` | 0 |
-| `Lane_NearCapability` | `Dl_NearCapability` with the MultiLane bit (3) cleared |
+| `Lane_NearCapability` | Register: `Dl_NearCapability` with the MultiLane bit (3) cleared, held while lane 0 is in Connected (the link reset state machine may change the INIT3LinkResetFlag in the middle of an INIT3 exchange; a changed value would restart the INIT3 count of the far end, which could then miss the flag) |
 | `Dl_FarCapability`, `Dl_FarCapabilityValid` | Far-end capability value and event of lane 0 |
 | `Dl_LaneActive` | Lane 0 is Active |
-| `Enc_Scramble` | Register: follows the DataScrambled bit of `Dl_NearCapability` while lane 0 is not Active, held while it is Active |
+| `Enc_Scramble` | Register: follows the DataScrambled bit of `Lane_NearCapability` while lane 0 is not Active, held while it is Active |
 | `Dec_Unscramble` | DataScrambled bit of the far-end capability of lane 0 (the Lane layer keeps it) |
 | `Stat_DataSendingLanes`, `Stat_DataReceivingLanes` | Lane 0 is Active |
 | `Stat_AlignState` | Both-Ends Ready while lane 0 is Active, else Not Ready |
