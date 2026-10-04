@@ -403,9 +403,12 @@ begin
             v.LeakCnt  := 0;
         end if;
 
-        -- LaneReset, receiver or CDR disabled: LostSync (ECSS 5.5.8.2a.1)
+        -- LaneReset, receiver or CDR disabled: LostSync (ECSS 5.5.8.2a.1); words received before are
+        -- discarded
         if Ctrl_SyncReset = '1' then
             v.SyncState := LostSync_s;
+            v.S1Valid   := '0';
+            v.PrevErr   := (others => '1');
             v.HeldValid := '0';
             v.S2Valid   := '0';
             v.S3Valid   := '0';

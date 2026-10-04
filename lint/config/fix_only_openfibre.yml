@@ -1,6 +1,8 @@
 # OpenFibre: Open Logic fix_only_config.yml plus formatting-only rules (no identifier case changes)
 fix:
     rule:
+        procedure_200: all
+        variable_400: all
         variable_assignment_004: all
         type_016: all
         case_007: all

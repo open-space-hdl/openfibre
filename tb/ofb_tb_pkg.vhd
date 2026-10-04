@@ -65,6 +65,18 @@ package ofb_tb_pkg is
     type WordArray_t is array (natural range <>) of Word_t;
     type WordKArray_t is array (natural range <>) of WordK_t;
 
+    -- Word with K flags in bits 35:32 and a log of such words (monitors push, test sequencers read)
+    subtype KWord_t is std_logic_vector(35 downto 0);
+
+    type WordLog_t is protected
+
+        procedure push (word : KWord_t);
+
+        procedure clear;
+        impure function count return natural;
+        impure function get (idx : natural) return KWord_t;
+    end protected;
+
     -- Ends a test: prints the UVVM alert summary, raises a TB_ERROR when an unexpected alert occurred
     -- or an expected alert did not occur (this stops the simulation and fails the VUnit test) and
     -- hands over to the VUnit runner.
@@ -81,6 +93,38 @@ end package;
 -- Package Body
 ---------------------------------------------------------------------------------------------------
 package body ofb_tb_pkg is
+
+    type WordLog_t is protected body
+
+        type KWordArray_t is array (0 to 16383) of KWord_t;
+
+        variable Words_v : KWordArray_t;
+        variable Count_v : natural := 0;
+
+        procedure push (word : KWord_t) is
+        begin
+            if Count_v <= KWordArray_t'high then
+                Words_v(Count_v) := word;
+            end if;
+            Count_v := Count_v + 1;
+        end procedure;
+
+        procedure clear is
+        begin
+            Count_v := 0;
+        end procedure;
+
+        impure function count return natural is
+        begin
+            return Count_v;
+        end function;
+
+        impure function get (idx : natural) return KWord_t is
+        begin
+            return Words_v(idx);
+        end function;
+
+    end protected body;
 
     procedure ofbTestEnd (signal runner : inout runner_sync_t) is
     begin

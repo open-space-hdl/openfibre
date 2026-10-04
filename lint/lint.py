@@ -18,6 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "lint" / "config" / "vsg_config.yml"
 FIX_ONLY = ROOT / "lint" / "config" / "fix_only_openfibre.yml"
+CRLF = bytes([13, 10])
+LF = bytes([10])
 
 
 def find_vsg():
@@ -51,7 +53,12 @@ def main():
             subprocess.run([vsg, "-c", str(CONFIG), "--fix", "--fix_only", str(FIX_ONLY), "-f", *files],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
         for f, (content, st) in before.items():
-            if Path(f).read_bytes() == content:
+            new = Path(f).read_bytes()
+            # Keep LF line endings (VSG writes CRLF on Windows)
+            if CRLF not in content and CRLF in new:
+                new = new.replace(CRLF, LF)
+                Path(f).write_bytes(new)
+            if new == content:
                 os.utime(f, ns=(st.st_atime_ns, st.st_mtime_ns))
     result = subprocess.run([vsg, "-c", str(CONFIG), "--all_phases", "-of", "summary", "-f", *files],
                             capture_output=True, text=True, check=False)
