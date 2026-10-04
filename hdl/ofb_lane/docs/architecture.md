@@ -80,7 +80,7 @@ Registered word multiplexer controlled by the Tx mode of LN-1:
 | Off | IDLE (the driver is disabled) |
 | Init1, Init2 | INIT1 / INIT2 followed by `InitPrbsWords_g` PRBS data words, repeated; a mode change restarts with the INIT word |
 | Init3 | INIT3 with the capability of LN-1 |
-| Active | SKIP every `SkipIntervalWords_g` words, otherwise the word of the Multi-Lane layer, otherwise IDLE |
+| Active | SKIP every `SkipIntervalWords_g` words (with `SkipExternal_g`: in the cycle of `Ctrl_SkipReq`), otherwise the word of the Multi-Lane layer, otherwise IDLE |
 | Standby | STANDBY with the configured Standby Reason |
 | LostSignal | LOST_SIGNAL with the LOS_Cause of LN-1 |
 

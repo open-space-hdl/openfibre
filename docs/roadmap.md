@@ -19,8 +19,8 @@ the state of every module; a module is done when its verification report is writ
 | --- | --- | --- | --- |
 | `ofb_pkg` | Common constants and types (ECSS symbols, control words, CRC, PRBS) | 1 | Done |
 | `tb` (shared) | Verification helpers, behavioural PA model, SpaceFibre reference model | 1, 2 | In work |
-| `ofb_lane` | LN-1 lane initialisation, LN-2 transmitter, LN-3 receiver, LN-4 parallel loopback | 2 | Done (1 word per clock) |
-| `ofb_multilane` | ML-1 to ML-6 | 2 (bypass, column codec), 4 | Phase 2 done (bypass, column codec with scrambling) |
+| `ofb_lane` | LN-1 lane initialisation, LN-2 transmitter, LN-3 receiver, LN-4 parallel loopback | 2, 4 (SKIP request) | Done (1 word per clock; SKIP on request of the Multi-Lane layer) |
+| `ofb_multilane` | ML-1 to ML-6 | 2 (bypass, column codec), 4 | Done (1 to 4 lanes: alignment, asymmetric links, unidirectional and hot redundant lanes, bypass) |
 | `ofb_dl` | DT-1 to DT-8, DR-1 to DR-7, DC-1, DC-2 (Data Link layer) | 2, 3 (QoS, continuous mode), 4 (rows of several words) | Phases 2 and 3 done (one lane; priority, bandwidth reservation, schedule; continuous mode) |
 | `ofb_ni` | NI-1 to NI-4 | 2 (NI-1, NI-3), 3 (NI-2, NI-4) | Done (VC ports with framing check, broadcast port, schedule port; VN number in the MIB) |
 | `ofb_mib` | MG-1 to MG-4, TA-1 | 2, 5 (MG-3 EDAC monitor), later (TA-1) | Phase 2 done (MG-1, MG-2; MG-4 in the core top level) |

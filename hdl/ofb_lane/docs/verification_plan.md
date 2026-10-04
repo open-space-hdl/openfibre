@@ -83,7 +83,9 @@ Lane clock 156.25 MHz (6.25 Gbit/s with 32-bit words). Simulator: GHDL.
 ## 4. Coverage analysis
 
 Every requirement of the specification is covered by at least one test case. LN-TX-05 (no iINIT generated) is
-verified by inspection: the transmitter has no path that selects an inverse INIT word.
+verified by inspection: the transmitter has no path that selects an inverse INIT word. LN-TX-06 (SKIP on request of
+the Multi-Lane layer) is verified with the multi-lane link testbench (`ofb_ml_link_tb`, TC-ML-31: SKIP on all lanes
+in the same cycle).
 
 ## 5. Functional coverage plan
 

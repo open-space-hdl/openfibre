@@ -55,6 +55,32 @@ package ofb_ml_pkg is
         k    : in WordK_t;
         prbs : in Word_t) return Word_t;
 
+    -- ACTIVE control word (ECSS 5.3.4.1)
+    function isActive (
+        data : in Word_t;
+        k    : in WordK_t) return boolean;
+
+    -- ALIGN control word with iLANES = not LANES (ECSS 5.6.6.3e)
+    function alignCorrect (
+        data : in Word_t;
+        k    : in WordK_t) return boolean;
+
+    -- ALIGN control word of a hot redundant lane: LANES = iLANES = 0 (ECSS 5.6.10i)
+    function alignHot (
+        data : in Word_t;
+        k    : in WordK_t) return boolean;
+
+    -- Words that may be sent or passed before data words that wait for a complete row
+    function interleaved (kind : in WordKind_t) return boolean;
+
+    -- Number of set bits
+    function countOnes (vec : in std_logic_vector) return natural;
+
+    -- Number of set bits below bit idx
+    function countBelow (
+        vec : in std_logic_vector;
+        idx : in natural) return natural;
+
 end package;
 
 ---------------------------------------------------------------------------------------------------
@@ -142,6 +168,63 @@ package body ofb_ml_pkg is
         end loop;
 
         return Word_v;
+    end function;
+
+    function isActive (
+        data : in Word_t;
+        k    : in WordK_t) return boolean is
+    begin
+        return k = KCtrl_c and data(15 downto 0) = SymActive_c & K28_7_c;
+    end function;
+
+    function alignCorrect (
+        data : in Word_t;
+        k    : in WordK_t) return boolean is
+    begin
+        return k = KCtrl_c and data(15 downto 0) = SymAlign_c & K28_7_c and
+               data(31 downto 24) = not data(23 downto 16);
+    end function;
+
+    function alignHot (
+        data : in Word_t;
+        k    : in WordK_t) return boolean is
+    begin
+        return k = KCtrl_c and data(15 downto 0) = SymAlign_c & K28_7_c and data(31 downto 16) = x"0000";
+    end function;
+
+    function interleaved (kind : in WordKind_t) return boolean is
+    begin
+        return kind = KindData or kind = KindSbf or kind = KindEbf or kind = KindOther;
+    end function;
+
+    function countOnes (vec : in std_logic_vector) return natural is
+        variable Cnt_v : natural;
+    begin
+        Cnt_v := 0;
+
+        for i in vec'range loop
+            if vec(i) = '1' then
+                Cnt_v := Cnt_v + 1;
+            end if;
+        end loop;
+
+        return Cnt_v;
+    end function;
+
+    function countBelow (
+        vec : in std_logic_vector;
+        idx : in natural) return natural is
+        variable Cnt_v : natural;
+    begin
+        Cnt_v := 0;
+
+        for i in vec'low to vec'high loop
+            if i < idx and vec(i) = '1' then
+                Cnt_v := Cnt_v + 1;
+            end if;
+        end loop;
+
+        return Cnt_v;
     end function;
 
 end package body;
