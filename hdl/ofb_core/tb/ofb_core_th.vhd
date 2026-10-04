@@ -66,6 +66,7 @@ architecture sim of ofb_core_th is
     type DataArray_t is array (0 to 1) of std_logic_vector(31 downto 0);
     type StrbArray_t is array (0 to 1) of std_logic_vector(3 downto 0);
     type RespArray_t is array (0 to 1) of std_logic_vector(1 downto 0);
+    type SlotArray_t is array (0 to 1) of std_logic_vector(5 downto 0);
 
     signal SVcData  : VcDataArray_t;
     signal SVcUser  : VcKArray_t;
@@ -82,6 +83,8 @@ architecture sim of ofb_core_th is
     signal MBcData  : BcDataArray_t;
     signal MBcUser  : BcUserArray_t;
     signal MBcValid : BitArray_t;
+    signal SchSlot  : SlotArray_t  := (others => (others => '0'));
+    signal SchValid : BitArray_t   := (others => '0');
 
     signal ArAddr  : AddrArray_t;
     signal ArValid : BitArray_t;
@@ -189,6 +192,8 @@ begin
                 M_Bc_TUser        => MBcUser(i),
                 M_Bc_TValid       => MBcValid(i),
                 M_Bc_TReady       => '1',
+                S_Sched_Slot      => SchSlot(i),
+                S_Sched_Valid     => SchValid(i),
                 S_AxiLite_ArAddr  => ArAddr(i),
                 S_AxiLite_ArValid => ArValid(i),
                 S_AxiLite_ArReady => ArReady(i),
@@ -361,7 +366,8 @@ begin
             variable Rand_v  : real;
             variable Sent_v  : natural  := 0;
             variable Data_v  : std_logic_vector(63 downto 0);
-            variable User_v  : std_logic_vector(15 downto 0);
+            variable User_v  : std_logic_vector(16 downto 0);
+            variable Del_v   : Char_t;
 
             impure function randByte return Char_t is
             begin
@@ -381,12 +387,14 @@ begin
                         Data_v(8*b+7 downto 8*b) := randByte;
                     end loop;
 
-                    User_v      := randByte & randByte;
+                    -- Random DELAYED flag, B_TYPE and channel
+                    Del_v       := randByte;
+                    User_v      := Del_v(0) & randByte & randByte;
                     CoreSb_v.add_expected(1 + 2 * CoreNumVc_c + (1 - i), "0000" & Data_v(31 downto 0));
                     CoreSb_v.add_expected(1 + 2 * CoreNumVc_c + (1 - i), "0000" & Data_v(63 downto 32));
-                    CoreSb_v.add_expected(1 + 2 * CoreNumVc_c + (1 - i), x"00000" & User_v);
+                    CoreSb_v.add_expected(1 + 2 * CoreNumVc_c + (1 - i), x"0000" & "000" & User_v);
                     SBcData(i)  <= Data_v;
-                    SBcUser(i)  <= "00" & User_v;
+                    SBcUser(i)  <= '0' & User_v;
                     SBcValid(i) <= '1';
 
                     loop
@@ -407,7 +415,24 @@ begin
                 if MBcValid(i) = '1' then
                     CoreSb_v.check_received(1 + 2 * CoreNumVc_c + i, "0000" & MBcData(i)(31 downto 0));
                     CoreSb_v.check_received(1 + 2 * CoreNumVc_c + i, "0000" & MBcData(i)(63 downto 32));
-                    CoreSb_v.check_received(1 + 2 * CoreNumVc_c + i, x"00000" & MBcUser(i)(15 downto 0));
+                    -- DELAYED, B_TYPE and channel; LATE depends on the error recovery
+                    CoreSb_v.check_received(1 + 2 * CoreNumVc_c + i, x"0000" & "000" & MBcUser(i)(16 downto 0));
+                end if;
+            end if;
+        end process;
+
+        -------------------------------------------------------------------------------------------
+        -- SCHEDULE.request: one strobe per request of the sequencer
+        -------------------------------------------------------------------------------------------
+        p_sched : process (UserClk) is
+            variable Done_v : natural := 0;
+        begin
+            if rising_edge(UserClk) then
+                SchValid(i) <= '0';
+                if CoreCfg(i).SchedReq /= Done_v then
+                    Done_v      := Done_v + 1;
+                    SchSlot(i)  <= std_logic_vector(to_unsigned(CoreCfg(i).Slot, 6));
+                    SchValid(i) <= '1';
                 end if;
             end if;
         end process;

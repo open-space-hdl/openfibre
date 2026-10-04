@@ -36,12 +36,16 @@ package ofb_core_tb_pkg is
     type CoreVcCfgArray_t is array (0 to CoreNumVc_c-1) of CoreVcCfg_t;
 
     type CoreCfg_t is record
-        Vc     : CoreVcCfgArray_t;
-        BcSend : natural;
+        Vc       : CoreVcCfgArray_t;
+        BcSend   : natural;
+        SchedReq : natural;               -- SCHEDULE.requests (the sequencer increments it)
+        Slot     : natural range 0 to 63; -- Time-slot of the SCHEDULE.request
     end record;
 
-    constant CoreCfgDefault_c : CoreCfg_t := (Vc => (others => (Packets => 0, MaxLen => 64, ReadyPct => 100)),
-                                             BcSend => 0);
+    constant CoreCfgDefault_c : CoreCfg_t := (Vc       => (others => (Packets => 0, MaxLen => 64, ReadyPct => 100)),
+                                             BcSend   => 0,
+                                             SchedReq => 0,
+                                             Slot     => 0);
 
     type CoreCfgArray_t is array (0 to 1) of CoreCfg_t;
 

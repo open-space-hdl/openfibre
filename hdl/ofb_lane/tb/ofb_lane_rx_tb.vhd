@@ -58,10 +58,11 @@ begin
         type Chars_t is array (0 to 65535) of Char_t;
         type Flags_t is array (0 to 65535) of std_logic;
 
-        variable Chars_v  : Chars_t;
-        variable Ks_v     : Flags_t;
-        variable Errs_v   : Flags_t;
-        variable NChars_v : natural := 0;
+        variable Chars_v   : Chars_t;
+        variable Ks_v      : Flags_t;
+        variable Errs_v    : Flags_t;
+        variable NChars_v  : natural := 0;
+        variable DispErr_v : boolean := false; -- error flags on DispErr instead of CodeErr
 
         procedure cycles (n : natural) is
         begin
@@ -122,7 +123,13 @@ begin
                 for i in 0 to 3 loop
                     RxIn.Data(8*i+7 downto 8*i) <= Chars_v(Idx_v + i);
                     RxIn.K(i)                   <= Ks_v(Idx_v + i);
-                    RxIn.CodeErr(i)             <= Errs_v(Idx_v + i);
+                    if DispErr_v then
+                        RxIn.CodeErr(i) <= '0';
+                        RxIn.DispErr(i) <= Errs_v(Idx_v + i);
+                    else
+                        RxIn.CodeErr(i) <= Errs_v(Idx_v + i);
+                        RxIn.DispErr(i) <= '0';
+                    end if;
                 end loop;
 
                 RxIn.Valid <= '1';
@@ -236,25 +243,32 @@ begin
                     check_value(OutLog_v.get(Base_v + i), WordKs_v(i) & Words_v(i), error, "Word " & to_string(i));
                 end loop;
 
-            -- TC-LN-42: a symbol error turns its word and the previous word into RXERR (ECSS 5.5.7j to l)
+            -- TC-LN-42: a symbol error (code or disparity error) turns its word and the previous word
+            -- into RXERR (ECSS 5.5.7j to l)
             elsif run("test_error_rule") then
                 RxIn.Active <= '1';
                 syncUp;
 
-                for i in Words_v'range loop
-                    if i = 5 then
-                        addWord(Words_v(i), WordKs_v(i), "0100");
-                    else
-                        addWord(Words_v(i), WordKs_v(i));
-                    end if;
-                end loop;
+                for e in 0 to 1 loop
+                    -- Code error, then disparity error
+                    DispErr_v := e = 1;
 
-                drain;
-                checkLog((Words_v(0), Words_v(1), Words_v(2), Words_v(3), WordRxErr_c, WordRxErr_c, Words_v(6),
-                          Words_v(7), Words_v(8), Words_v(9)),
-                         (WordKs_v(0), WordKs_v(1), WordKs_v(2), WordKs_v(3), KCtrl_c, KCtrl_c, WordKs_v(6),
-                          WordKs_v(7), WordKs_v(8), WordKs_v(9)),
-                         "error in word 5");
+                    for i in Words_v'range loop
+                        if i = 5 then
+                            addWord(Words_v(i), WordKs_v(i), "0100");
+                        else
+                            addWord(Words_v(i), WordKs_v(i));
+                        end if;
+                    end loop;
+
+                    drain;
+                    checkLog((Words_v(0), Words_v(1), Words_v(2), Words_v(3), WordRxErr_c, WordRxErr_c, Words_v(6),
+                              Words_v(7), Words_v(8), Words_v(9)),
+                             (WordKs_v(0), WordKs_v(1), WordKs_v(2), WordKs_v(3), KCtrl_c, KCtrl_c, WordKs_v(6),
+                              WordKs_v(7), WordKs_v(8), WordKs_v(9)),
+                             "symbol error " & to_string(e) & " in word 5");
+                    OutLog_v.clear;
+                end loop;
 
             -- TC-LN-43: more than four error words in CheckSync lose synchronisation (ECSS 5.5.8.3c.3)
             elsif run("test_lost_sync") then

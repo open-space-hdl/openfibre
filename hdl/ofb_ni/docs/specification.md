@@ -33,4 +33,18 @@ flag of character i of word w (EOP, EEP or Fill). Without NI-2 the virtual netwo
 
 | Generic | Default | Description |
 | --- | --- | --- |
-| `NumVc_g` | 8 | Number of virtual channels |
+| `NumVc_g` | 8 | Number of virtual channels (1 to 32) |
+| `NumLanes_g` | 1 | Number of lanes (1 to 4): words per beat of the VC ports |
+
+## 4. Interpretation of the standard
+
+- Virtual networks (5.8.3): an OpenFibre node has one end-point per VC (5.8.3h). The virtual network number of a VC
+  (VN0 to VN63, 5.8.3i, k) is a configuration register of the MIB; VN0 is always mapped to VC0 (5.8.3bb). A node with
+  one port maps no virtual networks between ports, so NI-2 has no data path.
+- Broadcast messages (5.8.12): the broadcast channel number and the broadcast type are parameters of every message
+  (6.2.3, 6.3.3). The user decides which channels it sends on; a node that is not associated with a broadcast channel
+  does not send (5.8.12f) and receives all messages. The acceptance rules for messages that arrive on several ports
+  (port of arrival, broadcast time-out) belong to the broadcast mechanism of a routing switch or of a node with several
+  ports and are out of scope (O7).
+- The STATUS parameter of BROADCAST_MESSAGE.indication and RX_BROADCAST.indication consists of the DELAYED and LATE
+  flags (5.3.8.4); TX_BROADCAST.request takes DELAYED from the user, LATE is set by the Data Link layer (DL-BO-03).

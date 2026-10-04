@@ -64,6 +64,7 @@ architecture sim of ofb_core_tb is
     constant RegLaneCtrl_c  : natural := 16#100#;
     constant RegLaneStat_c  : natural := 16#104#;
     constant RegMlStatus_c  : natural := 16#040#;
+    constant RegTimeSlot_c  : natural := 16#054#;
     constant RegMlCtrl_c    : natural := 16#058#;
     constant RegMlMisal_c   : natural := 16#05C#;
     constant RegEccStatus_c : natural := 16#060#;
@@ -273,6 +274,21 @@ begin
                 check_value(CoreSb_v.get_pending_count(1 + CoreNumVc_c + 3) > 0, error, "VC 3 of A blocked");
                 wr(0, 16#434#, x"00000100");
                 waitDelivered(1 ms);
+                -- SCHEDULE.request through the Network interface: VC 3 of A excluded from time-slot 5
+                wr(0, 16#438#, x"FFFFFFDF");
+                CoreCfg(0).Slot          <= 5;
+                CoreCfg(0).SchedReq      <= CoreCfg(0).SchedReq + 1;
+                cycles(50);
+                rd(0, RegTimeSlot_c, Data_v);
+                check_value(Data_v(5 downto 0), "000101", error, "Current time-slot 5 at A");
+                CoreCfg(0).Vc(3).Packets <= 6;
+                cycles(2000);
+                check_value(CoreSb_v.get_pending_count(1 + CoreNumVc_c + 3) > 0, error, "VC 3 of A waits in time-slot 5");
+                CoreCfg(0).Slot          <= 0;
+                CoreCfg(0).SchedReq      <= CoreCfg(0).SchedReq + 1;
+                waitDelivered(1 ms);
+                rd(0, RegTimeSlot_c, Data_v);
+                check_value(Data_v(5 downto 0), "000000", error, "Current time-slot 0 at A");
 
             -- TC-CORE-07: a lane fails during traffic and is reconnected: every packet is delivered
             -- (realignment of the Multi-Lane layer, error recovery of the Data Link layer)

@@ -11,7 +11,7 @@ ports only.
 
 | Testbench | Harness | DUT and environment |
 | --- | --- | --- |
-| `ofb_lane_tb` | `ofb_lane_th` | Two `ofb_lane` (A, B), `ofb_tb_pa_model` (8B/10B, cut, crossed pair, symbol offset, bit errors), AXI-Stream VVCs for the transmit words, monitors with scoreboard of the received words |
+| `ofb_lane_tb` | `ofb_lane_th` | Two `ofb_lane` (A, B), `ofb_tb_pa_model` (8B/10B, cut, crossed pair, symbol offset, bit errors), AXI-Stream VVCs for the transmit words, monitors with scoreboard of the received words, monitor of the transmit words (no iINIT) |
 | `ofb_lane_init_tb` | `ofb_lane_init_th` | `ofb_lane_init`, events of LN-2 / LN-3 driven by the sequencer, timeout 5000 words |
 | `ofb_lane_rx_tb` | `ofb_lane_rx_th` | `ofb_lane_rx`, symbol stream driven by the sequencer, log of the words passed up, RXERR leak every 64 words |
 | `ofb_lane_tx_tb` | `ofb_lane_tx_th` | Two `ofb_lane_tx` (64 PRBS words and SKIP every 20 words; no PRBS words), AXI-Stream VVC, log of the transmitted words |
@@ -25,14 +25,14 @@ Lane clock 156.25 MHz (6.25 Gbit/s with 32-bit words). Simulator: GHDL.
 
 | Test ID | Description | Requirements |
 | --- | --- | --- |
-| `test_init_lanestart` (TC-LN-01) | Both ends with LaneStart reach Active; capabilities exchanged with the INIT3LaneStart flag | LN-INIT-01, LN-INIT-06, LN-INIT-11, LN-IF-02, LN-IF-06 |
+| `test_init_lanestart` (TC-LN-01) | Both ends with LaneStart reach Active; capabilities exchanged with the INIT3LaneStart flag | LN-INIT-01, LN-INIT-06, LN-INIT-11, LN-IF-02, LN-IF-06, LN-TX-05 |
 | `test_init_autostart` (TC-LN-02) | An AutoStart end waits in Wait without signal and starts when the far end sends | LN-INIT-01, LN-IF-05 |
 | `test_init_timeout` (TC-LN-03) | Without far end the initialisation times out repeatedly | LN-INIT-03, LN-IF-06 |
 | `test_data_transfer` (TC-LN-04) | 3000 random words in each direction with random gaps: all received in order, no RXERR | LN-IF-01, LN-TX-02, LN-RX-04, LN-RX-06 |
 | `test_skip_insertion` (TC-LN-05) | SKIP every 5000 words (4999 words between) during traffic | LN-TX-03 |
 | `test_rx_polarity` (TC-LN-06) | Crossed pair: InvertRxPolarity, then Active and traffic | LN-INIT-04, LN-IF-04, LN-IF-06 |
 | `test_word_alignment` (TC-LN-07) | Symbol offsets 1 and 3, realignment in Active | LN-RX-01 |
-| `test_bit_errors` (TC-LN-08) | 10 bit errors: RXERR words passed up and counted, lane stays Active | LN-RX-02, LN-RX-05 |
+| `test_bit_errors` (TC-LN-08) | 10 bit errors: RXERR words passed up and counted, lane stays Active | LN-RX-02, LN-RX-05, LN-IF-03 |
 | `test_rxerr_overflow` (TC-LN-09) | RXERR counter overflow: LossOfSignal, LOS_Cause 0b01 at the far end, counter stays 255 until Connected, recovery | LN-RX-05, LN-INIT-07, LN-INIT-08, LN-TX-04 |
 | `test_standby` (TC-LN-10) | LaneStart and AutoStart de-asserted: PrepareStandby, STANDBY with reason, far end leaves Active | LN-INIT-08, LN-INIT-09, LN-TX-04, LN-IF-05 |
 | `test_loss_of_signal` (TC-LN-11) | Cut cable: LossOfSignal, LOST_SIGNAL with LOS_Cause 0b00, RXERR passed up, recovery | LN-INIT-07 to 09, LN-RX-06 |
@@ -64,7 +64,7 @@ Lane clock 156.25 MHz (6.25 Gbit/s with 32-bit words). Simulator: GHDL.
 | --- | --- | --- |
 | `test_alignment` (TC-LN-40) | Words aligned for symbol offsets 0 to 3 | LN-RX-01 |
 | `test_realignment` (TC-LN-41) | Realigned word RXERR, words after the next comma correct | LN-RX-01 |
-| `test_error_rule` (TC-LN-42) | Symbol error: its word and the previous word RXERR, exact output sequence | LN-RX-02 |
+| `test_error_rule` (TC-LN-42) | Symbol error, first as code error, then as disparity error: its word and the previous word RXERR, exact output sequence | LN-RX-02, LN-IF-03 |
 | `test_lost_sync` (TC-LN-43) | Five error words: LostSync, all words RXERR until a comma | LN-RX-03 |
 | `test_lane_words` (TC-LN-44) | Detection of all lane control words, filtering, INIT1 / STANDBY / LOST_SIGNAL as RXERR, nothing outside Active | LN-RX-04, LN-RX-06 |
 | `test_rxerr_counter` (TC-LN-45) | Increment, leak, saturation and overflow, kept outside Active, clear | LN-RX-05 |
@@ -82,10 +82,10 @@ Lane clock 156.25 MHz (6.25 Gbit/s with 32-bit words). Simulator: GHDL.
 
 ## 4. Coverage analysis
 
-Every requirement of the specification is covered by at least one test case. LN-TX-05 (no iINIT generated) is
-verified by inspection: the transmitter has no path that selects an inverse INIT word. LN-TX-06 (SKIP on request of
-the Multi-Lane layer) is verified with the multi-lane link testbench (`ofb_ml_link_tb`, TC-ML-31: SKIP on all lanes
-in the same cycle).
+Every requirement of the specification is covered by at least one test case (checked by `tools/compliance.py`).
+LN-TX-05 (no iINIT generated) is checked by a monitor of the harness of `ofb_lane_tb` at the transmit word of both
+lanes, active in all test cases (listed with TC-LN-01). LN-TX-06 (SKIP on request of the Multi-Lane layer) is
+verified with the multi-lane link testbench (`ofb_ml_link_tb`, TC-ML-31: SKIP on all lanes in the same cycle).
 
 ## 5. Functional coverage plan
 
