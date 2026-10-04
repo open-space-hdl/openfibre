@@ -35,7 +35,7 @@ entity ofb_dl_link_reset is
         -- Far-end capability event and lane state
         Ml_FarCapability      : in    Char_t;
         Ml_FarCapabilityValid : in    std_logic;
-        Ml_LaneActive         : in    std_logic;
+        Ml_FarCapabilityIdle  : in    std_logic; -- With the event: no lane was Active
         -- Outputs
         Ctrl_LinkReset        : out   std_logic; -- One cycle
         Ctrl_LaneReset        : out   std_logic; -- One cycle
@@ -89,7 +89,7 @@ begin
                         State <= ConfigReset_s;
                     elsif Cfg_LinkReset = '1' or Err_LinkReset = '1' then
                         State <= NearEndReset_s;
-                    elsif FarReset = '1' and Ml_LaneActive = '0' then
+                    elsif FarReset = '1' and Ml_FarCapabilityIdle = '1' then
                         State <= NearEndReset_s;
                         FarEv <= '1';
                     end if;

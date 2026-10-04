@@ -53,6 +53,7 @@ entity ofb_multilane is
         Dl_NearCapability       : in    Char_t;
         Dl_FarCapability        : out   Char_t;
         Dl_FarCapabilityValid   : out   std_logic;
+        Dl_FarCapabilityIdle    : out   std_logic;
         Dl_LaneActive           : out   std_logic;
         -- Lane layers: words
         LaneTx_Data             : out   std_logic_vector(32*NumLanes_g-1 downto 0);
@@ -107,6 +108,7 @@ begin
             Dl_NearCapability       => Dl_NearCapability,
             Dl_FarCapability        => Dl_FarCapability,
             Dl_FarCapabilityValid   => Dl_FarCapabilityValid,
+            Dl_FarCapabilityIdle    => Dl_FarCapabilityIdle,
             Dl_LaneActive           => Dl_LaneActive,
             Lane_Reset              => Lane_Reset(0),
             Lane_TxOnly             => Lane_TxOnly(0),

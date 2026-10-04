@@ -77,6 +77,17 @@ package ofb_tb_pkg is
         impure function get (idx : natural) return KWord_t;
     end protected;
 
+    -- Queue of words with K flags and one flag bit (bit 36)
+    type WordQueue_t is protected
+
+        procedure push (word : std_logic_vector(36 downto 0));
+
+        impure function pop return std_logic_vector;
+        impure function count return natural;
+
+        procedure clear;
+    end protected;
+
     -- Ends a test: prints the UVVM alert summary, raises a TB_ERROR when an unexpected alert occurred
     -- or an expected alert did not occur (this stops the simulation and fails the VUnit test) and
     -- hands over to the VUnit runner.
@@ -123,6 +134,44 @@ package body ofb_tb_pkg is
         begin
             return Words_v(idx);
         end function;
+
+    end protected body;
+
+    type WordQueue_t is protected body
+
+        type Entries_t is array (0 to 16383) of std_logic_vector(36 downto 0);
+
+        variable Entries_v : Entries_t;
+        variable Head_v    : natural := 0;
+        variable Count_v   : natural := 0;
+
+        procedure push (word : std_logic_vector(36 downto 0)) is
+        begin
+            assert Count_v <= Entries_t'high
+                report "WordQueue_t full"
+                severity failure;
+            Entries_v((Head_v + Count_v) mod Entries_v'length) := word;
+            Count_v                                            := Count_v + 1;
+        end procedure;
+
+        impure function pop return std_logic_vector is
+            variable Word_v : std_logic_vector(36 downto 0);
+        begin
+            Word_v  := Entries_v(Head_v);
+            Head_v  := (Head_v + 1) mod Entries_v'length;
+            Count_v := Count_v - 1;
+            return Word_v;
+        end function;
+
+        impure function count return natural is
+        begin
+            return Count_v;
+        end function;
+
+        procedure clear is
+        begin
+            Count_v := 0;
+        end procedure;
 
     end protected body;
 

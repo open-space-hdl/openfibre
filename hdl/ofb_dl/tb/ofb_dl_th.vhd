@@ -83,22 +83,23 @@ architecture sim of ofb_dl_th is
     signal RxBcValid : BitArray_t;
 
     -- Data Link to Multi-Lane
-    signal TxRowData  : WordArray_t;
-    signal TxRowK     : KArray_t;
-    signal TxRowMask  : BitArray_t;
-    signal TxRowRepl  : BitArray_t;
-    signal TxRowValid : BitArray_t;
-    signal TxRowReady : BitArray_t;
-    signal RxRowData  : WordArray_t;
-    signal RxRowK     : KArray_t;
-    signal RxRowCrc   : BitArray_t;
-    signal RxRowValid : BitArray_t;
-    signal MlLinkRst  : BitArray_t;
-    signal MlLaneRst  : BitArray_t;
-    signal MlNearCap  : CharArray_t;
-    signal MlFarCap   : CharArray_t;
-    signal MlFarCapV  : BitArray_t;
-    signal MlActive   : BitArray_t;
+    signal TxRowData    : WordArray_t;
+    signal TxRowK       : KArray_t;
+    signal TxRowMask    : BitArray_t;
+    signal TxRowRepl    : BitArray_t;
+    signal TxRowValid   : BitArray_t;
+    signal TxRowReady   : BitArray_t;
+    signal RxRowData    : WordArray_t;
+    signal RxRowK       : KArray_t;
+    signal RxRowCrc     : BitArray_t;
+    signal RxRowValid   : BitArray_t;
+    signal MlLinkRst    : BitArray_t;
+    signal MlLaneRst    : BitArray_t;
+    signal MlNearCap    : CharArray_t;
+    signal MlFarCap     : CharArray_t;
+    signal MlFarCapV    : BitArray_t;
+    signal MlFarCapIdle : BitArray_t;
+    signal MlActive     : BitArray_t;
 
     -- Multi-Lane to Lane
     signal LaneTxData  : WordArray_t;
@@ -223,6 +224,7 @@ begin
                 Ml_NearCapability     => MlNearCap(i),
                 Ml_FarCapability      => MlFarCap(i),
                 Ml_FarCapabilityValid => MlFarCapV(i),
+                Ml_FarCapabilityIdle  => MlFarCapIdle(i),
                 Ml_LaneActive         => MlActive(i),
                 Cfg_DataScrambled     => DlCfg(i).DataScrambled,
                 Cfg_LinkReset         => DlCfg(i).LinkReset,
@@ -265,6 +267,7 @@ begin
                 Dl_NearCapability          => MlNearCap(i),
                 Dl_FarCapability           => MlFarCap(i),
                 Dl_FarCapabilityValid      => MlFarCapV(i),
+                Dl_FarCapabilityIdle       => MlFarCapIdle(i),
                 Dl_LaneActive              => MlActive(i),
                 LaneTx_Data                => LaneTxData(i),
                 LaneTx_K                   => LaneTxK(i),

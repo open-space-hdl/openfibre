@@ -35,6 +35,7 @@ entity ofb_ml_lane_mgr is
         Dl_NearCapability       : in    Char_t;
         Dl_FarCapability        : out   Char_t;
         Dl_FarCapabilityValid   : out   std_logic;
+        Dl_FarCapabilityIdle    : out   std_logic; -- With the event: no lane was Active
         Dl_LaneActive           : out   std_logic;
         -- Lane layer
         Lane_Reset              : out   std_logic;
@@ -98,6 +99,7 @@ begin
     -- Data Link layer
     Dl_FarCapability      <= Lane_FarCapability;
     Dl_FarCapabilityValid <= Lane_FarCapabilityValid;
+    Dl_FarCapabilityIdle  <= not Active;
     Dl_LaneActive         <= Active;
 
     -- Column codec

@@ -89,15 +89,6 @@ package ofb_dl_row_tb_pkg is
     signal BcRxCount   : natural                       := 0;
 
     -- Words injected into the receive rows: bit 36 is the CRC-16 error flag of an EDF
-    type WordQueue_t is protected
-
-        procedure push (word : std_logic_vector(36 downto 0));
-
-        impure function pop return std_logic_vector;
-        impure function count return natural;
-
-        procedure clear;
-    end protected;
 
     shared variable RxQueue_v : WordQueue_t;
 
@@ -111,48 +102,3 @@ package ofb_dl_row_tb_pkg is
     shared variable VcRxLog1_v   : WordLog_t;
 
 end package;
-
----------------------------------------------------------------------------------------------------
--- Package Body
----------------------------------------------------------------------------------------------------
-package body ofb_dl_row_tb_pkg is
-
-    type WordQueue_t is protected body
-
-        type Entries_t is array (0 to 16383) of std_logic_vector(36 downto 0);
-
-        variable Entries_v : Entries_t;
-        variable Head_v    : natural := 0;
-        variable Count_v   : natural := 0;
-
-        procedure push (word : std_logic_vector(36 downto 0)) is
-        begin
-            assert Count_v <= Entries_t'high
-                report "WordQueue_t full"
-                severity failure;
-            Entries_v((Head_v + Count_v) mod Entries_v'length) := word;
-            Count_v                                            := Count_v + 1;
-        end procedure;
-
-        impure function pop return std_logic_vector is
-            variable Word_v : std_logic_vector(36 downto 0);
-        begin
-            Word_v  := Entries_v(Head_v);
-            Head_v  := (Head_v + 1) mod Entries_v'length;
-            Count_v := Count_v - 1;
-            return Word_v;
-        end function;
-
-        impure function count return natural is
-        begin
-            return Count_v;
-        end function;
-
-        procedure clear is
-        begin
-            Count_v := 0;
-        end procedure;
-
-    end protected body;
-
-end package body;
