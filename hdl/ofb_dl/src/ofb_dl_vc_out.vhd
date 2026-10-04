@@ -89,8 +89,12 @@ architecture rtl of ofb_dl_vc_out is
     signal EopWr    : unsigned(EopWidth_c-1 downto 0);
     signal EopWrGry : std_logic_vector(EopWidth_c-1 downto 0);
 
-    -- Core side
+    -- Core side (the crossed count is delayed further, so that it never runs ahead of the level of the
+    -- buffer: an EOP is only seen once the words before it are counted in the level)
+    type EopDelay_t is array (0 to 3) of std_logic_vector(EopWidth_c-1 downto 0);
+
     signal EopSync : std_logic_vector(EopWidth_c-1 downto 0);
+    signal EopDly  : EopDelay_t;
     signal EopRd   : unsigned(EopWidth_c-1 downto 0);
     signal Credit  : unsigned(CreditWidth_g-1 downto 0);
 
@@ -141,7 +145,8 @@ begin
 
     i_eop_cc : entity olo.olo_ft_cc_bits
         generic map (
-            Width_g => EopWidth_c
+            Width_g      => EopWidth_c,
+            SyncStages_g => 4
         )
         port map (
             In_Clk   => UserClk,
@@ -206,9 +211,11 @@ begin
                 end if;
             end if;
             Credit <= resize(Sum_v, CreditWidth_g);
+            EopDly <= EopSync & EopDly(0 to EopDly'high-1);
             if Rst = '1' or Ctrl_LinkReset = '1' then
                 Credit            <= (others => '0');
                 EopRd             <= (others => '0');
+                EopDly            <= (others => (others => '0'));
                 Ev_CreditOverflow <= '0';
             end if;
         end if;
@@ -220,7 +227,7 @@ begin
         variable Eop_v   : boolean;
     begin
         Level_v := to_integer(unsigned(OutLevel));
-        Eop_v   := unsigned(grayToBinary(EopSync)) /= EopRd;
+        Eop_v   := unsigned(grayToBinary(EopDly(EopDly'high))) /= EopRd;
         Words_v := minimum(Level_v, MaxFrameWords_c);
         Words_v := minimum(Words_v, to_integer(Credit));
         if Credit > 0 and Level_v > 0 and (Level_v >= MaxFrameWords_c or Eop_v or OutFull = '1') then

@@ -138,7 +138,9 @@ begin
             if UsrRstIn = '1' then
                 RdCnt <= 0;
                 if LastEnd = '0' then
-                    Inject <= '1';
+                    -- One EEP, also when the reset lasts several cycles
+                    Inject  <= '1';
+                    LastEnd <= '1';
                 end if;
             end if;
             if UserRst = '1' then
