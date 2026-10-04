@@ -19,6 +19,7 @@ library ieee;
     use ieee.numeric_std.all;
 
 library olo;
+    use olo.olo_ft_pkg_ecc.all;
 
 library work;
     use work.ofb_pkg.all;
@@ -53,7 +54,12 @@ entity ofb_dl_rx_buf is
         Vc_Ready       : in    std_logic_vector(NumVc_g-1 downto 0);
         -- Overflow of an input VC buffer (one cycle per VC), overflow of the frame buffer
         Ev_VcOverflow  : out   std_logic_vector(NumVc_g-1 downto 0);
-        Ev_BufOverflow : out   std_logic
+        Ev_BufOverflow : out   std_logic;
+        -- EDAC (MG-3)
+        EccInj_Valid   : in    std_logic := '0';
+        EccInj_Double  : in    std_logic := '0';
+        Ev_EccSec      : out   std_logic;
+        Ev_EccDed      : out   std_logic
     );
 end entity;
 
@@ -78,6 +84,8 @@ architecture rtl of ofb_dl_rx_buf is
     signal OutData  : std_logic_vector(Width_c-1 downto 0);
     signal OutValid : std_logic;
     signal OutVc    : natural range 0 to 31;
+    signal FifoSec  : std_logic;
+    signal FifoDed  : std_logic;
 
 begin
 
@@ -118,17 +126,24 @@ begin
             MaxPackets_g => 16
         )
         port map (
-            Clk       => Clk,
-            Rst       => FifoRst,
-            In_Valid  => InValid,
-            In_Ready  => InReady,
-            In_Data   => InData,
-            In_Last   => InLast,
-            In_Drop   => InDrop,
-            Out_Valid => OutValid,
-            Out_Ready => '1',
-            Out_Data  => OutData
+            Clk               => Clk,
+            Rst               => FifoRst,
+            In_Valid          => InValid,
+            In_Ready          => InReady,
+            In_Data           => InData,
+            In_Last           => InLast,
+            In_Drop           => InDrop,
+            Out_Valid         => OutValid,
+            Out_Ready         => '1',
+            Out_Data          => OutData,
+            Out_EccSec        => FifoSec,
+            Out_EccDed        => FifoDed,
+            In_ErrInj_BitFlip => eccInjPattern(eccCodewordWidth(Width_c), EccInj_Double),
+            In_ErrInj_Valid   => EccInj_Valid
         );
+
+    Ev_EccSec <= FifoSec and OutValid;
+    Ev_EccDed <= FifoDed and OutValid;
 
     -----------------------------------------------------------------------------------------------
     -- Distribution to the input VC buffers

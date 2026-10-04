@@ -19,6 +19,7 @@ library ieee;
     use ieee.numeric_std.all;
 
 library olo;
+    use olo.olo_ft_pkg_ecc.all;
 
 library work;
     use work.ofb_pkg.all;
@@ -40,6 +41,8 @@ entity ofb_dl_bc_out is
         In_Delayed      : in    std_logic;
         In_Valid        : in    std_logic;
         In_Ready        : out   std_logic;
+        EccInj_Valid    : in    std_logic := '0'; -- Error injection into the next message (UserClk)
+        EccInj_Double   : in    std_logic := '0';
         -- Core clock side
         Clk             : in    std_logic;
         Rst             : in    std_logic;
@@ -56,7 +59,9 @@ entity ofb_dl_bc_out is
         Out_Late        : out   std_logic;
         Out_Valid       : out   std_logic;
         Out_Ready       : in    std_logic;
-        Bc_Credit       : out   std_logic  -- Broadcast Bandwidth Credit Counter greater than zero
+        Bc_Credit       : out   std_logic; -- Broadcast Bandwidth Credit Counter greater than zero
+        Ev_EccSec       : out   std_logic; -- ECC events of the messages read (core clock)
+        Ev_EccDed       : out   std_logic
     );
 end entity;
 
@@ -70,6 +75,8 @@ architecture rtl of ofb_dl_bc_out is
     signal FifoIn   : std_logic_vector(80 downto 0);
     signal FifoOut  : std_logic_vector(80 downto 0);
     signal OutValid : std_logic;
+    signal FifoSec  : std_logic;
+    signal FifoDed  : std_logic;
     signal Late     : std_logic;
     signal Credit   : natural range 0 to CreditLimit_c;
     signal Interval : unsigned(15 downto 0);
@@ -84,17 +91,24 @@ begin
             Depth_g => Depth_g
         )
         port map (
-            In_Clk    => UserClk,
-            In_Rst    => UserRst,
-            In_Data   => FifoIn,
-            In_Valid  => In_Valid,
-            In_Ready  => In_Ready,
-            Out_Clk   => Clk,
-            Out_Rst   => Rst,
-            Out_Data  => FifoOut,
-            Out_Valid => OutValid,
-            Out_Ready => Out_Ready
+            In_Clk            => UserClk,
+            In_Rst            => UserRst,
+            In_Data           => FifoIn,
+            In_Valid          => In_Valid,
+            In_Ready          => In_Ready,
+            Out_Clk           => Clk,
+            Out_Rst           => Rst,
+            Out_Data          => FifoOut,
+            Out_Valid         => OutValid,
+            Out_Ready         => Out_Ready,
+            Out_EccSec        => FifoSec,
+            Out_EccDed        => FifoDed,
+            In_ErrInj_BitFlip => eccInjPattern(eccCodewordWidth(81), EccInj_Double),
+            In_ErrInj_Valid   => EccInj_Valid
         );
+
+    Ev_EccSec <= FifoSec and OutValid and Out_Ready;
+    Ev_EccDed <= FifoDed and OutValid and Out_Ready;
 
     Out_Data    <= FifoOut(63 downto 0);
     Out_Channel <= FifoOut(71 downto 64);

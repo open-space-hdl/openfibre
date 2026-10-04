@@ -55,17 +55,21 @@ architecture sim of ofb_core_tb is
     signal Rst     : std_logic;
 
     -- Register addresses
-    constant RegId_c       : natural := 16#000#;
-    constant RegDlCtrl_c   : natural := 16#008#;
-    constant RegDlStatus_c : natural := 16#010#;
-    constant RegDlErrors_c : natural := 16#014#;
-    constant RegRetries_c  : natural := 16#018#;
-    constant RegFrameErr_c : natural := 16#03C#;
-    constant RegLaneCtrl_c : natural := 16#100#;
-    constant RegLaneStat_c : natural := 16#104#;
-    constant RegMlStatus_c : natural := 16#040#;
-    constant RegMlCtrl_c   : natural := 16#058#;
-    constant RegMlMisal_c  : natural := 16#05C#;
+    constant RegId_c        : natural := 16#000#;
+    constant RegDlCtrl_c    : natural := 16#008#;
+    constant RegDlStatus_c  : natural := 16#010#;
+    constant RegDlErrors_c  : natural := 16#014#;
+    constant RegRetries_c   : natural := 16#018#;
+    constant RegFrameErr_c  : natural := 16#03C#;
+    constant RegLaneCtrl_c  : natural := 16#100#;
+    constant RegLaneStat_c  : natural := 16#104#;
+    constant RegMlStatus_c  : natural := 16#040#;
+    constant RegMlCtrl_c    : natural := 16#058#;
+    constant RegMlMisal_c   : natural := 16#05C#;
+    constant RegEccStatus_c : natural := 16#060#;
+    constant RegEccSelect_c : natural := 16#064#;
+    constant RegEccCount_c  : natural := 16#068#;
+    constant RegEccInject_c : natural := 16#06C#;
 
 begin
 
@@ -194,7 +198,7 @@ begin
             -- TC-CORE-01: identification, link start through the MIB
             if run("test_link_up") then
                 rd(0, RegId_c, Data_v);
-                check_value(Data_v, x"0FB10003", error, "ID of A");
+                check_value(Data_v, x"0FB10004", error, "ID of A");
                 linkUp(500 us);
                 rd(1, RegDlErrors_c, Data_v);
                 check_value(Data_v, x"00000000", error, "No error at B");
@@ -344,6 +348,33 @@ begin
                 waitDelivered(5 ms);
                 rd(1, RegDlErrors_c, Data_v);
                 check_value(Data_v, x"00000000", error, "No error at B");
+
+            -- TC-CORE-10: single errors injected through the MIB into every EDAC channel of A are
+            -- corrected and counted per channel; the traffic is not affected
+            elsif run("test_ecc_injection") then
+                linkUp(500 us);
+
+                for ch in 0 to EccChannels_c-1 loop
+                    wr(0, RegEccInject_c, std_logic_vector(to_unsigned(ch, 32)));
+                end loop;
+
+                -- Traffic in both directions, broadcast messages, a QoS write at A
+                CoreCfg(0).BcSend <= 3;
+                CoreCfg(1).BcSend <= 3;
+                sendAll(5);
+                wr(0, 16#434#, x"0000FFFF");
+                waitDelivered(5 ms);
+                rd(0, RegEccStatus_c, Data_v);
+                check_value(Data_v(EccChannels_c-1 downto 0), std_logic_vector(to_unsigned(0, EccChannels_c)), error,
+                            "No uncorrectable error at A");
+                check_value(Data_v(16), '1', error, "Corrected errors seen at A");
+
+                for ch in 0 to EccChannels_c-1 loop
+                    wr(0, RegEccSelect_c, std_logic_vector(to_unsigned(ch, 32)));
+                    rd(0, RegEccCount_c, Data_v);
+                    check_value(unsigned(Data_v(15 downto 0)) > 0, error, "Corrected error of channel " & to_string(ch));
+                    check_value(Data_v(31 downto 16), x"0000", error, "No DED in channel " & to_string(ch));
+                end loop;
 
             -- TC-CORE-05: framing error at the Network interface of A
             elsif run("test_framing_error") then

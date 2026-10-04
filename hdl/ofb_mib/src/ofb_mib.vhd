@@ -20,6 +20,7 @@ library ieee;
     use ieee.numeric_std.all;
 
 library olo;
+    use olo.olo_ft_pkg_ecc.all;
 
 library work;
     use work.ofb_pkg.all;
@@ -107,8 +108,8 @@ entity ofb_mib is
         Ml_DataSending        : in    std_logic_vector(NumLanes_g-1 downto 0);
         Ml_DataReceiving      : in    std_logic_vector(NumLanes_g-1 downto 0);
         Ml_AlignState         : in    std_logic_vector(1 downto 0);
-        Ml_StatBypass         : in    std_logic := '0';
-        Ml_EvMisaligned       : in    std_logic := '0';
+        Ml_StatBypass         : in    std_logic                                    := '0';
+        Ml_EvMisaligned       : in    std_logic                                    := '0';
         Ml_TxEn               : out   std_logic_vector(NumLanes_g-1 downto 0);
         Ml_RxEn               : out   std_logic_vector(NumLanes_g-1 downto 0);
         Ml_MaxDataLanes       : out   std_logic_vector(2 downto 0);
@@ -116,7 +117,15 @@ entity ofb_mib is
         -- User clock domain: Network interface
         UserClk               : in    std_logic;
         UserRst               : in    std_logic;
-        Ni_EvFrameErr         : in    std_logic_vector(NumVc_g-1 downto 0)
+        Ni_EvFrameErr         : in    std_logic_vector(NumVc_g-1 downto 0);
+        -- EDAC monitor (MG-3): SEC events in bits EccChannels_c-1:0, DED events above, in the
+        -- domains of the read sides; injection commands (single, double) to the write sides
+        Ecc_Core              : in    std_logic_vector(2*EccChannels_c-1 downto 0) := (others => '0');
+        Ecc_User              : in    std_logic_vector(2*EccChannels_c-1 downto 0) := (others => '0');
+        Ecc_Lane              : in    std_logic_vector(2*EccChannels_c-1 downto 0) := (others => '0');
+        EccInj_Core           : out   std_logic_vector(2*EccChannels_c-1 downto 0);
+        EccInj_User           : out   std_logic_vector(2*EccChannels_c-1 downto 0);
+        EccInj_Lane           : out   std_logic_vector(2*EccChannels_c-1 downto 0)
     );
 end entity;
 
@@ -125,7 +134,8 @@ end entity;
 ---------------------------------------------------------------------------------------------------
 architecture rtl of ofb_mib is
 
-    constant Id_c : std_logic_vector(31 downto 0) := x"0FB10003";
+    constant Id_c : std_logic_vector(31 downto 0) := x"0FB10004";
+    constant Ch_c : positive                      := EccChannels_c;
 
     -- Widths of the crossing vectors
     constant CoreCfgW_c  : positive := 20;
@@ -198,6 +208,40 @@ architecture rtl of ofb_mib is
     signal LaneEv     : std_logic_vector(4*NumLanes_g downto 0);
     signal MlCfgIn    : std_logic_vector(3 downto 0);
     signal MlCfgOut   : std_logic_vector(3 downto 0);
+
+    -- EDAC monitor
+    type ChDomain_t is (DomUser, DomCore, DomLane, DomMgmt);
+    type ChDomains_t is array (0 to EccChannels_c-1) of ChDomain_t;
+
+    -- Write side of every channel (where errors are injected)
+    constant WrDomain_c : ChDomains_t := (EccChVcOut_c => DomUser, EccChErb_c => DomCore,
+                                          EccChFrameBuf_c => DomCore, EccChVcIn_c => DomCore,
+                                          EccChBcOut_c => DomUser, EccChBcIn_c => DomCore,
+                                          EccChCcTx_c => DomCore, EccChCcRx_c => DomLane,
+                                          EccChCtrl_c => DomMgmt);
+
+    signal EccCoreIn  : std_logic_vector(2*Ch_c-1 downto 0);
+    signal EccCoreEv  : std_logic_vector(2*Ch_c-1 downto 0);
+    signal EccUserEv  : std_logic_vector(2*Ch_c-1 downto 0);
+    signal EccLaneEv  : std_logic_vector(2*Ch_c-1 downto 0);
+    signal EccSec     : std_logic_vector(Ch_c-1 downto 0);
+    signal EccDed     : std_logic_vector(Ch_c-1 downto 0);
+    signal EccClr     : std_logic;
+    signal EccSel     : std_logic_vector(3 downto 0);
+    signal EccRdClr   : std_logic;
+    signal EccSecCnt  : std_logic_vector(15 downto 0);
+    signal EccDedCnt  : std_logic_vector(15 downto 0);
+    signal EccDedStk  : std_logic_vector(Ch_c-1 downto 0);
+    signal EccSecEvt  : std_logic;
+    signal EccSecStk  : std_logic;
+    signal EccInjCmd  : std_logic_vector(2*Ch_c-1 downto 0); -- Injection command of a channel
+    signal EccInjMgmt : std_logic_vector(2*Ch_c-1 downto 0);
+    signal EccInjToC  : std_logic_vector(2*Ch_c-1 downto 0);
+    signal EccInjToU  : std_logic_vector(2*Ch_c-1 downto 0);
+    signal EccInjToL  : std_logic_vector(2*Ch_c-1 downto 0);
+    signal QosSec     : std_logic;
+    signal QosDed     : std_logic;
+    signal QosValid   : std_logic;
     signal UserEv     : std_logic_vector(NumVc_g-1 downto 0);
 
     function sat16 (cnt : unsigned(15 downto 0)) return unsigned is
@@ -347,6 +391,10 @@ begin
                         MlBypass <= RbWrData(8);
                     when 16#05C# =>
                         MisalignCnt <= (others => '0');
+                    when 16#060# =>
+                        EccSecStk <= '0';
+                    when 16#064# =>
+                        EccSel <= RbWrData(3 downto 0);
                     when others =>
                         if Addr_v >= 16#400# and Addr_v < 16#400# + 16 * NumVc_g then
                             Vc_v := (Addr_v - 16#400#) / 16;
@@ -377,6 +425,11 @@ begin
                         end if;
                 end case;
 
+            end if;
+
+            -- Corrected ECC error seen (sticky, after the clear of a write in the same cycle)
+            if EccSecEvt = '1' then
+                EccSecStk <= '1';
             end if;
 
             -- Link Reset command: Data Link status cleared; Interface Reset: configuration reset
@@ -436,6 +489,8 @@ begin
                 SeqCnt       <= (others => '0');
                 TimeoutCnt   <= (others => (others => '0'));
                 MisalignCnt  <= (others => '0');
+                EccSel       <= (others => '0');
+                EccSecStk    <= '0';
                 StatSettle   <= 0;
                 VcBwOver     <= (others => '0');
                 VcBwUnder    <= (others => '0');
@@ -518,6 +573,14 @@ begin
                     Data_v(8)          := MlBypass;
                 when 16#05C# =>
                     Data_v(15 downto 0) := std_logic_vector(MisalignCnt);
+                when 16#060# =>
+                    Data_v(Ch_c-1 downto 0) := EccDedStk;
+                    Data_v(16)              := EccSecStk;
+                when 16#064# =>
+                    Data_v(3 downto 0) := EccSel;
+                when 16#068# =>
+                    Data_v(15 downto 0)  := EccSecCnt;
+                    Data_v(31 downto 16) := EccDedCnt;
                 when others =>
                     if Addr_v >= 16#400# and Addr_v < 16#400# + 16 * NumVc_g then
                         Vc_v := (Addr_v - 16#400#) / 16;
@@ -555,6 +618,13 @@ begin
 
             -- Interrupt
             Irq_v := or (DlErrors and IrqMask(9 downto 0));
+            -- EDAC: uncorrectable error (bit 24), corrected error (bit 25)
+            if (or EccDedStk) = '1' and IrqMask(24) = '1' then
+                Irq_v := '1';
+            end if;
+            if EccSecStk = '1' and IrqMask(25) = '1' then
+                Irq_v := '1';
+            end if;
 
             for i in 0 to NumLanes_g-1 loop
                 Irq_v := Irq_v or (or (LaneEvents(4*i+3 downto 4*i) and IrqMask(19 downto 16)));
@@ -624,16 +694,22 @@ begin
             Depth_g => 16
         )
         port map (
-            In_Clk    => Clk,
-            In_Rst    => Rst,
-            In_Data   => QosWrIn,
-            In_Valid  => QosWr,
-            Out_Clk   => CoreClk,
-            Out_Rst   => CoreRst,
-            Out_Data  => QosWrOut,
-            Out_Valid => Dl_RegWr,
-            Out_Ready => '1'
+            In_Clk            => Clk,
+            In_Rst            => Rst,
+            In_Data           => QosWrIn,
+            In_Valid          => QosWr,
+            Out_Clk           => CoreClk,
+            Out_Rst           => CoreRst,
+            Out_Data          => QosWrOut,
+            Out_Valid         => QosValid,
+            Out_Ready         => '1',
+            Out_EccSec        => QosSec,
+            Out_EccDed        => QosDed,
+            In_ErrInj_BitFlip => eccInjPattern(eccCodewordWidth(44), EccInjMgmt(Ch_c + EccChCtrl_c)),
+            In_ErrInj_Valid   => EccInjMgmt(EccChCtrl_c) or EccInjMgmt(Ch_c + EccChCtrl_c)
         );
+
+    Dl_RegWr <= QosValid;
 
     Dl_RegAddr <= QosWrOut(43 downto 32);
     Dl_RegData <= QosWrOut(31 downto 0);
@@ -779,6 +855,152 @@ begin
             Out_Clk   => Clk,
             Out_Rst   => Rst,
             Out_Pulse => UserEv
+        );
+
+    -----------------------------------------------------------------------------------------------
+    -- EDAC monitor (MG-3)
+    -----------------------------------------------------------------------------------------------
+    -- Events of the core, user and lane domains (the QoS write FIFO of the MIB is read in the core
+    -- domain, channel Ctrl)
+    p_ecc_core_in : process (all) is
+    begin
+        EccCoreIn                     <= Ecc_Core;
+        EccCoreIn(EccChCtrl_c)        <= Ecc_Core(EccChCtrl_c) or (QosSec and QosValid);
+        EccCoreIn(Ch_c + EccChCtrl_c) <= Ecc_Core(Ch_c + EccChCtrl_c) or (QosDed and QosValid);
+    end process;
+
+    i_ecc_core_ev : entity work.ofb_cc_pulse
+        generic map (
+            NumPulses_g => 2 * Ch_c
+        )
+        port map (
+            In_Clk    => CoreClk,
+            In_Rst    => CoreRst,
+            In_Pulse  => EccCoreIn,
+            Out_Clk   => Clk,
+            Out_Rst   => Rst,
+            Out_Pulse => EccCoreEv
+        );
+
+    i_ecc_user_ev : entity work.ofb_cc_pulse
+        generic map (
+            NumPulses_g => 2 * Ch_c
+        )
+        port map (
+            In_Clk    => UserClk,
+            In_Rst    => UserRst,
+            In_Pulse  => Ecc_User,
+            Out_Clk   => Clk,
+            Out_Rst   => Rst,
+            Out_Pulse => EccUserEv
+        );
+
+    i_ecc_lane_ev : entity work.ofb_cc_pulse
+        generic map (
+            NumPulses_g => 2 * Ch_c
+        )
+        port map (
+            In_Clk    => LaneClk,
+            In_Rst    => LaneRst,
+            In_Pulse  => Ecc_Lane,
+            Out_Clk   => Clk,
+            Out_Rst   => Rst,
+            Out_Pulse => EccLaneEv
+        );
+
+    EccSec <= EccCoreEv(Ch_c-1 downto 0) or EccUserEv(Ch_c-1 downto 0) or EccLaneEv(Ch_c-1 downto 0);
+    EccDed <= EccCoreEv(2*Ch_c-1 downto Ch_c) or EccUserEv(2*Ch_c-1 downto Ch_c) or EccLaneEv(2*Ch_c-1 downto Ch_c);
+
+    -- Counters, DED flags; ECC_STATUS write clears all, ECC_COUNT write clears the selected channel
+    EccClr   <= '1' when RbWr = '1' and unsigned(RbAddr) = 16#060# else '0';
+    EccRdClr <= '1' when RbWr = '1' and unsigned(RbAddr) = 16#068# else '0';
+
+    i_ecc_mon : entity olo.olo_ft_ecc_monitor
+        generic map (
+            Channels_g     => Ch_c,
+            CounterWidth_g => 16
+        )
+        port map (
+            Clk        => Clk,
+            Rst        => Rst,
+            Clr        => EccClr,
+            In_EccSec  => EccSec,
+            In_EccDed  => EccDed,
+            DedSticky  => EccDedStk,
+            Evt_Sec    => EccSecEvt,
+            Evt_Ded    => open,
+            Rd_Channel => EccSel,
+            Rd_Ena     => '1',
+            Rd_Clr     => EccRdClr,
+            Rd_SecCnt  => EccSecCnt,
+            Rd_DedCnt  => EccDedCnt,
+            Rd_Valid   => open
+        );
+
+    -- Error injection: ECC_INJECT selects the channel and single or double error; the command goes
+    -- to the clock domain of the write side of the channel
+    p_ecc_inj : process (all) is
+        variable Ch_v : natural;
+    begin
+        EccInjCmd <= (others => '0');
+        Ch_v      := to_integer(unsigned(RbWrData(3 downto 0)));
+        if RbWr = '1' and unsigned(RbAddr) = 16#06C# and Ch_v < Ch_c then
+            if RbWrData(8) = '1' then
+                EccInjCmd(Ch_c + Ch_v) <= '1';
+            else
+                EccInjCmd(Ch_v) <= '1';
+            end if;
+        end if;
+    end process;
+
+    g_inj_dom : for i in 0 to Ch_c-1 generate
+        EccInjToU(i)         <= EccInjCmd(i) when WrDomain_c(i) = DomUser else '0';
+        EccInjToU(Ch_c + i)  <= EccInjCmd(Ch_c + i) when WrDomain_c(i) = DomUser else '0';
+        EccInjToC(i)         <= EccInjCmd(i) when WrDomain_c(i) = DomCore else '0';
+        EccInjToC(Ch_c + i)  <= EccInjCmd(Ch_c + i) when WrDomain_c(i) = DomCore else '0';
+        EccInjToL(i)         <= EccInjCmd(i) when WrDomain_c(i) = DomLane else '0';
+        EccInjToL(Ch_c + i)  <= EccInjCmd(Ch_c + i) when WrDomain_c(i) = DomLane else '0';
+        EccInjMgmt(i)        <= EccInjCmd(i) when WrDomain_c(i) = DomMgmt else '0';
+        EccInjMgmt(Ch_c + i) <= EccInjCmd(Ch_c + i) when WrDomain_c(i) = DomMgmt else '0';
+    end generate;
+
+    i_ecc_inj_core : entity work.ofb_cc_pulse
+        generic map (
+            NumPulses_g => 2 * Ch_c
+        )
+        port map (
+            In_Clk    => Clk,
+            In_Rst    => Rst,
+            In_Pulse  => EccInjToC,
+            Out_Clk   => CoreClk,
+            Out_Rst   => CoreRst,
+            Out_Pulse => EccInj_Core
+        );
+
+    i_ecc_inj_user : entity work.ofb_cc_pulse
+        generic map (
+            NumPulses_g => 2 * Ch_c
+        )
+        port map (
+            In_Clk    => Clk,
+            In_Rst    => Rst,
+            In_Pulse  => EccInjToU,
+            Out_Clk   => UserClk,
+            Out_Rst   => UserRst,
+            Out_Pulse => EccInj_User
+        );
+
+    i_ecc_inj_lane : entity work.ofb_cc_pulse
+        generic map (
+            NumPulses_g => 2 * Ch_c
+        )
+        port map (
+            In_Clk    => Clk,
+            In_Rst    => Rst,
+            In_Pulse  => EccInjToL,
+            Out_Clk   => LaneClk,
+            Out_Rst   => LaneRst,
+            Out_Pulse => EccInj_Lane
         );
 
 end architecture;

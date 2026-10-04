@@ -230,6 +230,27 @@ package ofb_pkg is
 
     function prbsNextState (state : in std_logic_vector(15 downto 0)) return std_logic_vector;
 
+    -----------------------------------------------------------------------------------------------
+    -- EDAC monitor (MG-3): channels of the fault-tolerant buffers. Each channel reports its SEC and
+    -- DED events in the clock domain of the read side and takes error injection commands in the
+    -- clock domain of the write side.
+    -----------------------------------------------------------------------------------------------
+    constant EccChVcOut_c    : natural  := 0; -- Output VC buffers (read CoreClk, write UserClk)
+    constant EccChErb_c      : natural  := 1; -- Error recovery buffer (CoreClk)
+    constant EccChFrameBuf_c : natural  := 2; -- Frame buffer (CoreClk)
+    constant EccChVcIn_c     : natural  := 3; -- Input VC buffers (read UserClk, write CoreClk)
+    constant EccChBcOut_c    : natural  := 4; -- Broadcast output buffer (read CoreClk, write UserClk)
+    constant EccChBcIn_c     : natural  := 5; -- Broadcast input buffer (read UserClk, write CoreClk)
+    constant EccChCcTx_c     : natural  := 6; -- Transmit row crossing (read LaneClk, write CoreClk)
+    constant EccChCcRx_c     : natural  := 7; -- Receive row crossing (read CoreClk, write LaneClk)
+    constant EccChCtrl_c     : natural  := 8; -- Small control crossings (read CoreClk)
+    constant EccChannels_c   : positive := 9;
+
+    -- Error injection pattern of a codeword of len bits: one bit flipped, two bits when double = '1'
+    function eccInjPattern (
+        len    : in positive;
+        double : in std_logic) return std_logic_vector;
+
 end package;
 
 ---------------------------------------------------------------------------------------------------
@@ -411,6 +432,19 @@ package body ofb_pkg is
         end loop;
 
         return State_v;
+    end function;
+
+    function eccInjPattern (
+        len    : in positive;
+        double : in std_logic) return std_logic_vector is
+        variable Pattern_v : std_logic_vector(len-1 downto 0);
+    begin
+        Pattern_v    := (others => '0');
+        Pattern_v(0) := '1';
+        if double = '1' and len > 1 then
+            Pattern_v(1) := '1';
+        end if;
+        return Pattern_v;
     end function;
 
 end package body;

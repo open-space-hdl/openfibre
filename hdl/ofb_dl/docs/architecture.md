@@ -235,6 +235,14 @@ set the reset values of DL-QS-07.
 | `ofb_dl_rx_buf` | Rows with mask (section 3.8) |
 | `ofb_dl_vc_in` | Banked word buffer, beats to the user (section 3.9) |
 
+### 3.14 EDAC (MG-3)
+
+The output and input VC buffers, the error recovery buffer, the frame buffer, the broadcast buffers and the
+SCHEDULE.request crossing report SEC and DED events of the words read (`Ecc_Core`, `Ecc_User`, channels of `ofb_pkg`)
+and take injection commands (`EccInj_Core`, `EccInj_User`). The RAM of the error recovery buffer is
+`olo_ft_ram_sdp_scrub` (`ClkFreq_g`): frames can wait long for their ACK, the scrubber corrects accumulated single
+errors in idle cycles of the read port. Its ACK / NACK FIFO and read-ahead FIFO are `olo_ft_fifo_sync`.
+
 The units of the medium access controller (words sent, segment lengths) are rows; the bandwidth fractions are ratios
 of rows and stay correct for every number of data-sending lanes.
 

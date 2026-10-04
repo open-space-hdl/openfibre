@@ -33,6 +33,7 @@ entity ofb_core is
         NumVc_g          : positive range 1 to 32 := 8;
         NumLanes_g       : positive range 1 to 4  := 1;
         LaneClkFreq_g    : real                   := 156.25e6;
+        CoreClkFreq_g    : real                   := 200.0e6;
         VcOutDepth_g     : positive               := 128;
         VcInDepth_g      : positive               := 256;
         ErbRows_g        : positive               := 512;
@@ -212,6 +213,15 @@ architecture rtl of ofb_core is
     signal CfgMlBypass : std_logic;
     signal CfgDlMax    : std_logic_vector(2 downto 0);
 
+    -- EDAC (MG-3)
+    signal EccDlCore  : std_logic_vector(2*EccChannels_c-1 downto 0);
+    signal EccDlUser  : std_logic_vector(2*EccChannels_c-1 downto 0);
+    signal EccCcCore  : std_logic_vector(2*EccChannels_c-1 downto 0);
+    signal EccCcLane  : std_logic_vector(2*EccChannels_c-1 downto 0);
+    signal EccInjCore : std_logic_vector(2*EccChannels_c-1 downto 0);
+    signal EccInjUser : std_logic_vector(2*EccChannels_c-1 downto 0);
+    signal EccInjLane : std_logic_vector(2*EccChannels_c-1 downto 0);
+
     -- Data Link layer configuration and status
     signal CfgScrambled : std_logic;
     signal CfgBcInt     : std_logic_vector(15 downto 0);
@@ -348,7 +358,8 @@ begin
             NumLanes_g   => NumLanes_g,
             VcOutDepth_g => VcOutDepth_g,
             VcInDepth_g  => VcInDepth_g,
-            ErbRows_g    => ErbRows_g
+            ErbRows_g    => ErbRows_g,
+            ClkFreq_g    => CoreClkFreq_g
         )
         port map (
             Clk                   => CoreClk,
@@ -422,7 +433,11 @@ begin
             Stat_WordIdState      => StWordId,
             Stat_BwOver           => StBwOver,
             Stat_BwUnder          => StBwUnder,
-            Stat_TimeSlot         => StTimeSlot
+            Stat_TimeSlot         => StTimeSlot,
+            Ecc_Core              => EccDlCore,
+            Ecc_User              => EccDlUser,
+            EccInj_Core           => EccInjCore,
+            EccInj_User           => EccInjUser
         );
 
     -----------------------------------------------------------------------------------------------
@@ -473,7 +488,11 @@ begin
             Ml_FarCapabilityValid => MlFarCapV,
             Ml_FarCapabilityIdle  => MlFarIdle,
             Ml_LaneActive         => MlActive,
-            Ev_RxOverflow         => open
+            Ev_RxOverflow         => open,
+            Ecc_Core              => EccCcCore,
+            Ecc_Lane              => EccCcLane,
+            EccInj_Core           => EccInjCore,
+            EccInj_Lane           => EccInjLane
         );
 
     -----------------------------------------------------------------------------------------------
@@ -682,7 +701,13 @@ begin
             Ml_Bypass             => CfgMlBypass,
             UserClk               => UserClk,
             UserRst               => UserRst,
-            Ni_EvFrameErr         => NiFrameErr
+            Ni_EvFrameErr         => NiFrameErr,
+            Ecc_Core              => EccDlCore or EccCcCore,
+            Ecc_User              => EccDlUser,
+            Ecc_Lane              => EccCcLane,
+            EccInj_Core           => EccInjCore,
+            EccInj_User           => EccInjUser,
+            EccInj_Lane           => EccInjLane
         );
 
 end architecture;
