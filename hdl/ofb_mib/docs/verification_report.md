@@ -18,5 +18,5 @@ Defects found during verification:
 
 | Finding | Fix |
 | --- | --- |
-| The sticky bandwidth flags latched the undefined value of the status crossing before its first transfer (simulation) | `to_01` on the crossed status before it is ORed into the sticky flags |
+| The sticky bandwidth flags latched the undefined value of the status crossing before its first transfer (simulation) | The sticky flags accumulate the crossed status only 32 cycles after reset (first fix with `to_01` replaced: not synthesizable, found with `lint/synth_check.py`) |
 | Every event was counted twice and every command gave two pulses: `olo_ft_cc_pulse` stretches its output pulses to two cycles of the output clock | `ofb_cc_pulse` (edge detector after `olo_ft_cc_pulse`), also used in the input VC buffer of the Data Link layer, where the same effect doubled the FCT requests |

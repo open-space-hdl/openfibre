@@ -154,7 +154,14 @@ begin
             end if;
             if SegTake = '1' then
                 Vc_v   := oneHotIdx(SegGrant);
-                Rows_v := to_integer(unsigned(Seg_Rows(7*Vc_v+6 downto 7*Vc_v)));
+                Rows_v := 0;
+
+                for i in 0 to NumVc_g-1 loop
+                    if i = Vc_v then
+                        Rows_v := to_integer(unsigned(Seg_Rows(7*i+6 downto 7*i)));
+                    end if;
+                end loop;
+
                 Rows_v := minimum(Rows_v, to_integer(unsigned(Data_FreeRows)));
                 if Rows_v > 0 then
                     Copying  <= '1';
@@ -193,9 +200,18 @@ begin
         VcRd_Ready    <= (others => '0');
         WrData_Valid  <= '0';
         WrData_Commit <= '0';
-        WrData_Data   <= VcRd_Data(32*N_c*(CopyVc+1)-1 downto 32*N_c*CopyVc);
-        WrData_K      <= VcRd_K(4*N_c*(CopyVc+1)-1 downto 4*N_c*CopyVc);
-        WrData_Vc     <= std_logic_vector(to_unsigned(CopyVc, 5));
+        WrData_Data   <= (others => '0');
+        WrData_K      <= (others => '0');
+
+        -- Row of the VC being copied
+        for i in 0 to NumVc_g-1 loop
+            if i = CopyVc then
+                WrData_Data <= VcRd_Data(32*N_c*(i+1)-1 downto 32*N_c*i);
+                WrData_K    <= VcRd_K(4*N_c*(i+1)-1 downto 4*N_c*i);
+            end if;
+        end loop;
+
+        WrData_Vc <= std_logic_vector(to_unsigned(CopyVc, 5));
         if Copying = '1' and Vc_Flushed(CopyVc) = '1' then
             WrData_Commit <= '1';
         elsif Copying = '1' and VcRd_Valid(CopyVc) = '1' then

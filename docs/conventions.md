@@ -27,6 +27,10 @@ document. This page lists the rules and the few OpenFibre-specific additions.
 - VSG 3.27 with the Open Logic configuration in `lint/config` must report no errors and no warnings:
   `vsg -c lint/config/vsg_config.yml -f <file>`. Safe automatic fixes:
   `vsg -c lint/config/vsg_config.yml --fix --fix_only lint/config/fix_only_config.yml -f <file>`.
+- The design must be synthesizable in a technology-independent way: `python lint/synth_check.py` elaborates
+  `ofb_core` for 1, 2 and 4 lanes with the synthesis of GHDL (after `python run.py --compile`) and fails on errors and
+  inferred latches. Signals with a variable index select a slice with a loop over the constant slices rather than a
+  slice with variable bounds; `to_01` and other simulation-only functions are not used in RTL.
 
 ## Module development process
 
