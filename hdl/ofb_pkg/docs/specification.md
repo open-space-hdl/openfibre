@@ -21,10 +21,12 @@ entities `olo_base_crc` and `olo_base_prbs` reproduce the ECSS algorithms.
 | PKG-08 | The package shall define generics for `olo_base_crc` that compute PKG-06 and PKG-07. | 5.7.6.4, 5.7.6.5 |
 | PKG-09 | The package shall provide a reference implementation of the random number generator G(x) = x^16 + x^5 + x^4 + x^3 + 1 with seed 0xFFFF, the first bit being the least significant bit of character 0. | 5.7.6.2.1b, c, f, 5.7.6.2.3c, d, e, g |
 | PKG-10 | The package shall define generics for `olo_base_prbs` (32 bits per symbol) that produce the sequence of PKG-09. | 5.7.6.2.1, 5.7.6.2.3 |
+| PKG-11 | The module shall provide `ofb_cc_pulse`, a pulse clock domain crossing with single-cycle output pulses (`olo_ft_cc_pulse` with a rising-edge detector; `olo_ft_cc_pulse` alone stretches every pulse to two output clock cycles). | none (implementation) |
 
 ## 3. Error conditions
 
-None. The package contains constants and pure functions.
+None. The package contains constants and pure functions; `ofb_cc_pulse` loses pulses of one bit that follow each other
+closer than 2 x SyncStages + 2 output clock cycles (8 cycles).
 
 ## 4. Configuration parameters
 

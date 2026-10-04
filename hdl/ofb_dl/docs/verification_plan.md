@@ -51,6 +51,7 @@ Simulator: GHDL.
 | `test_erb_full` (TC-DL-17) | Without ACKs: data stops when the buffer is full, FULL every 64 words; after the ACK of all items the rest is sent | DL-ER-05, DL-TS-06, DL-VO-04 |
 | `test_vc_link_reset` (TC-DL-18) | Input side: the user read a partial packet, after link reset an EEP word is read first; output side: words written before link reset are flushed, the rest of the partial packet is discarded up to the EOP, the next packet is sent | DL-VO-02, DL-VI-04 |
 | `test_credit` (TC-DL-19) | No data without credit; one FCT allows 64 words, a second one the rest; FCTs beyond the counter width raise the credit overflow | DL-CR-01, 02, DL-VO-03, 04 |
+| `test_fct_return` (TC-DL-20) | Two FCTs per VC after link reset; after the user read 128 words exactly two more FCTs, no input buffer overflow | DL-VI-02 |
 
 ## 4. Coverage analysis
 

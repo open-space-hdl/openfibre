@@ -1,0 +1,395 @@
+---------------------------------------------------------------------------------------------------
+-- Copyright (c) 2026 by Julian Schneider
+-- Authors: Julian Schneider
+---------------------------------------------------------------------------------------------------
+
+---------------------------------------------------------------------------------------------------
+-- Description
+---------------------------------------------------------------------------------------------------
+-- Unit testbench of the Management Information Base: register map, reset values, configuration
+-- crossings, commands, status, sticky flags, counters and interrupt (four clock domains).
+--
+-- Documentation: hdl/ofb_mib/docs/verification_plan.md
+
+---------------------------------------------------------------------------------------------------
+-- Libraries
+---------------------------------------------------------------------------------------------------
+library ieee;
+    use ieee.std_logic_1164.all;
+    use ieee.numeric_std.all;
+
+library uvvm_util;
+    context uvvm_util.uvvm_util_context;
+
+library uvvm_vvc_framework;
+    use uvvm_vvc_framework.ti_vvc_framework_support_pkg.all;
+
+library bitvis_vip_axilite;
+    context bitvis_vip_axilite.vvc_context;
+
+library vunit_lib;
+    context vunit_lib.vunit_run_context;
+
+library work;
+    use work.ofb_tb_pkg.all;
+
+---------------------------------------------------------------------------------------------------
+-- Entity
+---------------------------------------------------------------------------------------------------
+entity ofb_mib_tb is
+    generic (
+        runner_cfg : string
+    );
+end entity;
+
+---------------------------------------------------------------------------------------------------
+-- Architecture
+---------------------------------------------------------------------------------------------------
+architecture sim of ofb_mib_tb is
+
+    constant NumVc_c : positive := 4;
+    constant Axi_c   : natural  := 1;
+
+    signal Clk     : std_logic := '0';
+    signal Rst     : std_logic := '1';
+    signal CoreClk : std_logic := '0';
+    signal LaneClk : std_logic := '0';
+    signal UserClk : std_logic := '0';
+
+    -- AXI4-Lite
+    signal ArAddr  : std_logic_vector(11 downto 0);
+    signal ArValid : std_logic;
+    signal ArReady : std_logic;
+    signal AwAddr  : std_logic_vector(11 downto 0);
+    signal AwValid : std_logic;
+    signal AwReady : std_logic;
+    signal WData   : std_logic_vector(31 downto 0);
+    signal WStrb   : std_logic_vector(3 downto 0);
+    signal WValid  : std_logic;
+    signal WReady  : std_logic;
+    signal BResp   : std_logic_vector(1 downto 0);
+    signal BValid  : std_logic;
+    signal BReady  : std_logic;
+    signal RData   : std_logic_vector(31 downto 0);
+    signal RResp   : std_logic_vector(1 downto 0);
+    signal RValid  : std_logic;
+    signal RReady  : std_logic;
+    signal Irq     : std_logic;
+
+    -- Core domain
+    signal DataScrambled : std_logic;
+    signal BcInterval    : std_logic_vector(15 downto 0);
+    signal LinkResetCmd  : std_logic;
+    signal IfResetCmd    : std_logic;
+    signal LinkResetCnt  : natural                              := 0;
+    signal IfResetCnt    : natural                              := 0;
+    signal DlStates      : std_logic_vector(7 downto 0)         := x"00";
+    signal HasCredit     : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
+    signal DlEv          : std_logic_vector(7 downto 0)         := x"00";
+    signal InOvf         : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
+    signal CrOvf         : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
+
+    -- Lane domain
+    signal LaneStart : std_logic_vector(0 downto 0);
+    signal AutoStart : std_logic_vector(0 downto 0);
+    signal LaneReset : std_logic_vector(0 downto 0);
+    signal NearLb    : std_logic_vector(0 downto 0);
+    signal FarLb     : std_logic_vector(0 downto 0);
+    signal Reason    : std_logic_vector(7 downto 0);
+    signal LaneStat  : std_logic_vector(37 downto 0) := (others => '0');
+    signal LaneEv    : std_logic_vector(3 downto 0)  := "0000";
+    signal MlStat    : std_logic_vector(3 downto 0)  := "0000";
+
+    -- User domain
+    signal NiEv : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
+
+begin
+
+    i_ti_uvvm_engine : entity uvvm_vvc_framework.ti_uvvm_engine;
+
+    Clk     <= not Clk after 5 ns;
+    CoreClk <= not CoreClk after 3.2 ns;
+    LaneClk <= not LaneClk after 3.4 ns;
+    UserClk <= not UserClk after 2.6 ns;
+
+    -----------------------------------------------------------------------------------------------
+    -- Test sequencer
+    -----------------------------------------------------------------------------------------------
+    p_main : process is
+        variable Start_v : time;
+
+        procedure cycles (n : natural) is
+        begin
+
+            for i in 1 to n loop
+                wait until falling_edge(Clk);
+            end loop;
+
+        end procedure;
+
+        procedure wr (
+            addr : natural;
+            data : std_logic_vector(31 downto 0)) is
+        begin
+            axilite_write(AXILITE_VVCT, Axi_c, to_unsigned(addr, 12), data, "Write " & to_hstring(to_unsigned(addr, 12)));
+            await_completion(AXILITE_VVCT, Axi_c, 10 us);
+        end procedure;
+
+        procedure chk (
+            addr : natural;
+            data : std_logic_vector(31 downto 0);
+            msg  : string) is
+        begin
+            axilite_check(AXILITE_VVCT, Axi_c, to_unsigned(addr, 12), data, msg);
+            await_completion(AXILITE_VVCT, Axi_c, 10 us);
+        end procedure;
+
+        -- One-cycle event in the core, lane or user domain
+        procedure coreEvent (bit : natural) is
+        begin
+            wait until rising_edge(CoreClk);
+            DlEv(bit) <= '1';
+            wait until rising_edge(CoreClk);
+            DlEv(bit) <= '0';
+
+            for i in 1 to 10 loop
+                wait until rising_edge(CoreClk);
+            end loop;
+
+        end procedure;
+
+    -- Test cases
+    begin
+        test_runner_setup(runner, runner_cfg);
+        await_uvvm_initialization(VOID);
+        disable_log_msg(ALL_MESSAGES);
+        enable_log_msg(ID_LOG_HDR);
+        cycles(10);
+        Rst <= '0';
+        cycles(20);
+
+        while test_suite loop
+
+            -- TC-MG-01: identification and reset values
+            if run("test_reset_values") then
+                chk(16#000#, x"0FB10002", "ID");
+                chk(16#004#, x"00000104", "Generics");
+                chk(16#008#, x"00000100", "DataScrambled set");
+                chk(16#00C#, x"00000028", "Broadcast interval 40");
+                chk(16#100#, x"00000002", "AutoStart set");
+                chk(16#044#, x"00000000", "Interrupt mask");
+                cycles(10);
+                check_value(DataScrambled, '1', error, "DataScrambled in the core domain");
+                check_value(BcInterval, x"0028", error, "Broadcast interval in the core domain");
+                check_value(std_logic_vector'(AutoStart(0) & LaneStart(0)), "10", error, "Lane configuration");
+
+            -- TC-MG-02: configuration, commands, Interface Reset
+            elsif run("test_config") then
+                wr(16#008#, x"00000000");
+                wr(16#00C#, x"00001234");
+                wr(16#100#, x"0000A51D");
+                chk(16#100#, x"0000A51D", "Lane control read back");
+                cycles(10);
+                check_value(DataScrambled, '0', error, "DataScrambled cleared");
+                check_value(BcInterval, x"1234", error, "Broadcast interval");
+                check_value(std_logic_vector'(LaneStart(0) & AutoStart(0) & LaneReset(0) & NearLb(0) & FarLb(0)), "10111", error,
+                            "Lane flags");
+                check_value(Reason, x"A5", error, "Standby Reason");
+                -- Link Reset command: one pulse
+                wr(16#008#, x"00000001");
+                cycles(10);
+                check_value(LinkResetCnt, 1, error, "One Link Reset pulse");
+                -- Interface Reset: one pulse, configuration back to the reset values
+                wr(16#008#, x"00000002");
+                cycles(10);
+                check_value(IfResetCnt, 1, error, "One Interface Reset pulse");
+                chk(16#008#, x"00000100", "DataScrambled reset value");
+                chk(16#00C#, x"00000028", "Broadcast interval reset value");
+                chk(16#100#, x"00000002", "Lane control reset value");
+
+            -- TC-MG-03: status registers
+            elsif run("test_status") then
+                DlStates  <= x"BF";
+                HasCredit <= "1010";
+                LaneStat  <= x"D1" & x"56" & x"78" & x"9A" & '1' & '0' & x"7";
+                MlStat    <= "1011";
+                cycles(20);
+                chk(16#010#, x"0000013F", "Data Link status");
+                chk(16#030#, x"0000000A", "Has Credit");
+                chk(16#104#, x"00789A27", "Lane status");
+                chk(16#10C#, x"0000D156", "Lane reasons");
+                chk(16#040#, x"00000211", "Multi-Lane status");
+
+            -- TC-MG-04: sticky flags, counters, interrupt, Link Reset clears the Data Link status
+            elsif run("test_events") then
+                coreEvent(0);
+                coreEvent(0);
+                coreEvent(4);
+                coreEvent(4);
+                coreEvent(4);
+                coreEvent(5);
+                wait until rising_edge(CoreClk);
+                InOvf(1)  <= '1';
+                wait until rising_edge(CoreClk);
+                InOvf(1)  <= '0';
+                wait until rising_edge(UserClk);
+                NiEv(2)   <= '1';
+                wait until rising_edge(UserClk);
+                NiEv(2)   <= '0';
+                wait until rising_edge(LaneClk);
+                LaneEv(1) <= '1';
+                wait until rising_edge(LaneClk);
+                LaneEv(1) <= '0';
+                cycles(20);
+                chk(16#014#, x"00000291", "Sticky Data Link errors");
+                chk(16#01C#, x"00000002", "CRC-16 counter");
+                chk(16#018#, x"00000003", "Retries");
+                chk(16#034#, x"00000002", "Input overflow VC 1");
+                chk(16#03C#, x"00000004", "Framing error VC 2");
+                chk(16#108#, x"00000002", "Lane timeout flag");
+                chk(16#110#, x"00000001", "Lane timeout counter");
+                check_value(Irq, '0', error, "No interrupt without mask");
+                wr(16#044#, x"00000010");
+                cycles(3);
+                check_value(Irq, '1', error, "Interrupt for the protocol error");
+                wr(16#014#, x"00000010");
+                cycles(3);
+                check_value(Irq, '0', error, "Interrupt cleared with the flag");
+                chk(16#014#, x"00000281", "Protocol error flag cleared");
+                wr(16#044#, x"00020000");
+                cycles(3);
+                check_value(Irq, '1', error, "Interrupt for the lane timeout");
+                -- Link Reset command clears the Data Link status
+                wr(16#008#, x"00000101");
+                chk(16#014#, x"00000000", "Data Link flags cleared by Link Reset");
+                chk(16#018#, x"00000000", "Retries cleared by Link Reset");
+                chk(16#01C#, x"00000000", "CRC-16 counter cleared by Link Reset");
+                chk(16#108#, x"00000002", "Lane flags kept");
+
+            end if;
+
+        end loop;
+
+        ofbTestEnd(runner);
+        wait;
+    end process;
+
+    test_runner_watchdog(runner, 1 ms);
+
+    -----------------------------------------------------------------------------------------------
+    -- Harness
+    -----------------------------------------------------------------------------------------------
+    i_axi : entity work.ofb_tb_axilite_master
+        generic map (
+            InstanceIdx_g => Axi_c,
+            AddrWidth_g   => 12
+        )
+        port map (
+            Clk     => Clk,
+            ArAddr  => ArAddr,
+            ArValid => ArValid,
+            ArReady => ArReady,
+            AwAddr  => AwAddr,
+            AwValid => AwValid,
+            AwReady => AwReady,
+            WData   => WData,
+            WStrb   => WStrb,
+            WValid  => WValid,
+            WReady  => WReady,
+            BResp   => BResp,
+            BValid  => BValid,
+            BReady  => BReady,
+            RData   => RData,
+            RResp   => RResp,
+            RValid  => RValid,
+            RReady  => RReady
+        );
+
+    i_dut : entity work.ofb_mib
+        generic map (
+            NumVc_g    => NumVc_c,
+            NumLanes_g => 1
+        )
+        port map (
+            Clk                   => Clk,
+            Rst                   => Rst,
+            S_AxiLite_ArAddr      => ArAddr,
+            S_AxiLite_ArValid     => ArValid,
+            S_AxiLite_ArReady     => ArReady,
+            S_AxiLite_AwAddr      => AwAddr,
+            S_AxiLite_AwValid     => AwValid,
+            S_AxiLite_AwReady     => AwReady,
+            S_AxiLite_WData       => WData,
+            S_AxiLite_WStrb       => WStrb,
+            S_AxiLite_WValid      => WValid,
+            S_AxiLite_WReady      => WReady,
+            S_AxiLite_BResp       => BResp,
+            S_AxiLite_BValid      => BValid,
+            S_AxiLite_BReady      => BReady,
+            S_AxiLite_RData       => RData,
+            S_AxiLite_RResp       => RResp,
+            S_AxiLite_RValid      => RValid,
+            S_AxiLite_RReady      => RReady,
+            Irq                   => Irq,
+            CoreClk               => CoreClk,
+            CoreRst               => Rst,
+            Dl_DataScrambled      => DataScrambled,
+            Dl_BcInterval         => BcInterval,
+            Dl_LinkReset          => LinkResetCmd,
+            Dl_InterfaceReset     => IfResetCmd,
+            Dl_LinkResetState     => DlStates(1 downto 0),
+            Dl_RxErrState         => DlStates(3 downto 2),
+            Dl_WordIdState        => DlStates(6 downto 4),
+            Dl_ErbEmpty           => DlStates(7),
+            Dl_HasCredit          => HasCredit,
+            Dl_EvCrc16Err         => DlEv(0),
+            Dl_EvCrc8Err          => DlEv(1),
+            Dl_EvFrameErr         => DlEv(2),
+            Dl_EvSeqErr           => DlEv(3),
+            Dl_EvRetry            => DlEv(4),
+            Dl_EvProtocolError    => DlEv(5),
+            Dl_EvFarEndLinkReset  => DlEv(6),
+            Dl_EvBcDiscard        => DlEv(7),
+            Dl_EvInputOverflow    => InOvf,
+            Dl_EvCreditOverflow   => CrOvf,
+            LaneClk               => LaneClk,
+            LaneRst               => Rst,
+            Lane_Start            => LaneStart,
+            Lane_AutoStart        => AutoStart,
+            Lane_Reset            => LaneReset,
+            Lane_NearLoopback     => NearLb,
+            Lane_FarLoopback      => FarLb,
+            Lane_StandbyReason    => Reason,
+            Lane_State            => LaneStat(3 downto 0),
+            Lane_RxPolarity       => LaneStat(4 downto 4),
+            Lane_NoSignal         => LaneStat(5 downto 5),
+            Lane_RxErrCount       => LaneStat(13 downto 6),
+            Lane_FarCapability    => LaneStat(21 downto 14),
+            Lane_FarStandbyReason => LaneStat(29 downto 22),
+            Lane_FarLostReason    => LaneStat(37 downto 30),
+            Lane_EvRxErrOverflow  => LaneEv(0 downto 0),
+            Lane_EvTimeout        => LaneEv(1 downto 1),
+            Lane_EvFarStandby     => LaneEv(2 downto 2),
+            Lane_EvFarLostSignal  => LaneEv(3 downto 3),
+            Ml_DataSending        => MlStat(0 downto 0),
+            Ml_DataReceiving      => MlStat(1 downto 1),
+            Ml_AlignState         => MlStat(3 downto 2),
+            UserClk               => UserClk,
+            UserRst               => Rst,
+            Ni_EvFrameErr         => NiEv
+        );
+
+    -- Count the command pulses
+    p_cmd : process (CoreClk) is
+    begin
+        if rising_edge(CoreClk) then
+            if LinkResetCmd = '1' then
+                LinkResetCnt <= LinkResetCnt + 1;
+            end if;
+            if IfResetCmd = '1' then
+                IfResetCnt <= IfResetCnt + 1;
+            end if;
+        end if;
+    end process;
+
+end architecture;

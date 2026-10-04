@@ -615,6 +615,35 @@ begin
                 check_value(txWord(Pos_v + 1), x"000002BC", error, "First word of the new packet");
                 check_value(txPayload, 2, error, "Only the new packet sent");
 
+            -- TC-DL-20: one FCT for every 64 words read by the user
+            elsif run("test_fct_return") then
+                waitLinkInit(10 us);
+                cycles(400);
+                N_v := 0;
+
+                for i in 0 to TxLog_v.count - 1 loop
+                    if txKind(i) = KindFct and txWord(i)(12 downto 8) = "00000" then
+                        N_v := N_v + 1;
+                    end if;
+                end loop;
+
+                check_value(N_v, 2, error, "Two FCTs for VC 0 after link reset");
+                rxFrame(0, 64, 1);
+                rxFrame(0, 64, 2);
+                waitRxIdle;
+                cycles(500);
+                check_value(VcRxLog0_v.count, 128, error, "128 words read");
+                N_v := 0;
+
+                for i in 0 to TxLog_v.count - 1 loop
+                    if txKind(i) = KindFct and txWord(i)(12 downto 8) = "00000" then
+                        N_v := N_v + 1;
+                    end if;
+                end loop;
+
+                check_value(N_v, 4, error, "Two more FCTs for VC 0 after 128 words read");
+                check_value(RowStat.InputOvfs, 0, error, "No input buffer overflow");
+
             -- TC-DL-19: FCT credit limits the data, credit overflow
             elsif run("test_credit") then
                 waitLinkInit(10 us);
