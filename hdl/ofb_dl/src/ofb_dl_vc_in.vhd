@@ -66,7 +66,8 @@ architecture rtl of ofb_dl_vc_in is
     constant Blocks_c   : positive := Depth_g / MaxFrameWords_c;
     constant GuardCyc_c : positive := 16;
 
-    subtype Bank_t is natural range 0 to N_c-1;
+    -- Bank index (at least one bit wide, the value stays below N_c)
+    subtype Bank_t is natural range 0 to 3;
 
     type BankData_t is array (0 to N_c-1) of std_logic_vector(35 downto 0);
     type Words_t is array (0 to N_c-1) of Word_t;

@@ -181,6 +181,7 @@ architecture rtl of ofb_mib is
     signal SeqCnt      : unsigned(15 downto 0);
     signal TimeoutCnt  : Cnt16Array_t;
     signal MisalignCnt : unsigned(15 downto 0);
+    signal StatSettle  : natural range 0 to 31;
 
     -- Crossings
     signal CoreCfgIn  : std_logic_vector(CoreCfgW_c-1 downto 0);
@@ -272,9 +273,13 @@ begin
             VcCrOvf              <= VcCrOvf or CoreEv(7 + 2 * NumVc_g downto 8 + NumVc_g);
             VcFrErr              <= VcFrErr or UserEv;
             LaneEvents           <= LaneEvents or LaneEv(4*NumLanes_g-1 downto 0);
-            -- (to_01: the status crossing has no value before its first transfer)
-            VcBwOver  <= VcBwOver or to_01(CoreStat(7 + 2 * NumVc_g downto 8 + NumVc_g));
-            VcBwUnder <= VcBwUnder or to_01(CoreStat(7 + 3 * NumVc_g downto 8 + 2 * NumVc_g));
+            -- Bandwidth flags once the status crossing has transferred a value after reset
+            if StatSettle = 31 then
+                VcBwOver  <= VcBwOver or CoreStat(7 + 2 * NumVc_g downto 8 + NumVc_g);
+                VcBwUnder <= VcBwUnder or CoreStat(7 + 3 * NumVc_g downto 8 + 2 * NumVc_g);
+            else
+                StatSettle <= StatSettle + 1;
+            end if;
             if CoreEv(0) = '1' then
                 Crc16Cnt <= sat16(Crc16Cnt);
             end if;
@@ -431,6 +436,7 @@ begin
                 SeqCnt       <= (others => '0');
                 TimeoutCnt   <= (others => (others => '0'));
                 MisalignCnt  <= (others => '0');
+                StatSettle   <= 0;
                 VcBwOver     <= (others => '0');
                 VcBwUnder    <= (others => '0');
             end if;
