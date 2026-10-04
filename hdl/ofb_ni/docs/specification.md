@@ -9,9 +9,9 @@ side.
 | Block | Entity | Function | State |
 | --- | --- | --- | --- |
 | NI-1 | `ofb_ni_vc` (x `NumVc_g`) | VC port: framing check of the transmitted words | Complete |
-| NI-2 | none | Virtual network mapper | Phase 3 |
+| NI-2 | MIB register | Virtual network number per VC (one end-point per VC) | Complete |
 | NI-3 | in `ofb_ni` | Broadcast port | Complete |
-| NI-4 | none | Schedule port | Phase 3 |
+| NI-4 | in `ofb_ni` | Schedule port (SCHEDULE.request) | Complete |
 
 All ports run on `UserClk`. A word carries four N-Chars or Fills; `TUSER` bit i is the K flag of character i (EOP,
 EEP or Fill). Without NI-2 the virtual network number is the VC number (ECSS 5.8.3bb for VN0).
@@ -26,6 +26,7 @@ EEP or Fill). Without NI-2 the virtual network number is the VC number (ECSS 5.8
 | NI-FR-02 | In a word with a framing error, the first offending character shall be replaced by an EEP and the following characters by Fills; the following words shall be discarded up to and including the next word with an EOP or EEP of the Network layer, unless the replaced character already ended the packet. | 5.3.9e |
 | NI-FR-03 | Words of four Fills shall not be passed to the Data Link layer. | 5.3.7.2e |
 | NI-RX-01 | Received words and broadcast messages shall be passed to the user unchanged. | 5.8.7, 6.2.2.3 |
+| NI-SC-01 | The Network interface shall pass SCHEDULE.request (time-slot number, valid strobe) to the Data Link layer. | 6.3.4, 5.7.4.3b |
 
 ## 3. Configuration parameters
 

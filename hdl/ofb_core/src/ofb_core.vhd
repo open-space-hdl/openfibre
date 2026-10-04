@@ -63,6 +63,9 @@ entity ofb_core is
         M_Bc_TUser        : out   std_logic_vector(17 downto 0);
         M_Bc_TValid       : out   std_logic;
         M_Bc_TReady       : in    std_logic;
+        -- SCHEDULE.request (UserClk)
+        S_Sched_Slot      : in    std_logic_vector(5 downto 0) := (others => '0');
+        S_Sched_Valid     : in    std_logic                    := '0';
         -- Management Information Base (MgmtClk)
         S_AxiLite_ArAddr  : in    std_logic_vector(11 downto 0);
         S_AxiLite_ArValid : in    std_logic;
@@ -132,6 +135,14 @@ architecture rtl of ofb_core is
     signal RxBcValid  : std_logic;
     signal RxBcReady  : std_logic;
     signal NiFrameErr : std_logic_vector(NumVc_g-1 downto 0);
+    signal SchedSlot  : std_logic_vector(5 downto 0);
+    signal SchedValid : std_logic;
+    signal RegWr      : std_logic;
+    signal RegAddr    : std_logic_vector(11 downto 0);
+    signal RegData    : std_logic_vector(31 downto 0);
+    signal StBwOver   : std_logic_vector(NumVc_g-1 downto 0);
+    signal StBwUnder  : std_logic_vector(NumVc_g-1 downto 0);
+    signal StTimeSlot : std_logic_vector(5 downto 0);
 
     -- Data Link layer to crossing
     signal DlTxData  : std_logic_vector(32*NumLanes_g-1 downto 0);
@@ -277,46 +288,50 @@ begin
             NumVc_g => NumVc_g
         )
         port map (
-            Clk          => UserClk,
-            Rst          => UserRst,
-            S_Vc_TData   => S_Vc_TData,
-            S_Vc_TUser   => S_Vc_TUser,
-            S_Vc_TValid  => S_Vc_TValid,
-            S_Vc_TReady  => S_Vc_TReady,
-            M_Vc_TData   => M_Vc_TData,
-            M_Vc_TUser   => M_Vc_TUser,
-            M_Vc_TValid  => M_Vc_TValid,
-            M_Vc_TReady  => M_Vc_TReady,
-            S_Bc_TData   => S_Bc_TData,
-            S_Bc_TUser   => S_Bc_TUser,
-            S_Bc_TValid  => S_Bc_TValid,
-            S_Bc_TReady  => S_Bc_TReady,
-            M_Bc_TData   => M_Bc_TData,
-            M_Bc_TUser   => M_Bc_TUser,
-            M_Bc_TValid  => M_Bc_TValid,
-            M_Bc_TReady  => M_Bc_TReady,
-            TxVc_Data    => TxVcData,
-            TxVc_K       => TxVcK,
-            TxVc_Valid   => TxVcValid,
-            TxVc_Ready   => TxVcReady,
-            RxVc_Data    => RxVcData,
-            RxVc_K       => RxVcK,
-            RxVc_Valid   => RxVcValid,
-            RxVc_Ready   => RxVcReady,
-            TxBc_Data    => TxBcData,
-            TxBc_Channel => TxBcCh,
-            TxBc_Type    => TxBcType,
-            TxBc_Delayed => TxBcDel,
-            TxBc_Valid   => TxBcValid,
-            TxBc_Ready   => TxBcReady,
-            RxBc_Data    => RxBcData,
-            RxBc_Channel => RxBcCh,
-            RxBc_Type    => RxBcType,
-            RxBc_Delayed => RxBcDel,
-            RxBc_Late    => RxBcLate,
-            RxBc_Valid   => RxBcValid,
-            RxBc_Ready   => RxBcReady,
-            Ev_FrameErr  => NiFrameErr
+            Clk           => UserClk,
+            Rst           => UserRst,
+            S_Vc_TData    => S_Vc_TData,
+            S_Vc_TUser    => S_Vc_TUser,
+            S_Vc_TValid   => S_Vc_TValid,
+            S_Vc_TReady   => S_Vc_TReady,
+            M_Vc_TData    => M_Vc_TData,
+            M_Vc_TUser    => M_Vc_TUser,
+            M_Vc_TValid   => M_Vc_TValid,
+            M_Vc_TReady   => M_Vc_TReady,
+            S_Bc_TData    => S_Bc_TData,
+            S_Bc_TUser    => S_Bc_TUser,
+            S_Bc_TValid   => S_Bc_TValid,
+            S_Bc_TReady   => S_Bc_TReady,
+            M_Bc_TData    => M_Bc_TData,
+            M_Bc_TUser    => M_Bc_TUser,
+            M_Bc_TValid   => M_Bc_TValid,
+            M_Bc_TReady   => M_Bc_TReady,
+            S_Sched_Slot  => S_Sched_Slot,
+            S_Sched_Valid => S_Sched_Valid,
+            TxVc_Data     => TxVcData,
+            TxVc_K        => TxVcK,
+            TxVc_Valid    => TxVcValid,
+            TxVc_Ready    => TxVcReady,
+            RxVc_Data     => RxVcData,
+            RxVc_K        => RxVcK,
+            RxVc_Valid    => RxVcValid,
+            RxVc_Ready    => RxVcReady,
+            TxBc_Data     => TxBcData,
+            TxBc_Channel  => TxBcCh,
+            TxBc_Type     => TxBcType,
+            TxBc_Delayed  => TxBcDel,
+            TxBc_Valid    => TxBcValid,
+            TxBc_Ready    => TxBcReady,
+            RxBc_Data     => RxBcData,
+            RxBc_Channel  => RxBcCh,
+            RxBc_Type     => RxBcType,
+            RxBc_Delayed  => RxBcDel,
+            RxBc_Late     => RxBcLate,
+            RxBc_Valid    => RxBcValid,
+            RxBc_Ready    => RxBcReady,
+            TxSched_Slot  => SchedSlot,
+            TxSched_Valid => SchedValid,
+            Ev_FrameErr   => NiFrameErr
         );
 
     -----------------------------------------------------------------------------------------------
@@ -356,6 +371,8 @@ begin
             RxBc_Late             => RxBcLate,
             RxBc_Valid            => RxBcValid,
             RxBc_Ready            => RxBcReady,
+            Sched_TimeSlot        => SchedSlot,
+            Sched_Valid           => SchedValid,
             TxRow_Data            => DlTxData,
             TxRow_K               => DlTxK,
             TxRow_Mask            => DlTxMask,
@@ -378,6 +395,9 @@ begin
             Cfg_LinkReset         => CfgLinkRst,
             Cfg_InterfaceReset    => CfgIfRst,
             Cfg_BcInterval        => CfgBcInt,
+            Reg_Wr                => RegWr,
+            Reg_Addr              => RegAddr,
+            Reg_Data              => RegData,
             Stat_HasCredit        => StHasCredit,
             Ev_CreditOverflow     => EvCrOvf,
             Ev_InputOverflow      => EvInOvf,
@@ -393,7 +413,10 @@ begin
             Stat_ErbEmpty         => StErbEmpty,
             Stat_LinkResetState   => StLinkState,
             Stat_RxErrState       => StRxErrState,
-            Stat_WordIdState      => StWordId
+            Stat_WordIdState      => StWordId,
+            Stat_BwOver           => StBwOver,
+            Stat_BwUnder          => StBwUnder,
+            Stat_TimeSlot         => StTimeSlot
         );
 
     -----------------------------------------------------------------------------------------------
@@ -605,6 +628,12 @@ begin
             Dl_EvBcDiscard        => EvBcDisc,
             Dl_EvInputOverflow    => EvInOvf,
             Dl_EvCreditOverflow   => EvCrOvf,
+            Dl_BwOver             => StBwOver,
+            Dl_BwUnder            => StBwUnder,
+            Dl_TimeSlot           => StTimeSlot,
+            Dl_RegWr              => RegWr,
+            Dl_RegAddr            => RegAddr,
+            Dl_RegData            => RegData,
             LaneClk               => LaneClk,
             LaneRst               => LaneRst,
             Lane_Start            => CfgLaneStart,

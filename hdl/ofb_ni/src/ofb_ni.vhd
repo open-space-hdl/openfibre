@@ -29,52 +29,57 @@ entity ofb_ni is
     );
     port (
         -- Control Ports (user clock)
-        Clk          : in    std_logic;
-        Rst          : in    std_logic;
+        Clk           : in    std_logic;
+        Rst           : in    std_logic;
         -- User: words to send per VC (TUSER: K flag per character)
-        S_Vc_TData   : in    std_logic_vector(32*NumVc_g-1 downto 0);
-        S_Vc_TUser   : in    std_logic_vector(4*NumVc_g-1 downto 0);
-        S_Vc_TValid  : in    std_logic_vector(NumVc_g-1 downto 0);
-        S_Vc_TReady  : out   std_logic_vector(NumVc_g-1 downto 0);
+        S_Vc_TData    : in    std_logic_vector(32*NumVc_g-1 downto 0);
+        S_Vc_TUser    : in    std_logic_vector(4*NumVc_g-1 downto 0);
+        S_Vc_TValid   : in    std_logic_vector(NumVc_g-1 downto 0);
+        S_Vc_TReady   : out   std_logic_vector(NumVc_g-1 downto 0);
         -- User: received words per VC
-        M_Vc_TData   : out   std_logic_vector(32*NumVc_g-1 downto 0);
-        M_Vc_TUser   : out   std_logic_vector(4*NumVc_g-1 downto 0);
-        M_Vc_TValid  : out   std_logic_vector(NumVc_g-1 downto 0);
-        M_Vc_TReady  : in    std_logic_vector(NumVc_g-1 downto 0);
+        M_Vc_TData    : out   std_logic_vector(32*NumVc_g-1 downto 0);
+        M_Vc_TUser    : out   std_logic_vector(4*NumVc_g-1 downto 0);
+        M_Vc_TValid   : out   std_logic_vector(NumVc_g-1 downto 0);
+        M_Vc_TReady   : in    std_logic_vector(NumVc_g-1 downto 0);
         -- User: broadcast messages to send (TUSER: channel 7:0, B_TYPE 15:8, DELAYED 16)
-        S_Bc_TData   : in    std_logic_vector(63 downto 0);
-        S_Bc_TUser   : in    std_logic_vector(16 downto 0);
-        S_Bc_TValid  : in    std_logic;
-        S_Bc_TReady  : out   std_logic;
+        S_Bc_TData    : in    std_logic_vector(63 downto 0);
+        S_Bc_TUser    : in    std_logic_vector(16 downto 0);
+        S_Bc_TValid   : in    std_logic;
+        S_Bc_TReady   : out   std_logic;
         -- User: received broadcast messages (TUSER: channel 7:0, B_TYPE 15:8, DELAYED 16, LATE 17)
-        M_Bc_TData   : out   std_logic_vector(63 downto 0);
-        M_Bc_TUser   : out   std_logic_vector(17 downto 0);
-        M_Bc_TValid  : out   std_logic;
-        M_Bc_TReady  : in    std_logic;
+        M_Bc_TData    : out   std_logic_vector(63 downto 0);
+        M_Bc_TUser    : out   std_logic_vector(17 downto 0);
+        M_Bc_TValid   : out   std_logic;
+        M_Bc_TReady   : in    std_logic;
+        -- User: SCHEDULE.request (time-slot number)
+        S_Sched_Slot  : in    std_logic_vector(5 downto 0) := (others => '0');
+        S_Sched_Valid : in    std_logic                    := '0';
         -- Data Link layer
-        TxVc_Data    : out   std_logic_vector(32*NumVc_g-1 downto 0);
-        TxVc_K       : out   std_logic_vector(4*NumVc_g-1 downto 0);
-        TxVc_Valid   : out   std_logic_vector(NumVc_g-1 downto 0);
-        TxVc_Ready   : in    std_logic_vector(NumVc_g-1 downto 0);
-        RxVc_Data    : in    std_logic_vector(32*NumVc_g-1 downto 0);
-        RxVc_K       : in    std_logic_vector(4*NumVc_g-1 downto 0);
-        RxVc_Valid   : in    std_logic_vector(NumVc_g-1 downto 0);
-        RxVc_Ready   : out   std_logic_vector(NumVc_g-1 downto 0);
-        TxBc_Data    : out   std_logic_vector(63 downto 0);
-        TxBc_Channel : out   Char_t;
-        TxBc_Type    : out   Char_t;
-        TxBc_Delayed : out   std_logic;
-        TxBc_Valid   : out   std_logic;
-        TxBc_Ready   : in    std_logic;
-        RxBc_Data    : in    std_logic_vector(63 downto 0);
-        RxBc_Channel : in    Char_t;
-        RxBc_Type    : in    Char_t;
-        RxBc_Delayed : in    std_logic;
-        RxBc_Late    : in    std_logic;
-        RxBc_Valid   : in    std_logic;
-        RxBc_Ready   : out   std_logic;
+        TxVc_Data     : out   std_logic_vector(32*NumVc_g-1 downto 0);
+        TxVc_K        : out   std_logic_vector(4*NumVc_g-1 downto 0);
+        TxVc_Valid    : out   std_logic_vector(NumVc_g-1 downto 0);
+        TxVc_Ready    : in    std_logic_vector(NumVc_g-1 downto 0);
+        RxVc_Data     : in    std_logic_vector(32*NumVc_g-1 downto 0);
+        RxVc_K        : in    std_logic_vector(4*NumVc_g-1 downto 0);
+        RxVc_Valid    : in    std_logic_vector(NumVc_g-1 downto 0);
+        RxVc_Ready    : out   std_logic_vector(NumVc_g-1 downto 0);
+        TxBc_Data     : out   std_logic_vector(63 downto 0);
+        TxBc_Channel  : out   Char_t;
+        TxBc_Type     : out   Char_t;
+        TxBc_Delayed  : out   std_logic;
+        TxBc_Valid    : out   std_logic;
+        TxBc_Ready    : in    std_logic;
+        RxBc_Data     : in    std_logic_vector(63 downto 0);
+        RxBc_Channel  : in    Char_t;
+        RxBc_Type     : in    Char_t;
+        RxBc_Delayed  : in    std_logic;
+        RxBc_Late     : in    std_logic;
+        RxBc_Valid    : in    std_logic;
+        RxBc_Ready    : out   std_logic;
+        TxSched_Slot  : out   std_logic_vector(5 downto 0);
+        TxSched_Valid : out   std_logic;
         -- Status
-        Ev_FrameErr  : out   std_logic_vector(NumVc_g-1 downto 0)
+        Ev_FrameErr   : out   std_logic_vector(NumVc_g-1 downto 0)
     );
 end entity;
 
@@ -117,6 +122,10 @@ begin
     TxBc_Delayed <= S_Bc_TUser(16);
     TxBc_Valid   <= S_Bc_TValid;
     S_Bc_TReady  <= TxBc_Ready;
+
+    -- Schedule port (NI-4)
+    TxSched_Slot  <= S_Sched_Slot;
+    TxSched_Valid <= S_Sched_Valid;
 
     M_Bc_TData  <= RxBc_Data;
     M_Bc_TUser  <= RxBc_Late & RxBc_Delayed & RxBc_Type & RxBc_Channel;

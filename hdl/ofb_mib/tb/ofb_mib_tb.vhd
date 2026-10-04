@@ -88,6 +88,14 @@ architecture sim of ofb_mib_tb is
     signal DlEv          : std_logic_vector(7 downto 0)         := x"00";
     signal InOvf         : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
     signal CrOvf         : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
+    signal BwOver        : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
+    signal BwUnder       : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
+    signal TimeSlot      : std_logic_vector(5 downto 0)         := (others => '0');
+    signal RegWr         : std_logic;
+    signal RegAddr       : std_logic_vector(11 downto 0);
+    signal RegData       : std_logic_vector(31 downto 0);
+    signal RegWrCnt      : natural                              := 0;
+    signal RegWrLast     : std_logic_vector(43 downto 0)        := (others => '0');
 
     -- Lane domain
     signal LaneStart : std_logic_vector(0 downto 0);
@@ -219,6 +227,34 @@ begin
                 chk(16#104#, x"00789A27", "Lane status");
                 chk(16#10C#, x"0000D156", "Lane reasons");
                 chk(16#040#, x"00000211", "Multi-Lane status");
+
+            -- TC-MG-05: quality of service registers: reset values, read back, forwarding to the core
+            -- clock domain, bandwidth status, time-slot, Interface Reset
+            elsif run("test_qos_registers") then
+                chk(16#400#, x"00000003", "VC 0: lowest priority, VN 0");
+                chk(16#410#, x"00010003", "VC 1: VN 1");
+                chk(16#404#, x"00000A00", "VC 0: 10 %");
+                chk(16#414#, x"0000FFFF", "VC 1: minimum bandwidth");
+                chk(16#418#, x"FFFFFFFF", "VC 1: all time-slots");
+                chk(16#050#, x"0002625A", "Idle time limit 156250 words");
+                wr(16#410#, x"00050100");
+                wr(16#400#, x"00070000");
+                chk(16#410#, x"00050100", "VC 1 written");
+                chk(16#400#, x"00000000", "VN of VC 0 stays 0");
+                cycles(10);
+                check_value(RegWrCnt, 2, error, "Two writes forwarded");
+                check_value(RegWrLast, x"400" & x"00070000", error, "Last forwarded write");
+                BwOver(2)  <= '1';
+                BwUnder(3) <= '1';
+                TimeSlot   <= "101010";
+                cycles(20);
+                BwOver(2)  <= '0';
+                cycles(20);
+                chk(16#048#, x"00000004", "Bandwidth over use VC 2 (sticky)");
+                chk(16#04C#, x"00000008", "Bandwidth under use VC 3");
+                chk(16#054#, x"0000002A", "Current time-slot");
+                wr(16#008#, x"00000002");
+                chk(16#410#, x"00010003", "Interface Reset restores VC 1");
 
             -- TC-MG-04: sticky flags, counters, interrupt, Link Reset clears the Data Link status
             elsif run("test_events") then
@@ -352,6 +388,12 @@ begin
             Dl_EvBcDiscard        => DlEv(7),
             Dl_EvInputOverflow    => InOvf,
             Dl_EvCreditOverflow   => CrOvf,
+            Dl_BwOver             => BwOver,
+            Dl_BwUnder            => BwUnder,
+            Dl_TimeSlot           => TimeSlot,
+            Dl_RegWr              => RegWr,
+            Dl_RegAddr            => RegAddr,
+            Dl_RegData            => RegData,
             LaneClk               => LaneClk,
             LaneRst               => Rst,
             Lane_Start            => LaneStart,
@@ -379,10 +421,14 @@ begin
             Ni_EvFrameErr         => NiEv
         );
 
-    -- Count the command pulses
+    -- Count the command pulses and the register writes
     p_cmd : process (CoreClk) is
     begin
         if rising_edge(CoreClk) then
+            if RegWr = '1' then
+                RegWrCnt  <= RegWrCnt + 1;
+                RegWrLast <= RegAddr & RegData;
+            end if;
             if LinkResetCmd = '1' then
                 LinkResetCnt <= LinkResetCnt + 1;
             end if;

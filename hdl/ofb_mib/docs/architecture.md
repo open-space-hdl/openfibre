@@ -47,10 +47,19 @@ Byte addresses, 32-bit registers. RO read only, RW read / write, W1 write one (c
 | 0x03C | VC_FRAMING_ERROR | NumVc-1:0 | W1C | 0 | Framing error of the Network interface per VC |
 | 0x040 | ML_STATUS | 3:0, 7:4, 9:8 | RO | | Data-sending lanes, data-receiving lanes, alignment state |
 | 0x044 | IRQ_MASK | 9:0, 19:16 | RW | 0 | Interrupt enable for DL_ERRORS bits 9:0 and LANE_EVENTS bits 3:0 of any lane |
+| 0x048 | VC_BW_OVER | NumVc-1:0 | W1C | 0 | Bandwidth over use per VC |
+| 0x04C | VC_BW_UNDER | NumVc-1:0 | W1C | 0 | Bandwidth under use per VC |
+| 0x050 | VC_IDLE_LIMIT | 31:0 | RW | 156250 | Virtual Channel Idle Time Limit in words (1 ms at 6.25 Gbit/s) |
+| 0x054 | SCHED_STATUS | 5:0 | RO | | Current time-slot |
 | 0x100 + 0x20 i | LANE_CTRL | 0, 1, 2, 3, 4, 15:8 | RW | 0, 1, 0, 0, 0, 0 | LaneStart, AutoStart, LaneReset, near-end parallel loopback, far-end parallel loopback, Standby Reason |
 | 0x104 + 0x20 i | LANE_STATUS | 3:0, 4, 5, 15:8, 23:16 | RO | | Lane state, RX polarity, NoSignal, RXERR counter, far-end capabilities |
 | 0x108 + 0x20 i | LANE_EVENTS | 3:0 | W1C | 0 | RXERR overflow, timeout, far-end standby, far-end lost signal |
 | 0x10C + 0x20 i | LANE_REASONS | 7:0, 15:8 | RO | | Far-end Standby Reason, far-end LOST_SIGNAL reason |
 | 0x110 + 0x20 i | LANE_TIMEOUT_COUNT | 15:0 | RO, write clears | 0 | Initialisation timeouts |
+| 0x400 + 0x10 v | VC_CFG | 3:0, 8, 21:16 | RW | NumPrio-1, 0, v | Priority level, continuous mode, virtual network number (VC 0: always VN 0) |
+| 0x404 + 0x10 v | VC_BANDWIDTH | 15:0 | RW | 0x0A00 (VC 0), 0xFFFF | 1 / Normalised Expected Bandwidth, 8.8 fixed point (0x0100: 100 %, 0x0A00: 10 %, 0: no bandwidth) |
+| 0x408 + 0x10 v | VC_SLOTS_LO | 31:0 | RW | all ones | Allocated time-slots 31 to 0 |
+| 0x40C + 0x10 v | VC_SLOTS_HI | 31:0 | RW | all ones | Allocated time-slots 63 to 32 |
 
-Unused addresses read as zero.
+Unused addresses read as zero. Writes to VC_IDLE_LIMIT and to the VC block are forwarded to the Data Link layer through
+an `olo_ft_fifo_async` (address and data); the MIB keeps a copy for reading.

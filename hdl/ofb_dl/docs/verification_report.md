@@ -7,9 +7,10 @@ Run on 2026-10-04 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 | Testbench | Tests | Passed |
 | --- | --- | --- |
 | `ofb_dl_tb` (layer, two complete ends) | 7 | 7 |
-| `ofb_dl_row_tb` (row level) | 11 | 11 |
+| `ofb_dl_row_tb` (row level) | 13 | 13 |
+| `ofb_dl_mac_tb` (medium access controller) | 7 | 7 |
 
-Full regression of the repository: 80 of 80 tests pass. VSG reports no errors and no warnings.
+Full regression of the repository: 105 of 105 tests pass (with phase 3). VSG reports no errors and no warnings.
 
 Error and recovery counters of the layer tests (both ends):
 
@@ -20,7 +21,7 @@ Error and recovery counters of the layer tests (both ends):
 
 ## 2. Summary
 
-All 18 test cases pass; the requirements of the specification are covered except the three items listed in section 4
+All 27 test cases pass; the requirements of the specification are covered except the three items listed in section 4
 of the verification plan.
 
 Defects found and fixed during verification:
@@ -33,6 +34,9 @@ Defects found and fixed during verification:
 | The end-of-packet count of the output VC buffer crossed faster than the buffer level: packets were split into several data frames | Count delayed behind the level |
 | Testbench: delivery check before the generators had started; lane loss test cut the lane after the traffic had ended | Testbench timing |
 | Found with the MIB testbench: `olo_ft_cc_pulse` stretches every output pulse to two cycles, so the input VC buffer requested two FCTs per 64 words read (credit for more words than the buffer holds) | `ofb_cc_pulse` with an edge detector; TC-DL-20 checks the FCT count (mutation checked: 6 instead of 4 FCTs without the fix) |
+
+Phase 3 (quality of service, continuous mode): the MAC unit tests and TC-DL-21 / TC-DL-22 passed on the first run;
+mutation check: with equal priorities the first frame of TC-DL-21 comes from VC 0 and the test fails as expected.
 
 Observations:
 

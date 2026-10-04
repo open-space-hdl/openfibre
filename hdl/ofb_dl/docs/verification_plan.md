@@ -19,6 +19,7 @@ UVVM scoreboards per VC.
 | Testbench | Harness | DUT and environment |
 | --- | --- | --- |
 | `ofb_dl_tb` | `ofb_dl_th` | Two ends A and B, each `ofb_dl` (4 VCs) + `ofb_multilane` + `ofb_lane`, `ofb_tb_pa_model`; packet generator and receiver per VC (user clock 192 MHz, core clock 156.25 MHz), broadcast generator and receiver, scoreboard per destination |
+| `ofb_dl_mac_tb` | none | `ofb_dl_mac` (4 VCs, Bandwidth Credit Limit 1024 words), inputs driven by the sequencer |
 | `ofb_dl_row_tb` | `ofb_dl_row_th` | `ofb_dl` (2 VCs, input buffers of 128 words, error recovery buffer of 256 words, 8 data, 4 FCT, 2 broadcast items); far-end model: receive word queue, log of the transmitted words, optional automatic ACK of every frame and FCT in sequence, capability event in Check Far-End Reset |
 
 Simulator: GHDL.
@@ -52,6 +53,25 @@ Simulator: GHDL.
 | `test_vc_link_reset` (TC-DL-18) | Input side: the user read a partial packet, after link reset an EEP word is read first; output side: words written before link reset are flushed, the rest of the partial packet is discarded up to the EOP, the next packet is sent | DL-VO-02, DL-VI-04 |
 | `test_credit` (TC-DL-19) | No data without credit; one FCT allows 64 words, a second one the rest; FCTs beyond the counter width raise the credit overflow | DL-CR-01, 02, DL-VO-03, 04 |
 | `test_fct_return` (TC-DL-20) | Two FCTs per VC after link reset; after the user read 128 words exactly two more FCTs, no input buffer overflow | DL-VI-02 |
+
+### 3.3 Medium access controller (`ofb_dl_mac_tb`)
+
+| Test ID | Description | Requirements |
+| --- | --- | --- |
+| `test_priority` (TC-QS-01) | Equal priority and credit: lowest VC; priority 0 wins; no grant without a ready VC | DL-QS-01, DL-QS-04, DL-MAC-01 |
+| `test_bandwidth_credit` (TC-QS-02) | Within one priority level the VC that used less bandwidth wins | DL-QS-03, DL-QS-04 |
+| `test_threshold` (TC-QS-03) | A high-priority VC that overuses its bandwidth falls below -0.9 B: over use reported, a lower-priority VC wins | DL-QS-04, DL-QS-05 |
+| `test_schedule` (TC-QS-04) | Only VCs allocated to the current time-slot compete | DL-QS-02 |
+| `test_bandwidth_zero` (TC-QS-05) | A VC with bandwidth zero does not compete | DL-QS-01, DL-QS-02 |
+| `test_under_use` (TC-QS-06) | Credit at +B for the idle time limit: under use; ends with a segment | DL-QS-05 |
+| `test_config_reset` (TC-QS-07) | Interface Reset clears the credits | DL-QS-03 |
+
+### 3.4 Row-level testbench, quality of service and continuous mode
+
+| Test ID | Description | Requirements |
+| --- | --- | --- |
+| `test_qos_priority_schedule` (TC-DL-21) | Both VCs excluded from time-slot 1: no data; SCHEDULE.request to slot 0: both ready at once, all frames of the priority-0 VC first | DL-QS-01, 02, 04, 06, DL-MAC-01 |
+| `test_continuous_mode` (TC-DL-22) | Continuous mode: 140 words for a buffer of 128 without credit are accepted without back-pressure; flush, EEP, rest of the packet discarded; without an active lane the next packet is flushed as well | DL-CM-01 |
 
 ## 4. Coverage analysis
 

@@ -47,6 +47,12 @@ All blocks except the user side of the four buffer kinds run on `Clk` with the s
   the counter to its maximum and pulses `Ev_CreditOverflow`; cleared on link reset.
 - Segment: `Seg_Ready = Credit > 0 and Level > 0 and (Level >= 64 or Eop or Full)`,
   `Seg_Words = min(Level, 64, Credit)` (`Level` is the read-side level of the FIFO, which never exceeds the true level).
+- Continuous mode (user side, `Cfg_Continuous`): when a word arrives while the buffer has at most one free entry, or no
+  lane is active (`Ctrl_LaneActive`, crossed to the user clock) while the buffer holds words other than its own EEP,
+  the buffer is reset from the user side, an EEP word (EEP, Fill, Fill, Fill) is written after the reset, and when the
+  last word written did not end a packet the spill state discards the rest of that packet. Words that arrive during the
+  flush are accepted and discarded. The read side reports the reset (`Rd_Flushed`), so that the admission ends a
+  segment that was being copied.
 
 ### 3.2 ofb_dl_bc_out (DT-3)
 
@@ -63,7 +69,7 @@ Writes new items into the error recovery buffer:
 
 | Item | Condition | Action |
 | --- | --- | --- |
-| Data segment | A VC with `Seg_Ready` (round robin, `olo_base_arb_rr`), a free data item and at least one free data word | Copies `L = min(Seg_Words, free words)` words from the VC into the buffer, then commits the item (VC, L) |
+| Data segment | The VC selected by the medium access controller (section 3.12) with `Seg_Ready`, a free data item and at least one free data word | Copies `L = min(Seg_Words, free words)` words from the VC into the buffer, then commits the item (VC, L) and reports it to the medium access controller; the next selection waits 3 cycles for the updated credits. A flushed VC ends the copy early |
 | Broadcast message | Message available, broadcast credit, a free broadcast item and no broadcast item waiting to be sent | Moves the message into the buffer |
 | FCT | An input VC buffer requests an FCT (round robin), a free FCT item | Writes the FCT (VC, M - 1), acknowledges the request |
 
@@ -183,6 +189,27 @@ Reset enters ConfigReset. Link errors are the protocol error of DT-7 and the ove
 (`Ml_FarCapabilityIdle`): the lane becomes active a few cycles after the event, and a lane active level that crosses
 to the core clock separately can arrive before the event (found with the core testbench).
 
+### 3.12 Quality of service: ofb_dl_mac (DT-4) and ofb_dl_qos_regs
+
+`ofb_dl_qos_regs` holds the configuration per VC in the core clock domain (priority, bandwidth factor 1 / Normalised
+Expected Bandwidth in 8.8 fixed point, 64 time-slot bits, continuous mode) and the Virtual Channel Idle Time Limit. The
+MIB writes them through its register write channel and keeps a copy for reading; reset and Interface Reset (from DC-1)
+set the reset values of DL-QS-07.
+
+`ofb_dl_mac`:
+
+- Bandwidth credit per VC: signed, 8 fractional bits, saturating at +-B (`BwCreditLimit_g`). The words sent on the link
+  are counted; when a segment is admitted (VC v, L data words) all credits gain the counted words and the credit of v
+  loses (L + 2) x factor(v); without a segment the counted words are added every 66 words.
+- Precedence per VC (registered): `credit + (credit < -0.9 B ? 0 : 2 B (Q - 1 - R) + B)`; eligible when a segment is
+  ready, the bit of the current time-slot is set and the factor is not zero.
+- Selection (registered): a five-level comparison tree over 32 entries; the higher precedence wins, the lower VC number
+  on equal precedence.
+- Status: bandwidth over use while the credit is at or below -0.9 B, under use when the credit stayed at +B for the
+  idle time limit (words sent).
+- Current time-slot: SCHEDULE.request of the Network layer (crossed with a small FIFO); with `ScheduleBcType_g` >= 0
+  also data byte 0 of received broadcast messages of that type.
+
 ## 4. Top-level ports (`ofb_dl`)
 
 | Group | Ports |
@@ -191,12 +218,14 @@ to the core clock separately can arrive before the event (found with the core te
 | VC ports (`UserClk`) | `TxVc_Data` (32 x NumVc), `TxVc_K` (4 x NumVc), `TxVc_Valid`, `TxVc_Ready`; `RxVc_Data`, `RxVc_K`, `RxVc_Valid`, `RxVc_Ready` |
 | Broadcast (`UserClk`) | `TxBc_Data` (64), `TxBc_Channel`, `TxBc_Type`, `TxBc_Delayed`, `TxBc_Valid`, `TxBc_Ready`; `RxBc_Data`, `RxBc_Channel`, `RxBc_Type`, `RxBc_Delayed`, `RxBc_Late`, `RxBc_Valid`, `RxBc_Ready` |
 | Multi-Lane layer | `TxRow_*`, `RxRow_*` (section 2.1 of the `ofb_multilane` architecture), `Ml_LinkReset`, `Ml_LaneReset`, `Ml_NearCapability`, `Ml_FarCapability`, `Ml_FarCapabilityValid`, `Ml_FarCapabilityIdle`, `Ml_LaneActive` |
-| Configuration | `Cfg_DataScrambled`, `Cfg_LinkReset`, `Cfg_InterfaceReset`, `Cfg_BcInterval` |
-| Status | `Stat_*` levels and `Ev_*` events of DL-ST-01 |
+| Configuration | `Cfg_DataScrambled`, `Cfg_LinkReset`, `Cfg_InterfaceReset`, `Cfg_BcInterval`; QoS register writes `Reg_Wr`, `Reg_Addr`, `Reg_Data` (core clock) |
+| Schedule (`UserClk`) | `Sched_TimeSlot`, `Sched_Valid` (SCHEDULE.request) |
+| Status | `Stat_*` levels and `Ev_*` events of DL-ST-01; `Stat_BwOver`, `Stat_BwUnder` per VC, `Stat_TimeSlot` |
 
 ## 5. Open points
 
-- Phase 3: QoS (DT-4), continuous mode; phase 4: rows of more than one word.
+- Phase 4: rows of more than one word.
+- The selection tree of `ofb_dl_mac` has five comparison levels in one cycle; timing is checked in the hardening phase.
 - The data payload RAM is `olo_ft_ram_sdp`; the scrubbing variant is introduced with the hardening phase.
 - The item entries of the error recovery buffer are registers (small), not `olo_ft_ram_sdp` as foreseen in the core
   architecture.

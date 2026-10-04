@@ -43,6 +43,8 @@ entity ofb_dl_vc_out is
         In_K              : in    WordK_t;
         In_Valid          : in    std_logic;
         In_Ready          : out   std_logic;
+        Cfg_Continuous    : in    std_logic := '0'; -- Continuous mode (UserClk)
+        Ctrl_LaneActive   : in    std_logic := '1'; -- A lane is active (UserClk)
         -- Core clock side
         Clk               : in    std_logic;
         Rst               : in    std_logic;
@@ -57,6 +59,7 @@ entity ofb_dl_vc_out is
         Rd_K              : out   WordK_t;
         Rd_Valid          : out   std_logic;
         Rd_Ready          : in    std_logic;
+        Rd_Flushed        : out   std_logic; -- The buffer was reset (link reset or continuous mode flush)
         -- Status
         Stat_HasCredit    : out   std_logic;
         Stat_Empty        : out   std_logic;
@@ -78,7 +81,11 @@ architecture rtl of ofb_dl_vc_out is
     signal FifoInVld  : std_logic;
     signal FifoInRdy  : std_logic;
     signal FifoOutRst : std_logic;
+    signal FifoInRst  : std_logic;
     signal UsrRstOut  : std_logic;
+    signal OutRstOut  : std_logic;
+    signal InLevel    : std_logic_vector(LevelWidth_c-1 downto 0);
+    signal InEmpty    : std_logic;
     signal OutValid   : std_logic;
     signal OutFull    : std_logic;
     signal OutLevel   : std_logic_vector(LevelWidth_c-1 downto 0);
@@ -86,8 +93,16 @@ architecture rtl of ofb_dl_vc_out is
     -- User side
     signal LastEnd  : std_logic;
     signal Spill    : std_logic;
-    signal EopWr    : unsigned(EopWidth_c-1 downto 0);
-    signal EopWrGry : std_logic_vector(EopWidth_c-1 downto 0);
+    signal CmFlush  : std_logic;
+    signal CmWait   : std_logic;
+    signal EepPend  : std_logic;
+    signal EepOnly  : std_logic;
+    signal EepWrite : std_logic;
+
+    -- EEP followed by three Fills
+    constant WordEep_c : std_logic_vector(35 downto 0) := "1111" & CharFill_c & CharFill_c & CharFill_c & CharEep_c;
+    signal EopWr       : unsigned(EopWidth_c-1 downto 0);
+    signal EopWrGry    : std_logic_vector(EopWidth_c-1 downto 0);
 
     -- Core side (the crossed count is delayed further, so that it never runs ahead of the level of the
     -- buffer: an EOP is only seen once the words before it are counted in the level)
@@ -101,22 +116,48 @@ architecture rtl of ofb_dl_vc_out is
 begin
 
     -----------------------------------------------------------------------------------------------
-    -- User side: spill after link reset, count of the words with EOP or EEP
+    -- User side: spill after link reset, continuous mode, count of the words with EOP or EEP
     -----------------------------------------------------------------------------------------------
-    FifoIn    <= In_K & In_Data;
-    FifoInVld <= In_Valid and not Spill;
-    In_Ready  <= '1' when Spill = '1' else FifoInRdy;
+    EepWrite  <= EepPend and not CmWait and FifoInRdy;
+    FifoIn    <= WordEep_c when EepWrite = '1' else In_K & In_Data;
+    FifoInVld <= EepWrite or (In_Valid and not Spill and not CmWait and not EepPend);
+    FifoInRst <= UserRst or CmFlush;
+
+    p_ready : process (all) is
+    begin
+        if Spill = '1' or CmWait = '1' then
+            -- Words of a discarded packet, words during a flush in continuous mode
+            In_Ready <= '1';
+        elsif EepPend = '1' then
+            In_Ready <= '0';
+        else
+            In_Ready <= FifoInRdy;
+        end if;
+    end process;
 
     p_user : process (UserClk) is
+        variable Full_v   : boolean;
+        variable NoLane_v : boolean;
     begin
         if rising_edge(UserClk) then
-            if In_Valid = '1' and Spill = '1' then
+            CmFlush <= '0';
+            -- Continuous mode: flush when the buffer is about to be full or no lane is active
+            Full_v   := In_Valid = '1' and unsigned(InLevel) >= Depth_g - 1;
+            NoLane_v := Ctrl_LaneActive = '0' and InEmpty = '0' and EepOnly = '0';
+            if Cfg_Continuous = '1' and CmWait = '0' and EepPend = '0' and (Full_v or NoLane_v) then
+                CmFlush <= '1';
+                CmWait  <= '1';
+                EepPend <= '1';
+                Spill   <= not LastEnd;
+                LastEnd <= '1';
+            elsif In_Valid = '1' and Spill = '1' then
                 -- Discard up to and including the next word with EOP or EEP
                 if wordHasEnd(In_Data, In_K) then
                     Spill   <= '0';
                     LastEnd <= '1';
                 end if;
-            elsif In_Valid = '1' and FifoInRdy = '1' then
+            elsif In_Valid = '1' and FifoInRdy = '1' and CmWait = '0' and EepPend = '0' then
+                EepOnly <= '0';
                 if wordLastIsEnd(In_Data, In_K) then
                     LastEnd <= '1';
                 else
@@ -126,7 +167,16 @@ begin
                     EopWr <= EopWr + 1;
                 end if;
             end if;
-            -- Link reset (buffer reset seen on the user side)
+            -- End of the flush: buffer ready again, then the EEP
+            if CmWait = '1' and CmFlush = '0' and UsrRstOut = '0' and FifoInRdy = '1' then
+                CmWait <= '0';
+            end if;
+            if EepWrite = '1' then
+                EepPend <= '0';
+                EepOnly <= '1';
+                EopWr   <= EopWr + 1;
+            end if;
+            -- Buffer reset seen on the user side (link reset or flush)
             if UsrRstOut = '1' then
                 EopWr <= (others => '0');
                 if LastEnd = '0' then
@@ -137,6 +187,10 @@ begin
                 LastEnd <= '1';
                 Spill   <= '0';
                 EopWr   <= (others => '0');
+                CmFlush <= '0';
+                CmWait  <= '0';
+                EepPend <= '0';
+                EepOnly <= '0';
             end if;
         end if;
     end process;
@@ -169,24 +223,28 @@ begin
             ReadyRstState_g => '0'
         )
         port map (
-            In_Clk    => UserClk,
-            In_Rst    => UserRst,
-            In_RstOut => UsrRstOut,
-            In_Data   => FifoIn,
-            In_Valid  => FifoInVld,
-            In_Ready  => FifoInRdy,
-            Out_Clk   => Clk,
-            Out_Rst   => FifoOutRst,
-            Out_Data  => FifoOut,
-            Out_Valid => OutValid,
-            Out_Ready => Rd_Ready,
-            Out_Full  => OutFull,
-            Out_Level => OutLevel
+            In_Clk     => UserClk,
+            In_Rst     => FifoInRst,
+            In_RstOut  => UsrRstOut,
+            In_Data    => FifoIn,
+            In_Valid   => FifoInVld,
+            In_Ready   => FifoInRdy,
+            In_Empty   => InEmpty,
+            In_Level   => InLevel,
+            Out_Clk    => Clk,
+            Out_Rst    => FifoOutRst,
+            Out_RstOut => OutRstOut,
+            Out_Data   => FifoOut,
+            Out_Valid  => OutValid,
+            Out_Ready  => Rd_Ready,
+            Out_Full   => OutFull,
+            Out_Level  => OutLevel
         );
 
-    Rd_Data  <= FifoOut(31 downto 0);
-    Rd_K     <= FifoOut(35 downto 32);
-    Rd_Valid <= OutValid;
+    Rd_Data    <= FifoOut(31 downto 0);
+    Rd_K       <= FifoOut(35 downto 32);
+    Rd_Valid   <= OutValid;
+    Rd_Flushed <= OutRstOut;
 
     -----------------------------------------------------------------------------------------------
     -- Core side: credit, end-of-packet count, segment
@@ -212,6 +270,11 @@ begin
             end if;
             Credit <= resize(Sum_v, CreditWidth_g);
             EopDly <= EopSync & EopDly(0 to EopDly'high-1);
+            -- Buffer reset seen on the read side (link reset or continuous mode flush)
+            if OutRstOut = '1' then
+                EopRd  <= (others => '0');
+                EopDly <= (others => (others => '0'));
+            end if;
             if Rst = '1' or Ctrl_LinkReset = '1' then
                 Credit            <= (others => '0');
                 EopRd             <= (others => '0');

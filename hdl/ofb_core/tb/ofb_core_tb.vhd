@@ -249,6 +249,19 @@ begin
                 sendAll(5);
                 waitDelivered(2 ms);
 
+            -- TC-CORE-06: quality of service configuration through the MIB reaches the Data Link layer:
+            -- a VC with bandwidth zero does not send until its bandwidth is set
+            elsif run("test_qos_config") then
+                linkUp(500 us);
+                wr(0, 16#434#, x"00000000");
+                rd(0, 16#434#, Data_v);
+                check_value(Data_v, x"00000000", error, "Bandwidth of VC 3 at A read back");
+                CoreCfg(0).Vc(3).Packets <= 3;
+                cycles(2000);
+                check_value(CoreSb_v.get_pending_count(1 + CoreNumVc_c + 3) > 0, error, "VC 3 of A blocked");
+                wr(0, 16#434#, x"00000100");
+                waitDelivered(1 ms);
+
             -- TC-CORE-05: framing error at the Network interface of A
             elsif run("test_framing_error") then
                 linkUp(500 us);

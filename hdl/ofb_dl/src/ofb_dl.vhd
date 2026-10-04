@@ -42,7 +42,10 @@ entity ofb_dl is
         ErbDataItems_g   : positive               := 32;
         ErbFctItems_g    : positive               := 16;
         ErbBcItems_g     : positive               := 4;
-        CreditWidth_g    : positive               := 12
+        CreditWidth_g    : positive               := 12;
+        NumPrio_g        : positive range 2 to 16 := 4;
+        BwCreditLimit_g  : positive               := 16384;
+        ScheduleBcType_g : integer                := -1 -- Broadcast type that sets the time-slot (-1: none)
     );
     port (
         -- Clocks and resets
@@ -73,6 +76,9 @@ entity ofb_dl is
         RxBc_Late             : out   std_logic;
         RxBc_Valid            : out   std_logic;
         RxBc_Ready            : in    std_logic                     := '1';
+        -- Schedule (UserClk): SCHEDULE.request
+        Sched_TimeSlot        : in    std_logic_vector(5 downto 0)  := (others => '0');
+        Sched_Valid           : in    std_logic                     := '0';
         -- Rows to and from the Multi-Lane layer
         TxRow_Data            : out   std_logic_vector(32*NumLanes_g-1 downto 0);
         TxRow_K               : out   std_logic_vector(4*NumLanes_g-1 downto 0);
@@ -98,6 +104,10 @@ entity ofb_dl is
         Cfg_LinkReset         : in    std_logic                     := '0';
         Cfg_InterfaceReset    : in    std_logic                     := '0';
         Cfg_BcInterval        : in    std_logic_vector(15 downto 0) := x"0028";
+        -- Register writes of the MIB for the quality of service (core clock)
+        Reg_Wr                : in    std_logic                     := '0';
+        Reg_Addr              : in    std_logic_vector(11 downto 0) := (others => '0');
+        Reg_Data              : in    std_logic_vector(31 downto 0) := (others => '0');
         -- Status (Ev_*: one-cycle events)
         Stat_HasCredit        : out   std_logic_vector(NumVc_g-1 downto 0);
         Ev_CreditOverflow     : out   std_logic_vector(NumVc_g-1 downto 0);
@@ -114,7 +124,10 @@ entity ofb_dl is
         Stat_ErbEmpty         : out   std_logic;
         Stat_LinkResetState   : out   std_logic_vector(1 downto 0);
         Stat_RxErrState       : out   std_logic_vector(1 downto 0);
-        Stat_WordIdState      : out   std_logic_vector(2 downto 0)
+        Stat_WordIdState      : out   std_logic_vector(2 downto 0);
+        Stat_BwOver           : out   std_logic_vector(NumVc_g-1 downto 0);
+        Stat_BwUnder          : out   std_logic_vector(NumVc_g-1 downto 0);
+        Stat_TimeSlot         : out   std_logic_vector(5 downto 0)
     );
 end entity;
 
@@ -125,24 +138,44 @@ architecture rtl of ofb_dl is
 
     constant FreeWidth_c : positive := log2ceil(ErbWords_g + 1);
 
-    -- Link reset
-    signal LinkReset  : std_logic;
-    signal LaneReset  : std_logic;
-    signal ResetFlag  : std_logic;
-    signal ErrLinkRst : std_logic;
-    signal ProtErr    : std_logic;
+    -- Link reset, configuration reset
+    signal LinkReset   : std_logic;
+    signal ConfigReset : std_logic;
+    signal LaneReset   : std_logic;
+    signal ResetFlag   : std_logic;
+    signal ErrLinkRst  : std_logic;
+    signal ProtErr     : std_logic;
 
     -- Output VC buffers
-    signal SegReady   : std_logic_vector(NumVc_g-1 downto 0);
-    signal SegWords   : std_logic_vector(7*NumVc_g-1 downto 0);
-    signal VcRdData   : std_logic_vector(32*NumVc_g-1 downto 0);
-    signal VcRdK      : std_logic_vector(4*NumVc_g-1 downto 0);
-    signal VcRdValid  : std_logic_vector(NumVc_g-1 downto 0);
-    signal VcRdReady  : std_logic_vector(NumVc_g-1 downto 0);
-    signal VcEmpty    : std_logic_vector(NumVc_g-1 downto 0);
-    signal FctRxVc    : std_logic_vector(4 downto 0);
-    signal FctRxMult  : std_logic_vector(2 downto 0);
-    signal FctRxValid : std_logic;
+    signal SegReady  : std_logic_vector(NumVc_g-1 downto 0);
+    signal SegWords  : std_logic_vector(7*NumVc_g-1 downto 0);
+    signal VcRdData  : std_logic_vector(32*NumVc_g-1 downto 0);
+    signal VcRdK     : std_logic_vector(4*NumVc_g-1 downto 0);
+    signal VcRdValid : std_logic_vector(NumVc_g-1 downto 0);
+    signal VcRdReady : std_logic_vector(NumVc_g-1 downto 0);
+    signal VcEmpty   : std_logic_vector(NumVc_g-1 downto 0);
+    signal VcFlushed : std_logic_vector(NumVc_g-1 downto 0);
+
+    -- Quality of service
+    signal CfgPriority : std_logic_vector(4*NumVc_g-1 downto 0);
+    signal CfgBwFactor : std_logic_vector(16*NumVc_g-1 downto 0);
+    signal CfgSlots    : std_logic_vector(64*NumVc_g-1 downto 0);
+    signal CfgContin   : std_logic_vector(NumVc_g-1 downto 0);
+    signal CfgContinU  : std_logic_vector(NumVc_g-1 downto 0);
+    signal CfgIdle     : std_logic_vector(31 downto 0);
+    signal MacGrant    : std_logic_vector(NumVc_g-1 downto 0);
+    signal MacValid    : std_logic;
+    signal SegSent     : std_logic;
+    signal SegSentVc   : std_logic_vector(4 downto 0);
+    signal SegSentLen  : std_logic_vector(6 downto 0);
+    signal TimeSlot    : std_logic_vector(5 downto 0);
+    signal SchedSlot   : std_logic_vector(5 downto 0);
+    signal SchedValid  : std_logic;
+    signal ActiveIn    : std_logic_vector(0 downto 0);
+    signal ActiveUser  : std_logic_vector(0 downto 0);
+    signal FctRxVc     : std_logic_vector(4 downto 0);
+    signal FctRxMult   : std_logic_vector(2 downto 0);
+    signal FctRxValid  : std_logic;
 
     -- Broadcast output buffer
     signal BcData    : std_logic_vector(63 downto 0);
@@ -262,12 +295,13 @@ begin
             Ml_FarCapabilityIdle  => Ml_FarCapabilityIdle,
             Ctrl_LinkReset        => LinkReset,
             Ctrl_LaneReset        => LaneReset,
-            Ctrl_ConfigReset      => Ctrl_ConfigReset,
+            Ctrl_ConfigReset      => ConfigReset,
             Ctrl_LinkResetFlag    => ResetFlag,
             Ev_FarEndLinkReset    => Ev_FarEndLinkReset,
             Stat_State            => Stat_LinkResetState
         );
 
+    Ctrl_ConfigReset  <= ConfigReset;
     Ml_LinkReset      <= LinkReset;
     Ml_LaneReset      <= LaneReset;
     Ml_NearCapability <= "00000" & Cfg_DataScrambled & '0' & ResetFlag;
@@ -293,6 +327,8 @@ begin
                 In_K              => TxVc_K(4*i+3 downto 4*i),
                 In_Valid          => TxVc_Valid(i),
                 In_Ready          => TxVc_Ready(i),
+                Cfg_Continuous    => CfgContinU(i),
+                Ctrl_LaneActive   => ActiveUser(0),
                 Clk               => Clk,
                 Rst               => Rst,
                 Ctrl_LinkReset    => LinkReset,
@@ -304,6 +340,7 @@ begin
                 Rd_K              => VcRdK(4*i+3 downto 4*i),
                 Rd_Valid          => VcRdValid(i),
                 Rd_Ready          => VcRdReady(i),
+                Rd_Flushed        => VcFlushed(i),
                 Stat_HasCredit    => Stat_HasCredit(i),
                 Stat_Empty        => VcEmpty(i),
                 Ev_CreditOverflow => Ev_CreditOverflow(i)
@@ -346,6 +383,121 @@ begin
         );
 
     -----------------------------------------------------------------------------------------------
+    -- Quality of service: configuration registers, schedule, medium access controller (DT-4)
+    -----------------------------------------------------------------------------------------------
+    i_qos_regs : entity work.ofb_dl_qos_regs
+        generic map (
+            NumVc_g   => NumVc_g,
+            NumPrio_g => NumPrio_g
+        )
+        port map (
+            Clk              => Clk,
+            Rst              => Rst,
+            Ctrl_ConfigReset => ConfigReset,
+            Reg_Wr           => Reg_Wr,
+            Reg_Addr         => Reg_Addr,
+            Reg_Data         => Reg_Data,
+            Cfg_Priority     => CfgPriority,
+            Cfg_BwFactor     => CfgBwFactor,
+            Cfg_Slots        => CfgSlots,
+            Cfg_Continuous   => CfgContin,
+            Cfg_IdleLimit    => CfgIdle
+        );
+
+    -- Continuous mode and lane state for the user side of the output VC buffers
+    i_contin_cc : entity olo.olo_ft_cc_bits
+        generic map (
+            Width_g => NumVc_g
+        )
+        port map (
+            In_Clk   => Clk,
+            In_Rst   => Rst,
+            In_Data  => CfgContin,
+            Out_Clk  => UserClk,
+            Out_Rst  => UserRst,
+            Out_Data => CfgContinU
+        );
+
+    ActiveIn(0) <= Ml_LaneActive;
+
+    i_active_cc : entity olo.olo_ft_cc_bits
+        generic map (
+            Width_g => 1
+        )
+        port map (
+            In_Clk   => Clk,
+            In_Rst   => Rst,
+            In_Data  => ActiveIn,
+            Out_Clk  => UserClk,
+            Out_Rst  => UserRst,
+            Out_Data => ActiveUser
+        );
+
+    -- SCHEDULE.request from the Network layer
+    i_sched_cc : entity olo.olo_ft_fifo_async
+        generic map (
+            Width_g => 6,
+            Depth_g => 4
+        )
+        port map (
+            In_Clk    => UserClk,
+            In_Rst    => UserRst,
+            In_Data   => Sched_TimeSlot,
+            In_Valid  => Sched_Valid,
+            Out_Clk   => Clk,
+            Out_Rst   => Rst,
+            Out_Data  => SchedSlot,
+            Out_Valid => SchedValid,
+            Out_Ready => '1'
+        );
+
+    p_timeslot : process (Clk) is
+    begin
+        if rising_edge(Clk) then
+            if SchedValid = '1' then
+                TimeSlot <= SchedSlot;
+            end if;
+            -- Optional: time-slot from a broadcast message of the configured type (data byte 0)
+            if ScheduleBcType_g >= 0 then
+                if RxBcValid = '1' and RxBcType = std_logic_vector(to_unsigned(ScheduleBcType_g mod 256, 8)) then
+                    TimeSlot <= RxBcData(5 downto 0);
+                end if;
+            end if;
+            if Rst = '1' then
+                TimeSlot <= (others => '0');
+            end if;
+        end if;
+    end process;
+
+    Stat_TimeSlot <= TimeSlot;
+
+    i_mac : entity work.ofb_dl_mac
+        generic map (
+            NumVc_g       => NumVc_g,
+            NumPrio_g     => NumPrio_g,
+            CreditLimit_g => BwCreditLimit_g
+        )
+        port map (
+            Clk              => Clk,
+            Rst              => Rst,
+            Ctrl_ConfigReset => ConfigReset,
+            Cfg_Priority     => CfgPriority,
+            Cfg_BwFactor     => CfgBwFactor,
+            Cfg_Slots        => CfgSlots,
+            Cfg_IdleLimit    => CfgIdle,
+            TimeSlot         => TimeSlot,
+            Seg_Ready        => SegReady,
+            Grant            => MacGrant,
+            Grant_Valid      => MacValid,
+            Ev_WordSent      => WordSent,
+            Ev_SegSent       => SegSent,
+            SegSent_Vc       => SegSentVc,
+            SegSent_Words    => SegSentLen,
+            Stat_BwOver      => Stat_BwOver,
+            Stat_BwUnder     => Stat_BwUnder
+        );
+
+    -----------------------------------------------------------------------------------------------
     -- Admission (DT-4), error recovery buffer (DT-7), transmit framer (DT-5, DT-6, DT-8)
     -----------------------------------------------------------------------------------------------
     i_admit : entity work.ofb_dl_tx_admit
@@ -360,6 +512,12 @@ begin
             Cfg_FctMult    => "000",
             Seg_Ready      => SegReady,
             Seg_Words      => SegWords,
+            Vc_Flushed     => VcFlushed,
+            Mac_Grant      => MacGrant,
+            Mac_GrantValid => MacValid,
+            Ev_SegSent     => SegSent,
+            SegSent_Vc     => SegSentVc,
+            SegSent_Words  => SegSentLen,
             VcRd_Data      => VcRdData,
             VcRd_K         => VcRdK,
             VcRd_Valid     => VcRdValid,
