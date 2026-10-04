@@ -18,6 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "lint" / "config" / "vsg_config.yml"
 FIX_ONLY = ROOT / "lint" / "config" / "fix_only_openfibre.yml"
+CRLF = bytes([13, 10])
+LF = bytes([10])
 
 
 def find_vsg():
@@ -43,10 +45,21 @@ def main():
     vsg = find_vsg()
     os.chdir(ROOT)
     if fix:
+        # VSG rewrites every file; restore the time stamp of files whose content did not change, so that
+        # the simulators do not ask for a re-analysis of unchanged files
+        before = {f: (Path(f).read_bytes(), os.stat(f)) for f in files}
         # Several passes: VSG fixes phase by phase
         for _ in range(3):
             subprocess.run([vsg, "-c", str(CONFIG), "--fix", "--fix_only", str(FIX_ONLY), "-f", *files],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        for f, (content, st) in before.items():
+            new = Path(f).read_bytes()
+            # Keep LF line endings (VSG writes CRLF on Windows)
+            if CRLF not in content and CRLF in new:
+                new = new.replace(CRLF, LF)
+                Path(f).write_bytes(new)
+            if new == content:
+                os.utime(f, ns=(st.st_atime_ns, st.st_mtime_ns))
     result = subprocess.run([vsg, "-c", str(CONFIG), "--all_phases", "-of", "summary", "-f", *files],
                             capture_output=True, text=True, check=False)
     print(result.stdout)

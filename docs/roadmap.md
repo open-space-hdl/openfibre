@@ -19,7 +19,7 @@ the state of every module; a module is done when its verification report is writ
 | --- | --- | --- | --- |
 | `ofb_pkg` | Common constants and types (ECSS symbols, control words, CRC, PRBS) | 1 | Done |
 | `tb` (shared) | Verification helpers, behavioural PA model, SpaceFibre reference model | 1, 2 | In work |
-| `ofb_lane` | LN-1 lane initialisation, LN-2 transmitter, LN-3 receiver, LN-4 parallel loopback | 2 | Planned |
+| `ofb_lane` | LN-1 lane initialisation, LN-2 transmitter, LN-3 receiver, LN-4 parallel loopback | 2 | Done (1 word per clock) |
 | `ofb_multilane` | ML-1 to ML-6 | 2 (bypass, column codec), 4 | Planned |
 | `ofb_dl_tx` | DT-1 to DT-8 | 2, 3 (QoS) | Planned |
 | `ofb_dl_rx` | DR-1 to DR-7 | 2 | Planned |
