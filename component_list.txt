@@ -4,3 +4,4 @@ hdl/ofb_lane
 hdl/ofb_multilane
 hdl/ofb_dl
 hdl/ofb_ni
+hdl/ofb_mib
