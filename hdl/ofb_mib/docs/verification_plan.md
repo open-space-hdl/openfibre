@@ -1,0 +1,22 @@
+# ofb_mib: Verification Plan
+
+## 1. Overview
+
+The register file and the crossings are verified with a unit testbench in four clock domains (management 100 MHz,
+core 156.25 MHz, lane 147 MHz, user 192 MHz), with the UVVM AXI-Lite VVC as register master. The connection of the
+registers to the layers is verified with the core testbench.
+
+## 2. Test configuration
+
+| Testbench | DUT and environment |
+| --- | --- |
+| `ofb_mib_tb` | `ofb_mib` (4 VCs, one lane), `ofb_tb_axilite_master`, status and events driven by the sequencer in their clock domains, counters of the command pulses |
+
+## 3. Test cases
+
+| Test ID | Description | Requirements |
+| --- | --- | --- |
+| `test_reset_values` (TC-MG-01) | ID, generics, reset values of the configuration registers and of the configuration outputs in the core and lane domains | MG-IF-01, MG-CF-01, MG-CC-01 |
+| `test_config` (TC-MG-02) | Configuration written and read back, outputs in the domains; Link Reset and Interface Reset give one pulse each; Interface Reset restores the reset values | MG-IF-01, MG-CF-01, MG-CF-02, MG-CC-01 |
+| `test_status` (TC-MG-03) | Data Link, Has Credit, lane and Multi-Lane status read through the status crossings | MG-IF-02, MG-CC-01 |
+| `test_events` (TC-MG-04) | Events of the three domains set sticky flags and counters; W1C; interrupt with mask; Link Reset clears the Data Link status and keeps the lane flags | MG-ST-01 to 03 |

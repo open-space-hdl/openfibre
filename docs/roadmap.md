@@ -23,7 +23,7 @@ the state of every module; a module is done when its verification report is writ
 | `ofb_multilane` | ML-1 to ML-6 | 2 (bypass, column codec), 4 | Phase 2 done (bypass, column codec with scrambling) |
 | `ofb_dl` | DT-1 to DT-8, DR-1 to DR-7, DC-1, DC-2 (Data Link layer) | 2, 3 (QoS, continuous mode), 4 (rows of several words) | Phase 2 done (one lane, round-robin medium access) |
 | `ofb_ni` | NI-1 to NI-4 | 2 (NI-1, NI-3), 3 (NI-2, NI-4) | Phase 2 done (VC ports with framing check, broadcast port) |
-| `ofb_mib` | MG-1 to MG-4, TA-1 | 2 | Planned |
+| `ofb_mib` | MG-1 to MG-4, TA-1 | 2, 5 (MG-3 EDAC monitor), later (TA-1) | Phase 2 done (MG-1, MG-2; MG-4 in the core top level) |
 | `ofb_pa_gty` | PA-1 for the Versal GTY (PA-2, PA-3 in the transceiver) | 2 | Planned |
 | `ofb_core` | Core top level | 2 | Planned |
 | `ofb_vck190` | VCK190 board top level and constraints | 5 | Planned |
@@ -32,6 +32,6 @@ the state of every module; a module is done when its verification report is writ
 
 | Item | State |
 | --- | --- |
-| `olo_ft_cc_simple`, `olo_ft_cc_status`, `olo_ft_cc_handshake` (Open Logic fault-tolerant backlog) | Implemented in the backlog, not yet pushed |
+| `olo_ft_cc_simple`, `olo_ft_cc_status`, `olo_ft_cc_handshake` (Open Logic fault-tolerant backlog) | Implemented in the backlog, not yet pushed; `olo_base_cc_status` is used until the submodule is repinned |
 | Synthesis licence for the XCVC1902 | Open |
 | Lab set-up with STAR-Dundee equipment for the phase 2 exit criterion | Open |
