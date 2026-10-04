@@ -33,13 +33,14 @@ package ofb_dl_row_tb_pkg is
     -- Far end and environment controlled by the sequencer
     type RowCfg_t is record
         LaneActive : std_logic;
-        AutoCap    : boolean; -- Send a capability event with LinkResetFlag when the DUT checks the far end
-        AutoAck    : boolean; -- Acknowledge every data frame, broadcast frame and FCT received in sequence
-        TxReadyPct : natural; -- Ready of the transmit rows, percent
+        AutoCap    : boolean;   -- Send a capability event with LinkResetFlag when the DUT checks the far end
+        AutoAck    : boolean;   -- Acknowledge every data frame, broadcast frame and FCT received in sequence
+        TxReadyPct : natural;   -- Ready of the transmit rows, percent
         LinkReset  : std_logic;
         BcInterval : std_logic_vector(15 downto 0);
-        TxLogOn    : boolean; -- Log the transmitted words
-        RxReadyPct : natural; -- Ready of the receive VC ports, percent
+        TxLogOn    : boolean;   -- Log the transmitted words
+        RxReadyPct : natural;   -- Ready of the receive VC ports, percent
+        BcReady    : std_logic; -- Ready of the receive broadcast port
     end record;
 
     constant RowCfgDefault_c : RowCfg_t := (
@@ -50,7 +51,8 @@ package ofb_dl_row_tb_pkg is
         LinkReset  => '0',
         BcInterval => x"0004",
         TxLogOn    => true,
-        RxReadyPct => 100
+        RxReadyPct => 100,
+        BcReady    => '1'
     );
 
     signal RowCfg : RowCfg_t := RowCfgDefault_c;
@@ -74,6 +76,7 @@ package ofb_dl_row_tb_pkg is
         InputOvfs    : natural;
         FarEndResets : natural;
         BcRx         : natural;
+        BcDiscards   : natural;
     end record;
 
     signal RowStat : RowStat_t;

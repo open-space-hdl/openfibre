@@ -7,10 +7,10 @@ Run on 2026-10-05 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 | Testbench | Tests | Passed |
 | --- | --- | --- |
 | `ofb_dl_tb` (layer, two complete ends) | 7 | 7 |
-| `ofb_dl_row_tb` (row level) | 13 | 13 |
+| `ofb_dl_row_tb` (row level) | 15 | 15 |
 | `ofb_dl_mac_tb` (medium access controller) | 7 | 7 |
 
-Full regression of the repository: 149 of 149 tests pass (with phase 4: rows of several words, verified in the core
+Full regression of the repository: 151 of 151 tests pass (with phase 4: rows of several words, verified in the core
 testbench with 2 and 4 lanes, plan section 3.5). VSG reports no errors and no warnings.
 
 Error and recovery counters of the layer tests (both ends):
@@ -22,8 +22,7 @@ Error and recovery counters of the layer tests (both ends):
 
 ## 2. Summary
 
-All 27 test cases pass; the requirements of the specification are covered except the three items listed in section 4
-of the verification plan.
+All 29 test cases pass and cover the requirements of the specification (verification plan, section 4).
 
 Defects found and fixed during verification:
 
@@ -41,6 +40,9 @@ mutation check: with equal priorities the first frame of TC-DL-21 comes from VC 
 
 Phase 4 (rows of several words): the tests of this module (one lane) pass unchanged after the conversion to rows; the
 core tests TC-CORE-02 to TC-CORE-09 pass with 2 and 4 lanes.
+
+Phase 5 (coverage): TC-DL-23 (FULL after RXERR) and TC-DL-24 (broadcast input discard) close the open items of the
+plan; mutation check: without the FULL after RXERR rule TC-DL-23 fails.
 
 Observations:
 
