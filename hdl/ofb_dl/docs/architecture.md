@@ -112,8 +112,10 @@ matching rule selects the word:
 | 8 | Data item waiting | SDF (opens the data frame) |
 | 9 | none of the above | SIF when no idle frame is open or 64 PRBS words were sent, otherwise the next PRBS word |
 
-- EDF, EBF and FCT increment the Transmit Sequence Counter and carry the new value; SIF and FULL carry the current value.
-  When an EDF, EBF or FCT leaves the register, `Sent_Valid` reports the item to the buffer.
+- EDF, EBF and FCT increment the Transmit Sequence Counter and carry the new value; SIF and FULL carry the current
+  value. In the cycle in which an EDF, EBF or FCT is loaded into the register, `Sent_Valid` reports the item to the
+  buffer, and the RETRY is reported with `Retry_Done` (both combinational, so that the buffer never offers the same
+  item twice).
 - CRC-8: `crc8Word3` for SIF, FCT, ACK, NACK, FULL; a running CRC-8 over SBF, the two data words and the first three
   characters of the EBF.
 - Idle PRBS: `olo_base_prbs` (seed `PrbsSeed_c` after reset and link reset), advanced only by PRBS words.

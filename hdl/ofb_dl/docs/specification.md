@@ -187,6 +187,6 @@ level.
 | --- | --- |
 | FCT credit and segment size (5.7.3.1b, 5.7.4.1c) | A VC competes when its credit is greater than zero; the segment is limited to the credit, so the far-end buffer always has room |
 | FULL (5.7.7.1n to q) | The error recovery buffer is managed per kind of item; a kind that has no room blocks only new items of that kind, and FULL is sent (note 2 of 5.7.7.1q). Resending stored items is always allowed |
-| Frame interrupted by RETRY | A data frame read in part is kept in the error recovery buffer with the words read so far and resent as a shorter segment; the rest stays in the output VC buffer |
+| Frame interrupted by RETRY | Every item is complete in the error recovery buffer before it is sent (store and forward), so an interrupted frame is resent completely |
 | Frame error | Not a NACK condition by itself (5.7.7.2.2a); the missing frame is detected by the sequence number of the next frame, SIF or FULL |
 | NACK polarity | NACKs carry the inverse of the Receive Polarity Flag (notes of 5.7.7.3.2c to 5.7.7.3.5b) |
