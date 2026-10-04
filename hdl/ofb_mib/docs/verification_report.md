@@ -2,13 +2,13 @@
 
 ## 1. Test results
 
-Run on 2026-10-04 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_mib*"`.
+Run on 2026-10-05 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_mib*"`.
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_mib_tb` | 5 | 5 |
+| `ofb_mib_tb` | 6 | 6 |
 
-Full regression of the repository: 105 of 105 tests pass. VSG reports no errors and no warnings.
+Full regression of the repository: 149 of 149 tests pass. VSG reports no errors and no warnings.
 
 ## 2. Summary
 

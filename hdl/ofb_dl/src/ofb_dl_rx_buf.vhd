@@ -28,24 +28,27 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_dl_rx_buf is
     generic (
-        NumVc_g : positive range 1 to 32 := 8;
-        Depth_g : positive               := 128
+        NumVc_g    : positive range 1 to 32 := 8;
+        NumLanes_g : positive range 1 to 4  := 1;
+        Depth_g    : positive               := 128 -- Rows
     );
     port (
         -- Control Ports
         Clk            : in    std_logic;
         Rst            : in    std_logic;
         Ctrl_LinkReset : in    std_logic;
-        -- Data frame words from the receive checks
-        Fr_Data        : in    Word_t;
-        Fr_K           : in    WordK_t;
+        -- Data frame rows from the receive checks
+        Fr_Data        : in    std_logic_vector(32*NumLanes_g-1 downto 0);
+        Fr_K           : in    std_logic_vector(4*NumLanes_g-1 downto 0);
+        Fr_Mask        : in    std_logic_vector(NumLanes_g-1 downto 0);
         Fr_Vc          : in    std_logic_vector(4 downto 0);
         Fr_Valid       : in    std_logic;
         Fr_Commit      : in    std_logic;
         Fr_Drop        : in    std_logic;
-        -- Words to the input VC buffers (no back-pressure: a full buffer is an overflow)
-        Vc_Data        : out   Word_t;
-        Vc_K           : out   WordK_t;
+        -- Rows to the input VC buffers (no back-pressure: a full buffer is an overflow)
+        Vc_Data        : out   std_logic_vector(32*NumLanes_g-1 downto 0);
+        Vc_K           : out   std_logic_vector(4*NumLanes_g-1 downto 0);
+        Vc_Mask        : out   std_logic_vector(NumLanes_g-1 downto 0);
         Vc_Valid       : out   std_logic_vector(NumVc_g-1 downto 0);
         Vc_Ready       : in    std_logic_vector(NumVc_g-1 downto 0);
         -- Overflow of an input VC buffer (one cycle per VC), overflow of the frame buffer
@@ -59,9 +62,10 @@ end entity;
 ---------------------------------------------------------------------------------------------------
 architecture rtl of ofb_dl_rx_buf is
 
-    constant Width_c : positive := 32 + 4 + 5;
+    constant N_c     : positive := NumLanes_g;
+    constant Width_c : positive := 37 * N_c + 5;
 
-    -- Held last word of the current frame
+    -- Held last row of the current frame
     signal HeldData  : std_logic_vector(Width_c-1 downto 0);
     signal HeldValid : std_logic;
 
@@ -78,14 +82,14 @@ architecture rtl of ofb_dl_rx_buf is
 begin
 
     -----------------------------------------------------------------------------------------------
-    -- Hold the last word: written as a normal word with the next word, with Last on commit, with
-    -- Last and Drop on drop
+    -- Hold the last row: written as a normal row with the next row, with Last on commit, with Last
+    -- and Drop on drop
     -----------------------------------------------------------------------------------------------
     p_hold : process (Clk) is
     begin
         if rising_edge(Clk) then
             if Fr_Valid = '1' then
-                HeldData  <= Fr_Vc & Fr_K & Fr_Data;
+                HeldData  <= Fr_Vc & Fr_Mask & Fr_K & Fr_Data;
                 HeldValid <= '1';
             elsif Fr_Commit = '1' or Fr_Drop = '1' then
                 HeldValid <= '0';
@@ -101,7 +105,7 @@ begin
     InLast  <= Fr_Commit or Fr_Drop;
     InDrop  <= Fr_Drop;
 
-    -- The frame buffer never back-pressures: a word that does not fit is an overflow
+    -- The frame buffer never back-pressures: a row that does not fit is an overflow
     Ev_BufOverflow <= InValid and not InReady;
 
     FifoRst <= Rst or Ctrl_LinkReset;
@@ -129,9 +133,10 @@ begin
     -----------------------------------------------------------------------------------------------
     -- Distribution to the input VC buffers
     -----------------------------------------------------------------------------------------------
-    OutVc   <= to_integer(unsigned(OutData(40 downto 36)));
-    Vc_Data <= OutData(31 downto 0);
-    Vc_K    <= OutData(35 downto 32);
+    OutVc   <= to_integer(unsigned(OutData(Width_c-1 downto Width_c-5)));
+    Vc_Data <= OutData(32*N_c-1 downto 0);
+    Vc_K    <= OutData(36*N_c-1 downto 32*N_c);
+    Vc_Mask <= OutData(37*N_c-1 downto 36*N_c);
 
     p_demux : process (all) is
     begin

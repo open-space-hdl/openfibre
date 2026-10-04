@@ -20,4 +20,7 @@ messages travel between two cores.
 | `test_framing_errors` (TC-NI-02) | Data after EOP: Fills and spill of the rest; second EOP: Fill, no spill; K28.7 inside a packet: EEP, spill up to the user's EOP; K28.5 in a word ending with EOP: EEP, no spill; one event per error | NI-FR-01, NI-FR-02 |
 | `test_fill_words` (TC-NI-03) | Words of four Fills are dropped | NI-FR-03 |
 
+Beats of several words (NI-IF-01, NI-FR-02 across the words of a beat, NI-FR-03 for beats) are verified in the core
+testbench with 2 and 4 lanes (`ofb_core_tb`, TC-CORE-02 and TC-CORE-05).
+
 NI-IF-02 and NI-RX-01 are covered by the core testbench.

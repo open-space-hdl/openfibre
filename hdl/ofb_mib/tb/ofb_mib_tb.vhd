@@ -107,6 +107,13 @@ architecture sim of ofb_mib_tb is
     signal LaneStat  : std_logic_vector(37 downto 0) := (others => '0');
     signal LaneEv    : std_logic_vector(3 downto 0)  := "0000";
     signal MlStat    : std_logic_vector(3 downto 0)  := "0000";
+    signal MlBypStat : std_logic                     := '0';
+    signal MlMisEv   : std_logic                     := '0';
+    signal MlTxEn    : std_logic_vector(0 downto 0);
+    signal MlRxEn    : std_logic_vector(0 downto 0);
+    signal MlMax     : std_logic_vector(2 downto 0);
+    signal MlBypass  : std_logic;
+    signal DlMax     : std_logic_vector(2 downto 0);
 
     -- User domain
     signal NiEv : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
@@ -180,11 +187,12 @@ begin
 
             -- TC-MG-01: identification and reset values
             if run("test_reset_values") then
-                chk(16#000#, x"0FB10002", "ID");
+                chk(16#000#, x"0FB10003", "ID");
                 chk(16#004#, x"00000104", "Generics");
                 chk(16#008#, x"00000100", "DataScrambled set");
                 chk(16#00C#, x"00000028", "Broadcast interval 40");
-                chk(16#100#, x"00000002", "AutoStart set");
+                chk(16#100#, x"00000062", "AutoStart, TxEn and RxEn set");
+                chk(16#058#, x"00000001", "Maximum number of data-sending lanes");
                 chk(16#044#, x"00000000", "Interrupt mask");
                 cycles(10);
                 check_value(DataScrambled, '1', error, "DataScrambled in the core domain");
@@ -213,7 +221,7 @@ begin
                 check_value(IfResetCnt, 1, error, "One Interface Reset pulse");
                 chk(16#008#, x"00000100", "DataScrambled reset value");
                 chk(16#00C#, x"00000028", "Broadcast interval reset value");
-                chk(16#100#, x"00000002", "Lane control reset value");
+                chk(16#100#, x"00000062", "Lane control reset value");
 
             -- TC-MG-03: status registers
             elsif run("test_status") then
@@ -255,6 +263,39 @@ begin
                 chk(16#054#, x"0000002A", "Current time-slot");
                 wr(16#008#, x"00000002");
                 chk(16#410#, x"00010003", "Interface Reset restores VC 1");
+
+            -- TC-MG-06: Multi-Lane registers: TxEn, RxEn, maximum number of data-sending lanes, bypass,
+            -- status, Misaligned counter
+            elsif run("test_multilane_registers") then
+                cycles(10);
+                check_value(std_logic_vector'(MlTxEn & MlRxEn & MlBypass), "110", error, "TxEn, RxEn, bypass reset");
+                check_value(MlMax, "001", error, "Maximum number of data-sending lanes in the lane domain");
+                check_value(DlMax, "001", error, "Maximum number of data-sending lanes in the core domain");
+                wr(16#100#, x"00000023");
+                wr(16#058#, x"00000100");
+                cycles(10);
+                check_value(std_logic_vector'(MlTxEn & MlRxEn & MlBypass), "101", error, "RxEn cleared, bypass set");
+                check_value(MlMax & DlMax, "000000", error, "Maximum written");
+                chk(16#058#, x"00000100", "ML_CTRL read back");
+                MlStat    <= "1011";
+                MlBypStat <= '1';
+                cycles(20);
+                chk(16#040#, x"00000611", "Multi-Lane status with bypass");
+
+                for i in 1 to 3 loop
+                    wait until rising_edge(LaneClk);
+                    MlMisEv <= '1';
+                    wait until rising_edge(LaneClk);
+                    MlMisEv <= '0';
+                    cycles(5);
+                end loop;
+
+                chk(16#05C#, x"00000003", "Misaligned conditions counted");
+                wr(16#05C#, x"00000000");
+                chk(16#05C#, x"00000000", "Misaligned counter cleared");
+                wr(16#008#, x"00000002");
+                chk(16#058#, x"00000001", "Interface Reset restores ML_CTRL");
+                chk(16#100#, x"00000062", "Interface Reset restores TxEn and RxEn");
 
             -- TC-MG-04: sticky flags, counters, interrupt, Link Reset clears the Data Link status
             elsif run("test_events") then
@@ -394,6 +435,7 @@ begin
             Dl_RegWr              => RegWr,
             Dl_RegAddr            => RegAddr,
             Dl_RegData            => RegData,
+            Dl_MaxDataLanes       => DlMax,
             LaneClk               => LaneClk,
             LaneRst               => Rst,
             Lane_Start            => LaneStart,
@@ -416,6 +458,12 @@ begin
             Ml_DataSending        => MlStat(0 downto 0),
             Ml_DataReceiving      => MlStat(1 downto 1),
             Ml_AlignState         => MlStat(3 downto 2),
+            Ml_StatBypass         => MlBypStat,
+            Ml_EvMisaligned       => MlMisEv,
+            Ml_TxEn               => MlTxEn,
+            Ml_RxEn               => MlRxEn,
+            Ml_MaxDataLanes       => MlMax,
+            Ml_Bypass             => MlBypass,
             UserClk               => UserClk,
             UserRst               => Rst,
             Ni_EvFrameErr         => NiEv

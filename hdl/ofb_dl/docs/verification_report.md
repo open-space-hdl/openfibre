@@ -2,7 +2,7 @@
 
 ## 1. Test results
 
-Run on 2026-10-04 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_dl*"`.
+Run on 2026-10-05 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_dl*"`.
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
@@ -10,7 +10,8 @@ Run on 2026-10-04 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 | `ofb_dl_row_tb` (row level) | 13 | 13 |
 | `ofb_dl_mac_tb` (medium access controller) | 7 | 7 |
 
-Full regression of the repository: 105 of 105 tests pass (with phase 3). VSG reports no errors and no warnings.
+Full regression of the repository: 149 of 149 tests pass (with phase 4: rows of several words, verified in the core
+testbench with 2 and 4 lanes, plan section 3.5). VSG reports no errors and no warnings.
 
 Error and recovery counters of the layer tests (both ends):
 
@@ -37,6 +38,9 @@ Defects found and fixed during verification:
 
 Phase 3 (quality of service, continuous mode): the MAC unit tests and TC-DL-21 / TC-DL-22 passed on the first run;
 mutation check: with equal priorities the first frame of TC-DL-21 comes from VC 0 and the test fails as expected.
+
+Phase 4 (rows of several words): the tests of this module (one lane) pass unchanged after the conversion to rows; the
+core tests TC-CORE-02 to TC-CORE-09 pass with 2 and 4 lanes.
 
 Observations:
 

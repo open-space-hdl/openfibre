@@ -73,6 +73,19 @@ Simulator: GHDL.
 | `test_qos_priority_schedule` (TC-DL-21) | Both VCs excluded from time-slot 1: no data; SCHEDULE.request to slot 0: both ready at once, all frames of the priority-0 VC first | DL-QS-01, 02, 04, 06, DL-MAC-01 |
 | `test_continuous_mode` (TC-DL-22) | Continuous mode: 140 words for a buffer of 128 without credit are accepted without back-pressure; flush, EEP, rest of the packet discarded; without an active lane the next packet is flushed as well | DL-CM-01 |
 
+### 3.5 Rows of several words (core testbench)
+
+The Data Link layer with rows of 2 and 4 words is verified end to end in the core testbench (`ofb_core_tb`,
+configurations `lanes2` and `lanes4`), where both ends are complete cores with the Multi-Lane layer; the testbenches
+of this module keep one lane.
+
+| Test ID | Description | Requirements |
+| --- | --- | --- |
+| TC-CORE-02 (`lanes2`, `lanes4`) | Traffic on 4 VCs and broadcast messages: data rows from the beats, replicated rows, FCT multiplier and segment of 64 x N words, received rows packed by the Multi-Lane layer, banked input VC buffer and beats that end at the end of a packet | DL-RW-01, DL-RW-03 to 06, DL-VO-03, DL-VO-04, DL-VI-01, DL-VI-02 |
+| TC-CORE-03, TC-CORE-07 (`lanes2`, `lanes4`) | Error recovery with rows: bit errors, lane failure and realignment, resend of data rows | DL-ER-03, DL-RW-01 |
+| TC-CORE-08 (`lanes2`, `lanes4`) | Maximum number of data-sending lanes 1, taken over at link reset: segments and FCTs of 64 words, received rows of one word | DL-RW-02, DL-RW-03, DL-RW-05 |
+| TC-CORE-04 (`lanes2`, `lanes4`) | Link reset with the banked input VC buffer (EEP after link reset, FCTs for the whole buffer) | DL-VI-02, DL-VI-04 |
+
 ## 4. Coverage analysis
 
 Every requirement of the specification (phase 2 scope, sections 2.1 to 2.12) is covered by at least one test case. Not

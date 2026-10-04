@@ -11,7 +11,7 @@ checked with scoreboards. The final end-to-end test with the transceiver model f
 
 | Testbench | Harness | DUT and environment |
 | --- | --- | --- |
-| `ofb_core_tb` | `ofb_core_th` | Two `ofb_core` (4 VCs) A and B, `ofb_tb_pa_model`, one `ofb_tb_axilite_master` per core, packet generator and receiver per VC (random length, receiver back-pressure), broadcast generator and receiver, raw word queue for VC 0 of A |
+| `ofb_core_tb` | `ofb_core_th` | Two `ofb_core` (4 VCs) A and B with `NumLanes_g` = 1, 2 and 4 (VUnit configurations `lanes1`, `lanes2`, `lanes4`), one `ofb_tb_pa_model` per lane, one `ofb_tb_axilite_master` per core, packet generator and receiver per VC (random length, receiver back-pressure, beats of `NumLanes_g` words, every packet starts in a new beat; words of four Fills are not compared), broadcast generator and receiver, raw word queue for VC 0 of A |
 
 ## 3. Test cases
 
@@ -23,3 +23,8 @@ checked with scoreboards. The final end-to-end test with the transceiver model f
 | `test_link_reset` (TC-CORE-04) | Link Reset command at A through the MIB: both ends reset, Far-End Link Reset at B only, link up again, traffic | CORE-SY-01, CORE-CC-01 |
 | `test_qos_config` (TC-CORE-06) | Bandwidth of VC 3 of A set to zero through the MIB: its packets wait; with a bandwidth they are delivered | CORE-IF-01, CORE-SY-01 |
 | `test_framing_error` (TC-CORE-05) | Word with K28.7 at the Network interface of A: B receives the packet ended with EEP, the framing error flags are set at A | CORE-IF-01 |
+| `test_lane_failure` (TC-CORE-07) | Several lanes: the highest lane is cut during traffic in both directions and reconnected: every packet delivered, Misaligned condition counted, no link reset, the lane sends data again | CORE-SY-02, CORE-ML-01 |
+| `test_max_data_lanes` (TC-CORE-08) | Maximum number of data-sending lanes 1 through the MIB, Link Reset: one data-sending lane, traffic with packets up to 300 bytes delivered | CORE-SY-02, CORE-ML-01 |
+| `test_bypass` (TC-CORE-09) | Multi-Lane bypass through the MIB at both cores: bypass and lane 0 reported, traffic delivered | CORE-SY-02, CORE-ML-01 |
+
+All test cases run in the three configurations; with one lane TC-CORE-07 only checks the link start.

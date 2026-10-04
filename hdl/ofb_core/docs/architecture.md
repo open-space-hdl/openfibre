@@ -29,5 +29,8 @@ synchronous and high-active.
 
 ## 4. Open points
 
-- Phase 4: 2 to 4 lanes.
+- With several lanes (`NumLanes_g > 1`) the Lane layers use the SKIP request of the Multi-Lane layer
+  (`SkipExternal_g`, `Lane_SkipReq` to every lane). The MIB drives TxEn and RxEn per lane, the maximum number of
+  data-sending lanes and the bypass of the Multi-Lane layer (lane clock) and the maximum number of data-sending lanes
+  of the Data Link layer (core clock); the Multi-Lane status and the Misaligned events go to the MIB.
 - The receive row overflow event is not yet connected to the MIB.

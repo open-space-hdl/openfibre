@@ -41,7 +41,8 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_core_tb is
     generic (
-        runner_cfg : string
+        runner_cfg : string;
+        NumLanes_g : positive range 1 to 4 := 1
     );
 end entity;
 
@@ -62,6 +63,9 @@ architecture sim of ofb_core_tb is
     constant RegFrameErr_c : natural := 16#03C#;
     constant RegLaneCtrl_c : natural := 16#100#;
     constant RegLaneStat_c : natural := 16#104#;
+    constant RegMlStatus_c : natural := 16#040#;
+    constant RegMlCtrl_c   : natural := 16#058#;
+    constant RegMlMisal_c  : natural := 16#05C#;
 
 begin
 
@@ -109,7 +113,11 @@ begin
             variable A_v     : std_logic_vector(31 downto 0);
             variable B_v     : std_logic_vector(31 downto 0);
         begin
-            wr(0, RegLaneCtrl_c, x"00000003");
+
+            for l in 0 to NumLanes_g-1 loop
+                wr(0, RegLaneCtrl_c + 16#20# * l, x"00000063");
+            end loop;
+
             Start_v := now;
 
             loop
@@ -186,7 +194,7 @@ begin
             -- TC-CORE-01: identification, link start through the MIB
             if run("test_link_up") then
                 rd(0, RegId_c, Data_v);
-                check_value(Data_v, x"0FB10002", error, "ID of A");
+                check_value(Data_v, x"0FB10003", error, "ID of A");
                 linkUp(500 us);
                 rd(1, RegDlErrors_c, Data_v);
                 check_value(Data_v, x"00000000", error, "No error at B");
@@ -262,6 +270,81 @@ begin
                 wr(0, 16#434#, x"00000100");
                 waitDelivered(1 ms);
 
+            -- TC-CORE-07: a lane fails during traffic and is reconnected: every packet is delivered
+            -- (realignment of the Multi-Lane layer, error recovery of the Data Link layer)
+            elsif run("test_lane_failure") then
+                linkUp(500 us);
+                if NumLanes_g > 1 then
+                    sendAll(40);
+                    cycles(300);
+                    PaCtrl(NumLanes_g-1).AtoB.Cut <= true;
+                    PaCtrl(NumLanes_g-1).BtoA.Cut <= true;
+                    cycles(3000);
+                    rd(1, RegMlStatus_c, Data_v);
+                    check_value(Data_v(NumLanes_g-1), '0', error, "Failed lane not data-sending at B");
+                    PaCtrl(NumLanes_g-1).AtoB.Cut <= false;
+                    PaCtrl(NumLanes_g-1).BtoA.Cut <= false;
+                    waitDelivered(10 ms);
+                    rd(0, RegMlMisal_c, Data_v);
+                    check_value(unsigned(Data_v) > 0, error, "Misaligned condition counted at A");
+                    rd(0, RegDlStatus_c, Data_v);
+                    check_value(Data_v(1 downto 0), "11", error, "No link reset at A");
+                    -- The lane joins again
+                    cycles(5000);
+                    rd(0, RegMlStatus_c, Data_v);
+                    check_value(Data_v(NumLanes_g-1 downto 0), std_logic_vector(to_unsigned(2 ** NumLanes_g - 1, NumLanes_g)),
+                                error, "All lanes data-sending again at A");
+                    check_value(Data_v(9 downto 8), "10", error, "Both-Ends Ready at A");
+                    sendAll(5);
+                    waitDelivered(5 ms);
+                end if;
+
+            -- TC-CORE-08: maximum number of data-sending lanes through the MIB, taken over at link reset
+            elsif run("test_max_data_lanes") then
+
+                for c in 0 to 1 loop
+                    wr(c, RegMlCtrl_c, x"00000001");
+                    wr(c, RegDlCtrl_c, x"00000101");
+                end loop;
+
+                linkUp(500 us);
+                cycles(2000);
+                rd(0, RegMlStatus_c, Data_v);
+                check_value(Data_v(3 downto 0), "0001", error, "One data-sending lane at A");
+                rd(1, RegMlStatus_c, Data_v);
+                check_value(Data_v(7 downto 4), "0001", error, "One data-receiving lane at B");
+
+                for c in 0 to 1 loop
+
+                    for vc in 0 to CoreNumVc_c-1 loop
+                        CoreCfg(c).Vc(vc).MaxLen <= 300;
+                    end loop;
+
+                end loop;
+
+                sendAll(10);
+                waitDelivered(5 ms);
+                rd(0, RegDlErrors_c, Data_v);
+                check_value(Data_v, x"00000000", error, "No error at A");
+
+            -- TC-CORE-09: Multi-Lane bypass through the MIB
+            elsif run("test_bypass") then
+
+                for c in 0 to 1 loop
+                    wr(c, RegMlCtrl_c, x"00000100");
+                end loop;
+
+                linkUp(500 us);
+                cycles(2000);
+                rd(0, RegMlStatus_c, Data_v);
+                check_value(Data_v(10), '1', error, "Bypass at A");
+                check_value(Data_v(9 downto 8), "10", error, "Both-Ends Ready reported in bypass");
+                check_value(Data_v(3 downto 0), "0001", error, "Lane 0 data-sending in bypass");
+                sendAll(10);
+                waitDelivered(5 ms);
+                rd(1, RegDlErrors_c, Data_v);
+                check_value(Data_v, x"00000000", error, "No error at B");
+
             -- TC-CORE-05: framing error at the Network interface of A
             elsif run("test_framing_error") then
                 linkUp(500 us);
@@ -290,6 +373,9 @@ begin
     -- Test harness
     -----------------------------------------------------------------------------------------------
     i_th : entity work.ofb_core_th
+        generic map (
+            NumLanes_g => NumLanes_g
+        )
         port map (
             MgmtClk => MgmtClk,
             Rst     => Rst

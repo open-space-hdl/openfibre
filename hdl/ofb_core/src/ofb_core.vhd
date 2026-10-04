@@ -35,7 +35,7 @@ entity ofb_core is
         LaneClkFreq_g    : real                   := 156.25e6;
         VcOutDepth_g     : positive               := 128;
         VcInDepth_g      : positive               := 256;
-        ErbWords_g       : positive               := 512;
+        ErbRows_g        : positive               := 512;
         InitPrbsWords_g  : natural range 0 to 64  := 64
     );
     port (
@@ -45,13 +45,13 @@ entity ofb_core is
         CoreClk           : in    std_logic;
         LaneClk           : in    std_logic;
         MgmtClk           : in    std_logic;
-        -- Virtual channels (UserClk, TUSER: K flag per character)
-        S_Vc_TData        : in    std_logic_vector(32*NumVc_g-1 downto 0);
-        S_Vc_TUser        : in    std_logic_vector(4*NumVc_g-1 downto 0);
+        -- Virtual channels (UserClk): beats of NumLanes_g words, TUSER: K flag per character
+        S_Vc_TData        : in    std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
+        S_Vc_TUser        : in    std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
         S_Vc_TValid       : in    std_logic_vector(NumVc_g-1 downto 0);
         S_Vc_TReady       : out   std_logic_vector(NumVc_g-1 downto 0);
-        M_Vc_TData        : out   std_logic_vector(32*NumVc_g-1 downto 0);
-        M_Vc_TUser        : out   std_logic_vector(4*NumVc_g-1 downto 0);
+        M_Vc_TData        : out   std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
+        M_Vc_TUser        : out   std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
         M_Vc_TValid       : out   std_logic_vector(NumVc_g-1 downto 0);
         M_Vc_TReady       : in    std_logic_vector(NumVc_g-1 downto 0);
         -- Broadcast messages (UserClk, TUSER: channel 7:0, B_TYPE 15:8, DELAYED 16, LATE 17)
@@ -113,12 +113,12 @@ architecture rtl of ofb_core is
     signal MgmtRst : std_logic;
 
     -- Network interface to Data Link layer
-    signal TxVcData   : std_logic_vector(32*NumVc_g-1 downto 0);
-    signal TxVcK      : std_logic_vector(4*NumVc_g-1 downto 0);
+    signal TxVcData   : std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
+    signal TxVcK      : std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
     signal TxVcValid  : std_logic_vector(NumVc_g-1 downto 0);
     signal TxVcReady  : std_logic_vector(NumVc_g-1 downto 0);
-    signal RxVcData   : std_logic_vector(32*NumVc_g-1 downto 0);
-    signal RxVcK      : std_logic_vector(4*NumVc_g-1 downto 0);
+    signal RxVcData   : std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
+    signal RxVcK      : std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
     signal RxVcValid  : std_logic_vector(NumVc_g-1 downto 0);
     signal RxVcReady  : std_logic_vector(NumVc_g-1 downto 0);
     signal TxBcData   : std_logic_vector(63 downto 0);
@@ -203,6 +203,14 @@ architecture rtl of ofb_core is
     signal DataSending : std_logic_vector(NumLanes_g-1 downto 0);
     signal DataRecv    : std_logic_vector(NumLanes_g-1 downto 0);
     signal AlignState  : AlignState_t;
+    signal MlBypass    : std_logic;
+    signal MlMisalign  : std_logic;
+    signal SkipReq     : std_logic;
+    signal CfgTxEn     : std_logic_vector(NumLanes_g-1 downto 0);
+    signal CfgRxEn     : std_logic_vector(NumLanes_g-1 downto 0);
+    signal CfgMlMax    : std_logic_vector(2 downto 0);
+    signal CfgMlBypass : std_logic;
+    signal CfgDlMax    : std_logic_vector(2 downto 0);
 
     -- Data Link layer configuration and status
     signal CfgScrambled : std_logic;
@@ -245,10 +253,6 @@ architecture rtl of ofb_core is
 
 begin
 
-    assert NumLanes_g = 1
-        report "ofb_core: only NumLanes_g = 1 is implemented"
-        severity failure;
-
     -----------------------------------------------------------------------------------------------
     -- Resets per clock domain (MG-4)
     -----------------------------------------------------------------------------------------------
@@ -285,7 +289,8 @@ begin
     -----------------------------------------------------------------------------------------------
     i_ni : entity work.ofb_ni
         generic map (
-            NumVc_g => NumVc_g
+            NumVc_g    => NumVc_g,
+            NumLanes_g => NumLanes_g
         )
         port map (
             Clk           => UserClk,
@@ -343,7 +348,7 @@ begin
             NumLanes_g   => NumLanes_g,
             VcOutDepth_g => VcOutDepth_g,
             VcInDepth_g  => VcInDepth_g,
-            ErbWords_g   => ErbWords_g
+            ErbRows_g    => ErbRows_g
         )
         port map (
             Clk                   => CoreClk,
@@ -395,6 +400,7 @@ begin
             Cfg_LinkReset         => CfgLinkRst,
             Cfg_InterfaceReset    => CfgIfRst,
             Cfg_BcInterval        => CfgBcInt,
+            Cfg_MaxDataLanes      => CfgDlMax,
             Reg_Wr                => RegWr,
             Reg_Addr              => RegAddr,
             Reg_Data              => RegData,
@@ -475,7 +481,8 @@ begin
     -----------------------------------------------------------------------------------------------
     i_ml : entity work.ofb_multilane
         generic map (
-            NumLanes_g => NumLanes_g
+            NumLanes_g     => NumLanes_g,
+            ClkFrequency_g => LaneClkFreq_g
         )
         port map (
             Clk                     => LaneClk,
@@ -498,10 +505,15 @@ begin
             Dl_FarCapabilityValid   => MlFarCapV,
             Dl_FarCapabilityIdle    => MlFarIdle,
             Dl_LaneActive           => MlActive,
+            Cfg_TxEn                => CfgTxEn,
+            Cfg_RxEn                => CfgRxEn,
+            Cfg_MaxDataLanes        => CfgMlMax,
+            Cfg_Bypass              => CfgMlBypass,
             LaneTx_Data             => LaneTxData,
             LaneTx_K                => LaneTxK,
             LaneTx_Valid            => LaneTxValid,
             LaneTx_Ready            => LaneTxReady,
+            Lane_SkipReq            => SkipReq,
             LaneRx_Data             => LaneRxData,
             LaneRx_K                => LaneRxK,
             LaneRx_Valid            => LaneRxValid,
@@ -515,7 +527,9 @@ begin
             Lane_FarCapabilityValid => LaneCapV,
             Stat_DataSendingLanes   => DataSending,
             Stat_DataReceivingLanes => DataRecv,
-            Stat_AlignState         => AlignState
+            Stat_AlignState         => AlignState,
+            Stat_Bypass             => MlBypass,
+            Ev_Misaligned           => MlMisalign
         );
 
     -----------------------------------------------------------------------------------------------
@@ -526,7 +540,9 @@ begin
         i_lane : entity work.ofb_lane
             generic map (
                 ClkFrequency_g  => LaneClkFreq_g,
-                InitPrbsWords_g => InitPrbsWords_g
+                InitPrbsWords_g => InitPrbsWords_g,
+                -- Several lanes send SKIP in the same cycle (ECSS 5.6.4.5a)
+                SkipExternal_g  => NumLanes_g > 1
             )
             port map (
                 Clk                      => LaneClk,
@@ -539,6 +555,7 @@ begin
                 RxWord_K                 => LaneRxK(4*i+3 downto 4*i),
                 RxWord_Valid             => LaneRxValid(i),
                 Ctrl_LaneReset           => LaneReset(i),
+                Ctrl_SkipReq             => SkipReq,
                 Ctrl_TxOnly              => LaneTxOnly(i),
                 Ctrl_RxOnly              => LaneRxOnly(i),
                 Ctrl_FarEndActive        => LaneFarAct(i),
@@ -634,6 +651,7 @@ begin
             Dl_RegWr              => RegWr,
             Dl_RegAddr            => RegAddr,
             Dl_RegData            => RegData,
+            Dl_MaxDataLanes       => CfgDlMax,
             LaneClk               => LaneClk,
             LaneRst               => LaneRst,
             Lane_Start            => CfgLaneStart,
@@ -656,6 +674,12 @@ begin
             Ml_DataSending        => DataSending,
             Ml_DataReceiving      => DataRecv,
             Ml_AlignState         => AlignState,
+            Ml_StatBypass         => MlBypass,
+            Ml_EvMisaligned       => MlMisalign,
+            Ml_TxEn               => CfgTxEn,
+            Ml_RxEn               => CfgRxEn,
+            Ml_MaxDataLanes       => CfgMlMax,
+            Ml_Bypass             => CfgMlBypass,
             UserClk               => UserClk,
             UserRst               => UserRst,
             Ni_EvFrameErr         => NiFrameErr

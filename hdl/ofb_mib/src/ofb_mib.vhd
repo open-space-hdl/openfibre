@@ -83,6 +83,7 @@ entity ofb_mib is
         Dl_RegWr              : out   std_logic; -- Register writes of the quality of service
         Dl_RegAddr            : out   std_logic_vector(11 downto 0);
         Dl_RegData            : out   std_logic_vector(31 downto 0);
+        Dl_MaxDataLanes       : out   std_logic_vector(2 downto 0);
         -- Lane clock domain: Multi-Lane layer, Lane layers, Physical adapters
         LaneClk               : in    std_logic;
         LaneRst               : in    std_logic;
@@ -106,6 +107,12 @@ entity ofb_mib is
         Ml_DataSending        : in    std_logic_vector(NumLanes_g-1 downto 0);
         Ml_DataReceiving      : in    std_logic_vector(NumLanes_g-1 downto 0);
         Ml_AlignState         : in    std_logic_vector(1 downto 0);
+        Ml_StatBypass         : in    std_logic := '0';
+        Ml_EvMisaligned       : in    std_logic := '0';
+        Ml_TxEn               : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Ml_RxEn               : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Ml_MaxDataLanes       : out   std_logic_vector(2 downto 0);
+        Ml_Bypass             : out   std_logic;
         -- User clock domain: Network interface
         UserClk               : in    std_logic;
         UserRst               : in    std_logic;
@@ -118,13 +125,13 @@ end entity;
 ---------------------------------------------------------------------------------------------------
 architecture rtl of ofb_mib is
 
-    constant Id_c : std_logic_vector(31 downto 0) := x"0FB10002";
+    constant Id_c : std_logic_vector(31 downto 0) := x"0FB10003";
 
     -- Widths of the crossing vectors
-    constant CoreCfgW_c  : positive := 17;
+    constant CoreCfgW_c  : positive := 20;
     constant CoreStatW_c : positive := 8 + 3 * NumVc_g + 6;
     constant CoreEvW_c   : positive := 8 + 2 * NumVc_g;
-    constant LaneCfgW_c  : positive := 13;
+    constant LaneCfgW_c  : positive := 15;
     constant LaneStatW_c : positive := 38;
 
     type Cnt16Array_t is array (0 to NumLanes_g-1) of unsigned(15 downto 0);
@@ -144,6 +151,8 @@ architecture rtl of ofb_mib is
     signal DataScrambled : std_logic;
     signal BcInterval    : std_logic_vector(15 downto 0);
     signal LaneCtrl      : LaneCtrlArray_t;
+    signal MlMax         : std_logic_vector(2 downto 0);
+    signal MlBypass      : std_logic;
     signal IrqMask       : std_logic_vector(31 downto 0);
     signal CmdLinkReset  : std_logic;
     -- Quality of service (copy of the registers of the Data Link layer)
@@ -160,17 +169,18 @@ architecture rtl of ofb_mib is
     signal CmdIfReset    : std_logic;
 
     -- Sticky flags and counters
-    signal DlErrors   : std_logic_vector(9 downto 0);
-    signal VcInOvf    : std_logic_vector(NumVc_g-1 downto 0);
-    signal VcCrOvf    : std_logic_vector(NumVc_g-1 downto 0);
-    signal VcFrErr    : std_logic_vector(NumVc_g-1 downto 0);
-    signal LaneEvents : std_logic_vector(4*NumLanes_g-1 downto 0);
-    signal Retries    : unsigned(31 downto 0);
-    signal Crc16Cnt   : unsigned(15 downto 0);
-    signal Crc8Cnt    : unsigned(15 downto 0);
-    signal FrameCnt   : unsigned(15 downto 0);
-    signal SeqCnt     : unsigned(15 downto 0);
-    signal TimeoutCnt : Cnt16Array_t;
+    signal DlErrors    : std_logic_vector(9 downto 0);
+    signal VcInOvf     : std_logic_vector(NumVc_g-1 downto 0);
+    signal VcCrOvf     : std_logic_vector(NumVc_g-1 downto 0);
+    signal VcFrErr     : std_logic_vector(NumVc_g-1 downto 0);
+    signal LaneEvents  : std_logic_vector(4*NumLanes_g-1 downto 0);
+    signal Retries     : unsigned(31 downto 0);
+    signal Crc16Cnt    : unsigned(15 downto 0);
+    signal Crc8Cnt     : unsigned(15 downto 0);
+    signal FrameCnt    : unsigned(15 downto 0);
+    signal SeqCnt      : unsigned(15 downto 0);
+    signal TimeoutCnt  : Cnt16Array_t;
+    signal MisalignCnt : unsigned(15 downto 0);
 
     -- Crossings
     signal CoreCfgIn  : std_logic_vector(CoreCfgW_c-1 downto 0);
@@ -181,10 +191,12 @@ architecture rtl of ofb_mib is
     signal CoreEv     : std_logic_vector(CoreEvW_c-1 downto 0);
     signal LaneCfgIn  : std_logic_vector(LaneCfgW_c*NumLanes_g-1 downto 0);
     signal LaneCfgOut : std_logic_vector(LaneCfgW_c*NumLanes_g-1 downto 0);
-    signal LaneStatIn : std_logic_vector(LaneStatW_c*NumLanes_g+2*NumLanes_g+1 downto 0);
-    signal LaneStat   : std_logic_vector(LaneStatW_c*NumLanes_g+2*NumLanes_g+1 downto 0);
-    signal LaneEvIn   : std_logic_vector(4*NumLanes_g-1 downto 0);
-    signal LaneEv     : std_logic_vector(4*NumLanes_g-1 downto 0);
+    signal LaneStatIn : std_logic_vector(LaneStatW_c*NumLanes_g+2*NumLanes_g+2 downto 0);
+    signal LaneStat   : std_logic_vector(LaneStatW_c*NumLanes_g+2*NumLanes_g+2 downto 0);
+    signal LaneEvIn   : std_logic_vector(4*NumLanes_g downto 0);
+    signal LaneEv     : std_logic_vector(4*NumLanes_g downto 0);
+    signal MlCfgIn    : std_logic_vector(3 downto 0);
+    signal MlCfgOut   : std_logic_vector(3 downto 0);
     signal UserEv     : std_logic_vector(NumVc_g-1 downto 0);
 
     function sat16 (cnt : unsigned(15 downto 0)) return unsigned is
@@ -259,7 +271,7 @@ begin
             VcInOvf              <= VcInOvf or CoreEv(7 + NumVc_g downto 8);
             VcCrOvf              <= VcCrOvf or CoreEv(7 + 2 * NumVc_g downto 8 + NumVc_g);
             VcFrErr              <= VcFrErr or UserEv;
-            LaneEvents           <= LaneEvents or LaneEv;
+            LaneEvents           <= LaneEvents or LaneEv(4*NumLanes_g-1 downto 0);
             -- (to_01: the status crossing has no value before its first transfer)
             VcBwOver  <= VcBwOver or to_01(CoreStat(7 + 2 * NumVc_g downto 8 + NumVc_g));
             VcBwUnder <= VcBwUnder or to_01(CoreStat(7 + 3 * NumVc_g downto 8 + 2 * NumVc_g));
@@ -284,6 +296,10 @@ begin
                     TimeoutCnt(i) <= sat16(TimeoutCnt(i));
                 end if;
             end loop;
+
+            if LaneEv(4*NumLanes_g) = '1' then
+                MisalignCnt <= sat16(MisalignCnt);
+            end if;
 
             -- Writes
             if RbWr = '1' then
@@ -321,6 +337,11 @@ begin
                         VcBwUnder <= VcBwUnder and not RbWrData(NumVc_g-1 downto 0);
                     when 16#050# =>
                         IdleLimit <= RbWrData;
+                    when 16#058# =>
+                        MlMax    <= RbWrData(2 downto 0);
+                        MlBypass <= RbWrData(8);
+                    when 16#05C# =>
+                        MisalignCnt <= (others => '0');
                     when others =>
                         if Addr_v >= 16#400# and Addr_v < 16#400# + 16 * NumVc_g then
                             Vc_v := (Addr_v - 16#400#) / 16;
@@ -341,7 +362,7 @@ begin
                         end if;
                         if Lane_v >= 0 and Lane_v < NumLanes_g then
                             if Reg_v = 16#00# then
-                                LaneCtrl(Lane_v) <= RbWrData(15 downto 8) & RbWrData(4 downto 0);
+                                LaneCtrl(Lane_v) <= RbWrData(6 downto 5) & RbWrData(15 downto 8) & RbWrData(4 downto 0);
                             elsif Reg_v = 16#08# then
                                 LaneEvents(4*Lane_v+3 downto 4*Lane_v) <= LaneEvents(4*Lane_v+3 downto 4*Lane_v) and
                                                                           not RbWrData(3 downto 0);
@@ -383,9 +404,14 @@ begin
                 end loop;
 
                 LaneCtrl <= (others => (others => '0'));
+                MlMax    <= std_logic_vector(to_unsigned(NumLanes_g, 3));
+                MlBypass <= '0';
 
                 for i in 0 to NumLanes_g-1 loop
-                    LaneCtrl(i)(1) <= '1';
+                    -- AutoStart, TxEn, RxEn
+                    LaneCtrl(i)(1)  <= '1';
+                    LaneCtrl(i)(13) <= '1';
+                    LaneCtrl(i)(14) <= '1';
                 end loop;
 
             end if;
@@ -404,6 +430,7 @@ begin
                 FrameCnt     <= (others => '0');
                 SeqCnt       <= (others => '0');
                 TimeoutCnt   <= (others => (others => '0'));
+                MisalignCnt  <= (others => '0');
                 VcBwOver     <= (others => '0');
                 VcBwUnder    <= (others => '0');
             end if;
@@ -469,6 +496,7 @@ begin
                     Data_v(NumLanes_g-1 downto 0) := LaneStat(Base_v + NumLanes_g - 1 downto Base_v);
                     Data_v(NumLanes_g+3 downto 4) := LaneStat(Base_v + 2 * NumLanes_g - 1 downto Base_v + NumLanes_g);
                     Data_v(9 downto 8)            := LaneStat(Base_v + 2 * NumLanes_g + 1 downto Base_v + 2 * NumLanes_g);
+                    Data_v(10)                    := LaneStat(Base_v + 2 * NumLanes_g + 2);
                 when 16#044# =>
                     Data_v := IrqMask;
                 when 16#048# =>
@@ -479,6 +507,11 @@ begin
                     Data_v := IdleLimit;
                 when 16#054# =>
                     Data_v(5 downto 0) := CoreStat(CoreStatW_c - 1 downto CoreStatW_c - 6);
+                when 16#058# =>
+                    Data_v(2 downto 0) := MlMax;
+                    Data_v(8)          := MlBypass;
+                when 16#05C# =>
+                    Data_v(15 downto 0) := std_logic_vector(MisalignCnt);
                 when others =>
                     if Addr_v >= 16#400# and Addr_v < 16#400# + 16 * NumVc_g then
                         Vc_v := (Addr_v - 16#400#) / 16;
@@ -496,6 +529,7 @@ begin
                         Base_v := LaneStatW_c * Lane_v;
                         if Reg_v = 16#00# then
                             Data_v(15 downto 8) := LaneCtrl(Lane_v)(12 downto 5);
+                            Data_v(6 downto 5)  := LaneCtrl(Lane_v)(14 downto 13);
                             Data_v(4 downto 0)  := LaneCtrl(Lane_v)(4 downto 0);
                         elsif Reg_v = 16#04# then
                             Data_v(5 downto 0)   := LaneStat(Base_v + 5 downto Base_v);
@@ -531,7 +565,7 @@ begin
     -----------------------------------------------------------------------------------------------
     -- Core clock domain
     -----------------------------------------------------------------------------------------------
-    CoreCfgIn <= DataScrambled & BcInterval;
+    CoreCfgIn <= MlMax & DataScrambled & BcInterval;
 
     i_core_cfg : entity olo.olo_ft_cc_bits
         generic map (
@@ -546,6 +580,7 @@ begin
             Out_Data => CoreCfgOut
         );
 
+    Dl_MaxDataLanes  <= CoreCfgOut(19 downto 17);
     Dl_DataScrambled <= CoreCfgOut(16);
     Dl_BcInterval    <= CoreCfgOut(15 downto 0);
 
@@ -640,6 +675,8 @@ begin
         Lane_NearLoopback(i)                                     <= LaneCfgOut(LaneCfgW_c*i+3);
         Lane_FarLoopback(i)                                      <= LaneCfgOut(LaneCfgW_c*i+4);
         Lane_StandbyReason(8*i+7 downto 8*i)                     <= LaneCfgOut(LaneCfgW_c*i+12 downto LaneCfgW_c*i+5);
+        Ml_TxEn(i)                                               <= LaneCfgOut(LaneCfgW_c*i+13);
+        Ml_RxEn(i)                                               <= LaneCfgOut(LaneCfgW_c*i+14);
 
     end generate;
 
@@ -659,7 +696,9 @@ begin
             LaneEvIn(4*i+3 downto 4*i)                                   <= Ev_v;
         end loop;
 
-        LaneStatIn(LaneStatIn'high downto LaneStatW_c*NumLanes_g) <= Ml_AlignState & Ml_DataReceiving & Ml_DataSending;
+        LaneStatIn(LaneStatIn'high downto LaneStatW_c*NumLanes_g) <= Ml_StatBypass & Ml_AlignState & Ml_DataReceiving &
+                                                                     Ml_DataSending;
+        LaneEvIn(4*NumLanes_g)                                    <= Ml_EvMisaligned;
     end process;
 
     i_lane_cfg : entity olo.olo_ft_cc_bits
@@ -690,7 +729,7 @@ begin
 
     i_lane_ev : entity work.ofb_cc_pulse
         generic map (
-            NumPulses_g => 4 * NumLanes_g
+            NumPulses_g => 4 * NumLanes_g + 1
         )
         port map (
             In_Clk    => LaneClk,
@@ -700,6 +739,25 @@ begin
             Out_Rst   => Rst,
             Out_Pulse => LaneEv
         );
+
+    -- Multi-Lane configuration: maximum number of data-sending lanes, bypass
+    MlCfgIn <= MlBypass & MlMax;
+
+    i_ml_cfg : entity olo.olo_ft_cc_bits
+        generic map (
+            Width_g => 4
+        )
+        port map (
+            In_Clk   => Clk,
+            In_Rst   => Rst,
+            In_Data  => MlCfgIn,
+            Out_Clk  => LaneClk,
+            Out_Rst  => LaneRst,
+            Out_Data => MlCfgOut
+        );
+
+    Ml_MaxDataLanes <= MlCfgOut(2 downto 0);
+    Ml_Bypass       <= MlCfgOut(3);
 
     -----------------------------------------------------------------------------------------------
     -- User clock domain

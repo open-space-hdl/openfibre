@@ -123,7 +123,7 @@ All outputs are registered unless noted. `Active(i)` is the decoded lane state o
 | `Lane_FarEndActive(i)` | Loaded with bit `i` of the ACT field of every valid ACTIVE word (`Al_FarActValid`); cleared while lane `i` is in ClearLine (ML-LM-11) |
 | `Lane_Reset(i)` | `Cond(i) or Hold(i)` (combinational OR): `Cond` = `Dl_LaneReset`, or Active and TxOnly without FarEndActive, or Active and TxOnly without an active bidirectional lane, or TxEn = RxEn = 0, or bypass and `i > 0`; `Hold(i)` keeps the request until lane `i` is in ClearLine (ML-LM-12) |
 | `TxLanes` (T) | Active and TxEn (zero in bypass) |
-| `DataLanes` (D) | The lowest `P` set bits of T, `P` = `Cfg_MaxDataLanes` (1 to N, other values N) |
+| `DataLanes` (D) | The lowest `P` set bits of T; `P` = `Cfg_MaxDataLanes` (1 to N, other values N), taken over into the register `MaxLanes` on `Dl_LaneReset` and while no lane is Active |
 | `HotLanes` (H) | T and not D |
 | `RxLanes` | Active and RxEn (zero in bypass) |
 | `NumTxLanes`, `NumRxLanes` | Number of set bits of T and of `RxLanes` (4 bits) |
