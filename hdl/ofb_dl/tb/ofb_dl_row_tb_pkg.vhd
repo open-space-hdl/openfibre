@@ -88,6 +88,14 @@ package ofb_dl_row_tb_pkg is
     signal BcTxReq     : natural                       := 0; -- Messages requested
     signal BcRxCount   : natural                       := 0;
 
+    -- Register writes of the MIB (core clock) and SCHEDULE.request (user clock): the sequencer sets
+    -- address and data, then increments the counter (at least 4 core clock cycles apart)
+    signal RegWrAddr : natural                       := 0;
+    signal RegWrData : std_logic_vector(31 downto 0) := (others => '0');
+    signal RegWrCnt  : natural                       := 0;
+    signal SchedSlot : std_logic_vector(5 downto 0)  := (others => '0');
+    signal SchedCnt  : natural                       := 0;
+
     -- Words injected into the receive rows: bit 36 is the CRC-16 error flag of an EDF
 
     shared variable RxQueue_v : WordQueue_t;

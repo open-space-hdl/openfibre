@@ -21,4 +21,5 @@ checked with scoreboards. The final end-to-end test with the transceiver model f
 | `test_traffic` (TC-CORE-02) | 15 packets per VC and 10 broadcast messages in both directions: all delivered, no error and no retry in the MIB | CORE-SY-01, CORE-CC-01 |
 | `test_error_recovery` (TC-CORE-03) | 20 bit errors per direction during traffic: all delivered, retries counted in the MIB, no link reset | CORE-SY-01 |
 | `test_link_reset` (TC-CORE-04) | Link Reset command at A through the MIB: both ends reset, Far-End Link Reset at B only, link up again, traffic | CORE-SY-01, CORE-CC-01 |
+| `test_qos_config` (TC-CORE-06) | Bandwidth of VC 3 of A set to zero through the MIB: its packets wait; with a bandwidth they are delivered | CORE-IF-01, CORE-SY-01 |
 | `test_framing_error` (TC-CORE-05) | Word with K28.7 at the Network interface of A: B receives the packet ended with EEP, the framing error flags are set at A | CORE-IF-01 |

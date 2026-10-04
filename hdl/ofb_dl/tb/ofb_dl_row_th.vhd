@@ -74,6 +74,8 @@ architecture sim of ofb_dl_row_th is
     signal RxBcData  : std_logic_vector(63 downto 0);
     signal RxBcValid : std_logic;
     signal BcTxValid : std_logic := '0';
+    signal RegWr     : std_logic := '0';
+    signal SchedVld  : std_logic := '0';
     signal BcTxReady : std_logic;
 
     signal HasCredit : std_logic_vector(RowNumVc_c-1 downto 0);
@@ -151,6 +153,8 @@ begin
             RxBc_Late             => open,
             RxBc_Valid            => RxBcValid,
             RxBc_Ready            => '1',
+            Sched_TimeSlot        => SchedSlot,
+            Sched_Valid           => SchedVld,
             TxRow_Data            => TxRowData,
             TxRow_K               => TxRowK,
             TxRow_Mask            => open,
@@ -171,6 +175,9 @@ begin
             Ml_LaneActive         => RowCfg.LaneActive,
             Cfg_LinkReset         => RowCfg.LinkReset,
             Cfg_BcInterval        => RowCfg.BcInterval,
+            Reg_Wr                => RegWr,
+            Reg_Addr              => std_logic_vector(to_unsigned(RegWrAddr, 12)),
+            Reg_Data              => RegWrData,
             Stat_HasCredit        => HasCredit,
             Ev_CreditOverflow     => CreditOvf,
             Ev_InputOverflow      => InOvf,
@@ -380,6 +387,31 @@ begin
             Stat_v.FarPol      := FarPolCmd;
             Stat_v.BcRx        := BcRxCount;
             RowStat            <= Stat_v;
+        end if;
+    end process;
+
+    -- Register writes and schedule requests
+    p_reg : process (ClkI) is
+        variable Done_v : natural := 0;
+    begin
+        if rising_edge(ClkI) then
+            RegWr <= '0';
+            if Done_v < RegWrCnt then
+                RegWr  <= '1';
+                Done_v := Done_v + 1;
+            end if;
+        end if;
+    end process;
+
+    p_sched : process (UserClk) is
+        variable Done_v : natural := 0;
+    begin
+        if rising_edge(UserClk) then
+            SchedVld <= '0';
+            if Done_v < SchedCnt then
+                SchedVld <= '1';
+                Done_v   := Done_v + 1;
+            end if;
         end if;
     end process;
 

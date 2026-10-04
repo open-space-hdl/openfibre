@@ -41,5 +41,5 @@ See the architecture, section 3.
 ## 5. Interpretation of the standard
 
 Bandwidth Credit Limit, FCT multiplier and data segment multiplier are fixed by generics (Table 5-36 allows this). The
-virtual channel and QoS parameters (priority, expected bandwidth, time slots, continuous mode) and the Maximum Number of
-Data-Sending Lanes, RxEn and TxEn follow with phases 3 and 4.
+Maximum Number of Data-Sending Lanes, RxEn and TxEn follow with phase 4. The virtual network number of a VC is a
+configuration register only: a node has one end-point per VC (ECSS 5.8.3h, i).

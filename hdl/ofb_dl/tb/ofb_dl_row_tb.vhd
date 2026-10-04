@@ -249,6 +249,23 @@ begin
             return Cnt_v;
         end function;
 
+        procedure regWrite (
+            addr : natural;
+            data : std_logic_vector(31 downto 0)) is
+        begin
+            RegWrAddr <= addr;
+            RegWrData <= data;
+            RegWrCnt  <= RegWrCnt + 1;
+            cycles(4);
+        end procedure;
+
+        procedure schedule (slot : natural) is
+        begin
+            SchedSlot <= std_logic_vector(to_unsigned(slot, 6));
+            SchedCnt  <= SchedCnt + 1;
+            cycles(20);
+        end procedure;
+
         impure function seqOf (word : Word_t) return natural is
         begin
             return to_integer(unsigned(word(22 downto 16)));
@@ -643,6 +660,80 @@ begin
 
                 check_value(N_v, 4, error, "Two more FCTs for VC 0 after 128 words read");
                 check_value(RowStat.InputOvfs, 0, error, "No input buffer overflow");
+
+            -- TC-DL-21: priority and schedule: frames of the higher priority VC first when both
+            -- become ready at the same time (time-slot change)
+            elsif run("test_qos_priority_schedule") then
+                waitLinkInit(10 us);
+                -- Both VCs not allocated to time-slot 1, bandwidth 100 %, VC 1 priority 0
+                regWrite(16#408#, x"FFFFFFFD");
+                regWrite(16#418#, x"FFFFFFFD");
+                regWrite(16#404#, x"00000100");
+                regWrite(16#414#, x"00000100");
+                regWrite(16#410#, x"00000000");
+                schedule(1);
+                rxFct(0, 1);
+                rxFct(0, 2);
+                rxFct(1, 3);
+                rxFct(1, 4);
+                waitRxIdle;
+                TxLog_v.clear;
+                userPacket(0, 30, 0);
+                userPacket(0, 30, 100);
+                userPacket(1, 30, 200);
+                userPacket(1, 30, 300);
+                cycles(500);
+                check_value(txPayload, 0, error, "No data frame in time-slot 1");
+                schedule(0);
+                cycles(1000);
+                check_value(txPayload, 120, error, "All data sent in time-slot 0");
+                Pos_v  := txFind(KindSdf, 0);
+                check_value(txWord(Pos_v)(20 downto 16), "00001", error, "First data frame of VC 1");
+                Last_v := -1;
+                Idx_v  := 0;
+
+                for i in 0 to TxLog_v.count - 1 loop
+                    if txKind(i) = KindSdf then
+                        if txWord(i)(20 downto 16) = "00001" then
+                            Last_v := i;
+                        elsif Idx_v = 0 then
+                            Idx_v := i;
+                        end if;
+                    end if;
+                end loop;
+
+                check_value(Last_v < Idx_v, error, "All frames of VC 1 before those of VC 0");
+
+            -- TC-DL-22: continuous mode: flush and EEP when the buffer is about to be full and when no
+            -- lane is active, no back-pressure on the user
+            elsif run("test_continuous_mode") then
+                waitLinkInit(10 us);
+                regWrite(16#400#, x"00000103");
+                cycles(50);
+                TxLog_v.clear;
+
+                for p in 0 to 6 loop
+                    userPacket(0, 20, 20 * p);
+                end loop;
+
+                cycles(600);
+                check_value(VcTxQueue0_v.count, 0, error, "All words accepted without back-pressure");
+                rxFct(0, 1);
+                rxFct(0, 2);
+                waitRxIdle;
+                cycles(300);
+                check_value(txPayload, 1, error, "Only the EEP after the flush");
+                Pos_v := txFind(KindSdf, 0);
+                check_value(TxLog_v.get(Pos_v + 1), "1111" & CharFill_c & CharFill_c & CharFill_c & CharEep_c, error,
+                            "EEP word");
+                -- No lane active: the first word of a packet causes a flush, the packet is discarded
+                RowCfg.LaneActive <= '0';
+                cycles(10);
+                userPacket(0, 3, 500);
+                cycles(200);
+                RowCfg.LaneActive <= '1';
+                cycles(300);
+                check_value(txPayload, 2, error, "Second EEP after the flush without active lane");
 
             -- TC-DL-19: FCT credit limits the data, credit overflow
             elsif run("test_credit") then

@@ -22,10 +22,9 @@ The module consists of the blocks of the architecture (sections 7.2 and 7.3):
 | DC-1 | `ofb_dl_link_reset` | Link reset state machine |
 | DC-2 | in `ofb_dl` | Status and event outputs for the MIB |
 
-This issue covers phase 2 of the roadmap: one lane (`NumLanes_g = 1`, rows of one word, FCT multiplier and data
-segment multiplier 1), up to 32 virtual channels with round-robin medium access. The quality of service mechanisms of
-ECSS 5.7.4.2 to 5.7.4.7 (priority, bandwidth reservation, schedule) and the continuous mode of ECSS 5.7.2.2h, i follow
-in phase 3; their requirements are listed in section 2.13 and marked as such.
+This issue covers phases 2 and 3 of the roadmap: one lane (`NumLanes_g = 1`, rows of one word, FCT multiplier and
+data segment multiplier 1), up to 32 virtual channels, the quality of service of ECSS 5.7.4 (priority, bandwidth
+reservation, schedule; section 2.13) and the continuous mode.
 
 Clock domains: the user side of the VC and broadcast buffers runs on `UserClk`, everything else on `Clk` (the core
 clock). The rows to and from the Multi-Lane layer are on `Clk`; the crossing to the lane clock is in the core top
@@ -62,11 +61,11 @@ level.
 | DL-BO-02 | A Broadcast Bandwidth Credit Counter shall be decreased by one for every broadcast frame sent and increased by one after each interval of 4 / (Normalised Expected Broadcast Bandwidth) words, saturate at 256, never be negative, and be set to zero on link reset; no broadcast frame shall be sent while it is zero. | 5.7.5a to k |
 | DL-BO-03 | A broadcast message that cannot be sent immediately because no lane is active or because of error recovery shall be sent with the LATE flag set; the DELAYED flag shall be passed from the Network layer unchanged. | 5.3.8.4i, j, 5.3.5.1.6c |
 
-### 2.4 Medium access (DT-4, phase 2)
+### 2.4 Medium access (DT-4)
 
 | ID | Requirement | ECSS |
 | --- | --- | --- |
-| DL-MAC-01 | Only VCs with a data segment ready (DL-VO-03) shall compete for sending the next data segment; the competing VCs shall be served in round-robin order. | 5.7.4.1a to d |
+| DL-MAC-01 | Only VCs with a data segment ready (DL-VO-03) shall compete for sending the next data segment; the selection follows the quality of service of section 2.13. | 5.7.4.1a to d |
 
 ### 2.5 Transmit scheduling and frames (DT-5, DT-6)
 
@@ -149,12 +148,18 @@ level.
 | --- | --- | --- |
 | DL-ST-01 | The Data Link layer shall report, per VC, Has Credit, input buffer overflow and FCT credit counter overflow, and for the link 16-bit CRC error, frame error, CRC-8 error, sequence error, error recovery buffer empty, number of error recovery attempts, Link Reset Caused by Protocol Error and Far-End Link Reset; errors are one-cycle events, the MIB keeps them until read. | Table 5-37 |
 
-### 2.13 Phase 3 (not in this issue)
+### 2.13 Quality of service and continuous mode (phase 3)
 
 | ID | Requirement | ECSS |
 | --- | --- | --- |
-| DL-P3-01 | Priority, bandwidth reservation and scheduled QoS with precedence = priority precedence + bandwidth credit, bandwidth over / under use status. | 5.7.4.2 to 5.7.4.7 |
-| DL-P3-02 | Continuous mode per VC. | 5.7.2.2h, i |
+| DL-QS-01 | Every VC shall have a priority level (0 highest to `NumPrio_g` - 1 lowest, at least four levels), a Normalised Expected Bandwidth (as the factor 1 / bandwidth, 8.8 fixed point; factor 0 means bandwidth 0: the VC does not send) and 64 allocated time-slot bits. | 5.7.4.2a, c, 5.7.4.3c, 5.7.4.6a to f, 5.7.4.5e, i, Table 5-36 |
+| DL-QS-02 | A VC shall compete for the next data segment only when it has a segment ready, its bit of the current time-slot is set and its bandwidth is not zero. | 5.7.4.1b to d, 5.7.4.3d to g, 5.7.4.7 |
+| DL-QS-03 | The bandwidth credit of every VC shall be updated when a data segment is sent and otherwise every 66 words: + the words sent on the link since the last update, - the words of the data frame of that VC (including SDF and EDF) times its factor; it shall saturate at plus and minus the Bandwidth Credit Limit B (`CreditLimit_g` words) and be cleared on Interface Reset. | 5.7.4.5a to k, q |
+| DL-QS-04 | The precedence of a VC shall be its priority precedence 2B(Q - 1 - R) + B plus its bandwidth credit; the priority precedence shall be zero while the credit is below the Minimum Bandwidth Credit Threshold (-0.9 B). The competing VC with the highest precedence shall send the next segment (the lowest VC number on equal precedence). | 5.7.4.4a to f, 5.7.4.5m, n, p, 5.7.4.6d, g |
+| DL-QS-05 | A VC whose credit reaches the Minimum Bandwidth Credit Threshold shall report bandwidth over use; a VC whose credit stays at +B for the Virtual Channel Idle Time Limit (words) shall report bandwidth under use. | 5.7.4.5l, o, Table 5-37 |
+| DL-QS-06 | The current time-slot shall be set by SCHEDULE.request (time-slot number from the Network layer); optionally (generic) by received broadcast messages of a configured broadcast type. | 5.7.4.3a, b, 6.3.4 |
+| DL-QS-07 | On Interface Reset: priority lowest, factor of VC0 for 10 % (10.0), of the other VCs the minimum bandwidth (factor 0xFFFF), all time-slots allocated, bandwidth credits zero. | 5.7.4.5q, r, 5.7.4.6h, Table 5-36 |
+| DL-CM-01 | In continuous mode (per VC), when the output VC buffer is about to become full or no lane is active while the buffer is not empty, the buffer shall be flushed, an EEP placed in it, and the rest of an incomplete packet discarded up to and including its EOP or EEP; the VC then accepts words without back-pressure. | 5.7.2.2h, i |
 
 ## 3. Error conditions
 

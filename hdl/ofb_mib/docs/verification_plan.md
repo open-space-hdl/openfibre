@@ -19,4 +19,5 @@ registers to the layers is verified with the core testbench.
 | `test_reset_values` (TC-MG-01) | ID, generics, reset values of the configuration registers and of the configuration outputs in the core and lane domains | MG-IF-01, MG-CF-01, MG-CC-01 |
 | `test_config` (TC-MG-02) | Configuration written and read back, outputs in the domains; Link Reset and Interface Reset give one pulse each; Interface Reset restores the reset values | MG-IF-01, MG-CF-01, MG-CF-02, MG-CC-01 |
 | `test_status` (TC-MG-03) | Data Link, Has Credit, lane and Multi-Lane status read through the status crossings | MG-IF-02, MG-CC-01 |
+| `test_qos_registers` (TC-MG-05) | Reset values of the QoS registers, write and read back, VN 0 fixed for VC 0, forwarding of the writes to the core clock, bandwidth status and time-slot, Interface Reset | MG-IF-01, MG-IF-02, MG-CF-01 |
 | `test_events` (TC-MG-04) | Events of the three domains set sticky flags and counters; W1C; interrupt with mask; Link Reset clears the Data Link status and keeps the lane flags | MG-ST-01 to 03 |

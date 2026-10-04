@@ -30,7 +30,8 @@ library work;
 entity ofb_mib is
     generic (
         NumVc_g    : positive range 1 to 32 := 8;
-        NumLanes_g : positive range 1 to 4  := 1
+        NumLanes_g : positive range 1 to 4  := 1;
+        NumPrio_g  : positive range 2 to 16 := 4
     );
     port (
         -- Management clock domain
@@ -76,6 +77,12 @@ entity ofb_mib is
         Dl_EvBcDiscard        : in    std_logic;
         Dl_EvInputOverflow    : in    std_logic_vector(NumVc_g-1 downto 0);
         Dl_EvCreditOverflow   : in    std_logic_vector(NumVc_g-1 downto 0);
+        Dl_BwOver             : in    std_logic_vector(NumVc_g-1 downto 0);
+        Dl_BwUnder            : in    std_logic_vector(NumVc_g-1 downto 0);
+        Dl_TimeSlot           : in    std_logic_vector(5 downto 0);
+        Dl_RegWr              : out   std_logic; -- Register writes of the quality of service
+        Dl_RegAddr            : out   std_logic_vector(11 downto 0);
+        Dl_RegData            : out   std_logic_vector(31 downto 0);
         -- Lane clock domain: Multi-Lane layer, Lane layers, Physical adapters
         LaneClk               : in    std_logic;
         LaneRst               : in    std_logic;
@@ -115,12 +122,14 @@ architecture rtl of ofb_mib is
 
     -- Widths of the crossing vectors
     constant CoreCfgW_c  : positive := 17;
-    constant CoreStatW_c : positive := 8 + NumVc_g;
+    constant CoreStatW_c : positive := 8 + 3 * NumVc_g + 6;
     constant CoreEvW_c   : positive := 8 + 2 * NumVc_g;
     constant LaneCfgW_c  : positive := 13;
     constant LaneStatW_c : positive := 38;
 
     type Cnt16Array_t is array (0 to NumLanes_g-1) of unsigned(15 downto 0);
+    type Slv32Array_t is array (0 to NumVc_g-1) of std_logic_vector(31 downto 0);
+    type Slv16Array_t is array (0 to NumVc_g-1) of std_logic_vector(15 downto 0);
     type LaneCtrlArray_t is array (0 to NumLanes_g-1) of std_logic_vector(LaneCfgW_c-1 downto 0);
 
     -- Register bus
@@ -137,6 +146,17 @@ architecture rtl of ofb_mib is
     signal LaneCtrl      : LaneCtrlArray_t;
     signal IrqMask       : std_logic_vector(31 downto 0);
     signal CmdLinkReset  : std_logic;
+    -- Quality of service (copy of the registers of the Data Link layer)
+    signal VcCfg         : Slv32Array_t;
+    signal VcBw          : Slv16Array_t;
+    signal VcSlotsLo     : Slv32Array_t;
+    signal VcSlotsHi     : Slv32Array_t;
+    signal IdleLimit     : std_logic_vector(31 downto 0);
+    signal VcBwOver      : std_logic_vector(NumVc_g-1 downto 0);
+    signal VcBwUnder     : std_logic_vector(NumVc_g-1 downto 0);
+    signal QosWr         : std_logic;
+    signal QosWrIn       : std_logic_vector(43 downto 0);
+    signal QosWrOut      : std_logic_vector(43 downto 0);
     signal CmdIfReset    : std_logic;
 
     -- Sticky flags and counters
@@ -221,6 +241,7 @@ begin
         variable Addr_v : natural;
         variable Lane_v : integer;
         variable Reg_v  : natural;
+        variable Vc_v   : natural;
     begin
         if rising_edge(Clk) then
             CmdLinkReset <= '0';
@@ -239,6 +260,9 @@ begin
             VcCrOvf              <= VcCrOvf or CoreEv(7 + 2 * NumVc_g downto 8 + NumVc_g);
             VcFrErr              <= VcFrErr or UserEv;
             LaneEvents           <= LaneEvents or LaneEv;
+            -- (to_01: the status crossing has no value before its first transfer)
+            VcBwOver  <= VcBwOver or to_01(CoreStat(7 + 2 * NumVc_g downto 8 + NumVc_g));
+            VcBwUnder <= VcBwUnder or to_01(CoreStat(7 + 3 * NumVc_g downto 8 + 2 * NumVc_g));
             if CoreEv(0) = '1' then
                 Crc16Cnt <= sat16(Crc16Cnt);
             end if;
@@ -291,7 +315,30 @@ begin
                         VcFrErr <= VcFrErr and not RbWrData(NumVc_g-1 downto 0);
                     when 16#044# =>
                         IrqMask <= RbWrData;
+                    when 16#048# =>
+                        VcBwOver <= VcBwOver and not RbWrData(NumVc_g-1 downto 0);
+                    when 16#04C# =>
+                        VcBwUnder <= VcBwUnder and not RbWrData(NumVc_g-1 downto 0);
+                    when 16#050# =>
+                        IdleLimit <= RbWrData;
                     when others =>
+                        if Addr_v >= 16#400# and Addr_v < 16#400# + 16 * NumVc_g then
+                            Vc_v := (Addr_v - 16#400#) / 16;
+                            if Reg_v mod 16 = 0 then
+                                VcCfg(Vc_v)(3 downto 0) <= RbWrData(3 downto 0);
+                                VcCfg(Vc_v)(8)          <= RbWrData(8);
+                                if Vc_v /= 0 then
+                                    -- VN0 is always mapped to VC0 (ECSS 5.8.3bb)
+                                    VcCfg(Vc_v)(21 downto 16) <= RbWrData(21 downto 16);
+                                end if;
+                            elsif Reg_v mod 16 = 4 then
+                                VcBw(Vc_v) <= RbWrData(15 downto 0);
+                            elsif Reg_v mod 16 = 8 then
+                                VcSlotsLo(Vc_v) <= RbWrData;
+                            else
+                                VcSlotsHi(Vc_v) <= RbWrData;
+                            end if;
+                        end if;
                         if Lane_v >= 0 and Lane_v < NumLanes_g then
                             if Reg_v = 16#00# then
                                 LaneCtrl(Lane_v) <= RbWrData(15 downto 8) & RbWrData(4 downto 0);
@@ -320,7 +367,22 @@ begin
             if Rst = '1' or (RbWr = '1' and Addr_v = 16#008# and RbWrData(1) = '1') then
                 DataScrambled <= '1';
                 BcInterval    <= x"0028";
-                LaneCtrl      <= (others => (others => '0'));
+                IdleLimit     <= std_logic_vector(to_unsigned(156250, 32));
+                VcSlotsLo     <= (others => (others => '1'));
+                VcSlotsHi     <= (others => (others => '1'));
+
+                for v in 0 to NumVc_g-1 loop
+                    VcCfg(v)               <= (others => '0');
+                    VcCfg(v)(3 downto 0)   <= std_logic_vector(to_unsigned(NumPrio_g - 1, 4));
+                    VcCfg(v)(21 downto 16) <= std_logic_vector(to_unsigned(v, 6));
+                    if v = 0 then
+                        VcBw(v) <= x"0A00";
+                    else
+                        VcBw(v) <= x"FFFF";
+                    end if;
+                end loop;
+
+                LaneCtrl <= (others => (others => '0'));
 
                 for i in 0 to NumLanes_g-1 loop
                     LaneCtrl(i)(1) <= '1';
@@ -342,6 +404,8 @@ begin
                 FrameCnt     <= (others => '0');
                 SeqCnt       <= (others => '0');
                 TimeoutCnt   <= (others => (others => '0'));
+                VcBwOver     <= (others => '0');
+                VcBwUnder    <= (others => '0');
             end if;
         end if;
     end process;
@@ -356,6 +420,7 @@ begin
         variable Data_v : std_logic_vector(31 downto 0);
         variable Base_v : natural;
         variable Irq_v  : std_logic;
+        variable Vc_v   : natural;
     begin
         if rising_edge(Clk) then
             RbRdValid <= RbRd;
@@ -406,7 +471,27 @@ begin
                     Data_v(9 downto 8)            := LaneStat(Base_v + 2 * NumLanes_g + 1 downto Base_v + 2 * NumLanes_g);
                 when 16#044# =>
                     Data_v := IrqMask;
+                when 16#048# =>
+                    Data_v(NumVc_g-1 downto 0) := VcBwOver;
+                when 16#04C# =>
+                    Data_v(NumVc_g-1 downto 0) := VcBwUnder;
+                when 16#050# =>
+                    Data_v := IdleLimit;
+                when 16#054# =>
+                    Data_v(5 downto 0) := CoreStat(CoreStatW_c - 1 downto CoreStatW_c - 6);
                 when others =>
+                    if Addr_v >= 16#400# and Addr_v < 16#400# + 16 * NumVc_g then
+                        Vc_v := (Addr_v - 16#400#) / 16;
+                        if Reg_v mod 16 = 0 then
+                            Data_v := VcCfg(Vc_v);
+                        elsif Reg_v mod 16 = 4 then
+                            Data_v(15 downto 0) := VcBw(Vc_v);
+                        elsif Reg_v mod 16 = 8 then
+                            Data_v := VcSlotsLo(Vc_v);
+                        else
+                            Data_v := VcSlotsHi(Vc_v);
+                        end if;
+                    end if;
                     if Lane_v >= 0 and Lane_v < NumLanes_g then
                         Base_v := LaneStatW_c * Lane_v;
                         if Reg_v = 16#00# then
@@ -479,7 +564,41 @@ begin
             Out_Pulse(1) => Dl_InterfaceReset
         );
 
-    CoreStatIn <= Dl_HasCredit & Dl_ErbEmpty & Dl_WordIdState & Dl_RxErrState & Dl_LinkResetState;
+    -- Writes of the quality of service registers are forwarded to the Data Link layer
+    p_qos_wr : process (all) is
+        variable Addr_v : natural;
+    begin
+        Addr_v := to_integer(unsigned(RbAddr));
+        QosWr  <= '0';
+        if RbWr = '1' and (Addr_v = 16#050# or (Addr_v >= 16#400# and Addr_v < 16#400# + 16 * NumVc_g)) then
+            QosWr <= '1';
+        end if;
+    end process;
+
+    QosWrIn <= RbAddr & RbWrData;
+
+    i_qos_wr : entity olo.olo_ft_fifo_async
+        generic map (
+            Width_g => 44,
+            Depth_g => 16
+        )
+        port map (
+            In_Clk    => Clk,
+            In_Rst    => Rst,
+            In_Data   => QosWrIn,
+            In_Valid  => QosWr,
+            Out_Clk   => CoreClk,
+            Out_Rst   => CoreRst,
+            Out_Data  => QosWrOut,
+            Out_Valid => Dl_RegWr,
+            Out_Ready => '1'
+        );
+
+    Dl_RegAddr <= QosWrOut(43 downto 32);
+    Dl_RegData <= QosWrOut(31 downto 0);
+
+    CoreStatIn <= Dl_TimeSlot & Dl_BwUnder & Dl_BwOver & Dl_HasCredit & Dl_ErbEmpty & Dl_WordIdState & Dl_RxErrState &
+                  Dl_LinkResetState;
 
     i_core_stat : entity olo.olo_base_cc_status
         generic map (

@@ -6,7 +6,7 @@ Run on 2026-10-04 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_core_tb` | 5 | 5 |
+| `ofb_core_tb` | 6 | 6 |
 
 ## 2. Summary
 
