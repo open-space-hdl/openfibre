@@ -1,3 +1,4 @@
 # OpenFibre modules in dependency order (compiled into the library openfibre by run.py)
 hdl/ofb_pkg
 hdl/ofb_lane
+hdl/ofb_multilane

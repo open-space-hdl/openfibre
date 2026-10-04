@@ -2,7 +2,7 @@
 
 ## 1. Test results
 
-Run on 2026-10-05 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_lane*"`
+Run on 2026-10-04 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_lane*"`
 `"*8b10b*"`.
 
 | Testbench | Tests | Passed |
