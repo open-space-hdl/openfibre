@@ -158,16 +158,14 @@ begin
     Out_K     <= "1111" when Inject = '1' else FifoOut(35 downto 32);
     FifoRdy   <= Out_Ready and not Inject;
 
-    i_blk_cc : entity olo.olo_ft_cc_pulse
-        generic map (
-            NumPulses_g => 1
-        )
+    -- One-cycle pulse per 64 words read (olo_ft_cc_pulse alone stretches the pulse to 2 cycles)
+    i_blk_cc : entity work.ofb_cc_pulse
         port map (
             In_Clk       => UserClk,
-            In_RstIn     => UserRst,
+            In_Rst       => UserRst,
             In_Pulse(0)  => BlkUser,
             Out_Clk      => Clk,
-            Out_RstIn    => Rst,
+            Out_Rst      => Rst,
             Out_Pulse(0) => BlkCore
         );
 
