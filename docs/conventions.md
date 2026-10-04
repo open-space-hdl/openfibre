@@ -31,6 +31,10 @@ document. This page lists the rules and the few OpenFibre-specific additions.
   `ofb_core` for 1, 2 and 4 lanes with the synthesis of GHDL (after `python run.py --compile`) and fails on errors and
   inferred latches. Signals with a variable index select a slice with a loop over the constant slices rather than a
   slice with variable bounds; `to_01` and other simulation-only functions are not used in RTL.
+- Traceability: every requirement of a specification is verified by at least one test case of the verification plan,
+  every ECSS clause of the traceability matrix (architecture section 10) by the test cases of its requirements, and
+  every test case of a plan is run by a testbench. `python tools/compliance.py` writes the
+  [compliance matrix](compliance.md); `python tools/compliance.py --check` fails on a gap.
 
 ## Module development process
 

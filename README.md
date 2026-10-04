@@ -21,6 +21,7 @@ on the QSFP connector, 6.25 Gbit/s per lane). See [docs/roadmap.md](docs/roadmap
 | [docs/architecture.md](docs/architecture.md) | Architecture: layers, building blocks, owned ECSS clauses, Open Logic usage, verification |
 | [docs/conventions.md](docs/conventions.md) | Coding, verification and repository conventions |
 | [docs/roadmap.md](docs/roadmap.md) | Development plan and module status |
+| [docs/compliance.md](docs/compliance.md) | ECSS compliance matrix: requirements and test cases of every clause (generated) |
 | `hdl/<module>/docs/` | Specification, architecture, verification plan and verification report of each module |
 
 ## Repository structure
@@ -30,7 +31,8 @@ openfibre/
 |-- docs/             Top-level documentation
 |-- hdl/<module>/     One folder per module: src/, tb/, docs/
 |-- tb/               Verification components shared by the testbenches
-|-- lint/             VSG configuration (Open Logic rules)
+|-- lint/             VSG configuration (Open Logic rules), synthesizability check
+|-- tools/            Compliance matrix generator
 |-- open-logic/       Git submodule: Open Logic (fault-tolerant entities branch)
 |-- uvvm/             Git submodule: UVVM verification framework
 |-- component_list.txt  Modules in dependency order
@@ -52,6 +54,14 @@ python run.py --questa <test>   # QuestaSim (only needed for the tests with the 
 
 `run.py` compiles Open Logic into the VHDL library `olo`, the required UVVM components into their own libraries and
 all OpenFibre sources into the library `openfibre`.
+
+Checks besides the regression:
+
+```shell
+python lint/lint.py                 # VSG, no errors and no warnings
+python lint/synth_check.py          # GHDL synthesis of ofb_core for 1, 2 and 4 lanes (after python run.py --compile)
+python tools/compliance.py --check  # every ECSS clause and requirement traced to a test case
+```
 
 ## Licence
 

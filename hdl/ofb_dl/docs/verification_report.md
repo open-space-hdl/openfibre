@@ -7,10 +7,10 @@ Run on 2026-10-05 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 | Testbench | Tests | Passed |
 | --- | --- | --- |
 | `ofb_dl_tb` (layer, two complete ends) | 7 | 7 |
-| `ofb_dl_row_tb` (row level) | 15 | 15 |
+| `ofb_dl_row_tb` (row level) | 16 | 16 |
 | `ofb_dl_mac_tb` (medium access controller) | 7 | 7 |
 
-Full regression of the repository: 151 of 151 tests pass (with phase 4: rows of several words, verified in the core
+Full regression of the repository: 157 of 157 tests pass (with phase 4: rows of several words, verified in the core
 testbench with 2 and 4 lanes, plan section 3.5). VSG reports no errors and no warnings.
 
 Error and recovery counters of the layer tests (both ends):
@@ -22,7 +22,7 @@ Error and recovery counters of the layer tests (both ends):
 
 ## 2. Summary
 
-All 29 test cases pass and cover the requirements of the specification (verification plan, section 4).
+All 30 test cases pass and cover the requirements of the specification (verification plan, section 4).
 
 Defects found and fixed during verification:
 

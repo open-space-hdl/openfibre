@@ -824,6 +824,58 @@ begin
                 waitRxIdle;
                 check_value(RowStat.CreditOvfs >= 1, error, "Credit counter overflow");
 
+            -- TC-DL-25: Link Reset while a data frame is sent: the frame is stopped, the idle frames
+            -- after the link reset start with the PRBS seed
+            elsif run("test_link_reset_frame") then
+                waitLinkInit(10 us);
+                cycles(400);
+                rxFct(1, 1);
+                waitRxIdle;
+                TxLog_v.clear;
+                userPacket(1, 60, 800);
+
+                while txFind(KindSdf, 0) < 0 loop
+                    cycles(1);
+                end loop;
+
+                cycles(5);
+                RowCfg.LinkReset <= '1';
+                cycles(1);
+                RowCfg.LinkReset <= '0';
+                waitLinkInit(20 us);
+                cycles(300);
+                -- The data frame is stopped: no EDF, fewer than the 60 words of the packet
+                Pos_v := txFind(KindSdf, 0);
+                Cnt_v := 0;
+                Idx_v := Pos_v + 1;
+
+                while Idx_v < TxLog_v.count loop
+                    exit when txKind(Idx_v) /= KindData;
+                    Cnt_v := Cnt_v + 1;
+                    Idx_v := Idx_v + 1;
+                end loop;
+
+                check_value(Cnt_v > 0 and Cnt_v < 60, error, "Data frame stopped after " & to_string(Cnt_v) & " words");
+                check_value(txFind(KindEdf, 0), -1, error, "Stopped data frame not ended");
+                check_value(txFind(KindSdf, Pos_v + 1), -1, error, "Packet flushed, no further data frame");
+                -- First idle frame after the link reset: 64 PRBS words from the seed
+                Idx_v   := txFind(KindSif, Pos_v) + 1;
+                State_v := PrbsEcssSeed_c;
+                Cnt_v   := 0;
+
+                while Idx_v < TxLog_v.count loop
+                    Kind_v := txKind(Idx_v);
+                    exit when Kind_v = KindSif;
+                    if Kind_v = KindData then
+                        check_value(txWord(Idx_v), prbsWord(State_v), error, "PRBS word " & to_string(Cnt_v));
+                        State_v := prbsNextState(State_v);
+                        Cnt_v   := Cnt_v + 1;
+                    end if;
+                    Idx_v := Idx_v + 1;
+                end loop;
+
+                check_value(Cnt_v, 64, error, "64 PRBS words from the seed");
+
             end if;
 
         end loop;

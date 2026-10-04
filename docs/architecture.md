@@ -237,7 +237,7 @@ implementation adds, per block, the port list, the register reset values and the
 | ID | Block | Responsibility | Open Logic | ECSS |
 | --- | --- | --- | --- | --- |
 | NI-1 | VC port (x `NumVc_g`, 1 to 32) | AXI4-Stream N-Char port per VC, NumLanes_g x 32 bit wide (O2), packet framing check (EOP / EEP), optional continuous mode (flush and EEP on overflow) | `olo_base_pl_stage` | 6.2.2, 6.3.2, 5.3.7, 5.3.9, 5.8.5 to 5.8.7, 5.8.13 |
-| NI-2 | Virtual network mapper (optional) | Maps virtual network numbers to VCs from a MIB table; packets of an unmapped network are discarded and counted | `olo_ft_ram_sp` (mapping table) | 5.8.3 |
+| NI-2 | Virtual network number | Virtual network number of every VC (one end-point per VC, VN0 on VC0) as a MIB register; no data path in a node with one port | none (MIB register) | 5.8.3 |
 | NI-3 | Broadcast port | Broadcast message service per channel: 8-byte message, B_TYPE, DELAYED and LATE flags | `olo_base_pl_stage` | 6.2.3, 6.3.3, 5.8.12 |
 | NI-4 | Schedule port | SCHEDULE.request: time-slot start from the user or from a broadcast of the schedule type | none (custom) | 6.3.4 |
 
@@ -418,7 +418,8 @@ hours and checks only selected properties, so it is reserved for the two target 
 
 Every ECSS clause in the scope of section 1 has exactly one owner block; where a clause has a transmit and a receive
 half, each half has its own owner. "First verified at" names the lowest verification level (section 9) at which the
-clause can be fully checked.
+clause can be fully checked. The [compliance matrix](compliance.md), generated from this table, the module
+specifications and the verification plans, lists the requirements and test cases of every clause.
 
 | ECSS clause | Title | Owner | Also involved | First verified at |
 | --- | --- | --- | --- | --- |

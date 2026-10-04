@@ -18,6 +18,9 @@
 library ieee;
     use ieee.std_logic_1164.all;
 
+library uvvm_util;
+    context uvvm_util.uvvm_util_context;
+
 library uvvm_vvc_framework;
     use uvvm_vvc_framework.ti_vvc_framework_support_pkg.all;
 
@@ -232,6 +235,10 @@ begin
                     else
                         SeenSkip_v := false;
                         SkipGap_v  := 0;
+                    end if;
+                    -- iINIT1 and iINIT2 are never generated (LN-TX-05)
+                    if PhyTxK(i) = KCtrl_c and (PhyTxData(i) = WordInvInit1_c or PhyTxData(i) = WordInvInit2_c) then
+                        alert(error, "iINIT word sent by lane " & to_string(i));
                     end if;
                     -- Events
                     if Timeout(i) = '1' then
