@@ -350,6 +350,7 @@ begin
                 variable InPkt_v : boolean  := false;
                 variable Eeps_v  : natural  := 0;
                 variable Lost_v  : natural  := 0;
+                variable Words_v : natural  := 0;
 
                 -- A character of the word is an EOP or EEP (with an EEP only: the EEP)
                 function hasEnd (w : std_logic_vector(35 downto 0); eepOnly : boolean := false) return boolean is
@@ -422,8 +423,9 @@ begin
                         for w in 0 to N_c-1 loop
                             if MVcUser(i)(4*(N_c*v+w)+3 downto 4*(N_c*v+w)) /= "1111" or
                                MVcData(i)(32*(N_c*v+w)+31 downto 32*(N_c*v+w)) /= x"FBFBFBFB" then
-                                Word_v := MVcUser(i)(4*(N_c*v+w)+3 downto 4*(N_c*v+w)) &
-                                          MVcData(i)(32*(N_c*v+w)+31 downto 32*(N_c*v+w));
+                                Word_v  := MVcUser(i)(4*(N_c*v+w)+3 downto 4*(N_c*v+w)) &
+                                           MVcData(i)(32*(N_c*v+w)+31 downto 32*(N_c*v+w));
+                                Words_v := Words_v + 1;
                                 if CoreCfg(i).Lossy then
                                     checkLossy(Word_v);
                                 else
@@ -432,6 +434,7 @@ begin
                             end if;
                         end loop;
 
+                        CoreRxWords(i, v) <= Words_v;
                     end if;
                     uniform(Seed1_v, Seed2_v, Rand_v);
                     if Rand_v * 100.0 < real(CoreCfg(i).Vc(v).ReadyPct) then

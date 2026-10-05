@@ -10,7 +10,7 @@ Run on 2026-10-05 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 | `ofb_dl_row_tb` (row level) | 17 | 17 |
 | `ofb_dl_mac_tb` (medium access controller) | 7 | 7 |
 
-Full regression of the repository: 179 of 179 tests pass (phase 5, after the DED containment of the core;
+Full regression of the repository: 182 of 182 tests pass (phase 5, after the DED containment of the core;
 phase 4: rows of several words, verified in the core
 testbench with 2 and 4 lanes, plan section 3.5). VSG reports no errors and no warnings.
 

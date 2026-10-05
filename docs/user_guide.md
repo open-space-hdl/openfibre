@@ -171,7 +171,15 @@ buffer resets the link (packets in progress end with EEP at the far end), a DED 
 packet with EEP, a DED in the broadcast input buffer discards the message. No corrupted word reaches a user; only a
 DED in the control crossings (channel 8) is reported without further action.
 
-## 7. Synthesis
+## 7. Performance
+
+Measured in simulation (TC-CORE-16, 6.25 Gbit/s lanes, payload capacity 5 Gbit/s per lane, packets of 1 to 1024
+bytes on all VCs): from one end only 94 % of the lane capacity (4.7, 9.4 and 18.7 Gbit/s with 1, 2 and 4 lanes),
+with traffic in both directions 90 % per direction. The latency of a short packet on an idle link is about 0.35 us
+without the serialisation delay of the transceivers; the receiver forwards a data frame after its EDF (store and
+forward), so the latency grows with the frame length (up to 64 words per lane).
+
+## 8. Synthesis
 
 - The core is technology independent: `python lint/synth_check.py` synthesises `ofb_core` for 1, 2 and 4 lanes with
   GHDL and fails on errors and inferred latches. RAMs are inferred by the Open Logic RAM entities.

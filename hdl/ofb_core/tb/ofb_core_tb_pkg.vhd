@@ -58,8 +58,10 @@ package ofb_core_tb_pkg is
     -- Lossy comparison: packets received with an EEP at their end and packets lost, per core and VC
     type CoreVcCount_t is array (0 to 1, 0 to CoreNumVc_c-1) of natural;
 
-    signal CoreRxEep  : CoreVcCount_t := (others => (others => 0));
-    signal CoreRxLost : CoreVcCount_t := (others => (others => 0));
+    signal CoreRxEep   : CoreVcCount_t := (others => (others => 0));
+    signal CoreRxLost  : CoreVcCount_t := (others => (others => 0));
+    -- Words received with at least one N-Char, per core and VC (throughput measurement)
+    signal CoreRxWords : CoreVcCount_t := (others => (others => 0));
     type CoreCount_t is array (0 to 1) of natural;
 
     signal CoreBcLost : CoreCount_t := (others => 0);

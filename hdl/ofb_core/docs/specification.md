@@ -34,6 +34,7 @@ This issue covers phases 2 to 4: 1 to 4 lanes (`NumLanes_g`). The VC ports carry
 | CORE-FT-01 | Two cores shall deliver every packet and broadcast message unchanged and in order, without link reset, while random single faults occur during traffic: bit errors and bursts of bit errors (up to 8 symbols) on the lines, word slips, single errors in any fault-tolerant buffer, double errors in the row crossings and, with 2 or 4 lanes, the failure and reconnection of a lane; the EDAC monitor shall report the buffer errors. | 5.7.7.1, 5.7.7.2.3, 5.7.7.3, 5.6.6.1 (system level) |
 | CORE-PL-01 | The serial loopback enables of the MIB shall be outputs per lane for the Physical adapter (`Phy_SerialNearLoopback`, `Phy_SerialFarLoopback`, LaneClk). | 5.4.1h, 5.4.2.2 |
 | CORE-PL-02 | The bit synchronisation status of the Physical adapter per lane (`Phy_BitSync`, LaneClk, not synchronised when left open) shall be passed to the MIB. | 5.4.2e |
+| CORE-PF-01 | With packets of up to 1024 bytes on all VCs, two cores shall transfer at least 90 % of the payload capacity of the lanes (32 bits per LaneClk cycle and lane) in one direction and at least 85 % in each direction when both ends send. | none (performance) |
 | CORE-SY-02 | Two cores with 2 or 4 lanes shall transfer packets without loss also when a lane fails and is reconnected during traffic, with fewer data-sending lanes than lanes, and in the Multi-Lane bypass. | 5.6, 5.7.7 (system level) |
 
 ## 3. Configuration parameters

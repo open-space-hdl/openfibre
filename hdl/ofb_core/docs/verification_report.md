@@ -6,8 +6,21 @@ Run on 2026-10-05 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_core_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 15 x 3 | 45 |
+| `ofb_core_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 16 x 3 | 48 |
 | `ofb_core_tb`, configuration `lanes1_slowcore` (TC-CORE-15 only) | 1 | 1 |
+
+Throughput and latency (TC-CORE-16, lane capacity 5 Gbit/s per lane: 32 bits per 6.4 ns; core clock 166.7 MHz, user
+clock 192.3 MHz; packets of 1 to 1024 bytes on four VCs):
+
+| Configuration | Latency, packet of one byte | A to B only | Both directions, per direction |
+| --- | --- | --- | --- |
+| lanes1 | 339 ns | 4.73 Gbit/s (94.7 %) | 4.53 / 4.52 Gbit/s (90.6 / 90.5 %) |
+| lanes2 | 362 ns | 9.43 Gbit/s (94.3 %) | 9.06 / 9.04 Gbit/s (90.6 / 90.4 %) |
+| lanes4 | 361 ns | 18.72 Gbit/s (93.6 %) | 17.95 / 18.01 Gbit/s (89.7 / 90.0 %) |
+
+The latency includes the behavioural Physical adapter (no serialisation delay) and the store-and-forward frame
+buffer of the receiver. The losses are the framing words (SDF, EDF per data frame of 64 words per lane), the
+EOP and Fill characters, SKIP, and in both directions the ACKs and FCTs of the reverse traffic.
 
 Fault injection campaign (TC-CORE-13): the regression runs seed 1; the extended campaign
 `OFB_CAMPAIGN_SEEDS="2,3,4,5" python run.py "*test_fault_campaign*"` adds seeds 2 to 5. 15 runs, 600 faults, all
