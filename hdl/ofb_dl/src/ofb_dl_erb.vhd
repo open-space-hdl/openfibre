@@ -103,7 +103,9 @@ entity ofb_dl_erb is
         EccInj_Valid     : in    std_logic := '0';
         EccInj_Double    : in    std_logic := '0';
         Ev_EccSec        : out   std_logic;
-        Ev_EccDed        : out   std_logic
+        Ev_EccDed        : out   std_logic;
+        -- Uncorrectable error in data read for sending (not found by the scrubber): link reset
+        Ev_ReadDed       : out   std_logic
     );
 end entity;
 
@@ -570,6 +572,9 @@ begin
                  (PfSec and PfValid and PfReady);
     Ev_EccDed <= (RamDed and RamRdValid) or ScrubDed or (EvDed and EvOutValid and EvOutReady) or
                  (PfDed and PfValid and PfReady);
+    -- The scrubber also reports DED in stale entries, which it does not rewrite: only reads for sending
+    -- reset the link
+    Ev_ReadDed <= (RamDed and RamRdValid) or (EvDed and EvOutValid and EvOutReady) or (PfDed and PfValid and PfReady);
 
     Pay_Data  <= PfData(32*N_c-1 downto 0);
     Pay_K     <= PfData(36*N_c-1 downto 32*N_c);

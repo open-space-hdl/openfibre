@@ -163,8 +163,10 @@ EDAC: ECC_STATUS shows the uncorrectable errors per channel and corrected errors
 ECC_COUNT read the counters of one channel. ECC_INJECT injects a single or double bit error into the next word written
 into the buffers of a channel (test of the EDAC paths). Single errors are corrected in every channel. An uncorrectable
 error (DED) in a row crossing (channels 6 and 7) becomes a link error that the error recovery repairs: the frame is
-sent again. A DED in the other channels (VC, broadcast, error recovery and frame buffers, control crossings) is
-reported, but the affected word is passed on corrupted.
+sent again. A DED in the output VC buffers, the error recovery buffer, the frame buffer or the broadcast output
+buffer resets the link (packets in progress end with EEP at the far end), a DED in an input VC buffer ends the
+packet with EEP, a DED in the broadcast input buffer discards the message. No corrupted word reaches a user; only a
+DED in the control crossings (channel 8) is reported without further action.
 
 ## 7. Synthesis
 

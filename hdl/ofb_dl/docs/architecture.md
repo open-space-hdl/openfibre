@@ -202,10 +202,13 @@ a row for a full input VC buffer is an overflow (`Ev_Overflow` per VC).
 | CheckFarEnd | INIT3LinkResetFlag = 1 | Interface Reset: ConfigReset; Link Reset or link error: NearEndReset; capability event with flag 1: LinkInit |
 | LinkInit | INIT3LinkResetFlag = 0 | Interface Reset: ConfigReset; Link Reset or link error: NearEndReset; capability event with flag 1 received while no lane was active (`Ml_FarCapabilityIdle`): NearEndReset, `Ev_FarEndLinkReset` |
 
-Reset enters ConfigReset. Link errors are the protocol error of DT-7 and the overflows of DR-5 and DR-6. The condition
+Reset enters ConfigReset. Link errors are the protocol error of DT-7, the overflows of DR-5 and DR-6 and the
+uncorrectable errors of DL-ED-01. The condition
 "all lanes not active" is evaluated by the Multi-Lane layer at the capability event and passed with it
 (`Ml_FarCapabilityIdle`): the lane becomes active a few cycles after the event, and a lane active level that crosses
 to the core clock separately can arrive before the event (found with the core testbench).
+
+Received rows reach `ofb_dl_rx_check` only in Link Initialised (DL-LR-05).
 
 ### 3.12 Quality of service: ofb_dl_mac (DT-4) and ofb_dl_qos_regs
 
@@ -248,6 +251,16 @@ SCHEDULE.request crossing report SEC and DED events of the words read (`Ecc_Core
 and take injection commands (`EccInj_Core`, `EccInj_User`). The RAM of the error recovery buffer is
 `olo_ft_ram_sdp_scrub` (`ClkFreq_g`): frames can wait long for their ACK, the scrubber corrects accumulated single
 errors in idle cycles of the read port. Its ACK / NACK FIFO and read-ahead FIFO are `olo_ft_fifo_sync`.
+
+Uncorrectable errors (DL-ED-01, DL-ED-02): error recovery cannot repair a word that is corrupted in a buffer
+before it is sent or after it was received. A DED of a read from an output VC buffer, the broadcast output buffer,
+the error recovery buffer (`Ev_ReadDed`: RAM reads for sending, event and read-ahead FIFOs; the scrubber does not
+rewrite a DED cell and reports it again on every pass, so its reports only count) or the frame buffer joins the
+link reset requests of DC-1 (`Err_LinkReset`). The link reset flushes the transmit path before the corrupted word
+completes a frame, the far end ends its packet in progress with an EEP. The frame buffer does not pass a row with a
+DED. On the user side, `ofb_dl_vc_in` replaces a beat with a DED by an EEP and Fills and discards the rest of the
+packet (`Discard`, up to the next EOP or EEP; the K flags of the corrupted beat are not reliable, so a packet whose
+EOP was in that beat is discarded with the next one), `ofb_dl_bc_in` discards a message with a DED.
 
 The units of the medium access controller (words sent, segment lengths) are rows; the bandwidth fractions are ratios
 of rows and stay correct for every number of data-sending lanes.

@@ -9,7 +9,8 @@
 -- Input VC buffer of the Data Link layer (DR-6): buffer from the core clock to the user clock that
 -- stores the received words without gaps in NumLanes_g banks, beats of NumLanes_g words to the user
 -- (a beat ends after an EOP or EEP), FCT requests for the space of the buffer (ECSS 5.7.3.2) and the
--- EEP after link reset (ECSS 5.7.2.3d).
+-- EEP after link reset (ECSS 5.7.2.3d). A beat with an uncorrectable error (DED) is replaced by an EEP
+-- and the rest of its packet is discarded.
 --
 -- Documentation: hdl/ofb_dl/docs/architecture.md (section 3.9)
 
@@ -107,6 +108,9 @@ architecture rtl of ofb_dl_vc_in is
     signal BeatValid : std_logic;
     signal BeatCnt   : natural range 0 to N_c;
     signal BeatLast  : std_logic;
+    signal BeatEnd   : std_logic; -- The beat ends with an EOP or EEP
+    signal BeatDed   : std_logic; -- A word of the beat has an uncorrectable error
+    signal Discard   : std_logic; -- Rest of a packet after a DED: words read and discarded
 
 begin
 
@@ -211,11 +215,13 @@ begin
         variable Bank_v  : Bank_t;
         variable Word_v  : Word_t;
         variable K_v     : WordK_t;
+        variable Ded_v   : boolean;
     begin
         BeatData <= (others => '1');
         BeatK    <= (others => '1');
         Avail_v  := true;
         Ended_v  := false;
+        Ded_v    := false;
         Cnt_v    := 0;
 
         for i in 0 to N_c-1 loop
@@ -230,13 +236,24 @@ begin
                 BeatData(32*i+31 downto 32*i) <= Word_v;
                 BeatK(4*i+3 downto 4*i)       <= K_v;
                 Cnt_v                         := i + 1;
+                if BankDed(Bank_v) = '1' then
+                    Ded_v := true;
+                end if;
                 if wordHasEnd(Word_v, K_v) then
                     Ended_v := true;
                 end if;
             end if;
         end loop;
 
-        BeatCnt   <= Cnt_v;
+        BeatCnt <= Cnt_v;
+        BeatEnd <= '0';
+        BeatDed <= '0';
+        if Ended_v then
+            BeatEnd <= '1';
+        end if;
+        if Ded_v then
+            BeatDed <= '1';
+        end if;
         BeatValid <= '0';
         if Ended_v or Cnt_v = N_c then
             BeatValid <= '1';
@@ -259,7 +276,7 @@ begin
         for b in 0 to N_c-1 loop
             Idx_v      := (b + N_c - RdBank) mod N_c;
             BankRdy(b) <= '0';
-            if Out_Ready = '1' and Inject = '0' and BeatValid = '1' and Idx_v < BeatCnt then
+            if (Out_Ready = '1' or Discard = '1') and Inject = '0' and BeatValid = '1' and Idx_v < BeatCnt then
                 BankRdy(b) <= '1';
             end if;
         end loop;
@@ -276,10 +293,23 @@ begin
                     Inject  <= '0';
                     LastEnd <= '1';
                 end if;
-            elsif BeatValid = '1' and Out_Ready = '1' then
+            elsif BeatValid = '1' and (Out_Ready = '1' or Discard = '1') then
                 LastEnd <= BeatLast;
-                RdBank  <= (RdBank + BeatCnt) mod N_c;
-                Cnt_v   := RdCnt + BeatCnt;
+                if Discard = '1' then
+                    -- Rest of a packet with an uncorrectable error: discarded up to its end
+                    LastEnd <= '1';
+                    if BeatEnd = '1' then
+                        Discard <= '0';
+                    end if;
+                elsif BeatDed = '1' then
+                    -- The EEP was sent instead of the beat
+                    LastEnd <= '1';
+                    if BeatEnd = '0' then
+                        Discard <= '1';
+                    end if;
+                end if;
+                RdBank <= (RdBank + BeatCnt) mod N_c;
+                Cnt_v  := RdCnt + BeatCnt;
                 if Cnt_v >= MaxFrameWords_c then
                     RdCnt   <= Cnt_v - MaxFrameWords_c;
                     BlkUser <= '1';
@@ -289,8 +319,9 @@ begin
             end if;
             -- Link reset (buffer reset seen on the user side)
             if UsrRstIn(0) = '1' then
-                RdCnt  <= 0;
-                RdBank <= 0;
+                RdCnt   <= 0;
+                RdBank  <= 0;
+                Discard <= '0';
                 if LastEnd = '0' then
                     -- One EEP, also when the reset lasts several cycles
                     Inject  <= '1';
@@ -298,6 +329,7 @@ begin
                 end if;
             end if;
             if UserRst = '1' then
+                Discard <= '0';
                 LastEnd <= '1';
                 Inject  <= '0';
                 RdCnt   <= 0;
@@ -312,6 +344,21 @@ begin
         Out_Data  <= BeatData;
         Out_K     <= BeatK;
         Out_Valid <= BeatValid;
+        if Discard = '1' then
+            Out_Valid <= '0';
+        elsif BeatDed = '1' then
+            -- Beat with an uncorrectable error: EEP followed by Fills (DL-ED-02)
+            Out_K <= (others => '1');
+
+            for i in 0 to N_c-1 loop
+                if i = 0 then
+                    Out_Data(31 downto 0) <= WordFill_c(31 downto 8) & CharEep_c;
+                else
+                    Out_Data(32*i+31 downto 32*i) <= WordFill_c;
+                end if;
+            end loop;
+
+        end if;
         if Inject = '1' then
             -- EEP followed by Fills
             Out_K     <= (others => '1');

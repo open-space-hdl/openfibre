@@ -33,7 +33,7 @@ the state of every module; a module is done when its verification report is writ
 | Item | State |
 | --- | --- |
 | Fault injection campaign at core level (TC-CORE-13): line errors, word slips, lane failures, SEC in every EDAC channel, DED in the row crossings | Done in simulation (5 seeds x 3 lane configurations, 600 faults); found the loss of held words in Not Ready (ML-DS-12), the silent DED corruption in the row crossings (CORE-ED-02) and the latency of the receive error state machine (DL-RE-01) |
-| DED containment in the Data Link buffers (VC, broadcast, error recovery and frame buffers): end the affected packet with EEP or reset the link instead of passing a corrupted word | Open (DED is reported, the word is passed on corrupted) |
+| DED containment in the Data Link buffers (VC, broadcast, error recovery and frame buffers) | Done: link reset for the transmit buffers and the frame buffer, EEP for the input VC buffers, discarded broadcast message (DL-ED-01, DL-ED-02, TC-CORE-14) |
 | Resource and timing closure on the XCVC1902 | Open (no synthesis licence on the development host) |
 
 ## Dependencies outside this repository

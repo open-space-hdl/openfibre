@@ -10,7 +10,7 @@ Run on 2026-10-05 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 | `ofb_dl_row_tb` (row level) | 17 | 17 |
 | `ofb_dl_mac_tb` (medium access controller) | 7 | 7 |
 
-Full regression of the repository: 172 of 172 tests pass (phase 5, after the fault injection campaign of the core;
+Full regression of the repository: 175 of 175 tests pass (phase 5, after the DED containment of the core;
 phase 4: rows of several words, verified in the core
 testbench with 2 and 4 lanes, plan section 3.5). VSG reports no errors and no warnings.
 
@@ -34,6 +34,7 @@ Defects found and fixed during verification:
 | The input VC buffer inserted one EEP per cycle of the buffer reset | One EEP per link reset |
 | The end-of-packet count of the output VC buffer crossed faster than the buffer level: packets were split into several data frames | Count delayed behind the level |
 | Testbench: delivery check before the generators had started; lane loss test cut the lane after the traffic had ended | Testbench timing |
+| TC-CORE-14 (core): words of the far end that arrived after a near-end link reset (an ACK of a discarded frame) caused a protocol error and a second link reset | Received words are checked only in Link Initialised (DL-LR-05) |
 | TC-CORE-13 (fault injection campaign of the core, 2 lanes): after a lane slip, an EDF and a SIF out of sequence arrived in consecutive cycles and were both checked against the old Receive Polarity Flag (the receive error state machine changed two cycles after the word). The second moved Error Negative on to Error Positive; the NACK with the other polarity started a second error recovery, and a data frame already accepted was resent with a new sequence number and delivered twice | The events of the word taken go to DR-3 without register, the next word is checked against the updated flag (DL-RE-01, TC-DL-26, mutation checked: the old latency fails TC-DL-26) |
 | Found with the MIB testbench: `olo_ft_cc_pulse` stretches every output pulse to two cycles, so the input VC buffer requested two FCTs per 64 words read (credit for more words than the buffer holds) | `ofb_cc_pulse` with an edge detector; TC-DL-20 checks the FCT count (mutation checked: 6 instead of 4 FCTs without the fix) |
 

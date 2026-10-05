@@ -40,16 +40,29 @@ package ofb_core_tb_pkg is
         BcSend   : natural;
         SchedReq : natural;               -- SCHEDULE.requests (the sequencer increments it)
         Slot     : natural range 0 to 63; -- Time-slot of the SCHEDULE.request
+        -- Lossy comparison: packets may be lost or end early with an EEP, broadcast messages may be
+        -- lost (uncorrectable errors); every word received must still be correct
+        Lossy    : boolean;
     end record;
 
     constant CoreCfgDefault_c : CoreCfg_t := (Vc       => (others => (Packets => 0, MaxLen => 64, ReadyPct => 100)),
                                              BcSend   => 0,
                                              SchedReq => 0,
-                                             Slot     => 0);
+                                             Slot     => 0,
+                                             Lossy    => false);
 
     type CoreCfgArray_t is array (0 to 1) of CoreCfg_t;
 
     signal CoreCfg : CoreCfgArray_t := (others => CoreCfgDefault_c);
+
+    -- Lossy comparison: packets received with an EEP at their end and packets lost, per core and VC
+    type CoreVcCount_t is array (0 to 1, 0 to CoreNumVc_c-1) of natural;
+
+    signal CoreRxEep  : CoreVcCount_t := (others => (others => 0));
+    signal CoreRxLost : CoreVcCount_t := (others => (others => 0));
+    type CoreCount_t is array (0 to 1) of natural;
+
+    signal CoreBcLost : CoreCount_t := (others => 0);
 
     -- Raw words for VC 0 of core A (sent before the generated packets of VC 0)
     shared variable RawQueue_v : WordQueue_t;
