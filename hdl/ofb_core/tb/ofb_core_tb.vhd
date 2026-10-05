@@ -107,6 +107,10 @@ begin
         variable Core_v   : natural;
         variable Ch_v     : natural;
         variable N_v      : natural;
+        variable W0_v     : natural;
+        variable T0_v     : time;
+        variable Rate_v   : real;
+        variable RateB_v  : real;
 
         procedure cycles (n : natural) is
         begin
@@ -635,6 +639,73 @@ begin
                 if NumLanes_g > 1 then
                     allLanes(2 ms);
                 end if;
+
+            -- TC-CORE-16: throughput and latency. Latency of a packet of one word on the idle link; payload
+            -- throughput with packets of up to 1024 bytes on all VCs, from A to B only and in both directions,
+            -- over 100 us after 20 us of warm-up, compared with the payload capacity of the lanes (32 bits per
+            -- LaneClk cycle and lane)
+            elsif run("test_throughput") then
+                enable_log_msg(ID_SEQUENCER);
+                linkUp(500 us);
+                cycles(1000);
+                -- Latency: one packet of 4 bytes on VC 0 from A to B
+                CoreCfg(0).Vc(0).MaxLen  <= 1;
+                cycles(1);
+                T0_v                     := now;
+                CoreCfg(0).Vc(0).Packets <= CoreCfg(0).Vc(0).Packets + 1;
+
+                wait until CoreRxWords(1, 0) /= 0 for 100 us;
+                log(ID_SEQUENCER, "Latency of a packet of one byte from A to B: " & to_string(now - T0_v));
+                waitDelivered(100 us);
+
+                for dir in 0 to 1 loop
+
+                    for c in 0 to 1 loop
+
+                        for vc in 0 to CoreNumVc_c-1 loop
+                            CoreCfg(c).Vc(vc).MaxLen <= 1024;
+                            if c = 0 or dir = 1 then
+                                CoreCfg(c).Vc(vc).Packets <= CoreCfg(c).Vc(vc).Packets + 40 * NumLanes_g;
+                            end if;
+                        end loop;
+
+                    end loop;
+
+                    cycles(2000);
+                    N_v  := 0;
+                    W0_v := 0;
+
+                    for vc in 0 to CoreNumVc_c-1 loop
+                        N_v  := N_v + CoreRxWords(1, vc);
+                        W0_v := W0_v + CoreRxWords(0, vc);
+                    end loop;
+
+                    T0_v    := now;
+                    cycles(10000);
+                    Rate_v  := 0.0;
+                    RateB_v := 0.0;
+
+                    for vc in 0 to CoreNumVc_c-1 loop
+                        Rate_v  := Rate_v + real(CoreRxWords(1, vc));
+                        RateB_v := RateB_v + real(CoreRxWords(0, vc));
+                    end loop;
+
+                    -- Payload bits per ns = Gbit/s; capacity 32 bits per 6.4 ns and lane = 5 Gbit/s
+                    Rate_v  := (Rate_v - real(N_v)) * 32.0 / real((now - T0_v) / 1 ns);
+                    RateB_v := (RateB_v - real(W0_v)) * 32.0 / real((now - T0_v) / 1 ns);
+                    if dir = 0 then
+                        log(ID_SEQUENCER, "A to B only: " & to_string(Rate_v, 3) & " Gbit/s, " &
+                            to_string(100.0 * Rate_v / (5.0 * real(NumLanes_g)), 1) & " % of the lane capacity");
+                        check_value(Rate_v > 0.9 * 5.0 * real(NumLanes_g), error, "Throughput from A to B");
+                    else
+                        log(ID_SEQUENCER, "Both directions: A to B " & to_string(Rate_v, 3) & " Gbit/s, B to A " &
+                            to_string(RateB_v, 3) & " Gbit/s (" & to_string(100.0 * Rate_v / (5.0 * real(NumLanes_g)), 1) &
+                            " %, " & to_string(100.0 * RateB_v / (5.0 * real(NumLanes_g)), 1) & " %)");
+                        check_value(Rate_v > 0.85 * 5.0 * real(NumLanes_g), error, "Throughput from A to B");
+                        check_value(RateB_v > 0.85 * 5.0 * real(NumLanes_g), error, "Throughput from B to A");
+                    end if;
+                    waitDelivered(5 ms);
+                end loop;
 
             -- TC-CORE-15: receive row overflow. With CoreClk slower than LaneClk (configuration
             -- lanes1_slowcore, outside CORE-CK-01) rows are lost in the crossing and DL_ERRORS bit 10 is set;
