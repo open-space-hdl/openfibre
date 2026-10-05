@@ -30,3 +30,18 @@ the transceiver exists only after synthesis), as before.
 All test cases pass. Synthesis, implementation, the timing and resource reports and the hardware test with
 SpaceFibre test equipment are open: the host has no synthesis licence for the XCVC1902. The 8A34001 clock generator
 of the board must provide 156.25 MHz on MGTREFCLK1 of quad 200 for the hardware test.
+
+Findings:
+
+| Finding | Fix |
+| --- | --- |
+| Review before the first build: the design had no CIPS; on Versal the platform management controller of the CIPS loads the device image | Block design `ofb_cips` with a default `versal_cips` created by `build.tcl`, instance in the top under `IncludeCips_g` (VCK-BD-02); RTL elaboration shows the instance |
+
+## 3. Hardware test
+
+Procedure: [hardware_test.md](hardware_test.md). Not run yet.
+
+| Test | Result | Notes |
+| --- | --- | --- |
+| Build (timing, resources) | Open | |
+| TC-VCK-HW-01 to 07 | Open | |

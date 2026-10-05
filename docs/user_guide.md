@@ -189,5 +189,6 @@ forward), so the latency grows with the frame length (up to 64 words per lane).
   `syn_encoding` to `safe`. The core does not set vendor attributes itself.
 - Clock crossings: constraints of section 4.
 
-The VCK190 reference design is built with `vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl`; resource
-figures and timing results for the XCVC1902 follow with its first implementation.
+The VCK190 reference design is built with `vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl` (with the CIPS
+block design that every Versal design needs); resource figures and timing results for the XCVC1902 follow with its
+first implementation. The hardware test procedure is `hdl/ofb_vck190/docs/hardware_test.md`.

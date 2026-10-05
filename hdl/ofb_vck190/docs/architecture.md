@@ -12,6 +12,8 @@
                                    M_Vc --> S_Vc (echo)        MgmtClk = SysClk
                                    M_Bc --> S_Bc (echo)
                                    AXI4-Lite <-- p_poll (DL_STATUS) --> Led(3)
+
+ ofb_cips_wrapper (block design ofb_cips: versal_cips, no ports; only with IncludeCips_g)
 ```
 
 ## 2. Clocks and resets
@@ -35,6 +37,11 @@ synchronisation status of the core (`Phy_BitSync`, LANE_STATUS bit 6).
   required by Open Logic; the scoped constraints of Open Logic (base, intf) are added for implementation.
 
 ## 4. Build (`tcl/build.tcl`)
+
+Every Versal design needs the CIPS IP: its platform management controller loads the device image. The script
+creates the block design `ofb_cips` with one `versal_cips` in its default configuration (no interfaces to the
+programmable logic, JTAG boot), generates its wrapper and sets `IncludeCips_g` = true, so that the top instantiates
+the wrapper (a component without ports). The simulations keep the default false and need no CIPS model.
 
 `vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl [-tclargs project | synth | impl | all]` creates the
 project in `vivado_out/ofb_vck190` (Open Logic in the library `olo`, OpenFibre in the default library, VHDL-2008),

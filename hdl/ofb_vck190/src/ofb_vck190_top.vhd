@@ -34,7 +34,8 @@ library work;
 entity ofb_vck190_top is
     generic (
         NumVc_g       : positive range 1 to 32 := 8;
-        LedPollBits_g : positive range 4 to 24 := 16 -- link state read every 2**LedPollBits_g cycles
+        LedPollBits_g : positive range 4 to 24 := 16;   -- link state read every 2**LedPollBits_g cycles
+        IncludeCips_g : boolean                := false -- CIPS block design of tcl/build.tcl (not in simulation)
     );
     port (
         -- 200 MHz LVDS system clock (DDR4 DIMM clock, bank 700)
@@ -107,7 +108,18 @@ architecture struct of ofb_vck190_top is
     signal PollCnt : unsigned(LedPollBits_g-1 downto 0) := (others => '0');
     signal LinkUp  : std_logic                          := '0';
 
+    -- Control, interfaces and processing system of the Versal device (block design ofb_cips, created by
+    -- tcl/build.tcl): every Versal design needs it, its platform management controller configures the device
+    component ofb_cips_wrapper is
+    end component;
+
 begin
+
+    g_cips : if IncludeCips_g generate
+
+        i_cips : component ofb_cips_wrapper;
+
+    end generate;
 
     -----------------------------------------------------------------------------------------------
     -- Clocks and power-on reset

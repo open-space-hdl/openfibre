@@ -16,6 +16,7 @@ four lanes and eight virtual channels on the QSFP1 cage. Received packets and br
 | VCK-EC-01 | Every received packet shall be sent back unchanged on the same virtual channel, every received broadcast message unchanged with its channel, B_TYPE and DELAYED flag. | none (test function) |
 | VCK-LD-01 | The LEDs 0 to 3 shall show transmitter ready, receiver ready, all lanes aligned and link initialised (Data Link link reset state machine in its final state, read from the MIB). | none |
 | VCK-BD-01 | A Vivado script shall create the project with the transceiver wizard instance, the sources and the constraints, and run synthesis, implementation and the device image. | none |
+| VCK-BD-02 | The design shall contain the control, interfaces and processing system (CIPS) of the Versal device, whose platform management controller configures the device (default configuration, JTAG boot); simulations run without it. | none (device boot) |
 
 ## 3. Configuration parameters
 
@@ -23,6 +24,7 @@ four lanes and eight virtual channels on the QSFP1 cage. Received packets and br
 | --- | --- | --- |
 | `NumVc_g` | 8 | Number of virtual channels |
 | `LedPollBits_g` | 16 | The link state is read from the MIB every 2^`LedPollBits_g` system clock cycles |
+| `IncludeCips_g` | false | Instance of the CIPS block design `ofb_cips` (set to true by `tcl/build.tcl`) |
 
 ## 4. Board set-up
 
