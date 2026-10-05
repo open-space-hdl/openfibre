@@ -57,7 +57,7 @@ Byte addresses, 32-bit registers. RO read only, RW read / write, W1 write one (c
 | 0x064 | ECC_SELECT | 3:0 | RW | 0 | EDAC channel of ECC_COUNT |
 | 0x068 | ECC_COUNT | 15:0, 31:16 | RO, write clears the channel | 0 | SEC count, DED count of the selected channel (saturating) |
 | 0x06C | ECC_INJECT | 3:0, 8 | W | | Error injection into the next word written in the buffers of the channel: channel, double error |
-| 0x100 + 0x20 i | LANE_CTRL | 0, 1, 2, 3, 4, 5, 6, 15:8 | RW | 0, 1, 0, 0, 0, 1, 1, 0 | LaneStart, AutoStart, LaneReset, near-end parallel loopback, far-end parallel loopback, TxEn, RxEn, Standby Reason |
+| 0x100 + 0x20 i | LANE_CTRL | 0, 1, 2, 3, 4, 5, 6, 15:8, 16, 17 | RW | 0, 1, 0, 0, 0, 1, 1, 0, 0, 0 | LaneStart, AutoStart, LaneReset, near-end parallel loopback, far-end parallel loopback, TxEn, RxEn, Standby Reason, near-end serial loopback, far-end serial loopback (Physical layer) |
 | 0x104 + 0x20 i | LANE_STATUS | 3:0, 4, 5, 15:8, 23:16 | RO | | Lane state, RX polarity, NoSignal, RXERR counter, far-end capabilities |
 | 0x108 + 0x20 i | LANE_EVENTS | 3:0 | W1C | 0 | RXERR overflow, timeout, far-end standby, far-end lost signal |
 | 0x10C + 0x20 i | LANE_REASONS | 7:0, 15:8 | RO | | Far-end Standby Reason, far-end LOST_SIGNAL reason |

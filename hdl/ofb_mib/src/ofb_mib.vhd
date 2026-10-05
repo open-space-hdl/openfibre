@@ -36,96 +36,98 @@ entity ofb_mib is
     );
     port (
         -- Management clock domain
-        Clk                   : in    std_logic;
-        Rst                   : in    std_logic;
-        S_AxiLite_ArAddr      : in    std_logic_vector(11 downto 0);
-        S_AxiLite_ArValid     : in    std_logic;
-        S_AxiLite_ArReady     : out   std_logic;
-        S_AxiLite_AwAddr      : in    std_logic_vector(11 downto 0);
-        S_AxiLite_AwValid     : in    std_logic;
-        S_AxiLite_AwReady     : out   std_logic;
-        S_AxiLite_WData       : in    std_logic_vector(31 downto 0);
-        S_AxiLite_WStrb       : in    std_logic_vector(3 downto 0);
-        S_AxiLite_WValid      : in    std_logic;
-        S_AxiLite_WReady      : out   std_logic;
-        S_AxiLite_BResp       : out   std_logic_vector(1 downto 0);
-        S_AxiLite_BValid      : out   std_logic;
-        S_AxiLite_BReady      : in    std_logic;
-        S_AxiLite_RData       : out   std_logic_vector(31 downto 0);
-        S_AxiLite_RResp       : out   std_logic_vector(1 downto 0);
-        S_AxiLite_RValid      : out   std_logic;
-        S_AxiLite_RReady      : in    std_logic;
-        Irq                   : out   std_logic;
+        Clk                    : in    std_logic;
+        Rst                    : in    std_logic;
+        S_AxiLite_ArAddr       : in    std_logic_vector(11 downto 0);
+        S_AxiLite_ArValid      : in    std_logic;
+        S_AxiLite_ArReady      : out   std_logic;
+        S_AxiLite_AwAddr       : in    std_logic_vector(11 downto 0);
+        S_AxiLite_AwValid      : in    std_logic;
+        S_AxiLite_AwReady      : out   std_logic;
+        S_AxiLite_WData        : in    std_logic_vector(31 downto 0);
+        S_AxiLite_WStrb        : in    std_logic_vector(3 downto 0);
+        S_AxiLite_WValid       : in    std_logic;
+        S_AxiLite_WReady       : out   std_logic;
+        S_AxiLite_BResp        : out   std_logic_vector(1 downto 0);
+        S_AxiLite_BValid       : out   std_logic;
+        S_AxiLite_BReady       : in    std_logic;
+        S_AxiLite_RData        : out   std_logic_vector(31 downto 0);
+        S_AxiLite_RResp        : out   std_logic_vector(1 downto 0);
+        S_AxiLite_RValid       : out   std_logic;
+        S_AxiLite_RReady       : in    std_logic;
+        Irq                    : out   std_logic;
         -- Core clock domain: Data Link layer
-        CoreClk               : in    std_logic;
-        CoreRst               : in    std_logic;
-        Dl_DataScrambled      : out   std_logic;
-        Dl_BcInterval         : out   std_logic_vector(15 downto 0);
-        Dl_LinkReset          : out   std_logic;
-        Dl_InterfaceReset     : out   std_logic;
-        Dl_LinkResetState     : in    std_logic_vector(1 downto 0);
-        Dl_RxErrState         : in    std_logic_vector(1 downto 0);
-        Dl_WordIdState        : in    std_logic_vector(2 downto 0);
-        Dl_ErbEmpty           : in    std_logic;
-        Dl_HasCredit          : in    std_logic_vector(NumVc_g-1 downto 0);
-        Dl_EvCrc16Err         : in    std_logic;
-        Dl_EvCrc8Err          : in    std_logic;
-        Dl_EvFrameErr         : in    std_logic;
-        Dl_EvSeqErr           : in    std_logic;
-        Dl_EvRetry            : in    std_logic;
-        Dl_EvProtocolError    : in    std_logic;
-        Dl_EvFarEndLinkReset  : in    std_logic;
-        Dl_EvBcDiscard        : in    std_logic;
-        Dl_EvInputOverflow    : in    std_logic_vector(NumVc_g-1 downto 0);
-        Dl_EvCreditOverflow   : in    std_logic_vector(NumVc_g-1 downto 0);
-        Dl_BwOver             : in    std_logic_vector(NumVc_g-1 downto 0);
-        Dl_BwUnder            : in    std_logic_vector(NumVc_g-1 downto 0);
-        Dl_TimeSlot           : in    std_logic_vector(5 downto 0);
-        Dl_RegWr              : out   std_logic; -- Register writes of the quality of service
-        Dl_RegAddr            : out   std_logic_vector(11 downto 0);
-        Dl_RegData            : out   std_logic_vector(31 downto 0);
-        Dl_MaxDataLanes       : out   std_logic_vector(2 downto 0);
+        CoreClk                : in    std_logic;
+        CoreRst                : in    std_logic;
+        Dl_DataScrambled       : out   std_logic;
+        Dl_BcInterval          : out   std_logic_vector(15 downto 0);
+        Dl_LinkReset           : out   std_logic;
+        Dl_InterfaceReset      : out   std_logic;
+        Dl_LinkResetState      : in    std_logic_vector(1 downto 0);
+        Dl_RxErrState          : in    std_logic_vector(1 downto 0);
+        Dl_WordIdState         : in    std_logic_vector(2 downto 0);
+        Dl_ErbEmpty            : in    std_logic;
+        Dl_HasCredit           : in    std_logic_vector(NumVc_g-1 downto 0);
+        Dl_EvCrc16Err          : in    std_logic;
+        Dl_EvCrc8Err           : in    std_logic;
+        Dl_EvFrameErr          : in    std_logic;
+        Dl_EvSeqErr            : in    std_logic;
+        Dl_EvRetry             : in    std_logic;
+        Dl_EvProtocolError     : in    std_logic;
+        Dl_EvFarEndLinkReset   : in    std_logic;
+        Dl_EvBcDiscard         : in    std_logic;
+        Dl_EvInputOverflow     : in    std_logic_vector(NumVc_g-1 downto 0);
+        Dl_EvCreditOverflow    : in    std_logic_vector(NumVc_g-1 downto 0);
+        Dl_BwOver              : in    std_logic_vector(NumVc_g-1 downto 0);
+        Dl_BwUnder             : in    std_logic_vector(NumVc_g-1 downto 0);
+        Dl_TimeSlot            : in    std_logic_vector(5 downto 0);
+        Dl_RegWr               : out   std_logic; -- Register writes of the quality of service
+        Dl_RegAddr             : out   std_logic_vector(11 downto 0);
+        Dl_RegData             : out   std_logic_vector(31 downto 0);
+        Dl_MaxDataLanes        : out   std_logic_vector(2 downto 0);
         -- Lane clock domain: Multi-Lane layer, Lane layers, Physical adapters
-        LaneClk               : in    std_logic;
-        LaneRst               : in    std_logic;
-        Lane_Start            : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Lane_AutoStart        : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Lane_Reset            : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Lane_NearLoopback     : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Lane_FarLoopback      : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Lane_StandbyReason    : out   std_logic_vector(8*NumLanes_g-1 downto 0);
-        Lane_State            : in    std_logic_vector(4*NumLanes_g-1 downto 0);
-        Lane_RxPolarity       : in    std_logic_vector(NumLanes_g-1 downto 0);
-        Lane_NoSignal         : in    std_logic_vector(NumLanes_g-1 downto 0);
-        Lane_RxErrCount       : in    std_logic_vector(8*NumLanes_g-1 downto 0);
-        Lane_FarCapability    : in    std_logic_vector(8*NumLanes_g-1 downto 0);
-        Lane_FarStandbyReason : in    std_logic_vector(8*NumLanes_g-1 downto 0);
-        Lane_FarLostReason    : in    std_logic_vector(8*NumLanes_g-1 downto 0);
-        Lane_EvRxErrOverflow  : in    std_logic_vector(NumLanes_g-1 downto 0);
-        Lane_EvTimeout        : in    std_logic_vector(NumLanes_g-1 downto 0);
-        Lane_EvFarStandby     : in    std_logic_vector(NumLanes_g-1 downto 0);
-        Lane_EvFarLostSignal  : in    std_logic_vector(NumLanes_g-1 downto 0);
-        Ml_DataSending        : in    std_logic_vector(NumLanes_g-1 downto 0);
-        Ml_DataReceiving      : in    std_logic_vector(NumLanes_g-1 downto 0);
-        Ml_AlignState         : in    std_logic_vector(1 downto 0);
-        Ml_StatBypass         : in    std_logic                                    := '0';
-        Ml_EvMisaligned       : in    std_logic                                    := '0';
-        Ml_TxEn               : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Ml_RxEn               : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Ml_MaxDataLanes       : out   std_logic_vector(2 downto 0);
-        Ml_Bypass             : out   std_logic;
+        LaneClk                : in    std_logic;
+        LaneRst                : in    std_logic;
+        Lane_Start             : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Lane_AutoStart         : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Lane_Reset             : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Lane_NearLoopback      : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Lane_FarLoopback       : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Lane_StandbyReason     : out   std_logic_vector(8*NumLanes_g-1 downto 0);
+        Phy_SerialNearLoopback : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_SerialFarLoopback  : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Lane_State             : in    std_logic_vector(4*NumLanes_g-1 downto 0);
+        Lane_RxPolarity        : in    std_logic_vector(NumLanes_g-1 downto 0);
+        Lane_NoSignal          : in    std_logic_vector(NumLanes_g-1 downto 0);
+        Lane_RxErrCount        : in    std_logic_vector(8*NumLanes_g-1 downto 0);
+        Lane_FarCapability     : in    std_logic_vector(8*NumLanes_g-1 downto 0);
+        Lane_FarStandbyReason  : in    std_logic_vector(8*NumLanes_g-1 downto 0);
+        Lane_FarLostReason     : in    std_logic_vector(8*NumLanes_g-1 downto 0);
+        Lane_EvRxErrOverflow   : in    std_logic_vector(NumLanes_g-1 downto 0);
+        Lane_EvTimeout         : in    std_logic_vector(NumLanes_g-1 downto 0);
+        Lane_EvFarStandby      : in    std_logic_vector(NumLanes_g-1 downto 0);
+        Lane_EvFarLostSignal   : in    std_logic_vector(NumLanes_g-1 downto 0);
+        Ml_DataSending         : in    std_logic_vector(NumLanes_g-1 downto 0);
+        Ml_DataReceiving       : in    std_logic_vector(NumLanes_g-1 downto 0);
+        Ml_AlignState          : in    std_logic_vector(1 downto 0);
+        Ml_StatBypass          : in    std_logic                                    := '0';
+        Ml_EvMisaligned        : in    std_logic                                    := '0';
+        Ml_TxEn                : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Ml_RxEn                : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Ml_MaxDataLanes        : out   std_logic_vector(2 downto 0);
+        Ml_Bypass              : out   std_logic;
         -- User clock domain: Network interface
-        UserClk               : in    std_logic;
-        UserRst               : in    std_logic;
-        Ni_EvFrameErr         : in    std_logic_vector(NumVc_g-1 downto 0);
+        UserClk                : in    std_logic;
+        UserRst                : in    std_logic;
+        Ni_EvFrameErr          : in    std_logic_vector(NumVc_g-1 downto 0);
         -- EDAC monitor (MG-3): SEC events in bits EccChannels_c-1:0, DED events above, in the
         -- domains of the read sides; injection commands (single, double) to the write sides
-        Ecc_Core              : in    std_logic_vector(2*EccChannels_c-1 downto 0) := (others => '0');
-        Ecc_User              : in    std_logic_vector(2*EccChannels_c-1 downto 0) := (others => '0');
-        Ecc_Lane              : in    std_logic_vector(2*EccChannels_c-1 downto 0) := (others => '0');
-        EccInj_Core           : out   std_logic_vector(2*EccChannels_c-1 downto 0);
-        EccInj_User           : out   std_logic_vector(2*EccChannels_c-1 downto 0);
-        EccInj_Lane           : out   std_logic_vector(2*EccChannels_c-1 downto 0)
+        Ecc_Core               : in    std_logic_vector(2*EccChannels_c-1 downto 0) := (others => '0');
+        Ecc_User               : in    std_logic_vector(2*EccChannels_c-1 downto 0) := (others => '0');
+        Ecc_Lane               : in    std_logic_vector(2*EccChannels_c-1 downto 0) := (others => '0');
+        EccInj_Core            : out   std_logic_vector(2*EccChannels_c-1 downto 0);
+        EccInj_User            : out   std_logic_vector(2*EccChannels_c-1 downto 0);
+        EccInj_Lane            : out   std_logic_vector(2*EccChannels_c-1 downto 0)
     );
 end entity;
 
@@ -141,7 +143,7 @@ architecture rtl of ofb_mib is
     constant CoreCfgW_c  : positive := 20;
     constant CoreStatW_c : positive := 8 + 3 * NumVc_g + 6;
     constant CoreEvW_c   : positive := 8 + 2 * NumVc_g;
-    constant LaneCfgW_c  : positive := 15;
+    constant LaneCfgW_c  : positive := 17;
     constant LaneStatW_c : positive := 38;
 
     type Cnt16Array_t is array (0 to NumLanes_g-1) of unsigned(15 downto 0);
@@ -415,7 +417,8 @@ begin
                         end if;
                         if Lane_v >= 0 and Lane_v < NumLanes_g then
                             if Reg_v = 16#00# then
-                                LaneCtrl(Lane_v) <= RbWrData(6 downto 5) & RbWrData(15 downto 8) & RbWrData(4 downto 0);
+                                LaneCtrl(Lane_v) <= RbWrData(17 downto 16) & RbWrData(6 downto 5) & RbWrData(15 downto 8) &
+                                                    RbWrData(4 downto 0);
                             elsif Reg_v = 16#08# then
                                 LaneEvents(4*Lane_v+3 downto 4*Lane_v) <= LaneEvents(4*Lane_v+3 downto 4*Lane_v) and
                                                                           not RbWrData(3 downto 0);
@@ -597,9 +600,10 @@ begin
                     if Lane_v >= 0 and Lane_v < NumLanes_g then
                         Base_v := LaneStatW_c * Lane_v;
                         if Reg_v = 16#00# then
-                            Data_v(15 downto 8) := LaneCtrl(Lane_v)(12 downto 5);
-                            Data_v(6 downto 5)  := LaneCtrl(Lane_v)(14 downto 13);
-                            Data_v(4 downto 0)  := LaneCtrl(Lane_v)(4 downto 0);
+                            Data_v(15 downto 8)  := LaneCtrl(Lane_v)(12 downto 5);
+                            Data_v(6 downto 5)   := LaneCtrl(Lane_v)(14 downto 13);
+                            Data_v(17 downto 16) := LaneCtrl(Lane_v)(16 downto 15);
+                            Data_v(4 downto 0)   := LaneCtrl(Lane_v)(4 downto 0);
                         elsif Reg_v = 16#04# then
                             Data_v(5 downto 0)   := LaneStat(Base_v + 5 downto Base_v);
                             Data_v(15 downto 8)  := LaneStat(Base_v + 13 downto Base_v + 6);
@@ -759,6 +763,8 @@ begin
         Lane_StandbyReason(8*i+7 downto 8*i)                     <= LaneCfgOut(LaneCfgW_c*i+12 downto LaneCfgW_c*i+5);
         Ml_TxEn(i)                                               <= LaneCfgOut(LaneCfgW_c*i+13);
         Ml_RxEn(i)                                               <= LaneCfgOut(LaneCfgW_c*i+14);
+        Phy_SerialNearLoopback(i)                                <= LaneCfgOut(LaneCfgW_c*i+15);
+        Phy_SerialFarLoopback(i)                                 <= LaneCfgOut(LaneCfgW_c*i+16);
 
     end generate;
 

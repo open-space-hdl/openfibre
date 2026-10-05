@@ -104,6 +104,8 @@ architecture sim of ofb_mib_tb is
     signal LaneReset : std_logic_vector(0 downto 0);
     signal NearLb    : std_logic_vector(0 downto 0);
     signal FarLb     : std_logic_vector(0 downto 0);
+    signal SerNearLb : std_logic_vector(0 downto 0);
+    signal SerFarLb  : std_logic_vector(0 downto 0);
     signal Reason    : std_logic_vector(7 downto 0);
     signal LaneStat  : std_logic_vector(37 downto 0) := (others => '0');
     signal LaneEv    : std_logic_vector(3 downto 0)  := "0000";
@@ -293,6 +295,15 @@ begin
                 check_value(std_logic_vector'(MlTxEn & MlRxEn & MlBypass), "101", error, "RxEn cleared, bypass set");
                 check_value(MlMax & DlMax, "000000", error, "Maximum written");
                 chk(16#058#, x"00000100", "ML_CTRL read back");
+                -- Serial loopbacks of the Physical layer (Table 5-36)
+                check_value(std_logic_vector'(SerNearLb(0) & SerFarLb(0)), "00", error, "Serial loopbacks de-asserted after reset");
+                wr(16#100#, x"00010023");
+                cycles(10);
+                check_value(std_logic_vector'(SerNearLb(0) & SerFarLb(0)), "10", error, "Near-end serial loopback");
+                chk(16#100#, x"00010023", "LANE_CTRL with near-end serial loopback");
+                wr(16#100#, x"00020023");
+                cycles(10);
+                check_value(std_logic_vector'(SerNearLb(0) & SerFarLb(0)), "01", error, "Far-end serial loopback");
                 MlStat    <= "1011";
                 MlBypStat <= '1';
                 cycles(20);
@@ -312,6 +323,8 @@ begin
                 wr(16#008#, x"00000002");
                 chk(16#058#, x"00000001", "Interface Reset restores ML_CTRL");
                 chk(16#100#, x"00000062", "Interface Reset restores TxEn and RxEn");
+                cycles(10);
+                check_value(std_logic_vector'(SerNearLb(0) & SerFarLb(0)), "00", error, "Interface Reset clears the serial loopbacks");
 
             -- TC-MG-07: EDAC monitor: events of the three domains counted per channel, DED flags,
             -- corrected-error flag, interrupt, clears; injection commands to the write domain of the
@@ -470,91 +483,93 @@ begin
             NumLanes_g => 1
         )
         port map (
-            Clk                   => Clk,
-            Rst                   => Rst,
-            S_AxiLite_ArAddr      => ArAddr,
-            S_AxiLite_ArValid     => ArValid,
-            S_AxiLite_ArReady     => ArReady,
-            S_AxiLite_AwAddr      => AwAddr,
-            S_AxiLite_AwValid     => AwValid,
-            S_AxiLite_AwReady     => AwReady,
-            S_AxiLite_WData       => WData,
-            S_AxiLite_WStrb       => WStrb,
-            S_AxiLite_WValid      => WValid,
-            S_AxiLite_WReady      => WReady,
-            S_AxiLite_BResp       => BResp,
-            S_AxiLite_BValid      => BValid,
-            S_AxiLite_BReady      => BReady,
-            S_AxiLite_RData       => RData,
-            S_AxiLite_RResp       => RResp,
-            S_AxiLite_RValid      => RValid,
-            S_AxiLite_RReady      => RReady,
-            Irq                   => Irq,
-            CoreClk               => CoreClk,
-            CoreRst               => Rst,
-            Dl_DataScrambled      => DataScrambled,
-            Dl_BcInterval         => BcInterval,
-            Dl_LinkReset          => LinkResetCmd,
-            Dl_InterfaceReset     => IfResetCmd,
-            Dl_LinkResetState     => DlStates(1 downto 0),
-            Dl_RxErrState         => DlStates(3 downto 2),
-            Dl_WordIdState        => DlStates(6 downto 4),
-            Dl_ErbEmpty           => DlStates(7),
-            Dl_HasCredit          => HasCredit,
-            Dl_EvCrc16Err         => DlEv(0),
-            Dl_EvCrc8Err          => DlEv(1),
-            Dl_EvFrameErr         => DlEv(2),
-            Dl_EvSeqErr           => DlEv(3),
-            Dl_EvRetry            => DlEv(4),
-            Dl_EvProtocolError    => DlEv(5),
-            Dl_EvFarEndLinkReset  => DlEv(6),
-            Dl_EvBcDiscard        => DlEv(7),
-            Dl_EvInputOverflow    => InOvf,
-            Dl_EvCreditOverflow   => CrOvf,
-            Dl_BwOver             => BwOver,
-            Dl_BwUnder            => BwUnder,
-            Dl_TimeSlot           => TimeSlot,
-            Dl_RegWr              => RegWr,
-            Dl_RegAddr            => RegAddr,
-            Dl_RegData            => RegData,
-            Dl_MaxDataLanes       => DlMax,
-            LaneClk               => LaneClk,
-            LaneRst               => Rst,
-            Lane_Start            => LaneStart,
-            Lane_AutoStart        => AutoStart,
-            Lane_Reset            => LaneReset,
-            Lane_NearLoopback     => NearLb,
-            Lane_FarLoopback      => FarLb,
-            Lane_StandbyReason    => Reason,
-            Lane_State            => LaneStat(3 downto 0),
-            Lane_RxPolarity       => LaneStat(4 downto 4),
-            Lane_NoSignal         => LaneStat(5 downto 5),
-            Lane_RxErrCount       => LaneStat(13 downto 6),
-            Lane_FarCapability    => LaneStat(21 downto 14),
-            Lane_FarStandbyReason => LaneStat(29 downto 22),
-            Lane_FarLostReason    => LaneStat(37 downto 30),
-            Lane_EvRxErrOverflow  => LaneEv(0 downto 0),
-            Lane_EvTimeout        => LaneEv(1 downto 1),
-            Lane_EvFarStandby     => LaneEv(2 downto 2),
-            Lane_EvFarLostSignal  => LaneEv(3 downto 3),
-            Ml_DataSending        => MlStat(0 downto 0),
-            Ml_DataReceiving      => MlStat(1 downto 1),
-            Ml_AlignState         => MlStat(3 downto 2),
-            Ml_StatBypass         => MlBypStat,
-            Ml_EvMisaligned       => MlMisEv,
-            Ml_TxEn               => MlTxEn,
-            Ml_RxEn               => MlRxEn,
-            Ml_MaxDataLanes       => MlMax,
-            Ml_Bypass             => MlBypass,
-            UserClk               => UserClk,
-            UserRst               => Rst,
-            Ni_EvFrameErr         => NiEv,
-            Ecc_Core              => EccCore,
-            Ecc_User              => EccUser,
-            Ecc_Lane              => EccLane,
-            EccInj_Core           => EccInjCore,
-            EccInj_User           => EccInjUser,
-            EccInj_Lane           => EccInjLane
+            Clk                    => Clk,
+            Rst                    => Rst,
+            S_AxiLite_ArAddr       => ArAddr,
+            S_AxiLite_ArValid      => ArValid,
+            S_AxiLite_ArReady      => ArReady,
+            S_AxiLite_AwAddr       => AwAddr,
+            S_AxiLite_AwValid      => AwValid,
+            S_AxiLite_AwReady      => AwReady,
+            S_AxiLite_WData        => WData,
+            S_AxiLite_WStrb        => WStrb,
+            S_AxiLite_WValid       => WValid,
+            S_AxiLite_WReady       => WReady,
+            S_AxiLite_BResp        => BResp,
+            S_AxiLite_BValid       => BValid,
+            S_AxiLite_BReady       => BReady,
+            S_AxiLite_RData        => RData,
+            S_AxiLite_RResp        => RResp,
+            S_AxiLite_RValid       => RValid,
+            S_AxiLite_RReady       => RReady,
+            Irq                    => Irq,
+            CoreClk                => CoreClk,
+            CoreRst                => Rst,
+            Dl_DataScrambled       => DataScrambled,
+            Dl_BcInterval          => BcInterval,
+            Dl_LinkReset           => LinkResetCmd,
+            Dl_InterfaceReset      => IfResetCmd,
+            Dl_LinkResetState      => DlStates(1 downto 0),
+            Dl_RxErrState          => DlStates(3 downto 2),
+            Dl_WordIdState         => DlStates(6 downto 4),
+            Dl_ErbEmpty            => DlStates(7),
+            Dl_HasCredit           => HasCredit,
+            Dl_EvCrc16Err          => DlEv(0),
+            Dl_EvCrc8Err           => DlEv(1),
+            Dl_EvFrameErr          => DlEv(2),
+            Dl_EvSeqErr            => DlEv(3),
+            Dl_EvRetry             => DlEv(4),
+            Dl_EvProtocolError     => DlEv(5),
+            Dl_EvFarEndLinkReset   => DlEv(6),
+            Dl_EvBcDiscard         => DlEv(7),
+            Dl_EvInputOverflow     => InOvf,
+            Dl_EvCreditOverflow    => CrOvf,
+            Dl_BwOver              => BwOver,
+            Dl_BwUnder             => BwUnder,
+            Dl_TimeSlot            => TimeSlot,
+            Dl_RegWr               => RegWr,
+            Dl_RegAddr             => RegAddr,
+            Dl_RegData             => RegData,
+            Dl_MaxDataLanes        => DlMax,
+            LaneClk                => LaneClk,
+            LaneRst                => Rst,
+            Lane_Start             => LaneStart,
+            Lane_AutoStart         => AutoStart,
+            Lane_Reset             => LaneReset,
+            Lane_NearLoopback      => NearLb,
+            Lane_FarLoopback       => FarLb,
+            Lane_StandbyReason     => Reason,
+            Phy_SerialNearLoopback => SerNearLb,
+            Phy_SerialFarLoopback  => SerFarLb,
+            Lane_State             => LaneStat(3 downto 0),
+            Lane_RxPolarity        => LaneStat(4 downto 4),
+            Lane_NoSignal          => LaneStat(5 downto 5),
+            Lane_RxErrCount        => LaneStat(13 downto 6),
+            Lane_FarCapability     => LaneStat(21 downto 14),
+            Lane_FarStandbyReason  => LaneStat(29 downto 22),
+            Lane_FarLostReason     => LaneStat(37 downto 30),
+            Lane_EvRxErrOverflow   => LaneEv(0 downto 0),
+            Lane_EvTimeout         => LaneEv(1 downto 1),
+            Lane_EvFarStandby      => LaneEv(2 downto 2),
+            Lane_EvFarLostSignal   => LaneEv(3 downto 3),
+            Ml_DataSending         => MlStat(0 downto 0),
+            Ml_DataReceiving       => MlStat(1 downto 1),
+            Ml_AlignState          => MlStat(3 downto 2),
+            Ml_StatBypass          => MlBypStat,
+            Ml_EvMisaligned        => MlMisEv,
+            Ml_TxEn                => MlTxEn,
+            Ml_RxEn                => MlRxEn,
+            Ml_MaxDataLanes        => MlMax,
+            Ml_Bypass              => MlBypass,
+            UserClk                => UserClk,
+            UserRst                => Rst,
+            Ni_EvFrameErr          => NiEv,
+            Ecc_Core               => EccCore,
+            Ecc_User               => EccUser,
+            Ecc_Lane               => EccLane,
+            EccInj_Core            => EccInjCore,
+            EccInj_User            => EccInjUser,
+            EccInj_Lane            => EccInjLane
         );
 
     -- Count the command pulses and the register writes

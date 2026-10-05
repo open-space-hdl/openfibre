@@ -33,37 +33,40 @@ entity ofb_pa_gty is
     );
     port (
         -- Free-running clock of the transceiver reset controller, asynchronous reset (high active)
-        FreeRunClk    : in    std_logic;
-        Rst           : in    std_logic;
+        FreeRunClk             : in    std_logic;
+        Rst                    : in    std_logic;
         -- Reference clock of the quad (output O of the IBUFDS_GTE5 of the reference clock pins)
-        RefClk        : in    std_logic;
+        RefClk                 : in    std_logic;
         -- Word clock of the lanes (transmit user clock of the quad) and its reset
-        LaneClk       : out   std_logic;
-        LaneRst       : out   std_logic;
+        LaneClk                : out   std_logic;
+        LaneRst                : out   std_logic;
         -- Serial lines
-        Gt_TxP        : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Gt_TxN        : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Gt_RxP        : in    std_logic_vector(NumLanes_g-1 downto 0);
-        Gt_RxN        : in    std_logic_vector(NumLanes_g-1 downto 0);
+        Gt_TxP                 : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Gt_TxN                 : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Gt_RxP                 : in    std_logic_vector(NumLanes_g-1 downto 0);
+        Gt_RxN                 : in    std_logic_vector(NumLanes_g-1 downto 0);
         -- Symbol streams (LaneClk), as the Physical adapter ports of ofb_core
-        PhyTx_Data    : in    std_logic_vector(32*NumLanes_g-1 downto 0);
-        PhyTx_K       : in    std_logic_vector(4*NumLanes_g-1 downto 0);
-        PhyRx_Data    : out   std_logic_vector(32*NumLanes_g-1 downto 0);
-        PhyRx_K       : out   std_logic_vector(4*NumLanes_g-1 downto 0);
-        PhyRx_CodeErr : out   std_logic_vector(4*NumLanes_g-1 downto 0);
-        PhyRx_DispErr : out   std_logic_vector(4*NumLanes_g-1 downto 0);
-        PhyRx_Valid   : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Phy_TxEnable  : in    std_logic_vector(NumLanes_g-1 downto 0);
-        Phy_RxEnable  : in    std_logic_vector(NumLanes_g-1 downto 0);
-        Phy_CdrEnable : in    std_logic_vector(NumLanes_g-1 downto 0);
-        Phy_RxInvert  : in    std_logic_vector(NumLanes_g-1 downto 0);
-        Phy_NoSignal  : out   std_logic_vector(NumLanes_g-1 downto 0);
+        PhyTx_Data             : in    std_logic_vector(32*NumLanes_g-1 downto 0);
+        PhyTx_K                : in    std_logic_vector(4*NumLanes_g-1 downto 0);
+        PhyRx_Data             : out   std_logic_vector(32*NumLanes_g-1 downto 0);
+        PhyRx_K                : out   std_logic_vector(4*NumLanes_g-1 downto 0);
+        PhyRx_CodeErr          : out   std_logic_vector(4*NumLanes_g-1 downto 0);
+        PhyRx_DispErr          : out   std_logic_vector(4*NumLanes_g-1 downto 0);
+        PhyRx_Valid            : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_TxEnable           : in    std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_RxEnable           : in    std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_CdrEnable          : in    std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_RxInvert           : in    std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_NoSignal           : out   std_logic_vector(NumLanes_g-1 downto 0);
+        -- Serial loopbacks (MIB, ECSS 5.4.2.2): near-end PMA and far-end PMA loopback of the channel
+        Phy_SerialNearLoopback : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+        Phy_SerialFarLoopback  : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
         -- Status (LaneClk)
-        Stat_TxReady  : out   std_logic;
-        Stat_RxReady  : out   std_logic;
-        Stat_Aligned  : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Stat_RxBufErr : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Stat_ClkCor   : out   std_logic_vector(NumLanes_g-1 downto 0)
+        Stat_TxReady           : out   std_logic;
+        Stat_RxReady           : out   std_logic;
+        Stat_Aligned           : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Stat_RxBufErr          : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Stat_ClkCor            : out   std_logic_vector(NumLanes_g-1 downto 0)
     );
 end entity;
 
@@ -102,6 +105,10 @@ architecture struct of ofb_pa_gty is
             QUAD0_RX1_usrclk                 : in    std_logic;
             QUAD0_RX2_usrclk                 : in    std_logic;
             QUAD0_RX3_usrclk                 : in    std_logic;
+            QUAD0_ch0_loopback               : in    std_logic_vector(2 downto 0);
+            QUAD0_ch1_loopback               : in    std_logic_vector(2 downto 0);
+            QUAD0_ch2_loopback               : in    std_logic_vector(2 downto 0);
+            QUAD0_ch3_loopback               : in    std_logic_vector(2 downto 0);
             INTF0_TX0_ch_txdata              : in    std_logic_vector(127 downto 0);
             INTF0_TX0_ch_txbufstatus         : out   std_logic_vector(1 downto 0);
             INTF0_TX0_ch_txresetdone         : out   std_logic_vector(0 downto 0);
@@ -250,6 +257,19 @@ architecture struct of ofb_pa_gty is
     signal RxReady : std_logic;
     signal RxSeenK : std_logic_vector(Ch_c-1 downto 0) := (others => '0');
 
+    -- Serial loopbacks: loopback mode per channel, transmit datapath reset after a change of the
+    -- far-end loopback (FreeRunClk)
+    type Loopback_t is array (0 to Ch_c-1) of std_logic_vector(2 downto 0);
+
+    constant LbNearPma_c : std_logic_vector(2 downto 0) := "010";
+    constant LbFarPma_c  : std_logic_vector(2 downto 0) := "100";
+
+    signal Loopback  : Loopback_t                              := (others => "000");
+    signal FarLbFree : std_logic_vector(NumLanes_g-1 downto 0);
+    signal FarLbLast : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+    signal TxDpCnt   : natural range 0 to 255                  := 0;
+    signal TxDpReset : std_logic                               := '0';
+
 begin
 
     -----------------------------------------------------------------------------------------------
@@ -319,6 +339,9 @@ begin
             PhyRx_Valid(c)   <= RxReady and Phy_RxEnable(c) and (RxSeenK(c) or (or RxCtrl0(c)(3 downto 0)));
             Stat_RxBufErr(c) <= RxBufStat(c)(2);
             Stat_ClkCor(c)   <= '1' when RxClkCor(c) /= "00" else '0';
+            Loopback(c)      <= LbNearPma_c when Phy_SerialNearLoopback(c) = '1' else
+                                LbFarPma_c when Phy_SerialFarLoopback(c) = '1' else
+                                "000";
         end generate;
 
         g_unused : if c >= NumLanes_g generate
@@ -343,6 +366,38 @@ begin
         SyncIn(2 + l)              <= RxElecIdle(l);
         SyncIn(2 + NumLanes_g + l) <= RxAligned(l);
     end generate;
+
+    i_farlb_sync : entity olo.olo_intf_sync
+        generic map (
+            Width_g => NumLanes_g
+        )
+        port map (
+            Clk       => FreeRunClk,
+            DataAsync => Phy_SerialFarLoopback,
+            DataSync  => FarLbFree
+        );
+
+    p_txdp_reset : process (FreeRunClk) is
+    begin
+        if rising_edge(FreeRunClk) then
+            FarLbLast <= FarLbFree;
+            if FarLbFree /= FarLbLast then
+                TxDpCnt <= 255;
+            elsif TxDpCnt /= 0 then
+                TxDpCnt <= TxDpCnt - 1;
+            end if;
+            if TxDpCnt /= 0 then
+                TxDpReset <= '1';
+            else
+                TxDpReset <= '0';
+            end if;
+            if Rst = '1' then
+                FarLbLast <= (others => '0');
+                TxDpCnt   <= 0;
+                TxDpReset <= '0';
+            end if;
+        end if;
+    end process;
 
     i_sync : entity olo.olo_intf_sync
         generic map (
@@ -384,6 +439,10 @@ begin
             QUAD0_RX1_usrclk                 => UsrClk,
             QUAD0_RX2_usrclk                 => UsrClk,
             QUAD0_RX3_usrclk                 => UsrClk,
+            QUAD0_ch0_loopback               => Loopback(0),
+            QUAD0_ch1_loopback               => Loopback(1),
+            QUAD0_ch2_loopback               => Loopback(2),
+            QUAD0_ch3_loopback               => Loopback(3),
             INTF0_TX0_ch_txdata              => TxData(0),
             INTF0_TX0_ch_txbufstatus         => open,
             INTF0_TX0_ch_txresetdone         => open,
@@ -486,7 +545,7 @@ begin
             INTF0_RX_clrb_leaf_out           => open,
             INTF0_rst_all_in                 => Rst,
             INTF0_rst_tx_pll_and_datapath_in => '0',
-            INTF0_rst_tx_datapath_in         => '0',
+            INTF0_rst_tx_datapath_in         => TxDpReset,
             INTF0_rst_tx_done_out            => TxDone,
             INTF0_rst_rx_pll_and_datapath_in => '0',
             INTF0_rst_rx_datapath_in         => '0',

@@ -128,6 +128,7 @@ IRQ_MASK is set.
 | `Phy_CdrEnable` | out | Clock and data recovery enable |
 | `Phy_RxInvert` | out | Invert the receive polarity (crossed pair detected) |
 | `Phy_NoSignal` | in | No signal on the line, synchronous to `LaneClk` (the adapter synchronises it) |
+| `Phy_SerialNearLoopback`, `Phy_SerialFarLoopback` | out | Near-end and far-end serial loopback (LANE_CTRL bits 16 and 17) |
 
 The adapter aligns the receive symbols to 10-bit symbol boundaries, decodes them, and passes them in `LaneClk`
 (receive clock correction with the SKIP words that the Lane layer sends, ECSS 5.5.3). The transmit side takes one word
@@ -143,6 +144,8 @@ per `LaneClk` cycle without gaps. For the AMD Versal GTY, `ofb_pa_gty` connects 
    - Multi-Lane: ML_CTRL (maximum number of data-sending lanes, bypass); per lane LANE_CTRL TxEn and RxEn (bits 5, 6,
      set after reset) for asymmetric links and unidirectional lanes.
    - IRQ_MASK.
+   - Test modes per lane in LANE_CTRL: near-end and far-end parallel loopback (bits 3, 4, Lane layer), near-end and
+     far-end serial loopback (bits 16, 17, Physical adapter).
 3. Start the link: LANE_CTRL of every lane with LaneStart (bit 0) at one end, for example 0x63 (LaneStart, AutoStart,
    TxEn, RxEn). An end with AutoStart only (the reset value 0x62) starts when the far end sends.
 4. Wait for the link: LANE_STATUS bits 3:0 = 7 (Active) for the lanes, ML_STATUS bits 9:8 = 2 (Both-Ends Ready) with

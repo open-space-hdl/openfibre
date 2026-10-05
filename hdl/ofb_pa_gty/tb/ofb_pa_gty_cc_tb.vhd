@@ -6,10 +6,11 @@
 ---------------------------------------------------------------------------------------------------
 -- Description
 ---------------------------------------------------------------------------------------------------
--- Clock correction testbench of the Physical adapter PA-1 with the transceiver model: two adapters
--- A and B with their serial lines crossed, the reference clock of B 1000 ppm slower than that of A.
--- Every lane sends counting data words, IDLE words and a SKIP word every 16 words; the receive
--- elastic buffers insert SKIP words at A and remove SKIP words at B, the data words arrive in order.
+-- Testbench of two Physical adapters PA-1 with the transceiver model, serial lines crossed. Every
+-- lane sends counting data words, IDLE words and a SKIP word every 16 words, which must arrive in
+-- order. With the reference clock of B slower than that of A (RefPpmB_g), the receive elastic
+-- buffers insert SKIP words at A and remove SKIP words at B (clock correction). With FarLoopback_g,
+-- B then enables the far-end serial loopback of every lane and A receives its own words in order.
 --
 -- Documentation: hdl/ofb_pa_gty/docs/verification_plan.md
 
@@ -27,6 +28,10 @@ library std;
 -- Entity
 ---------------------------------------------------------------------------------------------------
 entity ofb_pa_gty_cc_tb is
+    generic (
+        RefPpmB_g     : natural := 1000;  -- reference clock of B slower by this many ppm
+        FarLoopback_g : boolean := false  -- second phase: far-end serial loopback at B
+    );
 end entity;
 
 ---------------------------------------------------------------------------------------------------
@@ -37,7 +42,7 @@ architecture sim of ofb_pa_gty_cc_tb is
     constant Lanes_c      : positive := 4;
     constant FreePeriod_c : time     := 10 ns;
     constant Words_c      : positive := 3000;  -- data words checked per lane and end
-    constant ClkCors_c    : positive := 4;     -- clock corrections expected per end
+    constant ClkCors_c    : natural  := 4 * boolean'pos(RefPpmB_g > 0); -- clock corrections expected per end
     constant Timeout_c    : time     := 300 us;
 
     -- SpaceFibre characters
@@ -56,18 +61,20 @@ architecture sim of ofb_pa_gty_cc_tb is
     type Nat2_t is array (0 to 1) of natural;
     type Time2_t is array (0 to 1) of time;
 
-    constant RefHalf_c : Time2_t := (3200 ps, 3203200 fs); -- B 1000 ppm slower
+    -- Half periods of the reference clocks: B slower by RefPpmB_g ppm (rounded to the 1 ps resolution of the
+    -- simulator: 1000 ppm give 3 ps, 937.5 ppm)
+    constant RefHalf_c : Time2_t := (3200 ps, 3200 ps + RefPpmB_g * 3200 ps / 1000000);
 
-    signal RefClk     : Bit2_t    := (others => '0');
-    signal FreeRunClk : std_logic := '0';
-    signal Rst        : std_logic := '1';
+    signal RefClk     : Bit2_t                               := (others => '0');
+    signal FreeRunClk : std_logic                            := '0';
+    signal Rst        : std_logic                            := '1';
     signal LaneClk    : Bit2_t;
     signal TxReady    : Bit2_t;
     signal RxReady    : Bit2_t;
     signal TxP        : Lanes2_t;
     signal TxN        : Lanes2_t;
-    signal TxData     : Data2_t   := (others => (others => '0'));
-    signal TxK        : K2_t      := (others => (others => '0'));
+    signal TxData     : Data2_t                              := (others => (others => '0'));
+    signal TxK        : K2_t                                 := (others => (others => '0'));
     signal RxData     : Data2_t;
     signal RxK        : K2_t;
     signal RxCodeErr  : K2_t;
@@ -76,6 +83,9 @@ architecture sim of ofb_pa_gty_cc_tb is
     signal Aligned    : Lanes2_t;
     signal RxBufErr   : Lanes2_t;
     signal ClkCor     : Lanes2_t;
+    signal FarLb      : std_logic_vector(Lanes_c-1 downto 0) := (others => '0');
+    signal FarLbOf    : Lanes2_t;
+    signal CheckEn    : Bit2_t                               := (others => '1');
 
     signal Checked   : Cnt2_t := (others => (others => 0));
     signal Errors    : Cnt2_t := (others => (others => 0));
@@ -83,6 +93,9 @@ architecture sim of ofb_pa_gty_cc_tb is
     signal BufErrCnt : Nat2_t := (others => 0);
 
 begin
+
+    FarLbOf(0) <= (others => '0');
+    FarLbOf(1) <= FarLb;
 
     RefClk(0)  <= not RefClk(0) after RefHalf_c(0);
     RefClk(1)  <= not RefClk(1) after RefHalf_c(1);
@@ -94,6 +107,8 @@ begin
     p_main : process is
         variable Done_v : boolean;
         variable Fail_v : boolean := false;
+        variable Base_v : Cnt2_t;
+        variable Err_v  : Cnt2_t;
     begin
         Rst <= '1';
         wait for 200 ns;
@@ -138,6 +153,43 @@ begin
             end if;
         end loop;
 
+        -- Far-end serial loopback at B: A receives its own words
+        if not FarLoopback_g then
+            if not Fail_v then
+                report "Simulation done at " & time'image(now);
+            end if;
+            finish;
+        end if;
+        CheckEn <= (others => '0');
+        FarLb   <= (others => '1');
+        wait for 30 us;
+        Base_v  := Checked;
+        Err_v   := Errors;
+        CheckEn <= ('1', '0');
+
+        loop
+            wait for 2 us;
+            Done_v := true;
+
+            for l in 0 to Lanes_c-1 loop
+                if Checked(0, l) < Base_v(0, l) + Words_c then
+                    Done_v := false;
+                end if;
+            end loop;
+
+            exit when Done_v or now > Timeout_c + 200 us;
+        end loop;
+
+        for l in 0 to Lanes_c-1 loop
+            report "End 0 lane " & integer'image(l) & " with far-end serial loopback at B: " &
+                   integer'image(Checked(0, l) - Base_v(0, l)) & " data words checked, " &
+                   integer'image(Errors(0, l) - Err_v(0, l)) & " errors";
+            if Checked(0, l) < Base_v(0, l) + Words_c or Errors(0, l) /= Err_v(0, l) then
+                report "FAIL: far-end serial loopback" severity error;
+                Fail_v := true;
+            end if;
+        end loop;
+
         if not Fail_v then
             report "Simulation done at " & time'image(now);
         end if;
@@ -154,32 +206,33 @@ begin
                 NumLanes_g => Lanes_c
             )
             port map (
-                FreeRunClk    => FreeRunClk,
-                Rst           => Rst,
-                RefClk        => RefClk(e),
-                LaneClk       => LaneClk(e),
-                LaneRst       => open,
-                Gt_TxP        => TxP(e),
-                Gt_TxN        => TxN(e),
-                Gt_RxP        => TxP(1 - e),
-                Gt_RxN        => TxN(1 - e),
-                PhyTx_Data    => TxData(e),
-                PhyTx_K       => TxK(e),
-                PhyRx_Data    => RxData(e),
-                PhyRx_K       => RxK(e),
-                PhyRx_CodeErr => RxCodeErr(e),
-                PhyRx_DispErr => RxDispErr(e),
-                PhyRx_Valid   => RxValid(e),
-                Phy_TxEnable  => (others => '1'),
-                Phy_RxEnable  => (others => '1'),
-                Phy_CdrEnable => (others => '1'),
-                Phy_RxInvert  => (others => '0'),
-                Phy_NoSignal  => open,
-                Stat_TxReady  => TxReady(e),
-                Stat_RxReady  => RxReady(e),
-                Stat_Aligned  => Aligned(e),
-                Stat_RxBufErr => RxBufErr(e),
-                Stat_ClkCor   => ClkCor(e)
+                FreeRunClk            => FreeRunClk,
+                Rst                   => Rst,
+                RefClk                => RefClk(e),
+                LaneClk               => LaneClk(e),
+                LaneRst               => open,
+                Gt_TxP                => TxP(e),
+                Gt_TxN                => TxN(e),
+                Gt_RxP                => TxP(1 - e),
+                Gt_RxN                => TxN(1 - e),
+                PhyTx_Data            => TxData(e),
+                PhyTx_K               => TxK(e),
+                PhyRx_Data            => RxData(e),
+                PhyRx_K               => RxK(e),
+                PhyRx_CodeErr         => RxCodeErr(e),
+                PhyRx_DispErr         => RxDispErr(e),
+                PhyRx_Valid           => RxValid(e),
+                Phy_TxEnable          => (others => '1'),
+                Phy_RxEnable          => (others => '1'),
+                Phy_CdrEnable         => (others => '1'),
+                Phy_RxInvert          => (others => '0'),
+                Phy_NoSignal          => open,
+                Stat_TxReady          => TxReady(e),
+                Stat_RxReady          => RxReady(e),
+                Stat_Aligned          => Aligned(e),
+                Stat_RxBufErr         => RxBufErr(e),
+                Stat_ClkCor           => ClkCor(e),
+                Phy_SerialFarLoopback => FarLbOf(e)
             );
 
         -------------------------------------------------------------------------------------------
@@ -241,7 +294,9 @@ begin
                 if rising_edge(LaneClk(e)) then
                     Word_v := RxData(e)(32*l+31 downto 32*l);
                     K_v    := RxK(e)(4*l+3 downto 4*l);
-                    if RxValid(e)(l) = '1' and Aligned(e)(l) = '1' then
+                    if CheckEn(e) = '0' then
+                        Last_v := -1;
+                    elsif RxValid(e)(l) = '1' and Aligned(e)(l) = '1' then
                         if RxCodeErr(e)(4*l+3 downto 4*l) /= "0000" or RxDispErr(e)(4*l+3 downto 4*l) /= "0000" then
                             if Last_v >= 0 then
                                 Errors(e, l) <= Errors(e, l) + 1;

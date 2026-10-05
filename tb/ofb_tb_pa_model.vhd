@@ -53,6 +53,8 @@ entity ofb_tb_pa_model is
         A_Rx_DispErr : out   WordK_t;
         A_Rx_Valid   : out   std_logic;
         A_NoSignal   : out   std_logic;
+        A_NearSerLb  : in    std_logic := '0';
+        A_FarSerLb   : in    std_logic := '0';
         -- End B
         B_Tx_Data    : in    Word_t;
         B_Tx_K       : in    WordK_t;
@@ -65,7 +67,9 @@ entity ofb_tb_pa_model is
         B_Rx_CodeErr : out   WordK_t;
         B_Rx_DispErr : out   WordK_t;
         B_Rx_Valid   : out   std_logic;
-        B_NoSignal   : out   std_logic
+        B_NoSignal   : out   std_logic;
+        B_NearSerLb  : in    std_logic := '0';
+        B_FarSerLb   : in    std_logic := '0'
     );
 end entity;
 
@@ -201,7 +205,25 @@ architecture sim of ofb_tb_pa_model is
         no_signal <= Rx_v.NoSignal;
     end procedure;
 
+    -- Transmitted signals arriving at the receivers, with the serial loopbacks
+    signal AtoB_Data : Word_t;
+    signal AtoB_K    : WordK_t;
+    signal AtoB_En   : std_logic;
+    signal BtoA_Data : Word_t;
+    signal BtoA_K    : WordK_t;
+    signal BtoA_En   : std_logic;
+
 begin
+
+    -- Receiver of B: own transmitter in near-end loopback at B or far-end loopback at A, else A
+    AtoB_Data <= B_Tx_Data when B_NearSerLb = '1' or A_FarSerLb = '1' else A_Tx_Data;
+    AtoB_K    <= B_Tx_K when B_NearSerLb = '1' or A_FarSerLb = '1' else A_Tx_K;
+    AtoB_En   <= B_TxEnable when B_NearSerLb = '1' or A_FarSerLb = '1' else A_TxEnable;
+
+    -- Receiver of A: own transmitter in near-end loopback at A or far-end loopback at B, else B
+    BtoA_Data <= A_Tx_Data when A_NearSerLb = '1' or B_FarSerLb = '1' else B_Tx_Data;
+    BtoA_K    <= A_Tx_K when A_NearSerLb = '1' or B_FarSerLb = '1' else B_Tx_K;
+    BtoA_En   <= A_TxEnable when A_NearSerLb = '1' or B_FarSerLb = '1' else B_TxEnable;
 
     p_a_to_b : process (Clk) is
         variable EncRd_v   : std_logic := '0';
@@ -212,7 +234,7 @@ begin
         variable Dly_v     : Delay_t   := (others => RxIdle_c);
     begin
         if rising_edge(Clk) then
-            direction(A_Tx_Data, A_Tx_K, A_TxEnable, B_RxEnable, B_CdrEnable, B_RxInvert,
+            direction(AtoB_Data, AtoB_K, AtoB_En, B_RxEnable, B_CdrEnable, B_RxInvert,
                       PaCtrl(Instance_g).AtoB, EncRd_v, DecRd_v, Flips_v, Buf_v, Present_v, Dly_v,
                       B_Rx_Data, B_Rx_K, B_Rx_CodeErr, B_Rx_DispErr, B_Rx_Valid, B_NoSignal);
         end if;
@@ -227,7 +249,7 @@ begin
         variable Dly_v     : Delay_t   := (others => RxIdle_c);
     begin
         if rising_edge(Clk) then
-            direction(B_Tx_Data, B_Tx_K, B_TxEnable, A_RxEnable, A_CdrEnable, A_RxInvert,
+            direction(BtoA_Data, BtoA_K, BtoA_En, A_RxEnable, A_CdrEnable, A_RxInvert,
                       PaCtrl(Instance_g).BtoA, EncRd_v, DecRd_v, Flips_v, Buf_v, Present_v, Dly_v,
                       A_Rx_Data, A_Rx_K, A_Rx_CodeErr, A_Rx_DispErr, A_Rx_Valid, A_NoSignal);
         end if;

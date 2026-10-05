@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------------------------------
 """Simulations with the AMD transceiver model (Physical adapter PA-1, VCK190 reference design).
 
-Usage: python tools/run_xsim.py [--clean] [testbench ...]
+Usage: python tools/run_xsim.py [--clean] [test run or testbench ...]
 
 Creates the transceiver wizard instance ofb_gtw with Vivado (hdl/ofb_pa_gty/tcl/ofb_gtw.tcl) and exports its
 simulation sources (once, in vivado_out/ofb_pa_gty), compiles them, Open Logic and the OpenFibre sources with the AMD
@@ -30,8 +30,14 @@ VIVADO = Path(os.environ.get("VIVADO_PATH", "D:/AMD/2025.2/Vivado"))
 PART = "xcvc1902-vsva2197-2MP-e-S"
 REFCLK_MHZ = "156.25"
 
-# Testbench entities (hdl/<module>/tb/<name>.vhd)
-TESTBENCHES = ("ofb_pa_gty_tb", "ofb_pa_gty_cc_tb", "ofb_pa_gty_core_tb", "ofb_vck190_tb")
+# Test runs: name -> (testbench entity in hdl/<module>/tb/<entity>.vhd, generics of the entity)
+TESTBENCHES = {
+    "ofb_pa_gty_tb": ("ofb_pa_gty_tb", {}),
+    "ofb_pa_gty_cc_tb.cc": ("ofb_pa_gty_cc_tb", {"RefPpmB_g": "1000"}),
+    "ofb_pa_gty_cc_tb.far": ("ofb_pa_gty_cc_tb", {"RefPpmB_g": "0", "FarLoopback_g": "true"}),
+    "ofb_pa_gty_core_tb": ("ofb_pa_gty_core_tb", {}),
+    "ofb_vck190_tb": ("ofb_vck190_tb", {}),
+}
 
 # Open Logic areas compiled into the library olo
 OLO_AREAS = ("base", "axi", "intf", "ft")
@@ -56,7 +62,8 @@ def run(cmd, cwd, log):
 
 def generate_ip():
     export = OUT / "export" / "ofb_gtw" / "xsim"
-    if (export / "vlog.prj").exists():
+    prj = export / "vlog.prj"
+    if prj.exists() and prj.stat().st_size > 0:
         return export
     OUT.mkdir(parents=True, exist_ok=True)
     script = OUT / "generate.tcl"
@@ -69,6 +76,15 @@ def generate_ip():
         f"-directory {(OUT / 'export').as_posix()} -force\n",
         encoding="utf-8")
     run([tool("vivado"), "-mode", "batch", "-nojournal", "-nolog", "-source", str(script)], OUT, "generate.log")
+    if not prj.exists() or prj.stat().st_size == 0:
+        # export_simulation sometimes prints the file list to stdout instead of writing vlog.prj: recover it from
+        # the log (from the first "verilog" line to "nosort")
+        lines = (OUT / "generate.log").read_text(encoding="utf-8", errors="replace").splitlines()
+        start = next((i for i, line in enumerate(lines) if line.startswith("verilog ")), None)
+        end = next((i for i, line in enumerate(lines) if line.strip() == "nosort"), None)
+        if start is None or end is None:
+            raise SystemExit(f"{prj} is empty and the file list is not in the log")
+        prj.write_text("\n".join(lines[start:end + 1]) + "\n", encoding="utf-8")
     return export
 
 
@@ -122,13 +138,13 @@ def compile_vhdl(export, lib, files, log):
     run([tool("xvhdl"), "--2008", "--relax", "-work", lib] + files, export, log)
 
 
-def compile_all(export, tbs):
+def compile_all(export, entities):
     if not (export / ".ip_compiled").exists():
         run([tool("xvlog"), "--incr", "--relax", "-prj", "vlog.prj"], export, "compile_ip.log")
         compile_vhdl(export, "olo", olo_files(), "compile_olo.log")
         (export / ".ip_compiled").touch()
     files = module_files()
-    for tb in tbs:
+    for tb in sorted(set(entities)):
         found = sorted(ROOT.glob(f"hdl/*/tb/{tb}.vhd"))
         if not found:
             raise SystemExit(f"testbench {tb} not found")
@@ -136,13 +152,21 @@ def compile_all(export, tbs):
     compile_vhdl(export, "xil_defaultlib", dependency_order(files), "compile_ofb.log")
 
 
-def simulate(export, tb):
+def simulate(export, name):
+    entity, generics = TESTBENCHES[name]
+    tb = name.replace(".", "_")
     libs = []
     for lib in ("xil_defaultlib", "olo", "gt_quad_base_v1_1_20", "gtwiz_versal_v1_0_5", "unisims_ver", "unisim",
                 "unimacro_ver", "secureip", "xpm"):
         libs += ["-L", lib]
-    run([tool("xelab"), "--relax", "--mt", "4"] + libs + ["--snapshot", tb, f"xil_defaultlib.{tb}",
-                                                          "xil_defaultlib.glbl"], export, f"elaborate_{tb}.log")
+    gens = []
+    for k, v in generics.items():
+        gens += ["--generic_top", f"{k}={v}"]
+    # Options in a file: the batch wrapper of xelab splits arguments at "="
+    opts = ["--relax", "--mt", "4"] + libs + gens
+    opts += ["--snapshot", tb, f"xil_defaultlib.{entity}", "xil_defaultlib.glbl"]
+    (export / f"elaborate_{tb}.opt").write_text(" ".join(opts) + "\n", encoding="utf-8")
+    run([tool("xelab"), "-f", f"elaborate_{tb}.opt"], export, f"elaborate_{tb}.log")
     start = time.time()
     subprocess.run([tool("xsim"), tb, "-R", "-log", f"simulate_{tb}.log"], cwd=export, stdout=subprocess.DEVNULL,
                    stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
@@ -151,7 +175,7 @@ def simulate(export, tb):
     for line in log.splitlines():
         if re.search(r"Note:|Warning:|Error:|Failure:|FAIL|Simulation done", line):
             print("  " + line.strip(), flush=True)
-    print(f"{'fail' if failed else 'pass'} {tb} ({time.time() - start:.0f} s)", flush=True)
+    print(f"{'fail' if failed else 'pass'} {name} ({time.time() - start:.0f} s)", flush=True)
     return not failed
 
 
@@ -160,10 +184,12 @@ def main():
     if "--clean" in sys.argv and OUT.exists():
         # Files copied from the Vivado installation (glbl.v) are read-only
         shutil.rmtree(OUT, onexc=lambda func, path, exc: (os.chmod(path, stat.S_IWRITE), func(path)))
-    tbs = args or list(TESTBENCHES)
+    names = [n for n in TESTBENCHES if not args or any(n == a or n.startswith(a + ".") for a in args)]
+    if not names:
+        raise SystemExit(f"no test run matches {args}")
     export = generate_ip()
-    compile_all(export, tbs)
-    results = [simulate(export, tb) for tb in tbs]
+    compile_all(export, [TESTBENCHES[n][0] for n in names])
+    results = [simulate(export, n) for n in names]
     print(f"{sum(results)} of {len(results)} passed", flush=True)
     sys.exit(0 if all(results) else 1)
 

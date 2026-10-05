@@ -406,6 +406,45 @@ begin
                 rd(0, RegDlErrors_c, Data_v);
                 check_value(Data_v(9), '1', error, "Framing error flag at A");
 
+            -- TC-CORE-11, TC-CORE-12: serial loopbacks of the Physical layer (B disabled): near-end at A
+            -- (own transmitter to own receiver), far-end at B (B returns the signal of A); the lanes and
+            -- the link of A initialise with themselves and a packet of A comes back to A
+            elsif run("test_serial_loopback_near") or run("test_serial_loopback_far") then
+
+                for l in 0 to NumLanes_g-1 loop
+                    if running_test_case = "test_serial_loopback_far" then
+                        wr(1, RegLaneCtrl_c + 16#20# * l, x"00020060");
+                        wr(0, RegLaneCtrl_c + 16#20# * l, x"00000063");
+                    else
+                        wr(1, RegLaneCtrl_c + 16#20# * l, x"00000060");
+                        wr(0, RegLaneCtrl_c + 16#20# * l, x"00010063");
+                    end if;
+                end loop;
+
+                for i in 0 to 500 loop
+                    rd(0, RegDlStatus_c, Data_v);
+                    exit when Data_v(1 downto 0) = "11" and Data_v(8) = '1';
+                    cycles(200);
+                end loop;
+
+                check_value(Data_v(1 downto 0), "11", error, "Link of A initialised with itself");
+
+                for l in 0 to NumLanes_g-1 loop
+                    rd(0, RegLaneStat_c + 16#20# * l, Data_v);
+                    check_value(Data_v(3 downto 0), x"7", error, "Lane " & to_string(l) & " of A active");
+                    rd(1, RegLaneStat_c + 16#20# * l, Data_v);
+                    check_value(Data_v(3 downto 0) /= x"7", error, "Lane " & to_string(l) & " of B not active");
+                end loop;
+
+                -- A packet on VC 0 of A comes back to VC 0 of A
+                RawQueue_v.push('0' & "0000" & x"A1A2A3A4");
+                RawQueue_v.push('0' & "1000" & CharEop_c & x"B1B2B3");
+                CoreSb_v.add_expected(1, "0000" & x"A1A2A3A4");
+                CoreSb_v.add_expected(1, "1000" & CharEop_c & x"B1B2B3");
+                waitDelivered(1 ms);
+                rd(0, RegDlErrors_c, Data_v);
+                check_value(Data_v, x"00000000", error, "No error at A");
+
             end if;
 
         end loop;

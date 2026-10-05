@@ -29,6 +29,7 @@ This issue covers phases 2 to 4: 1 to 4 lanes (`NumLanes_g`). The VC ports carry
 | CORE-SY-01 | Two cores connected through their Physical adapters shall initialise the link when started through the MIB, transfer packets and broadcast messages without loss, recover from bit errors and reset both ends on a Link Reset command. | 5.5 to 5.9 (system level) |
 | CORE-ML-01 | With several lanes, all Lane layers shall send SKIP on the SKIP request of the Multi-Lane layer; the Multi-Lane management parameters (TxEn, RxEn, maximum number of data-sending lanes, bypass) shall reach the Multi-Lane layer and the Data Link layer from the MIB, and the Multi-Lane status (data-sending and data-receiving lanes, alignment state, bypass, Misaligned events) the MIB. | 5.6.1p, q, 5.6.4.5a, Tables 5-36, 5-37 |
 | CORE-ED-01 | The SEC and DED events of all fault-tolerant buffers shall reach the EDAC monitor of the MIB, and errors shall be injectable into every channel through the MIB. | none (fault tolerance, MG-3) |
+| CORE-PL-01 | The serial loopback enables of the MIB shall be outputs per lane for the Physical adapter (`Phy_SerialNearLoopback`, `Phy_SerialFarLoopback`, LaneClk). | 5.4.1h, 5.4.2.2 |
 | CORE-SY-02 | Two cores with 2 or 4 lanes shall transfer packets without loss also when a lane fails and is reconnected during traffic, with fewer data-sending lanes than lanes, and in the Multi-Lane bypass. | 5.6, 5.7.7 (system level) |
 
 ## 3. Configuration parameters

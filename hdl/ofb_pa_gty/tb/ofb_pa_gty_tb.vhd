@@ -9,6 +9,8 @@
 -- Testbench of the Physical adapter PA-1 with the transceiver model: the serial lines of the four
 -- lanes are looped back; every lane sends a stream of comma words, SKIP words and counting data
 -- words, which must be received in order, with K flags and without code or disparity errors.
+-- Then the external loopback is removed and the near-end serial loopback of every lane enabled; the
+-- words must again be received in order.
 --
 -- Documentation: hdl/ofb_pa_gty/docs/verification_plan.md
 
@@ -69,6 +71,12 @@ architecture sim of ofb_pa_gty_tb is
     signal Aligned    : std_logic_vector(Lanes_c-1 downto 0);
     signal RxBufErr   : std_logic_vector(Lanes_c-1 downto 0);
 
+    signal ExtLoop : boolean                              := true;
+    signal NearLb  : std_logic_vector(Lanes_c-1 downto 0) := (others => '0');
+    signal CheckEn : std_logic                            := '1';
+    signal RxLineP : std_logic_vector(Lanes_c-1 downto 0);
+    signal RxLineN : std_logic_vector(Lanes_c-1 downto 0);
+
     signal Checked : CntArray_t := (others => 0);
     signal Errors  : CntArray_t := (others => 0);
 
@@ -82,6 +90,7 @@ begin
     -----------------------------------------------------------------------------------------------
     p_main : process is
         variable Done_v : boolean;
+        variable Base_v : CntArray_t;
     begin
         Rst <= '1';
         wait for 200 ns;
@@ -116,9 +125,46 @@ begin
                 severity error;
         end loop;
 
+        -- Near-end serial loopback: the external loopback is removed
+        CheckEn <= '0';
+        ExtLoop <= false;
+        NearLb  <= (others => '1');
+        wait for 20 us;
+        Base_v  := Checked;
+        CheckEn <= '1';
+
+        loop
+            wait for 1 us;
+            Done_v := true;
+
+            for l in 0 to Lanes_c-1 loop
+                if Checked(l) < Base_v(l) + Words_c then
+                    Done_v := false;
+                end if;
+            end loop;
+
+            exit when Done_v or now > Timeout_c;
+        end loop;
+
+        for l in 0 to Lanes_c-1 loop
+            report "Lane " & integer'image(l) & " in near-end serial loopback: " &
+                   integer'image(Checked(l) - Base_v(l)) & " data words checked, " & integer'image(Errors(l)) &
+                   " errors";
+            assert Checked(l) >= Base_v(l) + Words_c
+                report "FAIL: lane " & integer'image(l) & " too few words in near-end serial loopback"
+                severity error;
+            assert Errors(l) = 0
+                report "FAIL: lane " & integer'image(l) & " errors in near-end serial loopback"
+                severity error;
+        end loop;
+
         report "Simulation done at " & time'image(now);
         finish;
     end process;
+
+    -- External loopback of the serial lines (a disconnected line is static)
+    RxLineP <= TxP when ExtLoop else (others => '0');
+    RxLineN <= TxN when ExtLoop else (others => '1');
 
     -----------------------------------------------------------------------------------------------
     -- Transmitters: per lane IDLE words, a SKIP word every 64 words, counting data words
@@ -161,7 +207,9 @@ begin
             if rising_edge(LaneClk) then
                 Word_v := RxData(32*l+31 downto 32*l);
                 K_v    := RxK(4*l+3 downto 4*l);
-                if RxValid(l) = '1' and Aligned(l) = '1' then
+                if CheckEn = '0' then
+                    Last_v := -1;
+                elsif RxValid(l) = '1' and Aligned(l) = '1' then
                     if RxCodeErr(4*l+3 downto 4*l) /= "0000" or RxDispErr(4*l+3 downto 4*l) /= "0000" then
                         if Last_v >= 0 then
                             Errors(l) <= Errors(l) + 1;
@@ -208,32 +256,33 @@ begin
             NumLanes_g => Lanes_c
         )
         port map (
-            FreeRunClk    => FreeRunClk,
-            Rst           => Rst,
-            RefClk        => RefClk,
-            LaneClk       => LaneClk,
-            LaneRst       => LaneRst,
-            Gt_TxP        => TxP,
-            Gt_TxN        => TxN,
-            Gt_RxP        => TxP,
-            Gt_RxN        => TxN,
-            PhyTx_Data    => TxData,
-            PhyTx_K       => TxK,
-            PhyRx_Data    => RxData,
-            PhyRx_K       => RxK,
-            PhyRx_CodeErr => RxCodeErr,
-            PhyRx_DispErr => RxDispErr,
-            PhyRx_Valid   => RxValid,
-            Phy_TxEnable  => (others => '1'),
-            Phy_RxEnable  => (others => '1'),
-            Phy_CdrEnable => (others => '1'),
-            Phy_RxInvert  => (others => '0'),
-            Phy_NoSignal  => NoSignal,
-            Stat_TxReady  => TxReady,
-            Stat_RxReady  => RxReady,
-            Stat_Aligned  => Aligned,
-            Stat_RxBufErr => RxBufErr,
-            Stat_ClkCor   => open
+            FreeRunClk             => FreeRunClk,
+            Rst                    => Rst,
+            RefClk                 => RefClk,
+            LaneClk                => LaneClk,
+            LaneRst                => LaneRst,
+            Gt_TxP                 => TxP,
+            Gt_TxN                 => TxN,
+            Gt_RxP                 => RxLineP,
+            Gt_RxN                 => RxLineN,
+            PhyTx_Data             => TxData,
+            PhyTx_K                => TxK,
+            PhyRx_Data             => RxData,
+            PhyRx_K                => RxK,
+            PhyRx_CodeErr          => RxCodeErr,
+            PhyRx_DispErr          => RxDispErr,
+            PhyRx_Valid            => RxValid,
+            Phy_TxEnable           => (others => '1'),
+            Phy_RxEnable           => (others => '1'),
+            Phy_CdrEnable          => (others => '1'),
+            Phy_RxInvert           => (others => '0'),
+            Phy_NoSignal           => NoSignal,
+            Stat_TxReady           => TxReady,
+            Stat_RxReady           => RxReady,
+            Stat_Aligned           => Aligned,
+            Stat_RxBufErr          => RxBufErr,
+            Stat_ClkCor            => open,
+            Phy_SerialNearLoopback => NearLb
         );
 
 end architecture;
