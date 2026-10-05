@@ -72,6 +72,7 @@ Simulator: GHDL.
 | --- | --- | --- |
 | `test_qos_priority_schedule` (TC-DL-21) | Both VCs excluded from time-slot 1: no data; SCHEDULE.request to slot 0: both ready at once, all frames of the priority-0 VC first | DL-QS-01, 02, 04, 06, DL-MAC-01, DL-IF-05 |
 | `test_continuous_mode` (TC-DL-22) | Continuous mode: 140 words for a buffer of 128 without credit are accepted without back-pressure; flush, EEP, rest of the packet discarded; without an active lane the next packet is flushed as well | DL-CM-01 |
+| `test_seq_error_pair` (TC-DL-26) | Frame 2 lost: the EDF of frame 3 and a SIF with its sequence number in consecutive cycles, both with positive polarity: two sequence errors, Error Negative (one error recovery), every NACK with positive polarity | DL-RE-01, DL-RE-03 |
 | `test_full_after_rxerr` (TC-DL-23) | RXERR with an empty error recovery buffer: no FULL; RXERR while a data frame waits for acknowledgement and nothing else is to be sent: FULL with the current sequence number | DL-TS-06 |
 | `test_bc_input_discard` (TC-DL-24) | Six broadcast frames while the user does not read: four messages buffered, two discarded and counted; the four are delivered afterwards | DL-BI-01 |
 | `test_link_reset_frame` (TC-DL-25) | Link Reset while a data frame of 60 words is sent: the frame is stopped (no EDF), the packet is flushed, the first idle frame after the link reset carries 64 PRBS words from the seed | DL-FA-05 |

@@ -283,7 +283,9 @@ architecture rtl of ofb_dl is
     signal NackValid   : std_logic;
     signal AckReq      : std_logic;
     signal NackReq     : std_logic;
-    signal SeqErrSame  : std_logic;
+    signal PolAckReq   : std_logic;
+    signal PolNackReq  : std_logic;
+    signal PolSeqErr   : std_logic;
     signal Crc16Err    : std_logic;
     signal Crc8Err     : std_logic;
     signal RxErr       : std_logic;
@@ -782,7 +784,9 @@ begin
             Nack_Valid     => NackValid,
             Ev_AckReq      => AckReq,
             Ev_NackReq     => NackReq,
-            Ev_SeqErrSame  => SeqErrSame,
+            Pol_AckReq     => PolAckReq,
+            Pol_NackReq    => PolNackReq,
+            Pol_SeqErrSame => PolSeqErr,
             Ev_Crc16Err    => Crc16Err,
             Ev_Crc8Err     => Crc8Err,
             Ev_FrameErr    => Ev_FrameErr,
@@ -800,9 +804,9 @@ begin
             Clk            => Clk,
             Rst            => Rst,
             Ctrl_LinkReset => LinkReset,
-            Ev_AckReq      => AckReq,
-            Ev_NackReq     => NackReq,
-            Ev_SeqErrSame  => SeqErrSame,
+            Ev_AckReq      => PolAckReq,
+            Ev_NackReq     => PolNackReq,
+            Ev_SeqErrSame  => PolSeqErr,
             RxPolarity     => RxPolarity,
             Stat_State     => Stat_RxErrState
         );

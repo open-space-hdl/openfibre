@@ -433,6 +433,31 @@ begin
                 check_value(RowStat.Crc8Errs, 1, error, "CRC-8 error");
                 check_value(txCount(KindNack), 0, error, "No NACK for a CRC error outside a frame");
 
+            -- TC-DL-26: two out-of-sequence words in consecutive cycles with positive polarity (frame 2
+            -- lost, EDF of frame 3 and its SIF back to back): one error recovery only, Error Negative,
+            -- every NACK with positive polarity
+            elsif run("test_seq_error_pair") then
+                waitLinkInit(10 us);
+                cycles(400);
+                rxFrame(0, 3, 1);
+                waitRxIdle;
+                TxLog_v.clear;
+                rxWord(wordSdf("00000"));
+                rxData(x"00000005");
+                rxWord(wordEdf(x"03", x"0000"));
+                rxWord(wordSif(x"03"));
+                waitRxIdle;
+                cycles(50);
+                check_value(RowStat.SeqErrs, 2, error, "Two sequence errors");
+                check_value(RowStat.RxErrState, "11", error, "Error Negative after the pair");
+                check_value(txCount(KindNack) > 0, error, "NACK sent");
+
+                for i in 0 to TxLog_v.count - 1 loop
+                    if txKind(i) = KindNack then
+                        check_value(txWord(i), wordNack(x"01"), error, "NACK with positive polarity");
+                    end if;
+                end loop;
+
             -- TC-DL-13: data word identification
             elsif run("test_word_id") then
                 waitLinkInit(10 us);

@@ -58,15 +58,15 @@ the standard" of the module specifications.
 | 5.7.6.2.2 | Data unscrambling | ML-4 | ML-DEC-02, ML-LM-05, ML-LM-15 | TC-ML-06, TC-ML-09, TC-ML-20, TC-ML-21, TC-ML-30 | Verified |
 | 5.7.6.2.3 | Idle frame scrambling | DT-6 | DL-FA-03, PKG-09, PKG-10 | TC-DL-10, TC-PKG-05, TC-PKG-06 | Verified |
 | 5.7.6.3.1 | Sequence numbers on transmission | DT-8 | DL-SQ-01, DL-SQ-02 | TC-DL-05, TC-DL-10, TC-DL-15 | Verified |
-| 5.7.6.3.2 | Sequence numbers on reception | DR-2 | DL-SR-01 | TC-DL-02, TC-DL-12 | Verified |
+| 5.7.6.3.2 | Sequence numbers on reception | DR-2 | DL-RE-01, DL-SR-01 | TC-DL-02, TC-DL-05, TC-DL-12, TC-DL-26 | Verified |
 | 5.7.6.4 | CRC for data frame | ML-3 (send), ML-4 (check) | ML-DEC-03, ML-ENC-04, PKG-06, PKG-08 | TC-ML-01, TC-ML-02, TC-ML-06, TC-ML-07, TC-ML-09, TC-PKG-03, TC-PKG-04 | Verified |
 | 5.7.6.5 | CRC for broadcast frame, FCT, ACK, NACK, SIF | DT-8 (send), DR-2 (check) | DL-SQ-03, DL-SR-02, PKG-07, PKG-08 | TC-DL-10, TC-DL-12, TC-DL-14, TC-PKG-03, TC-PKG-04 | Verified |
 | 5.7.6.6 | Idle frames | DT-6 | DL-FA-03, DL-TS-03 | TC-DL-10 | Verified |
 | 5.7.6.7 | Frame reception | DR-5 | DL-BI-01, DL-WI-02, DL-WI-03, DL-WI-04 | TC-DL-02, TC-DL-03, TC-DL-11, TC-DL-12, TC-DL-13, TC-DL-24 | Verified |
 | 5.7.7.1 | Error recovery buffer | DT-7 | CORE-FT-01, DL-ER-01, DL-ER-03, DL-ER-05, DL-ER-06, DL-ER-07, DL-TS-04, DL-TS-06, MG-ST-02 | TC-CORE-03, TC-CORE-07, TC-CORE-13, TC-DL-05, TC-DL-06, TC-DL-07, TC-DL-10, TC-DL-15, TC-DL-17, TC-DL-23, TC-MG-04 | Verified |
-| 5.7.7.2.1, 5.7.7.2.2 | Sending ACKs and NACKs | DR-3 | CORE-ED-02, DL-RE-02, DL-RE-03, DL-TS-05 | TC-CORE-13, TC-DL-02, TC-DL-05, TC-DL-11, TC-DL-12 | Verified |
+| 5.7.7.2.1, 5.7.7.2.2 | Sending ACKs and NACKs | DR-3 | CORE-ED-02, DL-RE-02, DL-RE-03, DL-TS-05 | TC-CORE-13, TC-DL-02, TC-DL-05, TC-DL-11, TC-DL-12, TC-DL-26 | Verified |
 | 5.7.7.2.3, 5.7.7.2.4 | Receiving ACKs and NACKs | DT-7 | CORE-FT-01, DL-ER-02, DL-ER-03, DL-ER-04, DL-SQ-02, DL-SR-03 | TC-CORE-03, TC-CORE-07, TC-CORE-13, TC-DL-01, TC-DL-05, TC-DL-06, TC-DL-15, TC-DL-16 | Verified |
-| 5.7.7.3 | Receive error state machine | DR-3 | CORE-FT-01, DL-RE-01, DL-RE-03 | TC-CORE-13, TC-DL-05, TC-DL-12 | Verified |
+| 5.7.7.3 | Receive error state machine | DR-3 | CORE-FT-01, DL-RE-01, DL-RE-03 | TC-CORE-13, TC-DL-05, TC-DL-12, TC-DL-26 | Verified |
 | 5.7.8 | Data word identification state machine | DR-1 | DL-RW-03, DL-RW-05, DL-WI-01, ML-DEC-01, ML-ENC-01 | TC-CORE-02, TC-CORE-08, TC-DL-13, TC-ML-03, TC-ML-05, TC-ML-08, TC-ML-09 | Verified |
 | 5.7.9 | Link reset state machine | DC-1 | CORE-CC-01, CORE-RS-01, DL-LR-01, DL-LR-02, DL-LR-03, MG-CF-01, ML-LM-02, ML-LM-03 | TC-CORE-01, TC-CORE-02, TC-CORE-04, TC-DL-01, TC-DL-06, TC-DL-07, TC-DL-16, TC-MG-01, TC-MG-02, TC-MG-05, TC-MG-06, TC-ML-22, TC-ML-25 | Verified |
 | 5.7.10a1 to a3 | Link reset, output VC side | DT-1 | CORE-CC-01, DL-ER-06, DL-FA-05, DL-LR-04, DL-VI-04, DL-VO-02, ML-BP-03, ML-DS-11 | TC-CORE-02, TC-CORE-04, TC-DL-06, TC-DL-07, TC-DL-18, TC-DL-25, TC-ML-05, TC-ML-24, TC-ML-38 | Verified |

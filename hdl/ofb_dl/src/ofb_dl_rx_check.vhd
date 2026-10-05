@@ -70,10 +70,14 @@ entity ofb_dl_rx_check is
         AckNack_Seq    : out   SeqNum_t;
         Ack_Valid      : out   std_logic;
         Nack_Valid     : out   std_logic;
-        -- Events to the receive error state machine (DR-3)
+        -- ACK and NACK requests (DT-5)
         Ev_AckReq      : out   std_logic;
         Ev_NackReq     : out   std_logic;
-        Ev_SeqErrSame  : out   std_logic;
+        -- Events of the word taken in this cycle to the receive error state machine (DR-3), without
+        -- register: the Receive Polarity Flag must be updated before the next word is checked
+        Pol_AckReq     : out   std_logic;
+        Pol_NackReq    : out   std_logic;
+        Pol_SeqErrSame : out   std_logic; -- Sequence error with the polarity of the flag
         -- Status events
         Ev_Crc16Err    : out   std_logic;
         Ev_Crc8Err     : out   std_logic;
@@ -408,40 +412,44 @@ begin
             v.State := Next_v;
         end if;
 
+        -- Events of this word to DR-3 (combinational, see the port description)
+        Pol_AckReq     <= v.AckReq;
+        Pol_NackReq    <= v.NackReq;
+        Pol_SeqErrSame <= v.SeqSame;
+
         -- Apply to record
         r_next <= v;
 
     end process;
 
     -- Outputs
-    RxSeqCount    <= std_logic_vector(r.RxSeq);
-    Fr_Data       <= r.FrData;
-    Fr_K          <= r.FrK;
-    Fr_Mask       <= r.FrMask;
-    Fr_Vc         <= r.Vc;
-    Fr_Valid      <= r.FrValid;
-    Fr_Commit     <= r.FrCommit;
-    Fr_Drop       <= r.FrDrop;
-    Bc_Data       <= r.BcWord;
-    Bc_Channel    <= r.BcChannel;
-    Bc_Type       <= r.BcType;
-    Bc_Delayed    <= r.BcStatus(EbfDelayed_c);
-    Bc_Late       <= r.BcStatus(EbfLate_c);
-    Bc_Valid      <= r.BcValid;
-    Fct_Vc        <= r.FctVc;
-    Fct_Mult      <= r.FctMult;
-    Fct_Valid     <= r.FctValid;
-    AckNack_Seq   <= r.AckNackSeq;
-    Ack_Valid     <= r.AckValid;
-    Nack_Valid    <= r.NackValid;
-    Ev_AckReq     <= r.AckReq;
-    Ev_NackReq    <= r.NackReq;
-    Ev_SeqErrSame <= r.SeqSame;
-    Ev_Crc16Err   <= r.Crc16Err;
-    Ev_Crc8Err    <= r.Crc8Err;
-    Ev_FrameErr   <= r.FrameErr;
-    Ev_SeqErr     <= r.SeqErr;
-    Ev_RxErr      <= r.RxErr;
+    RxSeqCount  <= std_logic_vector(r.RxSeq);
+    Fr_Data     <= r.FrData;
+    Fr_K        <= r.FrK;
+    Fr_Mask     <= r.FrMask;
+    Fr_Vc       <= r.Vc;
+    Fr_Valid    <= r.FrValid;
+    Fr_Commit   <= r.FrCommit;
+    Fr_Drop     <= r.FrDrop;
+    Bc_Data     <= r.BcWord;
+    Bc_Channel  <= r.BcChannel;
+    Bc_Type     <= r.BcType;
+    Bc_Delayed  <= r.BcStatus(EbfDelayed_c);
+    Bc_Late     <= r.BcStatus(EbfLate_c);
+    Bc_Valid    <= r.BcValid;
+    Fct_Vc      <= r.FctVc;
+    Fct_Mult    <= r.FctMult;
+    Fct_Valid   <= r.FctValid;
+    AckNack_Seq <= r.AckNackSeq;
+    Ack_Valid   <= r.AckValid;
+    Nack_Valid  <= r.NackValid;
+    Ev_AckReq   <= r.AckReq;
+    Ev_NackReq  <= r.NackReq;
+    Ev_Crc16Err <= r.Crc16Err;
+    Ev_Crc8Err  <= r.Crc8Err;
+    Ev_FrameErr <= r.FrameErr;
+    Ev_SeqErr   <= r.SeqErr;
+    Ev_RxErr    <= r.RxErr;
 
     with r.State select Stat_State <=
          "000" when Nothing_s,

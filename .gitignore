@@ -1,5 +1,5 @@
 # VUnit / simulator output
-vunit_out/
+vunit_out*/
 *.wlf
 transcript
 modelsim.ini
