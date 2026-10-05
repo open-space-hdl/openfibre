@@ -35,7 +35,8 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_core_th is
     generic (
-        NumLanes_g : positive range 1 to 4 := 1
+        NumLanes_g   : positive range 1 to 4 := 1;
+        CoreHalfPs_g : positive              := 3000 -- Half period of CoreClk in ps
     );
     port (
         MgmtClk : out   std_logic;
@@ -128,7 +129,7 @@ begin
     i_ti_uvvm_engine : entity uvvm_vvc_framework.ti_uvvm_engine;
 
     UserClk <= not UserClk after 2.6 ns;
-    CoreClk <= not CoreClk after 3 ns;
+    CoreClk <= not CoreClk after CoreHalfPs_g * 1 ps;
     LaneClk <= not LaneClk after 3.2 ns;
     MgmtI   <= not MgmtI after 5 ns;
     MgmtClk <= MgmtI;

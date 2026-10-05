@@ -113,6 +113,9 @@ entity ofb_mib is
         Ml_AlignState          : in    std_logic_vector(1 downto 0);
         Ml_StatBypass          : in    std_logic                                    := '0';
         Ml_EvMisaligned        : in    std_logic                                    := '0';
+        -- Receive row lost in the crossing to the core clock (lane clock, possible only with CoreClk slower
+        -- than LaneClk)
+        Ml_EvRxOverflow        : in    std_logic                                    := '0';
         Ml_TxEn                : out   std_logic_vector(NumLanes_g-1 downto 0);
         Ml_RxEn                : out   std_logic_vector(NumLanes_g-1 downto 0);
         Ml_MaxDataLanes        : out   std_logic_vector(2 downto 0);
@@ -137,7 +140,7 @@ end entity;
 ---------------------------------------------------------------------------------------------------
 architecture rtl of ofb_mib is
 
-    constant Id_c : std_logic_vector(31 downto 0) := x"0FB10004";
+    constant Id_c : std_logic_vector(31 downto 0) := x"0FB10005";
     constant Ch_c : positive                      := EccChannels_c;
 
     -- Widths of the crossing vectors
@@ -182,7 +185,7 @@ architecture rtl of ofb_mib is
     signal CmdIfReset    : std_logic;
 
     -- Sticky flags and counters
-    signal DlErrors    : std_logic_vector(9 downto 0);
+    signal DlErrors    : std_logic_vector(10 downto 0);
     signal VcInOvf     : std_logic_vector(NumVc_g-1 downto 0);
     signal VcCrOvf     : std_logic_vector(NumVc_g-1 downto 0);
     signal VcFrErr     : std_logic_vector(NumVc_g-1 downto 0);
@@ -207,8 +210,8 @@ architecture rtl of ofb_mib is
     signal LaneCfgOut : std_logic_vector(LaneCfgW_c*NumLanes_g-1 downto 0);
     signal LaneStatIn : std_logic_vector(LaneStatW_c*NumLanes_g+2*NumLanes_g+2 downto 0);
     signal LaneStat   : std_logic_vector(LaneStatW_c*NumLanes_g+2*NumLanes_g+2 downto 0);
-    signal LaneEvIn   : std_logic_vector(4*NumLanes_g downto 0);
-    signal LaneEv     : std_logic_vector(4*NumLanes_g downto 0);
+    signal LaneEvIn   : std_logic_vector(4*NumLanes_g+1 downto 0);
+    signal LaneEv     : std_logic_vector(4*NumLanes_g+1 downto 0);
     signal MlCfgIn    : std_logic_vector(3 downto 0);
     signal MlCfgOut   : std_logic_vector(3 downto 0);
 
@@ -316,6 +319,7 @@ begin
             DlErrors(7)          <= DlErrors(7) or (or CoreEv(7 + NumVc_g downto 8));
             DlErrors(8)          <= DlErrors(8) or (or CoreEv(7 + 2 * NumVc_g downto 8 + NumVc_g));
             DlErrors(9)          <= DlErrors(9) or (or UserEv);
+            DlErrors(10)         <= DlErrors(10) or LaneEv(4*NumLanes_g+1);
             VcInOvf              <= VcInOvf or CoreEv(7 + NumVc_g downto 8);
             VcCrOvf              <= VcCrOvf or CoreEv(7 + 2 * NumVc_g downto 8 + NumVc_g);
             VcFrErr              <= VcFrErr or UserEv;
@@ -364,7 +368,7 @@ begin
                     when 16#00C# =>
                         BcInterval <= RbWrData(15 downto 0);
                     when 16#014# =>
-                        DlErrors <= DlErrors and not RbWrData(9 downto 0);
+                        DlErrors <= DlErrors and not RbWrData(10 downto 0);
                     when 16#018# =>
                         Retries <= (others => '0');
                     when 16#01C# =>
@@ -436,16 +440,23 @@ begin
                 EccSecStk <= '1';
             end if;
 
-            -- Link Reset command: Data Link status cleared; Interface Reset: configuration reset
+            -- Link Reset command: status of the Data Link, Multi-Lane and Lane layers cleared (ECSS 5.9.4e,
+            -- the EDAC status is kept); Interface Reset: configuration reset
             if (RbWr = '1' and Addr_v = 16#008# and RbWrData(0) = '1') then
-                DlErrors <= (others => '0');
-                VcInOvf  <= (others => '0');
-                VcCrOvf  <= (others => '0');
-                Retries  <= (others => '0');
-                Crc16Cnt <= (others => '0');
-                Crc8Cnt  <= (others => '0');
-                FrameCnt <= (others => '0');
-                SeqCnt   <= (others => '0');
+                DlErrors    <= (others => '0');
+                VcInOvf     <= (others => '0');
+                VcCrOvf     <= (others => '0');
+                VcFrErr     <= (others => '0');
+                VcBwOver    <= (others => '0');
+                VcBwUnder   <= (others => '0');
+                Retries     <= (others => '0');
+                Crc16Cnt    <= (others => '0');
+                Crc8Cnt     <= (others => '0');
+                FrameCnt    <= (others => '0');
+                SeqCnt      <= (others => '0');
+                LaneEvents  <= (others => '0');
+                TimeoutCnt  <= (others => (others => '0'));
+                MisalignCnt <= (others => '0');
             end if;
             if Rst = '1' or (RbWr = '1' and Addr_v = 16#008# and RbWrData(1) = '1') then
                 DataScrambled <= '1';
@@ -537,7 +548,7 @@ begin
                     Data_v(6 downto 4) := CoreStat(6 downto 4);
                     Data_v(8)          := CoreStat(7);
                 when 16#014# =>
-                    Data_v(9 downto 0) := DlErrors;
+                    Data_v(10 downto 0) := DlErrors;
                 when 16#018# =>
                     Data_v := std_logic_vector(Retries);
                 when 16#01C# =>
@@ -623,7 +634,7 @@ begin
             RbRdData <= Data_v;
 
             -- Interrupt
-            Irq_v := or (DlErrors and IrqMask(9 downto 0));
+            Irq_v := or (DlErrors and IrqMask(10 downto 0));
             -- EDAC: uncorrectable error (bit 24), corrected error (bit 25)
             if (or EccDedStk) = '1' and IrqMask(24) = '1' then
                 Irq_v := '1';
@@ -789,6 +800,7 @@ begin
         LaneStatIn(LaneStatIn'high downto LaneStatW_c*NumLanes_g) <= Ml_StatBypass & Ml_AlignState & Ml_DataReceiving &
                                                                      Ml_DataSending;
         LaneEvIn(4*NumLanes_g)                                    <= Ml_EvMisaligned;
+        LaneEvIn(4*NumLanes_g+1)                                  <= Ml_EvRxOverflow;
     end process;
 
     i_lane_cfg : entity olo.olo_ft_cc_bits
@@ -819,7 +831,7 @@ begin
 
     i_lane_ev : entity work.ofb_cc_pulse
         generic map (
-            NumPulses_g => 4 * NumLanes_g + 1
+            NumPulses_g => 4 * NumLanes_g + 2
         )
         port map (
             In_Clk    => LaneClk,

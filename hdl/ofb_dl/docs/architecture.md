@@ -280,6 +280,5 @@ of rows and stay correct for every number of data-sending lanes.
 ## 5. Open points
 
 - The selection tree of `ofb_dl_mac` has five comparison levels in one cycle; timing is checked in the hardening phase.
-- The data payload RAM is `olo_ft_ram_sdp`; the scrubbing variant is introduced with the hardening phase.
 - The item entries of the error recovery buffer are registers (small), not `olo_ft_ram_sdp` as foreseen in the core
   architecture.

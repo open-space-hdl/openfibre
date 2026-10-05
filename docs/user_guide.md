@@ -138,7 +138,7 @@ per `LaneClk` cycle without gaps. For the AMD Versal GTY, `ofb_pa_gty` connects 
 
 ## 6. Programming sequence
 
-1. Release `Rst`. Read ID (0x0FB10004) and GENERICS.
+1. Release `Rst`. Read ID (0x0FB10005) and GENERICS.
 2. Optional configuration before the link start:
    - DL_CTRL bit 8 DataScrambled (set after reset), DL_BC_INTERVAL.
    - Per VC: VC_CFG (priority, continuous mode, virtual network number), VC_BANDWIDTH, VC_SLOTS_LO / HI.
@@ -152,9 +152,12 @@ per `LaneClk` cycle without gaps. For the AMD Versal GTY, `ofb_pa_gty` connects 
 4. Wait for the link: LANE_STATUS bits 3:0 = 7 (Active) for the lanes, ML_STATUS bits 9:8 = 2 (Both-Ends Ready) with
    several lanes, DL_STATUS bits 1:0 = 3 (link initialised). VC_HAS_CREDIT shows the VCs that may send.
 5. Operation: DL_ERRORS, LANE_EVENTS and ECC_STATUS hold sticky flags (interrupt sources); the counters count retries,
-   CRC, frame and sequence errors, lane timeouts and Misaligned conditions.
+   CRC, frame and sequence errors, lane timeouts and Misaligned conditions. DL_ERRORS bit 10 reports receive rows
+   lost because CoreClk is slower than LaneClk (a clocking error).
 6. Link Reset: DL_CTRL bit 0 resets both ends of the link (the far end sees a Far-End Link Reset); the link
    initialises again without software action. The maximum number of data-sending lanes is taken over at a link reset.
+   The command clears the status flags and counters of the Data Link, Multi-Lane and Lane layers (ECSS 5.9.4e), not
+   the EDAC status.
    Interface Reset (DL_CTRL bit 1) sets all configuration registers to their reset values.
 7. Stop: LANE_CTRL with LaneStart and AutoStart cleared sends STANDBY (with the Standby Reason of bits 15:8) and
    disables the lane.

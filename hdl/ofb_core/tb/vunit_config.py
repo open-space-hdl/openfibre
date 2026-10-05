@@ -15,6 +15,8 @@ def configure(lib):
     tb = lib.test_bench("ofb_core_tb")
     for lanes in (1, 2, 4):
         tb.add_config(name=f"lanes{lanes}", generics={"NumLanes_g": lanes})
+    # Receive row overflow with CoreClk slower than LaneClk (TC-CORE-15)
+    tb.test("test_row_overflow").add_config(name="lanes1_slowcore", generics={"NumLanes_g": 1, "CoreHalfPs_g": 4000})
     seeds = [int(s) for s in os.environ.get("OFB_CAMPAIGN_SEEDS", "").split(",") if s.strip()]
     if seeds:
         test = tb.test("test_fault_campaign")

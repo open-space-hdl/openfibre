@@ -42,9 +42,10 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_core_tb is
     generic (
-        runner_cfg : string;
-        NumLanes_g : positive range 1 to 4 := 1;
-        Seed_g     : positive              := 1 -- Seed of the fault injection campaign
+        runner_cfg   : string;
+        NumLanes_g   : positive range 1 to 4 := 1;
+        Seed_g       : positive              := 1;   -- Seed of the fault injection campaign
+        CoreHalfPs_g : positive              := 3000 -- Half period of CoreClk in ps (LaneClk: 3200)
     );
 end entity;
 
@@ -269,7 +270,7 @@ begin
             -- TC-CORE-01: identification, link start through the MIB
             if run("test_link_up") then
                 rd(0, RegId_c, Data_v);
-                check_value(Data_v, x"0FB10004", error, "ID of A");
+                check_value(Data_v, x"0FB10005", error, "ID of A");
                 linkUp(500 us);
                 rd(1, RegDlErrors_c, Data_v);
                 check_value(Data_v, x"00000000", error, "No error at B");
@@ -635,6 +636,35 @@ begin
                     allLanes(2 ms);
                 end if;
 
+            -- TC-CORE-15: receive row overflow. With CoreClk slower than LaneClk (configuration
+            -- lanes1_slowcore, outside CORE-CK-01) rows are lost in the crossing and DL_ERRORS bit 10 is set;
+            -- with the regular clocks no row is lost during traffic
+            elsif run("test_row_overflow") then
+                if CoreHalfPs_g > 3200 then
+
+                    for l in 0 to NumLanes_g-1 loop
+                        wr(0, RegLaneCtrl_c + 16#20# * l, x"00000063");
+                    end loop;
+
+                    for k in 0 to 1000 loop
+                        rd(0, RegDlErrors_c, Data_v);
+                        exit when Data_v(10) = '1';
+                        cycles(100);
+                    end loop;
+
+                    check_value(Data_v(10), '1', error, "Receive row overflow at A");
+                else
+                    linkUp(500 us);
+                    sendAll(20);
+                    waitDelivered(5 ms);
+
+                    for c in 0 to 1 loop
+                        rd(c, RegDlErrors_c, Data_v);
+                        check_value(Data_v(10), '0', error, "No receive row overflow at core " & to_string(c));
+                    end loop;
+
+                end if;
+
             -- TC-CORE-14: an uncorrectable error (DED) in each buffer of the Data Link layer of A during
             -- traffic: no wrong word reaches a user. Output VC buffers, error recovery buffer, frame buffer
             -- and broadcast output buffer: link reset (packets end with EEP or are lost); input VC buffer:
@@ -720,7 +750,8 @@ begin
     -----------------------------------------------------------------------------------------------
     i_th : entity work.ofb_core_th
         generic map (
-            NumLanes_g => NumLanes_g
+            NumLanes_g   => NumLanes_g,
+            CoreHalfPs_g => CoreHalfPs_g
         )
         port map (
             MgmtClk => MgmtClk,

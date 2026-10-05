@@ -113,6 +113,7 @@ architecture sim of ofb_mib_tb is
     signal MlStat    : std_logic_vector(3 downto 0)  := "0000";
     signal MlBypStat : std_logic                     := '0';
     signal MlMisEv   : std_logic                     := '0';
+    signal RxOvfEv   : std_logic                     := '0';
     signal MlTxEn    : std_logic_vector(0 downto 0);
     signal MlRxEn    : std_logic_vector(0 downto 0);
     signal MlMax     : std_logic_vector(2 downto 0);
@@ -206,7 +207,7 @@ begin
 
             -- TC-MG-01: identification and reset values
             if run("test_reset_values") then
-                chk(16#000#, x"0FB10004", "ID");
+                chk(16#000#, x"0FB10005", "ID");
                 chk(16#004#, x"00000104", "Generics");
                 chk(16#008#, x"00000100", "DataScrambled set");
                 chk(16#00C#, x"00000028", "Broadcast interval 40");
@@ -394,7 +395,7 @@ begin
                 wr(16#064#, std_logic_vector(to_unsigned(EccChCtrl_c, 32)));
                 chk(16#068#, x"00000001", "Corrected error in the control crossings");
 
-            -- TC-MG-04: sticky flags, counters, interrupt, Link Reset clears the Data Link status
+            -- TC-MG-04: sticky flags, counters, interrupt, Link Reset clears the status of all layers
             elsif run("test_events") then
                 coreEvent(0);
                 coreEvent(0);
@@ -412,10 +413,12 @@ begin
                 NiEv(2)   <= '0';
                 wait until rising_edge(LaneClk);
                 LaneEv(1) <= '1';
+                RxOvfEv   <= '1';
                 wait until rising_edge(LaneClk);
                 LaneEv(1) <= '0';
+                RxOvfEv   <= '0';
                 cycles(20);
-                chk(16#014#, x"00000291", "Sticky Data Link errors");
+                chk(16#014#, x"00000691", "Sticky Data Link errors, receive row overflow");
                 chk(16#01C#, x"00000002", "CRC-16 counter");
                 chk(16#018#, x"00000003", "Retries");
                 chk(16#034#, x"00000002", "Input overflow VC 1");
@@ -429,16 +432,24 @@ begin
                 wr(16#014#, x"00000010");
                 cycles(3);
                 check_value(Irq, '0', error, "Interrupt cleared with the flag");
-                chk(16#014#, x"00000281", "Protocol error flag cleared");
+                chk(16#014#, x"00000681", "Protocol error flag cleared");
+                wr(16#044#, x"00000400");
+                cycles(3);
+                check_value(Irq, '1', error, "Interrupt for the receive row overflow");
                 wr(16#044#, x"00020000");
                 cycles(3);
                 check_value(Irq, '1', error, "Interrupt for the lane timeout");
-                -- Link Reset command clears the Data Link status
+                -- Link Reset command clears the status of the Data Link, Multi-Lane and Lane layers
                 wr(16#008#, x"00000101");
                 chk(16#014#, x"00000000", "Data Link flags cleared by Link Reset");
                 chk(16#018#, x"00000000", "Retries cleared by Link Reset");
                 chk(16#01C#, x"00000000", "CRC-16 counter cleared by Link Reset");
-                chk(16#108#, x"00000002", "Lane flags kept");
+                chk(16#034#, x"00000000", "Input overflow flags cleared by Link Reset");
+                chk(16#03C#, x"00000000", "Framing error flags cleared by Link Reset");
+                chk(16#108#, x"00000000", "Lane flags cleared by Link Reset");
+                chk(16#110#, x"00000000", "Lane timeout counter cleared by Link Reset");
+                cycles(3);
+                check_value(Irq, '0', error, "No interrupt after the Link Reset command");
 
             end if;
 
@@ -560,6 +571,7 @@ begin
             Ml_AlignState          => MlStat(3 downto 2),
             Ml_StatBypass          => MlBypStat,
             Ml_EvMisaligned        => MlMisEv,
+            Ml_EvRxOverflow        => RxOvfEv,
             Ml_TxEn                => MlTxEn,
             Ml_RxEn                => MlRxEn,
             Ml_MaxDataLanes        => MlMax,
