@@ -20,7 +20,8 @@ that occurs again before the previous one has crossed may be counted once.
 - Read data is registered; `Rb_RdValid` follows `Rb_Rd` by one cycle.
 - Sticky flags are set by events and cleared by writing one (W1C).
 - Counters saturate; any write clears them.
-- A write of one to `LinkReset` clears the Data Link sticky flags and counters (ECSS 5.9.4e); a write of one to
+- A write of one to `LinkReset` clears the sticky flags and counters of the Data Link, Multi-Lane and Lane layers
+  (ECSS 5.9.4e; the EDAC status is kept); a write of one to
   `InterfaceReset` sets all configuration registers to their reset values.
 - `Irq` = OR of (sticky flags AND interrupt mask).
 
@@ -30,12 +31,12 @@ Byte addresses, 32-bit registers. RO read only, RW read / write, W1 write one (c
 
 | Address | Name | Bits | Access | Reset | Content |
 | --- | --- | --- | --- | --- | --- |
-| 0x000 | ID | 31:0 | RO | 0x0FB10004 | OpenFibre, register map version 4 |
+| 0x000 | ID | 31:0 | RO | 0x0FB10005 | OpenFibre, register map version 5 |
 | 0x004 | GENERICS | 7:0, 11:8 | RO | | NumVc_g, NumLanes_g |
 | 0x008 | DL_CTRL | 0, 1, 8 | W1, W1, RW | 0, 0, 1 | LinkReset, InterfaceReset, DataScrambled |
 | 0x00C | DL_BC_INTERVAL | 15:0 | RW | 40 | Words per broadcast credit (4 / Normalised Expected Broadcast Bandwidth) |
 | 0x010 | DL_STATUS | 1:0, 3:2, 6:4, 8 | RO | | Link reset state, receive error state, data word identification state, error recovery buffer empty |
-| 0x014 | DL_ERRORS | 9:0 | W1C | 0 | CRC-16, CRC-8, frame, sequence, Link Reset Caused by Protocol Error, Far-End Link Reset, broadcast discarded, input buffer overflow (any VC), FCT credit overflow (any VC), framing error of the Network interface (any VC) |
+| 0x014 | DL_ERRORS | 10:0 | W1C | 0 | CRC-16, CRC-8, frame, sequence, Link Reset Caused by Protocol Error, Far-End Link Reset, broadcast discarded, input buffer overflow (any VC), FCT credit overflow (any VC), framing error of the Network interface (any VC), receive row overflow (CoreClk slower than LaneClk) |
 | 0x018 | DL_RETRIES | 31:0 | RO, write clears | 0 | Number of error recovery attempts |
 | 0x01C | DL_CRC16_COUNT | 15:0 | RO, write clears | 0 | CRC-16 errors |
 | 0x020 | DL_CRC8_COUNT | 15:0 | RO, write clears | 0 | CRC-8 errors |
@@ -46,7 +47,7 @@ Byte addresses, 32-bit registers. RO read only, RW read / write, W1 write one (c
 | 0x038 | VC_CREDIT_OVERFLOW | NumVc-1:0 | W1C | 0 | FCT credit counter overflow per VC |
 | 0x03C | VC_FRAMING_ERROR | NumVc-1:0 | W1C | 0 | Framing error of the Network interface per VC |
 | 0x040 | ML_STATUS | 3:0, 7:4, 9:8, 10 | RO | | Data-sending lanes, data-receiving lanes, alignment state, bypass |
-| 0x044 | IRQ_MASK | 9:0, 19:16, 24, 25 | RW | 0 | Interrupt enable for DL_ERRORS bits 9:0, LANE_EVENTS bits 3:0 of any lane, an ECC DED flag, the ECC SEC flag |
+| 0x044 | IRQ_MASK | 10:0, 19:16, 24, 25 | RW | 0 | Interrupt enable for DL_ERRORS bits 10:0, LANE_EVENTS bits 3:0 of any lane, an ECC DED flag, the ECC SEC flag |
 | 0x048 | VC_BW_OVER | NumVc-1:0 | W1C | 0 | Bandwidth over use per VC |
 | 0x04C | VC_BW_UNDER | NumVc-1:0 | W1C | 0 | Bandwidth under use per VC |
 | 0x050 | VC_IDLE_LIMIT | 31:0 | RW | 156250 | Virtual Channel Idle Time Limit in words (1 ms at 6.25 Gbit/s) |

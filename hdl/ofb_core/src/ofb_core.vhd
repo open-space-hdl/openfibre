@@ -212,6 +212,7 @@ architecture rtl of ofb_core is
     signal AlignState  : AlignState_t;
     signal MlBypass    : std_logic;
     signal MlMisalign  : std_logic;
+    signal RxRowOvf    : std_logic;
     signal SkipReq     : std_logic;
     signal CfgTxEn     : std_logic_vector(NumLanes_g-1 downto 0);
     signal CfgRxEn     : std_logic_vector(NumLanes_g-1 downto 0);
@@ -495,7 +496,7 @@ begin
             Ml_FarCapabilityValid => MlFarCapV,
             Ml_FarCapabilityIdle  => MlFarIdle,
             Ml_LaneActive         => MlActive,
-            Ev_RxOverflow         => open,
+            Ev_RxOverflow         => RxRowOvf,
             Ecc_Core              => EccCcCore,
             Ecc_Lane              => EccCcLane,
             EccInj_Core           => EccInjCore,
@@ -706,6 +707,7 @@ begin
             Ml_AlignState          => AlignState,
             Ml_StatBypass          => MlBypass,
             Ml_EvMisaligned        => MlMisalign,
+            Ml_EvRxOverflow        => RxRowOvf,
             Ml_TxEn                => CfgTxEn,
             Ml_RxEn                => CfgRxEn,
             Ml_MaxDataLanes        => CfgMlMax,

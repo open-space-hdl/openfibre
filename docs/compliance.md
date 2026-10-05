@@ -76,7 +76,7 @@ the standard" of the module specifications.
 | 5.8.5 to 5.8.7, 5.8.13 | Packet format, sending and receiving packets, nodes | NI-1 | NI-IF-01, NI-RX-01 | TC-CORE-02, TC-NI-01, TC-NI-04 | Verified |
 | 5.8.12 | Broadcast messages | NI-3 | NI-IF-02 | TC-CORE-02 | Verified |
 | 5.8.8 to 5.8.11 | Routing switch, addressing, adaptive routing, multicast | Out of scope | - | - | Out of scope (routing switch) |
-| 5.9.1 to 5.9.4 | Management Information Base | MG-1 | DL-IF-05, MG-CF-01, MG-IF-01, MG-IF-02, MG-ST-01 | TC-DL-07, TC-DL-21, TC-MG-01, TC-MG-02, TC-MG-03, TC-MG-04, TC-MG-05, TC-MG-06 | Verified |
+| 5.9.1 to 5.9.4 | Management Information Base | MG-1 | CORE-CC-02, DL-IF-05, MG-CF-01, MG-IF-01, MG-IF-02, MG-ST-01, MG-ST-04 | TC-CORE-15, TC-DL-07, TC-DL-21, TC-MG-01, TC-MG-02, TC-MG-03, TC-MG-04, TC-MG-05, TC-MG-06 | Verified |
 | 6.2.2, 6.3.2 | Packet transfer and Virtual Channel services | NI-1 | NI-IF-01, NI-RX-01 | TC-CORE-02, TC-NI-01, TC-NI-04 | Verified |
 | 6.2.3, 6.3.3 | Broadcast message services | NI-3 | NI-IF-02 | TC-CORE-02 | Verified |
 | 6.3.4 | Schedule synchronisation service | NI-4 | DL-QS-06, NI-SC-01 | TC-CORE-06, TC-DL-21 | Verified |
@@ -92,14 +92,14 @@ reference included).
 
 | Module | Requirements | Verified by a test case | Without a test case |
 | --- | --- | --- | --- |
-| `ofb_core` | 12 | 12 | - |
+| `ofb_core` | 13 | 13 | - |
 | `ofb_dl` | 73 | 73 | - |
 | `ofb_lane` | 32 | 32 | - |
-| `ofb_mib` | 15 | 15 | - |
+| `ofb_mib` | 16 | 16 | - |
 | `ofb_multilane` | 69 | 69 | - |
 | `ofb_ni` | 7 | 7 | - |
 | `ofb_pa_gty` | 11 | 11 | - |
 | `ofb_pkg` | 11 | 11 | - |
 | `ofb_vck190` | 6 | 6 | - |
 
-Requirements: 236; without a test case: 0; test cases of the plans not run by a testbench: 0.
+Requirements: 238; without a test case: 0; test cases of the plans not run by a testbench: 0.

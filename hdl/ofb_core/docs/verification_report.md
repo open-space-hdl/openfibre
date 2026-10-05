@@ -6,7 +6,8 @@ Run on 2026-10-05 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_core_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 14 x 3 | 42 |
+| `ofb_core_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 15 x 3 | 45 |
+| `ofb_core_tb`, configuration `lanes1_slowcore` (TC-CORE-15 only) | 1 | 1 |
 
 Fault injection campaign (TC-CORE-13): the regression runs seed 1; the extended campaign
 `OFB_CAMPAIGN_SEEDS="2,3,4,5" python run.py "*test_fault_campaign*"` adds seeds 2 to 5. 15 runs, 600 faults, all

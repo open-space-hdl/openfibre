@@ -16,7 +16,7 @@
 | Signal | Direction | Crossing |
 | --- | --- | --- |
 | Transmit rows | CoreClk to LaneClk | `olo_ft_fifo_async`, 16 rows, write side reset on link reset (flush); a row read with a DED goes to the Multi-Lane layer with all mask bits set, as a non-replicated row and with `Ml_TxRow_Poison` (CORE-ED-02) |
-| Receive rows | LaneClk to CoreClk | `olo_ft_fifo_async`, 16 rows, read side reset on link reset; a full FIFO is reported as `Ev_RxOverflow` (cannot happen while CoreClk is not slower than LaneClk); a row read with a DED is replaced by one RXERR (CORE-ED-02) |
+| Receive rows | LaneClk to CoreClk | `olo_ft_fifo_async`, 16 rows, read side reset on link reset; a full FIFO is reported as `Ev_RxOverflow` to the MIB, DL_ERRORS bit 10 (cannot happen while CoreClk is not slower than LaneClk); a row read with a DED is replaced by one RXERR (CORE-ED-02) |
 | Link reset, LaneReset | CoreClk to LaneClk | `ofb_cc_pulse` |
 | Near-end capability | CoreClk to LaneClk | `olo_ft_cc_bits` (the bits are independent) |
 | Lane active | LaneClk to CoreClk | `olo_ft_cc_bits` |
@@ -29,8 +29,5 @@ synchronous and high-active.
 
 ## 4. Open points
 
-- With several lanes (`NumLanes_g > 1`) the Lane layers use the SKIP request of the Multi-Lane layer
-  (`SkipExternal_g`, `Lane_SkipReq` to every lane). The MIB drives TxEn and RxEn per lane, the maximum number of
-  data-sending lanes and the bypass of the Multi-Lane layer (lane clock) and the maximum number of data-sending lanes
-  of the Data Link layer (core clock); the Multi-Lane status and the Misaligned events go to the MIB.
-- The receive row overflow event is not yet connected to the MIB.
+- Timing of the four clock domains is checked with the first implementation on the XCVC1902 (no synthesis licence
+  on the development host).

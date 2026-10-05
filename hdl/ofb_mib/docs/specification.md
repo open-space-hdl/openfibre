@@ -26,8 +26,9 @@ an interrupt. It contains the crossings between the management clock and the clo
 | MG-PL-02 | The bit synchronisation status of the clock and data recovery of every lane (input from the Physical adapter, lane clock) shall be readable. | 5.4.2e |
 | MG-ML-01 | The Multi-Lane parameters TxEn and RxEn (per lane), the maximum number of data-sending lanes and the bypass shall be passed to the Multi-Lane layer (lane clock), the maximum number of data-sending lanes also to the Data Link layer (core clock); the bypass state and the Misaligned events (counted) of the Multi-Lane layer shall be readable. | 5.6.1p, q, 5.6.3a, Tables 5-36, 5-37 |
 | MG-CF-02 | Link Reset and Interface Reset shall be commands: a write of one sends one pulse to the Data Link layer. | 5.7.1j, Table 5-36 |
-| MG-ST-01 | Error events shall set sticky flags, cleared by writing one; the Link Reset command shall clear the status of the Data Link layer (sticky flags and counters). | 5.9.4d, e |
+| MG-ST-01 | Error events shall set sticky flags, cleared by writing one; the Link Reset command shall clear the status of the Data Link, Multi-Lane and Lane layers (sticky flags and counters); the EDAC status shall be kept. | 5.9.4d, e |
 | MG-ST-02 | The number of error recovery attempts shall be counted, and the CRC-16, CRC-8, frame and sequence errors and the lane timeouts in saturating counters; a write clears a counter. | 5.7.7.1k, l, Table 5-37 |
+| MG-ST-04 | A receive row lost in the crossing to the core clock (`Ml_EvRxOverflow`, lane clock) shall set a sticky flag with interrupt. | 5.9.4c |
 | MG-ST-03 | An interrupt output shall be asserted while a sticky flag enabled in the interrupt mask is set. | none (implementation) |
 | MG-ED-01 | The SEC and DED events of every fault-tolerant buffer of the core shall be counted per channel (output VC buffers, error recovery buffer, frame buffer, input VC buffers, broadcast output and input buffers, transmit and receive row crossings, control crossings) in saturating 16-bit counters; a DED shall set a sticky flag of its channel, a SEC a common sticky flag. | none (fault tolerance, architecture P5) |
 | MG-ED-02 | The counters of a selected channel shall be readable and clearable; the flags and all counters shall be clearable at once; the DED flags and the SEC flag shall be interrupt sources. | none |
@@ -48,5 +49,10 @@ See the architecture, section 3.
 ## 5. Interpretation of the standard
 
 Bandwidth Credit Limit, FCT multiplier and data segment multiplier are fixed by generics (Table 5-36 allows this). The
-Maximum Number of Data-Sending Lanes, RxEn and TxEn follow with phase 4. The virtual network number of a VC is a
+Maximum Number of Data-Sending Lanes, RxEn and TxEn follow with phase 4.
+
+The Link Reset command clears all status parameters of Table 5-37 held in the MIB (5.9.4e): the Data Link flags
+and counters, the flags of bandwidth use, the lane event flags and the additional counters (lane timeouts, Misaligned
+conditions). The RXERR counter of a lane is cleared by the LaneReset that the link reset asserts. The EDAC status
+describes the memories, not the link, and is kept. The virtual network number of a VC is a
 configuration register only: a node has one end-point per VC (ECSS 5.8.3h, i).

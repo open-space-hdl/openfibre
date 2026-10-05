@@ -352,7 +352,5 @@ See the specification, section 4.
 
 ## 6. Open points
 
-- The MIB registers for TxEn, RxEn, the maximum number of data-sending lanes and the bypass, and the data path of the
-  Data Link layer for rows of N words, follow in the next steps of phase 4.
-- With `N > 1` the bypass (lane 0 only) uses the gearbox and the concentrator with one lane, so that the Data Link
-  layer always exchanges rows of N words; with `N = 1` the inline bypass of section 2.10 is used.
+- None. Note: with `N > 1` the bypass (lane 0 only) uses the gearbox and the concentrator with one lane, so that
+  the Data Link layer always exchanges rows of N words; with `N = 1` the inline bypass of section 2.10 is used.
