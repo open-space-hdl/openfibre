@@ -13,6 +13,9 @@ Management Information Base. All RAMs and clock domain crossings use the fault-t
 
 The core (1 to 4 lanes, 1 to 32 virtual channels, broadcast messages, quality of service, EDAC) is complete and
 verified in simulation; the [compliance matrix](docs/compliance.md) traces every ECSS clause in scope to its tests.
+A fault injection campaign (line errors, word slips, lane failures, single and double errors in the buffers)
+checks that no packet is lost, duplicated or corrupted unnoticed; with packets of up to 1024 bytes the core
+transfers 94 % of the lane capacity in one direction and 90 % per direction in both.
 The first target is the AMD Versal AI Core XCVC1902 on the VCK190 evaluation board (4 GTY lanes on the QSFP
 connector, 6.25 Gbit/s per lane): the Physical adapter for the GTY and a reference design are verified with the
 transceiver model; synthesis and the hardware test are open. See [docs/roadmap.md](docs/roadmap.md) for the state of
@@ -23,7 +26,7 @@ every module.
 | Document | Content |
 | --- | --- |
 | [docs/architecture.md](docs/architecture.md) | Architecture: layers, building blocks, owned ECSS clauses, Open Logic usage, verification |
-| [docs/user_guide.md](docs/user_guide.md) | Integration: sources, generics, clocks, interfaces, programming sequence, synthesis |
+| [docs/user_guide.md](docs/user_guide.md) | Integration: sources, generics, clocks, interfaces, programming sequence, performance, synthesis |
 | [docs/conventions.md](docs/conventions.md) | Coding, verification and repository conventions |
 | [docs/roadmap.md](docs/roadmap.md) | Development plan and module status |
 | [docs/compliance.md](docs/compliance.md) | ECSS compliance matrix: requirements and test cases of every clause (generated) |
