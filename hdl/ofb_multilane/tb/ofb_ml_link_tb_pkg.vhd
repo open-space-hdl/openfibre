@@ -62,7 +62,8 @@ package ofb_ml_link_tb_pkg is
         RxEn           : std_logic_vector(MaxLanes_c-1 downto 0);
         MaxDataLanes   : std_logic_vector(2 downto 0);
         Bypass         : std_logic;
-        Check          : boolean; -- Compare the received rows with the expected stream
+        Check          : boolean;   -- Compare the received rows with the expected stream
+        Poison         : std_logic; -- Rows sent are marked as corrupted (TxRow_Poison)
     end record;
 
     constant LinkCfgDefault_c : LinkCfg_t := (
@@ -74,7 +75,8 @@ package ofb_ml_link_tb_pkg is
         RxEn           => (others => '1'),
         MaxDataLanes   => "000",
         Bypass         => '0',
-        Check          => true
+        Check          => true,
+        Poison         => '0'
     );
 
     -- Outputs of one end, collected by the harness

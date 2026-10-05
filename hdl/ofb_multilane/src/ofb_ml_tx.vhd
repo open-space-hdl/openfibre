@@ -52,12 +52,14 @@ entity ofb_ml_tx is
         TxRow_K         : in    std_logic_vector(4*NumLanes_g-1 downto 0);
         TxRow_Mask      : in    std_logic_vector(NumLanes_g-1 downto 0);
         TxRow_Replicate : in    std_logic;
+        TxRow_Poison    : in    std_logic := '0'; -- Corrupted row: its words are marked
         TxRow_Valid     : in    std_logic;
         TxRow_Ready     : out   std_logic;
         -- Words to the column encoders
         Enc_Data        : out   std_logic_vector(32*NumLanes_g-1 downto 0);
         Enc_K           : out   std_logic_vector(4*NumLanes_g-1 downto 0);
         Enc_Valid       : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Enc_Poison      : out   std_logic_vector(NumLanes_g-1 downto 0);
         Enc_Ready       : in    std_logic_vector(NumLanes_g-1 downto 0);
         -- SKIP request to all Lane layers
         Lane_SkipReq    : out   std_logic
@@ -77,10 +79,12 @@ architecture rtl of ofb_ml_tx is
     type TwoProcess_r is record
         QData    : QData_t;
         QK       : QK_t;
+        QPoison  : std_logic_vector(0 to QSize_c-1);
         Cnt      : natural range 0 to QSize_c;
         Rep      : Word_t;
         RepK     : WordK_t;
         RepValid : std_logic;
+        RepPois  : std_logic;
         RepIl    : std_logic;
         Slot     : natural range 0 to 7;
         SkipCnt  : natural range 0 to SkipIntervalWords_g-1;
@@ -105,6 +109,7 @@ begin
         variable Emit_v    : natural range 0 to NumLanes_g;
         variable RowData_v : QData_t;
         variable RowK_v    : QK_t;
+        variable RowPois_v : std_logic_vector(0 to QSize_c-1);
         variable Idx_v     : natural range 0 to NumLanes_g;
         variable Word_v    : Word_t;
         variable WordK_v   : WordK_t;
@@ -119,14 +124,15 @@ begin
         v := r;
 
         -- Defaults
-        Enc_Data  <= (others => '0');
-        Enc_K     <= (others => '0');
-        Enc_Valid <= (others => '0');
-        Ready_v   := '0';
-        Prbs_v    := '0';
-        Emit_v    := 0;
-        RepFree_v := false;
-        L_v       := countOnes(DataLanes);
+        Enc_Data   <= (others => '0');
+        Enc_K      <= (others => '0');
+        Enc_Valid  <= (others => '0');
+        Enc_Poison <= (others => '0');
+        Ready_v    := '0';
+        Prbs_v     := '0';
+        Emit_v     := 0;
+        RepFree_v  := false;
+        L_v        := countOnes(DataLanes);
         -- Bypass: lane 0 is the only data-sending lane, no ACTIVE and ALIGN words (ECSS 5.6.3)
         if Bypass = '1' then
             State_v := AlignBothEndsReady_c;
@@ -153,6 +159,7 @@ begin
         -- Gearbox row for the data-sending lanes (ML-DS-01 to ML-DS-04)
         RowData_v := (others => WordIdle_c);
         RowK_v    := (others => KCtrl_c);
+        RowPois_v := (others => '0');
         if DataRow_v then
             if r.Cnt >= L_v and L_v > 0 then
 
@@ -160,6 +167,7 @@ begin
                 for i in 0 to NumLanes_g-1 loop
                     RowData_v(i) := r.QData(i);
                     RowK_v(i)    := r.QK(i);
+                    RowPois_v(i) := r.QPoison(i);
                 end loop;
 
                 Emit_v := L_v;
@@ -167,6 +175,7 @@ begin
                 -- Replicated word; FCT, ACK, NACK, FULL, broadcast words pass waiting data
                 RowData_v := (others => r.Rep);
                 RowK_v    := (others => r.RepK);
+                RowPois_v := (others => r.RepPois);
                 if Advance_v then
                     v.RepValid := '0';
                     RepFree_v  := true;
@@ -178,6 +187,7 @@ begin
                     if i < r.Cnt then
                         RowData_v(i) := r.QData(i);
                         RowK_v(i)    := r.QK(i);
+                        RowPois_v(i) := r.QPoison(i);
                     else
                         RowData_v(i) := WordPad_c;
                         RowK_v(i)    := KPad_c;
@@ -204,8 +214,9 @@ begin
                 end if;
                 WordK_v := KCtrl_c;
             elsif DataLanes(i) = '1' then
-                Word_v  := RowData_v(Idx_v);
-                WordK_v := RowK_v(Idx_v);
+                Word_v        := RowData_v(Idx_v);
+                WordK_v       := RowK_v(Idx_v);
+                Enc_Poison(i) <= RowPois_v(Idx_v);
             else
                 -- Hot redundant lane: PRBS (ECSS 5.6.10g)
                 Word_v  := PrbsData;
@@ -238,8 +249,9 @@ begin
 
             for i in 0 to QSize_c-1 loop
                 if i + Emit_v < QSize_c then
-                    v.QData(i) := r.QData(i + Emit_v);
-                    v.QK(i)    := r.QK(i + Emit_v);
+                    v.QData(i)   := r.QData(i + Emit_v);
+                    v.QK(i)      := r.QK(i + Emit_v);
+                    v.QPoison(i) := r.QPoison(i + Emit_v);
                 end if;
             end loop;
 
@@ -256,6 +268,7 @@ begin
                 v.Rep      := TxRow_Data(31 downto 0);
                 v.RepK     := TxRow_K(3 downto 0);
                 v.RepValid := '1';
+                v.RepPois  := TxRow_Poison;
                 if interleaved(wordKind(TxRow_Data(31 downto 0), TxRow_K(3 downto 0))) then
                     v.RepIl := '1';
                 else
@@ -266,9 +279,10 @@ begin
 
                 for i in 0 to NumLanes_g-1 loop
                     if TxRow_Mask(i) = '1' then
-                        v.QData(Pos_v) := TxRow_Data(32*i+31 downto 32*i);
-                        v.QK(Pos_v)    := TxRow_K(4*i+3 downto 4*i);
-                        Pos_v          := Pos_v + 1;
+                        v.QData(Pos_v)   := TxRow_Data(32*i+31 downto 32*i);
+                        v.QK(Pos_v)      := TxRow_K(4*i+3 downto 4*i);
+                        v.QPoison(Pos_v) := TxRow_Poison;
+                        Pos_v            := Pos_v + 1;
                     end if;
                 end loop;
 
@@ -276,12 +290,8 @@ begin
             end if;
         end if;
 
-        -- Not Ready: words held are discarded (ML-DS-11)
-        if NotRdy_v then
-            v.Cnt      := 0;
-            v.RepValid := '0';
-        end if;
-
+        -- Not Ready: words held are kept and sent after the realignment (ML-DS-12); only a link reset
+        -- discards them (ML-DS-11)
         if Ctrl_Flush = '1' then
             v.Cnt      := 0;
             v.RepValid := '0';

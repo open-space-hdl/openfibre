@@ -28,12 +28,13 @@ package ofb_ml_codec_tb_pkg is
         Scramble    : std_logic;
         Unscramble  : std_logic;
         Flush       : std_logic;
-        Loopback    : boolean; -- Decoder input from the encoder output instead of its VVC
-        RandomReady : boolean; -- Random back-pressure at the encoder output
-        HoldReady   : boolean; -- Encoder output not ready
+        Poison      : std_logic; -- Encoder input words marked as corrupted
+        Loopback    : boolean;   -- Decoder input from the encoder output instead of its VVC
+        RandomReady : boolean;   -- Random back-pressure at the encoder output
+        HoldReady   : boolean;   -- Encoder output not ready
     end record;
 
-    constant CodecCtrlDefault_c : CodecCtrl_t := (Scramble => '0', Unscramble => '0', Flush => '0',
+    constant CodecCtrlDefault_c : CodecCtrl_t := (Scramble => '0', Unscramble => '0', Flush => '0', Poison => '0',
                                                   Loopback => false, RandomReady => false, HoldReady => false);
 
     signal CodecCtrl : CodecCtrl_t := CodecCtrlDefault_c;

@@ -28,6 +28,14 @@ the state of every module; a module is done when its verification report is writ
 | `ofb_core` | Core top level | 2, 4, 5 | Phase 4 done (1 to 4 lanes, four clock domains, core testbench with 1, 2 and 4 lanes); phase 5: EDAC, synthesizability check, [compliance matrix](compliance.md) |
 | `ofb_vck190` | VCK190 board top level and constraints | 5 | Reference design (echo, LEDs), constraints and build script; top-level test with the transceiver model; synthesis and hardware test open (no licence for the XCVC1902 on the development host) |
 
+## Open hardening items (phase 5)
+
+| Item | State |
+| --- | --- |
+| Fault injection campaign at core level (TC-CORE-13): line errors, word slips, lane failures, SEC in every EDAC channel, DED in the row crossings | Done in simulation (5 seeds x 3 lane configurations, 600 faults); found the loss of held words in Not Ready (ML-DS-12), the silent DED corruption in the row crossings (CORE-ED-02) and the latency of the receive error state machine (DL-RE-01) |
+| DED containment in the Data Link buffers (VC, broadcast, error recovery and frame buffers): end the affected packet with EEP or reset the link instead of passing a corrupted word | Open (DED is reported, the word is passed on corrupted) |
+| Resource and timing closure on the XCVC1902 | Open (no synthesis licence on the development host) |
+
 ## Dependencies outside this repository
 
 | Item | State |

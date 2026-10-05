@@ -42,9 +42,9 @@ the standard" of the module specifications.
 | 5.6.4.3 to 5.6.4.5, 5.6.9.1a, b, 5.6.10c, g | Laning of broadcast, idle and lane control words; sending ACTIVE; hot redundant lane words | ML-2 | CORE-ML-01, DL-RW-01, LN-TX-06, ML-AL-01, ML-AL-03, ML-AL-04, ML-CO-05, ML-DS-03, ML-DS-04, ML-DS-05, ML-DS-09, ML-DS-10, ML-IF-08, ML-LM-13 | TC-CORE-02, TC-CORE-03, TC-CORE-07, TC-CORE-08, TC-CORE-09, TC-ML-30, TC-ML-31, TC-ML-33, TC-ML-34, TC-ML-35, TC-ML-40, TC-ML-42, TC-ML-43 | Verified |
 | 5.6.5a, b | Alignment FIFOs | ML-5 | DL-RW-05, ML-AL-06, ML-CO-02, ML-CO-03 | TC-CORE-02, TC-CORE-08, TC-ML-30, TC-ML-32, TC-ML-37, TC-ML-40, TC-ML-41 | Verified |
 | 5.6.5c to f, 5.6.4.1e | Concentration into rows | ML-6 | DL-RW-01, DL-RW-05, ML-AL-06, ML-BP-01, ML-CO-02, ML-CO-03, ML-DS-01, ML-DS-03, ML-IF-01 | TC-CORE-02, TC-CORE-03, TC-CORE-07, TC-CORE-08, TC-ML-20, TC-ML-30, TC-ML-32, TC-ML-33, TC-ML-37, TC-ML-40, TC-ML-41 | Verified |
-| 5.6.6.1, 5.6.6.3, 5.6.6.4 | Alignment, ACTIVE and ALIGN, alignment FIFO | ML-5 | ML-AL-01, ML-AL-02, ML-AL-04, ML-AL-05, ML-AL-06, ML-AL-07, ML-AL-10, ML-CO-03, ML-DS-06 | TC-ML-30, TC-ML-31, TC-ML-32, TC-ML-34, TC-ML-35, TC-ML-37, TC-ML-38, TC-ML-40, TC-ML-41, TC-ML-42 | Verified |
+| 5.6.6.1, 5.6.6.3, 5.6.6.4 | Alignment, ACTIVE and ALIGN, alignment FIFO | ML-5 | CORE-FT-01, ML-AL-01, ML-AL-02, ML-AL-04, ML-AL-05, ML-AL-06, ML-AL-07, ML-AL-10, ML-CO-03, ML-DS-06 | TC-CORE-13, TC-ML-30, TC-ML-31, TC-ML-32, TC-ML-34, TC-ML-35, TC-ML-37, TC-ML-38, TC-ML-40, TC-ML-41, TC-ML-42 | Verified |
 | 5.6.6.2 | Valid and invalid rows | ML-6 | ML-CO-01 | TC-ML-30, TC-ML-41 | Verified |
-| 5.6.7 | Alignment state machine | ML-5 | ML-AL-08, ML-AL-09, ML-CO-04, ML-DS-06, ML-DS-07, ML-DS-08 | TC-ML-30, TC-ML-31, TC-ML-32, TC-ML-34, TC-ML-37, TC-ML-40, TC-ML-41, TC-ML-42 | Verified |
+| 5.6.7 | Alignment state machine | ML-5 | ML-AL-08, ML-AL-09, ML-CO-04, ML-DS-06, ML-DS-07, ML-DS-08, ML-DS-12 | TC-ML-30, TC-ML-31, TC-ML-32, TC-ML-34, TC-ML-37, TC-ML-40, TC-ML-41, TC-ML-42, TC-ML-44 | Verified |
 | 5.6.8, 5.6.9 except 5.6.9.1a, b | Asymmetric links, unidirectional lanes | ML-1 | ML-AL-04, ML-DS-09, ML-IF-07, ML-LM-09, ML-LM-10, ML-LM-11, ML-LM-12 | TC-ML-31, TC-ML-33, TC-ML-35, TC-ML-36, TC-ML-42 | Verified |
 | 5.6.10 except 5.6.10c, g | Hot redundant lanes | ML-1 | ML-AL-01, ML-AL-03, ML-DS-09, ML-DS-10, ML-LM-13 | TC-ML-30, TC-ML-31, TC-ML-33, TC-ML-34, TC-ML-35, TC-ML-40, TC-ML-42 | Verified |
 | 5.7.2.1, 5.7.2.2 | Virtual channels, output VC buffer | DT-1 | DL-CM-01, DL-IF-01, DL-RW-06, DL-VO-01, DL-VO-02 | TC-CORE-02, TC-DL-02, TC-DL-18, TC-DL-22 | Verified |
@@ -58,15 +58,15 @@ the standard" of the module specifications.
 | 5.7.6.2.2 | Data unscrambling | ML-4 | ML-DEC-02, ML-LM-05, ML-LM-15 | TC-ML-06, TC-ML-09, TC-ML-20, TC-ML-21, TC-ML-30 | Verified |
 | 5.7.6.2.3 | Idle frame scrambling | DT-6 | DL-FA-03, PKG-09, PKG-10 | TC-DL-10, TC-PKG-05, TC-PKG-06 | Verified |
 | 5.7.6.3.1 | Sequence numbers on transmission | DT-8 | DL-SQ-01, DL-SQ-02 | TC-DL-05, TC-DL-10, TC-DL-15 | Verified |
-| 5.7.6.3.2 | Sequence numbers on reception | DR-2 | DL-SR-01 | TC-DL-02, TC-DL-12 | Verified |
+| 5.7.6.3.2 | Sequence numbers on reception | DR-2 | DL-RE-01, DL-SR-01 | TC-DL-02, TC-DL-05, TC-DL-12, TC-DL-26 | Verified |
 | 5.7.6.4 | CRC for data frame | ML-3 (send), ML-4 (check) | ML-DEC-03, ML-ENC-04, PKG-06, PKG-08 | TC-ML-01, TC-ML-02, TC-ML-06, TC-ML-07, TC-ML-09, TC-PKG-03, TC-PKG-04 | Verified |
 | 5.7.6.5 | CRC for broadcast frame, FCT, ACK, NACK, SIF | DT-8 (send), DR-2 (check) | DL-SQ-03, DL-SR-02, PKG-07, PKG-08 | TC-DL-10, TC-DL-12, TC-DL-14, TC-PKG-03, TC-PKG-04 | Verified |
 | 5.7.6.6 | Idle frames | DT-6 | DL-FA-03, DL-TS-03 | TC-DL-10 | Verified |
 | 5.7.6.7 | Frame reception | DR-5 | DL-BI-01, DL-WI-02, DL-WI-03, DL-WI-04 | TC-DL-02, TC-DL-03, TC-DL-11, TC-DL-12, TC-DL-13, TC-DL-24 | Verified |
-| 5.7.7.1 | Error recovery buffer | DT-7 | DL-ER-01, DL-ER-03, DL-ER-05, DL-ER-06, DL-ER-07, DL-TS-04, DL-TS-06, MG-ST-02 | TC-CORE-03, TC-CORE-07, TC-DL-05, TC-DL-06, TC-DL-07, TC-DL-10, TC-DL-15, TC-DL-17, TC-DL-23, TC-MG-04 | Verified |
-| 5.7.7.2.1, 5.7.7.2.2 | Sending ACKs and NACKs | DR-3 | DL-RE-02, DL-RE-03, DL-TS-05 | TC-DL-02, TC-DL-05, TC-DL-11, TC-DL-12 | Verified |
-| 5.7.7.2.3, 5.7.7.2.4 | Receiving ACKs and NACKs | DT-7 | DL-ER-02, DL-ER-03, DL-ER-04, DL-SQ-02, DL-SR-03 | TC-CORE-03, TC-CORE-07, TC-DL-01, TC-DL-05, TC-DL-06, TC-DL-15, TC-DL-16 | Verified |
-| 5.7.7.3 | Receive error state machine | DR-3 | DL-RE-01, DL-RE-03 | TC-DL-05, TC-DL-12 | Verified |
+| 5.7.7.1 | Error recovery buffer | DT-7 | CORE-FT-01, DL-ER-01, DL-ER-03, DL-ER-05, DL-ER-06, DL-ER-07, DL-TS-04, DL-TS-06, MG-ST-02 | TC-CORE-03, TC-CORE-07, TC-CORE-13, TC-DL-05, TC-DL-06, TC-DL-07, TC-DL-10, TC-DL-15, TC-DL-17, TC-DL-23, TC-MG-04 | Verified |
+| 5.7.7.2.1, 5.7.7.2.2 | Sending ACKs and NACKs | DR-3 | CORE-ED-02, DL-RE-02, DL-RE-03, DL-TS-05 | TC-CORE-13, TC-DL-02, TC-DL-05, TC-DL-11, TC-DL-12, TC-DL-26 | Verified |
+| 5.7.7.2.3, 5.7.7.2.4 | Receiving ACKs and NACKs | DT-7 | CORE-FT-01, DL-ER-02, DL-ER-03, DL-ER-04, DL-SQ-02, DL-SR-03 | TC-CORE-03, TC-CORE-07, TC-CORE-13, TC-DL-01, TC-DL-05, TC-DL-06, TC-DL-15, TC-DL-16 | Verified |
+| 5.7.7.3 | Receive error state machine | DR-3 | CORE-FT-01, DL-RE-01, DL-RE-03 | TC-CORE-13, TC-DL-05, TC-DL-12, TC-DL-26 | Verified |
 | 5.7.8 | Data word identification state machine | DR-1 | DL-RW-03, DL-RW-05, DL-WI-01, ML-DEC-01, ML-ENC-01 | TC-CORE-02, TC-CORE-08, TC-DL-13, TC-ML-03, TC-ML-05, TC-ML-08, TC-ML-09 | Verified |
 | 5.7.9 | Link reset state machine | DC-1 | CORE-CC-01, CORE-RS-01, DL-LR-01, DL-LR-02, DL-LR-03, MG-CF-01, ML-LM-02, ML-LM-03 | TC-CORE-01, TC-CORE-02, TC-CORE-04, TC-DL-01, TC-DL-06, TC-DL-07, TC-DL-16, TC-MG-01, TC-MG-02, TC-MG-05, TC-MG-06, TC-ML-22, TC-ML-25 | Verified |
 | 5.7.10a1 to a3 | Link reset, output VC side | DT-1 | CORE-CC-01, DL-ER-06, DL-FA-05, DL-LR-04, DL-VI-04, DL-VO-02, ML-BP-03, ML-DS-11 | TC-CORE-02, TC-CORE-04, TC-DL-06, TC-DL-07, TC-DL-18, TC-DL-25, TC-ML-05, TC-ML-24, TC-ML-38 | Verified |
@@ -92,14 +92,14 @@ reference included).
 
 | Module | Requirements | Verified by a test case | Without a test case |
 | --- | --- | --- | --- |
-| `ofb_core` | 10 | 10 | - |
+| `ofb_core` | 12 | 12 | - |
 | `ofb_dl` | 70 | 70 | - |
 | `ofb_lane` | 32 | 32 | - |
 | `ofb_mib` | 15 | 15 | - |
-| `ofb_multilane` | 66 | 66 | - |
+| `ofb_multilane` | 69 | 69 | - |
 | `ofb_ni` | 7 | 7 | - |
 | `ofb_pa_gty` | 11 | 11 | - |
 | `ofb_pkg` | 11 | 11 | - |
 | `ofb_vck190` | 6 | 6 | - |
 
-Requirements: 228; without a test case: 0; test cases of the plans not run by a testbench: 0.
+Requirements: 233; without a test case: 0; test cases of the plans not run by a testbench: 0.

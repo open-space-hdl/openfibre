@@ -83,6 +83,8 @@ One pipeline stage with valid / ready handshake:
 | `State` | Frame state of section 2.2 |
 | `OutData`, `OutK`, `OutValid` | Output word (scrambled data word, or the word unchanged) |
 | `OutCrc` | The output word is an EDF that ends a data frame: characters 2 and 3 are taken from the CRC unit |
+| `Poison` | A word marked as corrupted (`In_Poison`) was taken since the last EDF that ended a data frame |
+| `OutInv` | The CRC of the EDF in the output register is inverted (`Poison` or `In_Poison` at the EDF, ML-ENC-08) |
 
 `In_Ready = (not OutValid or Out_Ready) and not Ctrl_Flush`. A word is taken when `In_Valid` and `In_Ready`.
 
@@ -172,7 +174,13 @@ taken and one sent per cycle. Taking a row in the cycle in which `Rep` is sent a
 replicated word (ECSS 5.6.4.5b); it makes `TxRow_Ready` depend on `Enc_Ready`. A data row taken behind `Rep` is
 never sent before it: it enters `Q` only in the cycle in which `Rep` is sent.
 
-`Q`, `Cnt` and `RepValid` are cleared on `Ctrl_Flush` (link reset), in bypass and in Not Ready (ML-DS-11).
+`Q`, `Cnt` and `RepValid` are cleared on `Ctrl_Flush` (link reset, ML-DS-11). In Not Ready no row is taken and the
+words held stay in `Q` and `Rep`; they are sent after the realignment (ML-DS-12). Discarding them would lose words
+of a frame that the far end keeps receiving: the far end only sees ACTIVE words (Both-Ends Ready to Near-End Ready,
+no RXERR), and the CRC-16 computed after the distributor would not reveal the missing words.
+
+Every word in `Q` and `Rep` carries the poison mark of its row (`TxRow_Poison`), passed with the word as
+`Enc_Poison` (ML-DS-13).
 
 **SKIP.** A free-running counter requests a SKIP (`Lane_SkipReq`, one cycle) every `SkipIntervalWords_g` cycles. All
 Lane layers of a multi-lane link use this request (generic `SkipExternal_g` of `ofb_lane`).

@@ -72,6 +72,7 @@ architecture sim of ofb_ml_link_th is
     signal TxRowK      : KsArray_t;
     signal TxRowMask   : LanesArray_t;
     signal TxRowRep    : BitArray_t;
+    signal TxRowPois   : BitArray_t;
     signal TxRowValid  : BitArray_t;
     signal TxRowReady  : BitArray_t;
     signal RxRowData   : WordsArray_t;
@@ -157,6 +158,7 @@ begin
                         TxRowK(e)     <= Row_v.K(4*N_c-1 downto 0);
                         TxRowMask(e)  <= Row_v.Mask(N_c-1 downto 0);
                         TxRowRep(e)   <= Row_v.Replicate;
+                        TxRowPois(e)  <= LinkCfg(e).Poison;
                         TxRowValid(e) <= '1';
                     end if;
                 end if;
@@ -182,6 +184,7 @@ begin
                 TxRow_K                 => TxRowK(e),
                 TxRow_Mask              => TxRowMask(e),
                 TxRow_Replicate         => TxRowRep(e),
+                TxRow_Poison            => TxRowPois(e),
                 TxRow_Valid             => TxRowValid(e),
                 TxRow_Ready             => TxRowReady(e),
                 RxRow_Data              => RxRowData(e),

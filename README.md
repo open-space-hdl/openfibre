@@ -59,7 +59,9 @@ python tools/run_xsim.py        # tests with the GTY transceiver model (AMD Viva
 ```
 
 `run.py` compiles Open Logic into the VHDL library `olo`, the required UVVM components into their own libraries and
-all OpenFibre sources into the library `openfibre`.
+all OpenFibre sources into the library `openfibre`. Environment variables: `OFB_CAMPAIGN_SEEDS="2,3,4"` adds seeds to
+the fault injection campaign of the core (TC-CORE-13), `OFB_GHDL_SIM_FLAGS` passes extra flags to the GHDL simulation,
+for example `--vcd=wave.vcd --read-wave-opt=wave.opt` for a waveform of selected signals.
 
 Checks besides the regression:
 

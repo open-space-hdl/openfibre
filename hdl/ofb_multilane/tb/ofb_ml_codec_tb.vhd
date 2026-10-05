@@ -185,6 +185,18 @@ begin
                 sendWords(VvcEnc_c, Fig44In_c, Fig44K_c);
                 checkLog(true, Fig44Out_c, Fig44K_c, "", false, "Figure 5-44");
 
+            -- TC-ML-45: corrupted words (poison) invert the CRC-16 of the next EDF only: a poisoned
+            -- frame, a poisoned word between frames (inverts the CRC of the next frame), a clean frame
+            elsif run("test_enc_poison") then
+                CodecCtrl.Poison <= '1';
+                sendWords(VvcEnc_c, Fig44In_c(0 to 3), Fig44K_c(0 to 3));
+                sendWords(VvcEnc_c, Fig44In_c(10 to 10), Fig44K_c(10 to 10));
+                CodecCtrl.Poison <= '0';
+                sendWords(VvcEnc_c, Fig44In_c(4 to 10), Fig44K_c(4 to 10));
+                checkLog(true, Fig44Out_c(0 to 2) & (Fig44Out_c(3) xor x"FFFF0000") & Fig44Out_c(10) &
+                         Fig44Out_c(4 to 5) & (Fig44Out_c(6) xor x"FFFF0000") & Fig44Out_c(7 to 10),
+                         Fig44K_c(0 to 3) & Fig44K_c(10) & Fig44K_c(4 to 10), "", false, "Poisoned words");
+
             -- TC-ML-02: ECSS Figure 5-42, scrambling and CRC-16 over the scrambled data
             elsif run("test_enc_scramble_vector") then
                 CodecCtrl.Scramble <= '1';

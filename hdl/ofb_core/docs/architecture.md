@@ -15,8 +15,8 @@
 
 | Signal | Direction | Crossing |
 | --- | --- | --- |
-| Transmit rows | CoreClk to LaneClk | `olo_ft_fifo_async`, 16 rows, write side reset on link reset (flush) |
-| Receive rows | LaneClk to CoreClk | `olo_ft_fifo_async`, 16 rows, read side reset on link reset; a full FIFO is reported as `Ev_RxOverflow` (cannot happen while CoreClk is not slower than LaneClk) |
+| Transmit rows | CoreClk to LaneClk | `olo_ft_fifo_async`, 16 rows, write side reset on link reset (flush); a row read with a DED goes to the Multi-Lane layer with all mask bits set, as a non-replicated row and with `Ml_TxRow_Poison` (CORE-ED-02) |
+| Receive rows | LaneClk to CoreClk | `olo_ft_fifo_async`, 16 rows, read side reset on link reset; a full FIFO is reported as `Ev_RxOverflow` (cannot happen while CoreClk is not slower than LaneClk); a row read with a DED is replaced by one RXERR (CORE-ED-02) |
 | Link reset, LaneReset | CoreClk to LaneClk | `ofb_cc_pulse` |
 | Near-end capability | CoreClk to LaneClk | `olo_ft_cc_bits` (the bits are independent) |
 | Lane active | LaneClk to CoreClk | `olo_ft_cc_bits` |

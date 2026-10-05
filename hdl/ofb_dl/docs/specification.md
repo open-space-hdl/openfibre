@@ -120,7 +120,7 @@ level.
 
 | ID | Requirement | ECSS |
 | --- | --- | --- |
-| DL-RE-01 | The receive error state machine shall implement Valid Positive, Valid Negative, Error Positive and Error Negative with the transitions of the standard and determine the Receive Polarity Flag; it shall enter Valid Positive on link reset. | 5.7.7.3 |
+| DL-RE-01 | The receive error state machine shall implement Valid Positive, Valid Negative, Error Positive and Error Negative with the transitions of the standard and determine the Receive Polarity Flag; it shall enter Valid Positive on link reset. Every received word shall be checked against the flag as updated by the previous word, also when the words follow in consecutive cycles. | 5.7.7.3, 5.7.6.3.2i |
 | DL-RE-02 | An ACK shall be requested when a data frame, broadcast frame, FCT or FULL is received without sequence or CRC error. ACKs carry the Receive Sequence Counter and the Receive Polarity Flag. | 5.7.7.2.1a, e |
 | DL-RE-03 | A NACK shall be requested when an RXERR or a CRC error occurs while the data word identification state machine is in RxDataFrame, RxBroadcastFrame or RxBroadcast&DataFrame, or when a sequence error is detected in a control word with a valid CRC; not for unknown control words. NACKs carry the Receive Sequence Counter and the inverse of the Receive Polarity Flag. | 5.7.7.2.2a, b, d, 5.7.7.3 |
 

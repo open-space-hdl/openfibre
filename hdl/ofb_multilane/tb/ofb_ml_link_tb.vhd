@@ -305,6 +305,53 @@ begin
                 traffic(20, "Traffic after the slip");
                 checkClean("After the slip");
 
+            -- TC-ML-46: rows of a frame marked as corrupted at A (uncorrectable error before the column
+            -- encoders): the CRC-16 of the frame is inverted, B reports a CRC error; the following
+            -- traffic is received correctly
+            elsif run("test_poison") then
+                startLink;
+                checkOff;
+                Num_v             := LinkStat(1).AnyErrs - LinkStat(1).RxErrs;
+                LinkCfg(0).Poison <= '1';
+                Seq_v             := Seq_v + 1;
+                txFrame(0, N_c, 1, 20, Seq_v, false);
+                waitSent("poisoned frame");
+                LinkCfg(0).Poison <= '0';
+                check_value(LinkStat(1).AnyErrs - LinkStat(1).RxErrs, Num_v + 1, error,
+                            "One EDF with CRC error at B");
+                checkOn;
+                traffic(10, "Traffic after the poisoned frame");
+                checkClean("After the poisoned frame");
+
+            -- TC-ML-44: lane slip at B while both ends send: B realigns (Not Ready), A only receives
+            -- ACTIVE words (Near-End Ready); every word that B sends reaches A in order, without RXERR
+            elsif run("test_slip_reverse") then
+                startLink;
+                LinkCfg(1).Check    <= false;
+                cycles(2);
+                Num_v               := LinkStat(0).RxErrs;
+                txTraffic(0, N_c, 20);
+                txTraffic(1, N_c, 20);
+                cycles(500);
+                PaCtrl(0).AtoB.Skew <= 1;
+
+                for i in 0 to 100000 loop
+                    exit when TxQueueB_v.count = 0 and ExpFrameB_v.count = 0 and ExpCtrlB_v.count = 0;
+                    cycles(1);
+                end loop;
+
+                check_value(TxQueueB_v.count = 0 and ExpFrameB_v.count = 0 and ExpCtrlB_v.count = 0, error,
+                            "All words of B received at A");
+                check_value(LinkStat(1).Misaligned > 0, error, "Misaligned condition at B after the slip");
+                check_value(LinkStat(0).RxErrs, Num_v, error, "No RXERR at A");
+                check_value(LinkStat(0).CheckErrs, 0, error, "No mismatch at A");
+                check_value(LinkStat(0).CrcErrs, 0, error, "No CRC error at A");
+                checkOn;
+                waitAlign(AlignNearEndReady_c, "alignment after the slip");
+                toBothEnds("Both-Ends Ready after the slip");
+                traffic(20, "Traffic after the slip");
+                checkClean("After the slip");
+
             -- TC-ML-33: hot redundant lanes
             elsif run("test_hot_redundant") then
                 LinkCfg(0).MaxDataLanes <= std_logic_vector(to_unsigned(N_c - 1, 3));

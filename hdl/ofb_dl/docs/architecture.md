@@ -145,8 +145,11 @@ Registered processing of one received word per cycle:
 3. Data word identification state machine (ECSS Figure 5-49), exit conditions in the order of the standard: RETRY,
    RXERR, CRC error, sequence error, valid end of frame, frame error.
 4. Outputs: data words with their VC to DR-5, commit on a valid EDF, drop when a data frame ends otherwise; accepted
-   broadcast messages to DR-7; accepted FCTs to DT-2; CRC-valid ACK and NACK to DT-7; ACK and NACK requests and the
-   sequence error with matching polarity to DR-3; status events.
+   broadcast messages to DR-7; accepted FCTs to DT-2; CRC-valid ACK and NACK to DT-7; ACK and NACK requests to DT-5;
+   status events.
+   The ACK and NACK requests and the sequence error with matching polarity of the word taken in a cycle go to DR-3
+   without register (`Pol_*`), so that the next word, which can follow in the next cycle, is checked against the
+   updated Receive Polarity Flag.
 
 The Receive Sequence Counter increments on an accepted EDF, EBF or FCT.
 
@@ -155,8 +158,11 @@ The Receive Sequence Counter increments on an accepted EDF, EBF or FCT.
 Four-state machine of ECSS Figure 5-48: a NACK request moves Valid Positive to Error Negative and Valid Negative to
 Error Positive; an ACK request moves Error Positive to Valid Positive and Error Negative to Valid Negative; a sequence
 error with the polarity of the Receive Polarity Flag moves Error Positive to Error Negative and back. The flag is 0 in
-Valid Positive and Error Positive. ACK and NACK requests are passed to `ofb_dl_tx_frame`, which keeps one pending
-request (the newer replaces the older).
+Valid Positive and Error Positive. The state changes at the end of the cycle in which DR-1 takes the word (events
+`Pol_*` of DR-1 without register): with a register in between, two out-of-sequence words in consecutive cycles (an
+EDF followed by a SIF) were both checked against the old flag, the second moved Error Negative on to Error Positive
+and a NACK with the other polarity started a second error recovery (found by TC-CORE-13). ACK and NACK requests are
+passed to `ofb_dl_tx_frame`, which keeps one pending request (the newer replaces the older).
 
 ### 3.8 ofb_dl_rx_buf (DR-5)
 

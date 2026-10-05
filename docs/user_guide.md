@@ -161,7 +161,10 @@ per `LaneClk` cycle without gaps. For the AMD Versal GTY, `ofb_pa_gty` connects 
 
 EDAC: ECC_STATUS shows the uncorrectable errors per channel and corrected errors of any channel; ECC_SELECT and
 ECC_COUNT read the counters of one channel. ECC_INJECT injects a single or double bit error into the next word written
-into the buffers of a channel (test of the EDAC paths).
+into the buffers of a channel (test of the EDAC paths). Single errors are corrected in every channel. An uncorrectable
+error (DED) in a row crossing (channels 6 and 7) becomes a link error that the error recovery repairs: the frame is
+sent again. A DED in the other channels (VC, broadcast, error recovery and frame buffers, control crossings) is
+reported, but the affected word is passed on corrupted.
 
 ## 7. Synthesis
 

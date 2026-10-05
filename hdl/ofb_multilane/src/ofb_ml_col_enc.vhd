@@ -38,6 +38,7 @@ entity ofb_ml_col_enc is
         -- Input words
         In_Data      : in    Word_t;
         In_K         : in    WordK_t;
+        In_Poison    : in    std_logic := '0'; -- Corrupted word: the CRC-16 of the next EDF is inverted
         In_Valid     : in    std_logic;
         In_Ready     : out   std_logic;
         -- Output words
@@ -59,6 +60,8 @@ architecture rtl of ofb_ml_col_enc is
         OutK     : WordK_t;
         OutValid : std_logic;
         OutCrc   : std_logic;
+        OutInv   : std_logic;
+        Poison   : std_logic;
     end record;
 
     signal r, r_next : TwoProcess_r;
@@ -107,11 +110,16 @@ begin
         if r.OutValid = '1' and Out_Ready = '1' then
             v.OutValid := '0';
             v.OutCrc   := '0';
+            v.OutInv   := '0';
         end if;
         Ready_v := (not r.OutValid or Out_Ready) and not Ctrl_Flush;
 
         -- Word taken
         if In_Valid = '1' and Ready_v = '1' then
+            -- A corrupted word poisons the column up to the next EDF
+            if In_Poison = '1' then
+                v.Poison := '1';
+            end if;
 
             case Kind_v is
                 when KindSdf =>
@@ -134,6 +142,8 @@ begin
                         Last_v   := '1';
                         Be_v     := "0011";
                         v.OutCrc := '1';
+                        v.OutInv := r.Poison or In_Poison;
+                        v.Poison := '0';
                     end if;
                 when others =>
                     null;
@@ -150,6 +160,8 @@ begin
             v.State    := None_s;
             v.OutValid := '0';
             v.OutCrc   := '0';
+            v.OutInv   := '0';
+            v.Poison   := '0';
         end if;
 
         -- Outputs
@@ -167,7 +179,7 @@ begin
 
     end process;
 
-    Out_Data  <= CrcOut & r.OutData(15 downto 0) when r.OutCrc = '1' else r.OutData;
+    Out_Data  <= (CrcOut xor (CrcOut'range => r.OutInv)) & r.OutData(15 downto 0) when r.OutCrc = '1' else r.OutData;
     Out_K     <= r.OutK;
     Out_Valid <= r.OutValid;
 
@@ -182,6 +194,8 @@ begin
                 r.State    <= None_s;
                 r.OutValid <= '0';
                 r.OutCrc   <= '0';
+                r.OutInv   <= '0';
+                r.Poison   <= '0';
             end if;
         end if;
     end process;
