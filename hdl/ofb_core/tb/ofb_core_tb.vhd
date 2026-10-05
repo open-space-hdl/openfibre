@@ -184,6 +184,14 @@ begin
                 exit when Pending_v = 0;
                 cycles(50);
                 if now - Start_v > timeout then
+
+                    for inst in 1 to 2 * CoreNumVc_c + 2 loop
+                        if CoreSb_v.get_pending_count(inst) > 0 then
+                            log(ID_LOG_HDR, "Instance " & to_string(inst) & ": " &
+                                to_string(CoreSb_v.get_pending_count(inst)) & " elements pending");
+                        end if;
+                    end loop;
+
                     alert(error, "Timeout waiting for delivery, " & to_string(Pending_v) & " elements pending");
                     exit;
                 end if;
@@ -626,6 +634,76 @@ begin
                 if NumLanes_g > 1 then
                     allLanes(2 ms);
                 end if;
+
+            -- TC-CORE-14: an uncorrectable error (DED) in each buffer of the Data Link layer of A during
+            -- traffic: no wrong word reaches a user. Output VC buffers, error recovery buffer, frame buffer
+            -- and broadcast output buffer: link reset (packets end with EEP or are lost); input VC buffer:
+            -- the packet ends with EEP; broadcast input buffer: the message is discarded
+            elsif run("test_ded_containment") then
+                enable_log_msg(ID_SEQUENCER);
+                CoreCfg(0).Lossy <= true;
+                CoreCfg(1).Lossy <= true;
+                linkUp(500 us);
+
+                for ch in EccChVcOut_c to EccChBcIn_c loop
+                    log(ID_SEQUENCER, "DED in channel " & to_string(ch));
+                    sendAll(10);
+                    CoreCfg(0).BcSend <= CoreCfg(0).BcSend + 3;
+                    CoreCfg(1).BcSend <= CoreCfg(1).BcSend + 3;
+                    cycles(300);
+                    wr(0, RegEccInject_c, std_logic_vector(to_unsigned(16#100# + ch, 32)));
+                    -- The error goes into the next word written into the channel: more traffic
+                    sendAll(5);
+                    CoreCfg(0).BcSend <= CoreCfg(0).BcSend + 2;
+                    CoreCfg(1).BcSend <= CoreCfg(1).BcSend + 2;
+
+                    -- The word with the error is read (DED flag of the channel at A)
+                    for k in 0 to 1000 loop
+                        rd(0, RegEccStatus_c, Data_v);
+                        exit when Data_v(ch) = '1';
+                        cycles(100);
+                    end loop;
+
+                    check_value(Data_v(ch), '1', error, "DED read in channel " & to_string(ch));
+                    -- Link reset: reported by the far end, then the link starts again
+                    if ch /= EccChVcIn_c and ch /= EccChBcIn_c then
+
+                        for k in 0 to 1000 loop
+                            rd(1, RegDlErrors_c, Data_v);
+                            exit when Data_v(5) = '1';
+                            cycles(100);
+                        end loop;
+
+                        check_value(Data_v(5), '1', error, "Link reset (far end B) for channel " & to_string(ch));
+                    end if;
+                    linkUp(500 us);
+                    -- Traffic after the error: packets and messages lost before it are recognised
+                    sendAll(2);
+                    CoreCfg(0).BcSend <= CoreCfg(0).BcSend + 1;
+                    CoreCfg(1).BcSend <= CoreCfg(1).BcSend + 1;
+                    waitDelivered(2 ms);
+                    wr(0, RegEccSelect_c, std_logic_vector(to_unsigned(ch, 32)));
+                    rd(0, RegEccCount_c, Data_v);
+                    check_value(unsigned(Data_v(31 downto 16)) > 0, error, "DED counted in channel " & to_string(ch));
+                    if ch = EccChVcIn_c or ch = EccChBcIn_c then
+                        rd(1, RegDlErrors_c, Data_v);
+                        check_value(Data_v(5), '0', error, "No link reset for channel " & to_string(ch));
+                    end if;
+                    rd(0, RegDlErrors_c, Data_v);
+                    check_value(Data_v(4), '0', error, "No protocol error at A for channel " & to_string(ch));
+                    wr(0, RegDlErrors_c, x"FFFFFFFF");
+                    wr(1, RegDlErrors_c, x"FFFFFFFF");
+                    wr(0, RegEccStatus_c, x"00000000");
+                end loop;
+
+                N_v := 0;
+
+                for vc in 0 to CoreNumVc_c-1 loop
+                    N_v := N_v + CoreRxEep(0, vc);
+                end loop;
+
+                check_value(N_v > 0, error, "Packet with a DED in the input VC buffer of A ended with EEP");
+                check_value(CoreBcLost(0) > 0, error, "Message with a DED in the broadcast input buffer discarded");
 
             end if;
 

@@ -19,6 +19,9 @@ library ieee;
     use ieee.numeric_std.all;
     use ieee.math_real.all;
 
+library uvvm_util;
+    context uvvm_util.uvvm_util_context;
+
 library uvvm_vvc_framework;
     use uvvm_vvc_framework.ti_vvc_framework_support_pkg.all;
 
@@ -337,9 +340,79 @@ begin
             end process;
 
             p_rx : process (UserClk) is
+                constant Inst_c  : positive := 1 + i * CoreNumVc_c + v;
                 variable Seed1_v : positive := 5 + 13 * i + 7 * v;
                 variable Seed2_v : positive := 3000 + 3 * i + 19 * v;
                 variable Rand_v  : real;
+                variable Word_v  : std_logic_vector(35 downto 0);
+                variable Exp_v   : std_logic_vector(35 downto 0);
+                variable InPkt_v : boolean  := false;
+                variable Eeps_v  : natural  := 0;
+                variable Lost_v  : natural  := 0;
+
+                -- A character of the word is an EOP or EEP (with an EEP only: the EEP)
+                function hasEnd (w : std_logic_vector(35 downto 0); eepOnly : boolean := false) return boolean is
+                begin
+
+                    for c in 0 to 3 loop
+                        if w(32 + c) = '1' and (w(8*c+7 downto 8*c) = CharEep_c or
+                                                (not eepOnly and w(8*c+7 downto 8*c) = CharEop_c)) then
+                            return true;
+                        end if;
+                    end loop;
+
+                    return false;
+                end function;
+
+                -- Lossy comparison: the expected word; or an EEP that ends the current packet early; or,
+                -- between packets, the first word of a later packet (the packets before it were lost)
+                procedure checkLossy (w : std_logic_vector(35 downto 0)) is
+                begin
+                    if not CoreSb_v.is_empty(Inst_c) and CoreSb_v.peek_expected(Inst_c) = w then
+                        CoreSb_v.check_received(Inst_c, w);
+                        InPkt_v := not hasEnd(w);
+                    elsif hasEnd(w, true) then
+
+                        -- Packet ended early: its remaining words are not expected any more
+                        while InPkt_v and not CoreSb_v.is_empty(Inst_c) loop
+                            Exp_v   := CoreSb_v.fetch_expected(Inst_c);
+                            InPkt_v := not hasEnd(Exp_v);
+                        end loop;
+
+                        InPkt_v := false;
+                        Eeps_v  := Eeps_v + 1;
+                        log(ID_SEQUENCER, "Core " & to_string(i) & ", VC " & to_string(v) & ": packet ended with EEP");
+                    elsif InPkt_v then
+                        alert(error, "Core " & to_string(i) & ", VC " & to_string(v) & ": wrong word inside a packet " &
+                              to_hstring(w));
+                    else
+
+                        -- Lost packets: drop whole expected packets up to one that starts with the word
+                        while not CoreSb_v.is_empty(Inst_c) loop
+                            exit when CoreSb_v.peek_expected(Inst_c) = w;
+
+                            loop
+                                Exp_v := CoreSb_v.fetch_expected(Inst_c);
+                                exit when hasEnd(Exp_v) or CoreSb_v.is_empty(Inst_c);
+                            end loop;
+
+                            Lost_v := Lost_v + 1;
+                            log(ID_SEQUENCER, "Core " & to_string(i) & ", VC " & to_string(v) & ": packet lost");
+                        end loop;
+
+                        if CoreSb_v.is_empty(Inst_c) then
+                            alert(error, "Core " & to_string(i) & ", VC " & to_string(v) & ": unexpected word " &
+                                  to_hstring(w));
+                        else
+                            CoreSb_v.check_received(Inst_c, w);
+                            InPkt_v := not hasEnd(w);
+                        end if;
+                    end if;
+                    CoreRxEep(i, v)  <= Eeps_v;
+                    CoreRxLost(i, v) <= Lost_v;
+                end procedure;
+
+            -- Receiver
             begin
                 if rising_edge(UserClk) then
                     if MVcValid(i)(v) = '1' and MVcReady(i)(v) = '1' then
@@ -348,9 +421,13 @@ begin
                         for w in 0 to N_c-1 loop
                             if MVcUser(i)(4*(N_c*v+w)+3 downto 4*(N_c*v+w)) /= "1111" or
                                MVcData(i)(32*(N_c*v+w)+31 downto 32*(N_c*v+w)) /= x"FBFBFBFB" then
-                                CoreSb_v.check_received(1 + i * CoreNumVc_c + v,
-                                                        MVcUser(i)(4*(N_c*v+w)+3 downto 4*(N_c*v+w)) &
-                                                        MVcData(i)(32*(N_c*v+w)+31 downto 32*(N_c*v+w)));
+                                Word_v := MVcUser(i)(4*(N_c*v+w)+3 downto 4*(N_c*v+w)) &
+                                          MVcData(i)(32*(N_c*v+w)+31 downto 32*(N_c*v+w));
+                                if CoreCfg(i).Lossy then
+                                    checkLossy(Word_v);
+                                else
+                                    CoreSb_v.check_received(Inst_c, Word_v);
+                                end if;
                             end if;
                         end loop;
 
@@ -419,9 +496,27 @@ begin
         end process;
 
         p_bc_rx : process (UserClk) is
+            constant Inst_c  : positive := 1 + 2 * CoreNumVc_c + i;
+            variable Lost_v  : natural  := 0;
+            variable Dummy_v : std_logic_vector(35 downto 0);
         begin
             if rising_edge(UserClk) then
                 if MBcValid(i) = '1' then
+
+                    -- Lossy comparison: messages before the received one may be lost (three elements each)
+                    while CoreCfg(i).Lossy and not CoreSb_v.is_empty(Inst_c) loop
+                        exit when CoreSb_v.peek_expected(Inst_c) = "0000" & MBcData(i)(31 downto 0);
+
+                        for e in 0 to 2 loop
+                            if not CoreSb_v.is_empty(Inst_c) then
+                                Dummy_v := CoreSb_v.fetch_expected(Inst_c);
+                            end if;
+                        end loop;
+
+                        Lost_v := Lost_v + 1;
+                    end loop;
+
+                    CoreBcLost(i) <= Lost_v;
                     CoreSb_v.check_received(1 + 2 * CoreNumVc_c + i, "0000" & MBcData(i)(31 downto 0));
                     CoreSb_v.check_received(1 + 2 * CoreNumVc_c + i, "0000" & MBcData(i)(63 downto 32));
                     -- DELAYED, B_TYPE and channel; LATE depends on the error recovery

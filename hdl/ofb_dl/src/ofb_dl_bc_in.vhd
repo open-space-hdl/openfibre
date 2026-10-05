@@ -70,6 +70,7 @@ architecture rtl of ofb_dl_bc_in is
     signal OutVld  : std_logic;
     signal FifoSec : std_logic;
     signal FifoDed : std_logic;
+    signal FifoRdy : std_logic;
 
 begin
 
@@ -91,16 +92,18 @@ begin
             Out_Rst           => UserRst,
             Out_Data          => FifoOut,
             Out_Valid         => OutVld,
-            Out_Ready         => Out_Ready,
+            Out_Ready         => FifoRdy,
             Out_EccSec        => FifoSec,
             Out_EccDed        => FifoDed,
             In_ErrInj_BitFlip => eccInjPattern(eccCodewordWidth(BcWidth_c), EccInj_Double),
             In_ErrInj_Valid   => EccInj_Valid
         );
 
-    Out_Valid <= OutVld;
-    Ev_EccSec <= FifoSec and OutVld and Out_Ready;
-    Ev_EccDed <= FifoDed and OutVld and Out_Ready;
+    -- A message with an uncorrectable error is discarded (DL-ED-02)
+    Out_Valid <= OutVld and not FifoDed;
+    FifoRdy   <= Out_Ready or FifoDed;
+    Ev_EccSec <= FifoSec and OutVld and FifoRdy;
+    Ev_EccDed <= FifoDed and OutVld;
 
     Out_Data    <= FifoOut(63 downto 0);
     Out_Channel <= FifoOut(71 downto 64);

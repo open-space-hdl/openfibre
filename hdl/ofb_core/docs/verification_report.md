@@ -6,7 +6,7 @@ Run on 2026-10-05 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_core_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 13 x 3 | 39 |
+| `ofb_core_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 14 x 3 | 42 |
 
 Fault injection campaign (TC-CORE-13): the regression runs seed 1; the extended campaign
 `OFB_CAMPAIGN_SEEDS="2,3,4,5" python run.py "*test_fault_campaign*"` adds seeds 2 to 5. 15 runs, 600 faults, all
@@ -48,4 +48,6 @@ Defects found during verification:
 | TC-CORE-13 (2 and 4 lanes): a word slip on one line corrupted packets in the other direction without any error (scoreboard mismatch): the end with the slip entered Not Ready and its distributor discarded held words of a frame that the far end kept | Multi-Lane layer: held words kept in Not Ready (ML-DS-12) |
 | TC-CORE-13: a double error in a row crossing corrupted a word after the CRC-16 check (receive) or before the CRC-16 computation (transmit): silent corruption | Receive: the row becomes one RXERR; transmit: poisoned row, CRC-16 of the frame inverted (CORE-ED-02) |
 | TC-CORE-13 (testbench): with about 6 % link load most line faults hit idle frames, one end saw no retry | Traffic raised to about 60 % of the link capacity |
+| TC-CORE-14: a link reset during traffic caused a second link reset with the protocol error flag: ACKs of the far end for frames that the near end had discarded still arrived before the lanes went down | Data Link layer: received words pass to the receive checks only in Link Initialised (DL-LR-05) |
+| TC-CORE-14 (testbench): the injected error waits for the next word written into the channel; without traffic after the injection the error was never read | Traffic after the injection; the test waits for the DED flag and for the far-end link reset before the traffic that recognises the lost packets |
 | TC-CORE-13 (2 lanes, seed 2): a packet delivered twice after a lane slip: two out-of-sequence words in consecutive cycles were checked against an old Receive Polarity Flag and started a second error recovery | Data Link layer: receive error state machine updated in the cycle of the word (DL-RE-01, TC-DL-26) |

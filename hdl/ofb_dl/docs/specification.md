@@ -142,6 +142,7 @@ level.
 | DL-LR-02 | In Near-End Reset link reset and LaneReset of all lanes shall be asserted for one cycle; in Check Far-End Reset the INIT3LinkResetFlag of the near-end capability shall be 1, in Link Initialised 0. | 5.7.9.3b, 5.7.9.4b, 5.7.9.5b |
 | DL-LR-03 | The far-end capability shall be used as an event (not as a stored level): Check Far-End Reset moves to Link Initialised, and Link Initialised to Near-End Reset when no lane is active, on a capability event with INIT3LinkResetFlag set; the latter raises the Far-End Link Reset status. | 5.7.9.4c, 5.7.9.5c, Table 5-37 |
 | DL-LR-04 | Link reset shall perform the actions of 5.7.10b in all Data Link blocks: frame stopped, broadcast credit zero, PRBS seed, sequence counters and polarity flags cleared, error recovery buffer emptied, data word identification in RxNothing. | 5.7.10b |
+| DL-LR-05 | Received words shall be passed to the receive checks only in Link Initialised: words that arrive while the near end is reset belong to the link before the reset (an ACK of a discarded frame would otherwise cause a protocol error and a second link reset). | 5.7.9, 5.7.10 |
 
 ### 2.12 Status (DC-2)
 
@@ -174,6 +175,13 @@ level.
 | DL-RW-04 | The FCT credit counter shall be decreased by N words for every data row sent. | 5.7.3.1f |
 | DL-RW-05 | A received data row may hold 1 to N words (mask, word 0 first); every word shall count for the frame length and be stored in the input VC buffer. | 5.6.5c, 5.7.8 |
 | DL-RW-06 | The Network layer shall read the input VC buffer in beats of N words; a beat shall end after a word with an EOP or EEP, its remaining words being words of four Fills, or when N words are available. | 5.7.2.3, 5.7.2.2 note |
+
+### 2.15 Uncorrectable errors in the buffers (fault tolerance)
+
+| ID | Requirement | ECSS |
+| --- | --- | --- |
+| DL-ED-01 | An uncorrectable error (DED) in a word read from an output VC buffer, the broadcast output buffer, the error recovery buffer (reads for sending, not the scrubber) or the frame buffer shall reset the link; a row of the frame buffer with a DED shall not be written into an input VC buffer. | none (fault tolerance, P5); 5.7.10 (link reset) |
+| DL-ED-02 | A beat of an input VC buffer with a DED shall be replaced by an EEP followed by Fills, and the rest of its packet shall be discarded up to and including the next word with an EOP or EEP; a broadcast message with a DED shall be discarded. | none (fault tolerance, P5) |
 
 ## 3. Error conditions
 

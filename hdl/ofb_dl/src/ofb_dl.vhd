@@ -159,6 +159,8 @@ architecture rtl of ofb_dl is
     signal FctMult     : std_logic_vector(2 downto 0);
     signal ResetFlag   : std_logic;
     signal ErrLinkRst  : std_logic;
+    signal LrState     : std_logic_vector(1 downto 0);
+    signal RxValid     : std_logic;
     signal ProtErr     : std_logic;
 
     -- Output VC buffers
@@ -298,6 +300,7 @@ architecture rtl of ofb_dl is
     signal VcInDed   : std_logic_vector(NumVc_g-1 downto 0);
     signal ErbSec    : std_logic;
     signal ErbDed    : std_logic;
+    signal ErbRdDed  : std_logic;
     signal BufSec    : std_logic;
     signal BufDed    : std_logic;
     signal BcOutSec  : std_logic;
@@ -316,7 +319,9 @@ begin
     -----------------------------------------------------------------------------------------------
     -- Link reset (DC-1)
     -----------------------------------------------------------------------------------------------
-    ErrLinkRst <= ProtErr or BufOverflow or (or VcOverflow);
+    -- An uncorrectable error (DED) in a buffer of the transmit path or in the frame buffer cannot be
+    -- repaired by error recovery: the link is reset, packets in progress end with EEP (DL-ED-01)
+    ErrLinkRst <= ProtErr or BufOverflow or (or VcOverflow) or (or VcOutDed) or BcOutDed or ErbRdDed or BufDed;
 
     i_link_reset : entity work.ofb_dl_link_reset
         port map (
@@ -333,11 +338,17 @@ begin
             Ctrl_ConfigReset      => ConfigReset,
             Ctrl_LinkResetFlag    => ResetFlag,
             Ev_FarEndLinkReset    => Ev_FarEndLinkReset,
-            Stat_State            => Stat_LinkResetState
+            Stat_State            => LrState
         );
 
-    Ctrl_ConfigReset <= ConfigReset;
-    Ml_LinkReset     <= LinkReset;
+    Ctrl_ConfigReset    <= ConfigReset;
+    Stat_LinkResetState <= LrState;
+
+    -- Words received before both ends are reset belong to the link before the reset (an ACK of a frame
+    -- the near end has discarded would be a protocol error): only Link Initialised passes them (DL-LR-05)
+    RxValid <= RxRow_Valid when LrState = "11" else '0';
+
+    Ml_LinkReset <= LinkReset;
 
     -- Maximum number of data-sending lanes P, taken over while the link is reset (Table 5-36):
     -- data segment and idle frame of 64 x P words, FCT multiplier M = P, frame length check
@@ -687,7 +698,8 @@ begin
             EccInj_Valid     => EccInj_Core(EccChErb_c) or EccInj_Core(Ch_c + EccChErb_c),
             EccInj_Double    => EccInj_Core(Ch_c + EccChErb_c),
             Ev_EccSec        => ErbSec,
-            Ev_EccDed        => ErbDed
+            Ev_EccDed        => ErbDed,
+            Ev_ReadDed       => ErbRdDed
         );
 
     TxIdle <= '1' when VcEmpty = (VcEmpty'range => '1') and FctReq = (FctReq'range => '0') and BcValid = '0' else '0';
@@ -759,7 +771,7 @@ begin
             In_K           => RxRow_K,
             In_Mask        => RxRow_Mask,
             In_CrcErr      => RxRow_CrcErr,
-            In_Valid       => RxRow_Valid,
+            In_Valid       => RxValid,
             Cfg_FrameWords => FrameWords,
             RxPolarity     => RxPolarity,
             RxSeqCount     => RxSeqCount,

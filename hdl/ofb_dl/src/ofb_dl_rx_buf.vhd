@@ -157,7 +157,8 @@ begin
     begin
         Vc_Valid      <= (others => '0');
         Ev_VcOverflow <= (others => '0');
-        if OutValid = '1' then
+        -- A row with an uncorrectable error is not passed on (the link is reset, DL-ED-01)
+        if OutValid = '1' and FifoDed = '0' then
             if OutVc < NumVc_g then
                 Vc_Valid(OutVc) <= '1';
                 if Vc_Ready(OutVc) = '0' then
