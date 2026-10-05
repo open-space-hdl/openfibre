@@ -78,5 +78,7 @@ proc ofb_gtw_create {name refclk_mhz} {
     foreach p [ofb_gtw_ports] {
         if {[dict get $got $p] ne "true"} { error "ofb_gtw: optional port $p not enabled" }
     }
+    # Loopback port of every channel (serial loopbacks of ECSS 5.4.2.2)
+    for {set c 0} {$c < 4} {incr c} { set_property CONFIG.QUAD0_CH${c}_LOOPBACK_EN true $ip }
     return $ip
 }

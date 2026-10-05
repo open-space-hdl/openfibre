@@ -301,7 +301,7 @@ interfaces (D6).
 
 | ID | Block | Responsibility | Open Logic | ECSS |
 | --- | --- | --- | --- | --- |
-| PA-1 | SerDes wrapper (vendor specific) | AMD Versal GTY of the VCK190 first (`ofb_pa_gty`, Versal Transceivers Wizard); other SerDes later: serialisation, data signalling rate, loss of signal (receiver electrical idle, synchronised), polarity control; PHYSICAL_CONTROL and PHYSICAL_STATUS service. Serial loopback (a recommendation of 5.4.2.2) is not provided; LN-4 provides the parallel loopback | `olo_intf_sync` | 5.4.2.1 to 5.4.2.4, 6.4 |
+| PA-1 | SerDes wrapper (vendor specific) | AMD Versal GTY of the VCK190 first (`ofb_pa_gty`, Versal Transceivers Wizard); other SerDes later: serialisation, near-end and far-end serial loopback (PMA loopbacks of the transceiver, enabled through the MIB), data signalling rate, loss of signal (receiver electrical idle, synchronised), polarity control; PHYSICAL_CONTROL and PHYSICAL_STATUS service | `olo_intf_sync` | 5.4.2.1 to 5.4.2.4, 6.4 |
 | PA-2 | 8B/10B codec | Transceiver hardware codec when present, otherwise a soft codec; code and disparity errors to LN-3 | none (no Open Logic codec; custom block) | 5.3.2 |
 | PA-3 | Receive elastic buffer | Transceiver clock correction on SKIP (Versal GTY), or a soft buffer from `RxClk(i)` to `LaneClk` with SKIP deletion for SerDes without clock correction | `olo_ft_fifo_async` (soft buffer) | none owned (SKIP removal of 5.5.3 for LN-2) |
 

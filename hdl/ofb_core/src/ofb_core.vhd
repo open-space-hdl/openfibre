@@ -41,64 +41,67 @@ entity ofb_core is
     );
     port (
         -- Asynchronous reset (high active), clocks
-        Rst               : in    std_logic;
-        UserClk           : in    std_logic;
-        CoreClk           : in    std_logic;
-        LaneClk           : in    std_logic;
-        MgmtClk           : in    std_logic;
+        Rst                    : in    std_logic;
+        UserClk                : in    std_logic;
+        CoreClk                : in    std_logic;
+        LaneClk                : in    std_logic;
+        MgmtClk                : in    std_logic;
         -- Virtual channels (UserClk): beats of NumLanes_g words, TUSER: K flag per character
-        S_Vc_TData        : in    std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
-        S_Vc_TUser        : in    std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
-        S_Vc_TValid       : in    std_logic_vector(NumVc_g-1 downto 0);
-        S_Vc_TReady       : out   std_logic_vector(NumVc_g-1 downto 0);
-        M_Vc_TData        : out   std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
-        M_Vc_TUser        : out   std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
-        M_Vc_TValid       : out   std_logic_vector(NumVc_g-1 downto 0);
-        M_Vc_TReady       : in    std_logic_vector(NumVc_g-1 downto 0);
+        S_Vc_TData             : in    std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
+        S_Vc_TUser             : in    std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
+        S_Vc_TValid            : in    std_logic_vector(NumVc_g-1 downto 0);
+        S_Vc_TReady            : out   std_logic_vector(NumVc_g-1 downto 0);
+        M_Vc_TData             : out   std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
+        M_Vc_TUser             : out   std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
+        M_Vc_TValid            : out   std_logic_vector(NumVc_g-1 downto 0);
+        M_Vc_TReady            : in    std_logic_vector(NumVc_g-1 downto 0);
         -- Broadcast messages (UserClk, TUSER: channel 7:0, B_TYPE 15:8, DELAYED 16, LATE 17)
-        S_Bc_TData        : in    std_logic_vector(63 downto 0);
-        S_Bc_TUser        : in    std_logic_vector(16 downto 0);
-        S_Bc_TValid       : in    std_logic;
-        S_Bc_TReady       : out   std_logic;
-        M_Bc_TData        : out   std_logic_vector(63 downto 0);
-        M_Bc_TUser        : out   std_logic_vector(17 downto 0);
-        M_Bc_TValid       : out   std_logic;
-        M_Bc_TReady       : in    std_logic;
+        S_Bc_TData             : in    std_logic_vector(63 downto 0);
+        S_Bc_TUser             : in    std_logic_vector(16 downto 0);
+        S_Bc_TValid            : in    std_logic;
+        S_Bc_TReady            : out   std_logic;
+        M_Bc_TData             : out   std_logic_vector(63 downto 0);
+        M_Bc_TUser             : out   std_logic_vector(17 downto 0);
+        M_Bc_TValid            : out   std_logic;
+        M_Bc_TReady            : in    std_logic;
         -- SCHEDULE.request (UserClk)
-        S_Sched_Slot      : in    std_logic_vector(5 downto 0) := (others => '0');
-        S_Sched_Valid     : in    std_logic                    := '0';
+        S_Sched_Slot           : in    std_logic_vector(5 downto 0) := (others => '0');
+        S_Sched_Valid          : in    std_logic                    := '0';
         -- Management Information Base (MgmtClk)
-        S_AxiLite_ArAddr  : in    std_logic_vector(11 downto 0);
-        S_AxiLite_ArValid : in    std_logic;
-        S_AxiLite_ArReady : out   std_logic;
-        S_AxiLite_AwAddr  : in    std_logic_vector(11 downto 0);
-        S_AxiLite_AwValid : in    std_logic;
-        S_AxiLite_AwReady : out   std_logic;
-        S_AxiLite_WData   : in    std_logic_vector(31 downto 0);
-        S_AxiLite_WStrb   : in    std_logic_vector(3 downto 0);
-        S_AxiLite_WValid  : in    std_logic;
-        S_AxiLite_WReady  : out   std_logic;
-        S_AxiLite_BResp   : out   std_logic_vector(1 downto 0);
-        S_AxiLite_BValid  : out   std_logic;
-        S_AxiLite_BReady  : in    std_logic;
-        S_AxiLite_RData   : out   std_logic_vector(31 downto 0);
-        S_AxiLite_RResp   : out   std_logic_vector(1 downto 0);
-        S_AxiLite_RValid  : out   std_logic;
-        S_AxiLite_RReady  : in    std_logic;
-        Irq               : out   std_logic;
+        S_AxiLite_ArAddr       : in    std_logic_vector(11 downto 0);
+        S_AxiLite_ArValid      : in    std_logic;
+        S_AxiLite_ArReady      : out   std_logic;
+        S_AxiLite_AwAddr       : in    std_logic_vector(11 downto 0);
+        S_AxiLite_AwValid      : in    std_logic;
+        S_AxiLite_AwReady      : out   std_logic;
+        S_AxiLite_WData        : in    std_logic_vector(31 downto 0);
+        S_AxiLite_WStrb        : in    std_logic_vector(3 downto 0);
+        S_AxiLite_WValid       : in    std_logic;
+        S_AxiLite_WReady       : out   std_logic;
+        S_AxiLite_BResp        : out   std_logic_vector(1 downto 0);
+        S_AxiLite_BValid       : out   std_logic;
+        S_AxiLite_BReady       : in    std_logic;
+        S_AxiLite_RData        : out   std_logic_vector(31 downto 0);
+        S_AxiLite_RResp        : out   std_logic_vector(1 downto 0);
+        S_AxiLite_RValid       : out   std_logic;
+        S_AxiLite_RReady       : in    std_logic;
+        Irq                    : out   std_logic;
         -- Physical adapters (LaneClk): symbol streams and control per lane
-        PhyTx_Data        : out   std_logic_vector(32*NumLanes_g-1 downto 0);
-        PhyTx_K           : out   std_logic_vector(4*NumLanes_g-1 downto 0);
-        PhyRx_Data        : in    std_logic_vector(32*NumLanes_g-1 downto 0);
-        PhyRx_K           : in    std_logic_vector(4*NumLanes_g-1 downto 0);
-        PhyRx_CodeErr     : in    std_logic_vector(4*NumLanes_g-1 downto 0);
-        PhyRx_DispErr     : in    std_logic_vector(4*NumLanes_g-1 downto 0);
-        PhyRx_Valid       : in    std_logic_vector(NumLanes_g-1 downto 0);
-        Phy_TxEnable      : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Phy_RxEnable      : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Phy_CdrEnable     : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Phy_RxInvert      : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Phy_NoSignal      : in    std_logic_vector(NumLanes_g-1 downto 0)
+        PhyTx_Data             : out   std_logic_vector(32*NumLanes_g-1 downto 0);
+        PhyTx_K                : out   std_logic_vector(4*NumLanes_g-1 downto 0);
+        PhyRx_Data             : in    std_logic_vector(32*NumLanes_g-1 downto 0);
+        PhyRx_K                : in    std_logic_vector(4*NumLanes_g-1 downto 0);
+        PhyRx_CodeErr          : in    std_logic_vector(4*NumLanes_g-1 downto 0);
+        PhyRx_DispErr          : in    std_logic_vector(4*NumLanes_g-1 downto 0);
+        PhyRx_Valid            : in    std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_TxEnable           : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_RxEnable           : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_CdrEnable          : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_RxInvert           : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_NoSignal           : in    std_logic_vector(NumLanes_g-1 downto 0);
+        -- Serial loopbacks of the Physical layer (MIB, LaneClk)
+        Phy_SerialNearLoopback : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_SerialFarLoopback  : out   std_logic_vector(NumLanes_g-1 downto 0)
     );
 end entity;
 
@@ -623,91 +626,93 @@ begin
             NumLanes_g => NumLanes_g
         )
         port map (
-            Clk                   => MgmtClk,
-            Rst                   => MgmtRst,
-            S_AxiLite_ArAddr      => S_AxiLite_ArAddr,
-            S_AxiLite_ArValid     => S_AxiLite_ArValid,
-            S_AxiLite_ArReady     => S_AxiLite_ArReady,
-            S_AxiLite_AwAddr      => S_AxiLite_AwAddr,
-            S_AxiLite_AwValid     => S_AxiLite_AwValid,
-            S_AxiLite_AwReady     => S_AxiLite_AwReady,
-            S_AxiLite_WData       => S_AxiLite_WData,
-            S_AxiLite_WStrb       => S_AxiLite_WStrb,
-            S_AxiLite_WValid      => S_AxiLite_WValid,
-            S_AxiLite_WReady      => S_AxiLite_WReady,
-            S_AxiLite_BResp       => S_AxiLite_BResp,
-            S_AxiLite_BValid      => S_AxiLite_BValid,
-            S_AxiLite_BReady      => S_AxiLite_BReady,
-            S_AxiLite_RData       => S_AxiLite_RData,
-            S_AxiLite_RResp       => S_AxiLite_RResp,
-            S_AxiLite_RValid      => S_AxiLite_RValid,
-            S_AxiLite_RReady      => S_AxiLite_RReady,
-            Irq                   => Irq,
-            CoreClk               => CoreClk,
-            CoreRst               => CoreRst,
-            Dl_DataScrambled      => CfgScrambled,
-            Dl_BcInterval         => CfgBcInt,
-            Dl_LinkReset          => CfgLinkRst,
-            Dl_InterfaceReset     => CfgIfRst,
-            Dl_LinkResetState     => StLinkState,
-            Dl_RxErrState         => StRxErrState,
-            Dl_WordIdState        => StWordId,
-            Dl_ErbEmpty           => StErbEmpty,
-            Dl_HasCredit          => StHasCredit,
-            Dl_EvCrc16Err         => EvCrc16,
-            Dl_EvCrc8Err          => EvCrc8,
-            Dl_EvFrameErr         => EvFrame,
-            Dl_EvSeqErr           => EvSeq,
-            Dl_EvRetry            => EvRetry,
-            Dl_EvProtocolError    => EvProt,
-            Dl_EvFarEndLinkReset  => EvFarRst,
-            Dl_EvBcDiscard        => EvBcDisc,
-            Dl_EvInputOverflow    => EvInOvf,
-            Dl_EvCreditOverflow   => EvCrOvf,
-            Dl_BwOver             => StBwOver,
-            Dl_BwUnder            => StBwUnder,
-            Dl_TimeSlot           => StTimeSlot,
-            Dl_RegWr              => RegWr,
-            Dl_RegAddr            => RegAddr,
-            Dl_RegData            => RegData,
-            Dl_MaxDataLanes       => CfgDlMax,
-            LaneClk               => LaneClk,
-            LaneRst               => LaneRst,
-            Lane_Start            => CfgLaneStart,
-            Lane_AutoStart        => CfgAutoStart,
-            Lane_Reset            => CfgLaneReset,
-            Lane_NearLoopback     => CfgNearLb,
-            Lane_FarLoopback      => CfgFarLb,
-            Lane_StandbyReason    => CfgReason,
-            Lane_State            => StLaneState,
-            Lane_RxPolarity       => StRxPolarity,
-            Lane_NoSignal         => Phy_NoSignal,
-            Lane_RxErrCount       => StRxErrCount,
-            Lane_FarCapability    => StFarCap,
-            Lane_FarStandbyReason => StStbyReason,
-            Lane_FarLostReason    => StLostReason,
-            Lane_EvRxErrOverflow  => EvRxErrOvf,
-            Lane_EvTimeout        => EvTimeout,
-            Lane_EvFarStandby     => EvFarStby,
-            Lane_EvFarLostSignal  => EvFarLost,
-            Ml_DataSending        => DataSending,
-            Ml_DataReceiving      => DataRecv,
-            Ml_AlignState         => AlignState,
-            Ml_StatBypass         => MlBypass,
-            Ml_EvMisaligned       => MlMisalign,
-            Ml_TxEn               => CfgTxEn,
-            Ml_RxEn               => CfgRxEn,
-            Ml_MaxDataLanes       => CfgMlMax,
-            Ml_Bypass             => CfgMlBypass,
-            UserClk               => UserClk,
-            UserRst               => UserRst,
-            Ni_EvFrameErr         => NiFrameErr,
-            Ecc_Core              => EccDlCore or EccCcCore,
-            Ecc_User              => EccDlUser,
-            Ecc_Lane              => EccCcLane,
-            EccInj_Core           => EccInjCore,
-            EccInj_User           => EccInjUser,
-            EccInj_Lane           => EccInjLane
+            Clk                    => MgmtClk,
+            Rst                    => MgmtRst,
+            S_AxiLite_ArAddr       => S_AxiLite_ArAddr,
+            S_AxiLite_ArValid      => S_AxiLite_ArValid,
+            S_AxiLite_ArReady      => S_AxiLite_ArReady,
+            S_AxiLite_AwAddr       => S_AxiLite_AwAddr,
+            S_AxiLite_AwValid      => S_AxiLite_AwValid,
+            S_AxiLite_AwReady      => S_AxiLite_AwReady,
+            S_AxiLite_WData        => S_AxiLite_WData,
+            S_AxiLite_WStrb        => S_AxiLite_WStrb,
+            S_AxiLite_WValid       => S_AxiLite_WValid,
+            S_AxiLite_WReady       => S_AxiLite_WReady,
+            S_AxiLite_BResp        => S_AxiLite_BResp,
+            S_AxiLite_BValid       => S_AxiLite_BValid,
+            S_AxiLite_BReady       => S_AxiLite_BReady,
+            S_AxiLite_RData        => S_AxiLite_RData,
+            S_AxiLite_RResp        => S_AxiLite_RResp,
+            S_AxiLite_RValid       => S_AxiLite_RValid,
+            S_AxiLite_RReady       => S_AxiLite_RReady,
+            Irq                    => Irq,
+            CoreClk                => CoreClk,
+            CoreRst                => CoreRst,
+            Dl_DataScrambled       => CfgScrambled,
+            Dl_BcInterval          => CfgBcInt,
+            Dl_LinkReset           => CfgLinkRst,
+            Dl_InterfaceReset      => CfgIfRst,
+            Dl_LinkResetState      => StLinkState,
+            Dl_RxErrState          => StRxErrState,
+            Dl_WordIdState         => StWordId,
+            Dl_ErbEmpty            => StErbEmpty,
+            Dl_HasCredit           => StHasCredit,
+            Dl_EvCrc16Err          => EvCrc16,
+            Dl_EvCrc8Err           => EvCrc8,
+            Dl_EvFrameErr          => EvFrame,
+            Dl_EvSeqErr            => EvSeq,
+            Dl_EvRetry             => EvRetry,
+            Dl_EvProtocolError     => EvProt,
+            Dl_EvFarEndLinkReset   => EvFarRst,
+            Dl_EvBcDiscard         => EvBcDisc,
+            Dl_EvInputOverflow     => EvInOvf,
+            Dl_EvCreditOverflow    => EvCrOvf,
+            Dl_BwOver              => StBwOver,
+            Dl_BwUnder             => StBwUnder,
+            Dl_TimeSlot            => StTimeSlot,
+            Dl_RegWr               => RegWr,
+            Dl_RegAddr             => RegAddr,
+            Dl_RegData             => RegData,
+            Dl_MaxDataLanes        => CfgDlMax,
+            LaneClk                => LaneClk,
+            LaneRst                => LaneRst,
+            Lane_Start             => CfgLaneStart,
+            Lane_AutoStart         => CfgAutoStart,
+            Lane_Reset             => CfgLaneReset,
+            Lane_NearLoopback      => CfgNearLb,
+            Lane_FarLoopback       => CfgFarLb,
+            Lane_StandbyReason     => CfgReason,
+            Phy_SerialNearLoopback => Phy_SerialNearLoopback,
+            Phy_SerialFarLoopback  => Phy_SerialFarLoopback,
+            Lane_State             => StLaneState,
+            Lane_RxPolarity        => StRxPolarity,
+            Lane_NoSignal          => Phy_NoSignal,
+            Lane_RxErrCount        => StRxErrCount,
+            Lane_FarCapability     => StFarCap,
+            Lane_FarStandbyReason  => StStbyReason,
+            Lane_FarLostReason     => StLostReason,
+            Lane_EvRxErrOverflow   => EvRxErrOvf,
+            Lane_EvTimeout         => EvTimeout,
+            Lane_EvFarStandby      => EvFarStby,
+            Lane_EvFarLostSignal   => EvFarLost,
+            Ml_DataSending         => DataSending,
+            Ml_DataReceiving       => DataRecv,
+            Ml_AlignState          => AlignState,
+            Ml_StatBypass          => MlBypass,
+            Ml_EvMisaligned        => MlMisalign,
+            Ml_TxEn                => CfgTxEn,
+            Ml_RxEn                => CfgRxEn,
+            Ml_MaxDataLanes        => CfgMlMax,
+            Ml_Bypass              => CfgMlBypass,
+            UserClk                => UserClk,
+            UserRst                => UserRst,
+            Ni_EvFrameErr          => NiFrameErr,
+            Ecc_Core               => EccDlCore or EccCcCore,
+            Ecc_User               => EccDlUser,
+            Ecc_Lane               => EccCcLane,
+            EccInj_Core            => EccInjCore,
+            EccInj_User            => EccInjUser,
+            EccInj_Lane            => EccInjLane
         );
 
 end architecture;

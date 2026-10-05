@@ -6,7 +6,7 @@ Run on 2026-10-05 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_core_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 10 x 3 | 30 |
+| `ofb_core_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 12 x 3 | 36 |
 
 ## 2. Summary
 

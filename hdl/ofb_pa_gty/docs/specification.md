@@ -23,6 +23,7 @@ target-specific part of OpenFibre; it is not part of the GHDL regression (sectio
 | PA-IF-01 | The adapter shall take one word of four symbols (8 bits and a K flag each, symbol 0 first) per lane and `LaneClk` cycle for transmission and pass one received word of four decoded symbols per cycle with a K flag, a code error flag and a disparity error flag per symbol and a valid flag. | 5.4.1b, c, 5.5.1k, l, 6.4.2 |
 | PA-IF-02 | The adapter shall disable the line driver (electrical idle) when line driver enable is low, mark received words invalid when line receiver enable is low, hold the clock data recovery when CDR enable is low and invert the received bits when Invert RX Polarity is high. | 5.4.1d, 5.4.2h, 6.4.3 |
 | PA-IF-03 | NoSignal shall be the electrical idle indication of the receiver of the lane, synchronised to `LaneClk`. | 5.4.1e, 5.4.2.4a |
+| PA-LB-01 | The near-end serial loopback of a lane shall connect the serialiser output of the channel to its deserialiser input (near-end PMA loopback), the far-end serial loopback the received serial signal to the line driver (far-end PMA loopback); after a change of a far-end loopback the transmitters shall be reset. | 5.4.1h, 5.4.2.2a to c |
 | PA-SE-01 | Every lane shall transmit and receive at 6.25 Gbit/s, symbols serialised least significant bit first. | 5.4.2a to c, 5.4.2.3b |
 | PA-SE-02 | The symbols shall be encoded and decoded with 8B/10B; a symbol that is not a valid code group shall set the code error flag, a running disparity error the disparity error flag. | 5.3.2, 5.5.7j, k |
 | PA-SY-01 | The receiver shall align the symbols on positive and negative commas (7-bit comma sequences) and realign when a comma is detected in another position; the comma shall be placed in symbol 0 of a received word. | 5.5.6a to g, 5.5.7c |
@@ -49,8 +50,12 @@ model follows the same flow.
 
 ## 5. Interpretation of the standard
 
-- Serial loopback (5.4.2.2) is a recommendation; the adapter provides none. The Lane layer provides the parallel
-  loopback required in that case (5.5.5a).
+- The serial loopbacks (5.4.2.2) are the PMA loopbacks of the transceiver. In near-end loopback the transmitter
+  still drives the line. A far-end loopback resets the transmit datapath of the quad (the transceiver requires a
+  transmit reset after entering or leaving it), so the transmitters of the other lanes restart as well. The far-end
+  loopback retimes the received bits with the transmit clock of the loopback end: with different reference clocks at
+  the two ends, bits are lost or repeated at intervals given by the frequency difference (seen in the simulation at
+  1000 ppm); the error recovery of the Data Link layer at the far end corrects the affected frames.
 - Bit synchronisation status (5.4.2e) is reported as the comma alignment of the receiver (`Stat_Aligned`).
 - The deserialiser is ready within 150000 bits after a valid signal appears (5.4.2g) once the transceiver reset
   sequence is complete; the receive clock data recovery of the GTY locks within a few microseconds.
