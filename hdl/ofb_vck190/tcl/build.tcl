@@ -54,6 +54,18 @@ source [file join $root hdl ofb_pa_gty tcl ofb_gtw.tcl]
 ofb_gtw_create ofb_gtw 156.25
 generate_target all [get_ips ofb_gtw]
 
+# Control, interfaces and processing system (CIPS): every Versal design needs it, the platform management
+# controller configures the device. Default configuration (no interfaces to the programmable logic), JTAG boot.
+create_bd_design ofb_cips
+create_bd_cell -type ip -vlnv [lindex [lsort [get_ipdefs -filter {NAME == versal_cips}]] end] cips
+validate_bd_design
+save_bd_design
+set bd [get_files ofb_cips.bd]
+generate_target all $bd
+add_files -norecurse [make_wrapper -files $bd -top]
+close_bd_design [current_bd_design]
+set_property generic {IncludeCips_g=true} [current_fileset]
+
 # Constraints: board, Open Logic crossings (implementation only)
 add_files -fileset constrs_1 -norecurse [file join $root hdl ofb_vck190 constr ofb_vck190.xdc]
 source [file join $root open-logic src base tcl olo_base_constraints_amd.tcl]
