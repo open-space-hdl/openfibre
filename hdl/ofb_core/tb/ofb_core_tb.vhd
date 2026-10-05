@@ -17,6 +17,7 @@
 library ieee;
     use ieee.std_logic_1164.all;
     use ieee.numeric_std.all;
+    use ieee.math_real.all;
 
 library uvvm_util;
     context uvvm_util.uvvm_util_context;
@@ -42,7 +43,8 @@ library work;
 entity ofb_core_tb is
     generic (
         runner_cfg : string;
-        NumLanes_g : positive range 1 to 4 := 1
+        NumLanes_g : positive range 1 to 4 := 1;
+        Seed_g     : positive              := 1 -- Seed of the fault injection campaign
     );
 end entity;
 
@@ -72,6 +74,15 @@ architecture sim of ofb_core_tb is
     constant RegEccCount_c  : natural := 16#068#;
     constant RegEccInject_c : natural := 16#06C#;
 
+    -- Fault injection campaign (TC-CORE-13): number of faults, fault kinds
+    constant CampaignFaults_c : positive := 40;
+    constant FaultFlip_c      : natural  := 0; -- Single bit error on a line
+    constant FaultBurst_c     : natural  := 1; -- Bit errors in 2 to 8 consecutive symbols
+    constant FaultSlip_c      : natural  := 2; -- Word slip: the skew of a line changes by one word
+    constant FaultSec_c       : natural  := 3; -- Single error in a random EDAC channel
+    constant FaultDed_c       : natural  := 4; -- Double error in a row crossing
+    constant FaultCut_c       : natural  := 5; -- Lane cut and reconnected (several lanes), else bit error
+
 begin
 
     -----------------------------------------------------------------------------------------------
@@ -79,6 +90,22 @@ begin
     -----------------------------------------------------------------------------------------------
     p_main : process is
         variable Data_v : std_logic_vector(31 downto 0);
+
+        -- Fault injection campaign
+        type CoreEcc_t is array (0 to 1) of std_logic_vector(EccChannels_c-1 downto 0);
+        type FaultCount_t is array (FaultFlip_c to FaultCut_c) of natural;
+
+        variable Seed1_v  : positive;
+        variable Seed2_v  : positive;
+        variable Sec_v    : CoreEcc_t;
+        variable Ded_v    : CoreEcc_t;
+        variable Faults_v : FaultCount_t;
+        variable Kind_v   : natural;
+        variable Lane_v   : natural;
+        variable Dir_v    : natural;
+        variable Core_v   : natural;
+        variable Ch_v     : natural;
+        variable N_v      : natural;
 
         procedure cycles (n : natural) is
         begin
@@ -176,6 +203,41 @@ begin
             end loop;
 
             cycles(1);
+        end procedure;
+
+        -- Uniformly distributed integer from lo to hi
+        procedure randInt (
+            lo :     integer;
+            hi :     integer;
+            r  : out integer) is
+            variable U_v : real;
+        begin
+            uniform(Seed1_v, Seed2_v, U_v);
+            r := minimum(hi, lo + integer(floor(U_v * real(hi - lo + 1))));
+        end procedure;
+
+        -- Wait until all lanes send and receive data at both ends (Both-Ends Ready)
+        procedure allLanes (timeout : time) is
+            constant All_c   : std_logic_vector(NumLanes_g-1 downto 0) := (others => '1');
+            variable Start_v : time;
+            variable A_v     : std_logic_vector(31 downto 0);
+            variable B_v     : std_logic_vector(31 downto 0);
+        begin
+            Start_v := now;
+
+            loop
+                rd(0, RegMlStatus_c, A_v);
+                rd(1, RegMlStatus_c, B_v);
+                exit when A_v(NumLanes_g-1 downto 0) = All_c and A_v(NumLanes_g+3 downto 4) = All_c and
+                          B_v(NumLanes_g-1 downto 0) = All_c and B_v(NumLanes_g+3 downto 4) = All_c and
+                          A_v(9 downto 8) = "10" and B_v(9 downto 8) = "10";
+                cycles(200);
+                if now - Start_v > timeout then
+                    alert(error, "Timeout waiting for all lanes at both ends");
+                    exit;
+                end if;
+            end loop;
+
         end procedure;
 
     -- Test cases
@@ -449,6 +511,121 @@ begin
                 waitDelivered(1 ms);
                 rd(0, RegDlErrors_c, Data_v);
                 check_value(Data_v, x"00000000", error, "No error at A");
+
+            -- TC-CORE-13: fault injection campaign: random faults on the lines and in the EDAC-protected
+            -- buffers during traffic and broadcast messages in both directions; every packet and message
+            -- delivered unchanged and in order, no link reset, the EDAC monitor reports the injected errors
+            elsif run("test_fault_campaign") then
+                enable_log_msg(ID_SEQUENCER);
+                linkUp(500 us);
+                Seed1_v  := Seed_g;
+                Seed2_v  := 1000 + NumLanes_g;
+                Sec_v    := (others => (others => '0'));
+                Ded_v    := (others => (others => '0'));
+                Faults_v := (others => 0);
+
+                for f in 1 to CampaignFaults_c loop
+                    sendAll(20 * NumLanes_g); -- about 60 % load of the link
+                    CoreCfg(0).BcSend <= CoreCfg(0).BcSend + 1;
+                    CoreCfg(1).BcSend <= CoreCfg(1).BcSend + 1;
+                    randInt(200, 1500, N_v);
+                    cycles(N_v);
+                    randInt(FaultFlip_c, FaultCut_c, Kind_v);
+                    randInt(0, NumLanes_g-1, Lane_v);
+                    randInt(0, 1, Dir_v);
+                    randInt(0, 1, Core_v);
+                    if Kind_v = FaultCut_c and NumLanes_g = 1 then
+                        Kind_v := FaultFlip_c;
+                    end if;
+                    Faults_v(Kind_v) := Faults_v(Kind_v) + 1;
+
+                    case Kind_v is
+
+                        when FaultFlip_c | FaultBurst_c =>
+                            N_v := 1;
+                            if Kind_v = FaultBurst_c then
+                                randInt(2, 8, N_v);
+                            end if;
+                            if Dir_v = 0 then
+                                PaCtrl(Lane_v).AtoB.Flips <= PaCtrl(Lane_v).AtoB.Flips + N_v;
+                            else
+                                PaCtrl(Lane_v).BtoA.Flips <= PaCtrl(Lane_v).BtoA.Flips + N_v;
+                            end if;
+
+                        when FaultSlip_c =>
+                            if Dir_v = 0 then
+                                PaCtrl(Lane_v).AtoB.Skew <= 1 - PaCtrl(Lane_v).AtoB.Skew;
+                            else
+                                PaCtrl(Lane_v).BtoA.Skew <= 1 - PaCtrl(Lane_v).BtoA.Skew;
+                            end if;
+
+                        when FaultSec_c =>
+                            randInt(0, EccChannels_c-1, Ch_v);
+                            wr(Core_v, RegEccInject_c, std_logic_vector(to_unsigned(Ch_v, 32)));
+                            Sec_v(Core_v)(Ch_v) := '1';
+
+                        when FaultDed_c =>
+                            -- A double error in a row crossing corrupts one word on the link: the receiver
+                            -- detects it with the CRC and the frame is sent again
+                            Ch_v                := EccChCcTx_c + Dir_v;
+                            wr(Core_v, RegEccInject_c, std_logic_vector(to_unsigned(16#100# + Ch_v, 32)));
+                            Ded_v(Core_v)(Ch_v) := '1';
+
+                        when others =>
+                            PaCtrl(Lane_v).AtoB.Cut <= true;
+                            PaCtrl(Lane_v).BtoA.Cut <= true;
+                            randInt(500, 3000, N_v);
+                            cycles(N_v);
+                            PaCtrl(Lane_v).AtoB.Cut <= false;
+                            PaCtrl(Lane_v).BtoA.Cut <= false;
+                            allLanes(2 ms);
+
+                    end case;
+
+                    log(ID_SEQUENCER, "Fault " & to_string(f) & ": kind " & to_string(Kind_v) & ", lane " & to_string(Lane_v) &
+                        ", direction " & to_string(Dir_v) & ", core " & to_string(Core_v) & ", channel " & to_string(Ch_v) &
+                        ", symbols / cycles " & to_string(N_v));
+                end loop;
+
+                -- Traffic in every EDAC channel after the last fault: packets, broadcast messages, a QoS write
+                for c in 0 to 1 loop
+                    CoreCfg(c).BcSend <= CoreCfg(c).BcSend + 1;
+                    wr(c, 16#434#, x"0000FFFF");
+                end loop;
+
+                sendAll(2);
+                waitDelivered(10 ms);
+                log(ID_LOG_HDR, "Faults (bit error, burst, slip, SEC, DED, lane cut): " & to_string(Faults_v(0)) & ", " &
+                    to_string(Faults_v(1)) & ", " & to_string(Faults_v(2)) & ", " & to_string(Faults_v(3)) & ", " &
+                    to_string(Faults_v(4)) & ", " & to_string(Faults_v(5)));
+
+                for c in 0 to 1 loop
+                    rd(c, RegDlStatus_c, Data_v);
+                    check_value(Data_v(1 downto 0), "11", error, "Link initialised at core " & to_string(c));
+                    rd(c, RegDlErrors_c, Data_v);
+                    check_value(Data_v(5 downto 4), "00", error, "No link reset at core " & to_string(c));
+                    rd(c, RegRetries_c, Data_v);
+                    check_value(unsigned(Data_v) > 0, error, "Retries at core " & to_string(c));
+                    log(ID_LOG_HDR, "Core " & to_string(c) & ": " & to_string(to_integer(unsigned(Data_v))) & " retries");
+                    rd(c, RegEccStatus_c, Data_v);
+                    check_value(Data_v(EccChannels_c-1 downto 0), Ded_v(c), error, "DED flags at core " & to_string(c));
+
+                    for ch in 0 to EccChannels_c-1 loop
+                        wr(c, RegEccSelect_c, std_logic_vector(to_unsigned(ch, 32)));
+                        rd(c, RegEccCount_c, Data_v);
+                        if Sec_v(c)(ch) = '1' then
+                            check_value(unsigned(Data_v(15 downto 0)) > 0, error,
+                                        "SEC counted at core " & to_string(c) & ", channel " & to_string(ch));
+                        end if;
+                        check_value(unsigned(Data_v(31 downto 16)) > 0, Ded_v(c)(ch) = '1', error,
+                                    "DED counted at core " & to_string(c) & ", channel " & to_string(ch));
+                    end loop;
+
+                end loop;
+
+                if NumLanes_g > 1 then
+                    allLanes(2 ms);
+                end if;
 
             end if;
 

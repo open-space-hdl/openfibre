@@ -60,6 +60,7 @@ entity ofb_core_cc is
         Ml_TxRow_K              : out   std_logic_vector(4*NumLanes_g-1 downto 0);
         Ml_TxRow_Mask           : out   std_logic_vector(NumLanes_g-1 downto 0);
         Ml_TxRow_Replicate      : out   std_logic;
+        Ml_TxRow_Poison         : out   std_logic; -- Row with an uncorrectable error (DED)
         Ml_TxRow_Valid          : out   std_logic;
         Ml_TxRow_Ready          : in    std_logic;
         Ml_RxRow_Data           : in    std_logic_vector(32*NumLanes_g-1 downto 0);
@@ -121,11 +122,15 @@ begin
     -- Rows of the time before a link reset are discarded
     CoreFlush <= CoreRst or Dl_LinkReset;
 
-    TxIn               <= Dl_TxRow_Replicate & Dl_TxRow_Mask & Dl_TxRow_K & Dl_TxRow_Data;
-    Ml_TxRow_Data      <= TxOut(32*NumLanes_g-1 downto 0);
-    Ml_TxRow_K         <= TxOut(36*NumLanes_g-1 downto 32*NumLanes_g);
-    Ml_TxRow_Mask      <= TxOut(37*NumLanes_g-1 downto 36*NumLanes_g);
-    Ml_TxRow_Replicate <= TxOut(37*NumLanes_g);
+    TxIn          <= Dl_TxRow_Replicate & Dl_TxRow_Mask & Dl_TxRow_K & Dl_TxRow_Data;
+    Ml_TxRow_Data <= TxOut(32*NumLanes_g-1 downto 0);
+    Ml_TxRow_K    <= TxOut(36*NumLanes_g-1 downto 32*NumLanes_g);
+    -- A row with an uncorrectable error (DED) is sent as a full row of poisoned words: the column
+    -- encoders invert the CRC-16 of the data frame, the far end discards the frame and requests its
+    -- retransmission (corrupted mask and replicate bits cannot hide the error)
+    Ml_TxRow_Mask      <= (others => '1') when TxDed = '1' else TxOut(37*NumLanes_g-1 downto 36*NumLanes_g);
+    Ml_TxRow_Replicate <= TxOut(37*NumLanes_g) and not TxDed;
+    Ml_TxRow_Poison    <= TxDed;
 
     i_tx_fifo : entity olo.olo_ft_fifo_async
         generic map (
@@ -152,12 +157,26 @@ begin
 
     Ml_TxRow_Valid <= TxValid;
 
-    RxIn            <= Ml_RxRow_CrcErr & Ml_RxRow_Mask & Ml_RxRow_K & Ml_RxRow_Data;
-    Dl_RxRow_Data   <= RxOut(32*NumLanes_g-1 downto 0);
-    Dl_RxRow_K      <= RxOut(36*NumLanes_g-1 downto 32*NumLanes_g);
-    Dl_RxRow_Mask   <= RxOut(37*NumLanes_g-1 downto 36*NumLanes_g);
-    Dl_RxRow_CrcErr <= RxOut(37*NumLanes_g);
-    Ev_RxOverflow   <= Ml_RxRow_Valid and not RxReady;
+    RxIn <= Ml_RxRow_CrcErr & Ml_RxRow_Mask & Ml_RxRow_K & Ml_RxRow_Data;
+
+    -- A received row with an uncorrectable error (DED) is passed as one RXERR: the Data Link layer
+    -- discards the frame and requests its retransmission
+    p_rx_row : process (all) is
+    begin
+        Dl_RxRow_Data   <= RxOut(32*NumLanes_g-1 downto 0);
+        Dl_RxRow_K      <= RxOut(36*NumLanes_g-1 downto 32*NumLanes_g);
+        Dl_RxRow_Mask   <= RxOut(37*NumLanes_g-1 downto 36*NumLanes_g);
+        Dl_RxRow_CrcErr <= RxOut(37*NumLanes_g);
+        if RxDed = '1' then
+            Dl_RxRow_Data(31 downto 0) <= WordRxErr_c;
+            Dl_RxRow_K(3 downto 0)     <= KCtrl_c;
+            Dl_RxRow_Mask              <= (others => '0');
+            Dl_RxRow_Mask(0)           <= '1';
+            Dl_RxRow_CrcErr            <= '0';
+        end if;
+    end process;
+
+    Ev_RxOverflow <= Ml_RxRow_Valid and not RxReady;
 
     i_rx_fifo : entity olo.olo_ft_fifo_async
         generic map (

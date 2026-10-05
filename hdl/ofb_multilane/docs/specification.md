@@ -69,6 +69,7 @@ Data Link clock domain is outside this module (core top level).
 | ML-ENC-04 | The CRC-16 (x^16 + x^12 + x^5 + 1, seed 0xFFFF, least significant bit of character 0 first, data value of K-codes) shall be computed over the SDF, the data words of the data frame after scrambling and characters 0 and 1 of the EDF (EDF code and sequence number), and placed into characters 2 (CRC_LS) and 3 (CRC_MS) of the EDF. | 5.7.6.4b to h, 5.6.4.2d, e, g |
 | ML-ENC-05 | PAD words shall neither be scrambled nor included in the CRC-16. | 5.6.4.2f |
 | ML-ENC-06 | All words that are not data words of a data frame shall pass unchanged; an EDF that does not end a data frame shall pass unchanged. | 5.7.6.2.1e (note) |
+| ML-ENC-08 | A word marked as corrupted shall invert the CRC-16 of the next EDF that ends a data frame on its lane; the mark shall be held until that EDF and cleared on link reset. | none (fault tolerance, P5) |
 | ML-ENC-07 | The column encoder shall pass words in order with a valid / ready handshake on both sides and lose or duplicate no word under back-pressure. | 5.6.1e |
 
 ### 2.5 Column decoder (ML-4)
@@ -115,7 +116,9 @@ active lanes with TxEn set; _active receiving lanes_ are active lanes with RxEn 
 | ML-DS-08 | In Both-Ends Ready, no ACTIVE and no ALIGN word shall be sent. | 5.6.7.4b |
 | ML-DS-09 | The ACT field of the ACTIVE word shall have bit L set for every active lane L. The ALIGN word of a data-sending lane shall carry the number of active transmitting lanes (0 for 16) and its lane number; the ALIGN word of a hot redundant lane shall carry LANES = iLANES = 0. | 5.3.4.1, 5.3.4.2, 5.6.9.1, 5.6.10i |
 | ML-DS-10 | A hot redundant lane shall send the PRBS sequence of the idle frames when it has no Multi-Lane control word to send, and no word of the Data Link layer. | 5.6.10c, f, g |
-| ML-DS-11 | Words held in the distributor shall be discarded on link reset and when the Not Ready state is entered. | 5.7.10b.1 |
+| ML-DS-11 | Words held in the distributor shall be discarded on link reset. | 5.7.10b.1 |
+| ML-DS-12 | Words held in the distributor when the Not Ready state is entered shall be kept and sent after the realignment: no word of a frame shall be lost while the far end, which only receives ACTIVE words, keeps the frame. | 5.6.7.2b (note), 5.6.7.3b |
+| ML-DS-13 | A row marked as corrupted (`TxRow_Poison`, uncorrectable error before the Multi-Lane layer) shall keep the mark on all its words up to the column encoders, also as a replicated word. | none (fault tolerance, P5) |
 
 ### 2.8 Lane alignment (ML-5)
 

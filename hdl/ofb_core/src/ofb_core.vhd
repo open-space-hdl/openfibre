@@ -175,6 +175,7 @@ architecture rtl of ofb_core is
     signal MlTxK     : std_logic_vector(4*NumLanes_g-1 downto 0);
     signal MlTxMask  : std_logic_vector(NumLanes_g-1 downto 0);
     signal MlTxRepl  : std_logic;
+    signal MlTxPois  : std_logic;
     signal MlTxValid : std_logic;
     signal MlTxReady : std_logic;
     signal MlRxData  : std_logic_vector(32*NumLanes_g-1 downto 0);
@@ -479,6 +480,7 @@ begin
             Ml_TxRow_K            => MlTxK,
             Ml_TxRow_Mask         => MlTxMask,
             Ml_TxRow_Replicate    => MlTxRepl,
+            Ml_TxRow_Poison       => MlTxPois,
             Ml_TxRow_Valid        => MlTxValid,
             Ml_TxRow_Ready        => MlTxReady,
             Ml_RxRow_Data         => MlRxData,
@@ -515,6 +517,7 @@ begin
             TxRow_K                 => MlTxK,
             TxRow_Mask              => MlTxMask,
             TxRow_Replicate         => MlTxRepl,
+            TxRow_Poison            => MlTxPois,
             TxRow_Valid             => MlTxValid,
             TxRow_Ready             => MlTxReady,
             RxRow_Data              => MlRxData,

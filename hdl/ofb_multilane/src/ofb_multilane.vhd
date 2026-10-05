@@ -41,6 +41,9 @@ entity ofb_multilane is
         TxRow_K                 : in    std_logic_vector(4*NumLanes_g-1 downto 0);
         TxRow_Mask              : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '1');
         TxRow_Replicate         : in    std_logic                               := '0';
+        -- The row is corrupted (uncorrectable error before the column encoders): the CRC-16 of the
+        -- data frame is inverted on the lanes that send its words
+        TxRow_Poison            : in    std_logic                               := '0';
         TxRow_Valid             : in    std_logic;
         TxRow_Ready             : out   std_logic;
         -- Receive rows to the Data Link layer
@@ -112,6 +115,7 @@ architecture rtl of ofb_multilane is
     signal EncData   : std_logic_vector(32*NumLanes_g-1 downto 0);
     signal EncK      : std_logic_vector(4*NumLanes_g-1 downto 0);
     signal EncValid  : std_logic_vector(NumLanes_g-1 downto 0);
+    signal EncPoison : std_logic_vector(NumLanes_g-1 downto 0);
     signal EncReady  : std_logic_vector(NumLanes_g-1 downto 0);
     signal EncFlush  : std_logic_vector(NumLanes_g-1 downto 0);
     signal DecData   : std_logic_vector(32*NumLanes_g-1 downto 0);
@@ -181,6 +185,7 @@ begin
                 Ctrl_Flush   => EncFlush(i),
                 In_Data      => EncData(32*i+31 downto 32*i),
                 In_K         => EncK(4*i+3 downto 4*i),
+                In_Poison    => EncPoison(i),
                 In_Valid     => EncValid(i),
                 In_Ready     => EncReady(i),
                 Out_Data     => LaneTx_Data(32*i+31 downto 32*i),
@@ -219,6 +224,7 @@ begin
         EncData      <= TxRow_Data;
         EncK         <= TxRow_K;
         EncValid(0)  <= TxRow_Valid;
+        EncPoison(0) <= TxRow_Poison;
         TxRow_Ready  <= EncReady(0);
         Lane_SkipReq <= '0';
 
@@ -283,11 +289,13 @@ begin
                 TxRow_K         => TxRow_K,
                 TxRow_Mask      => TxRow_Mask,
                 TxRow_Replicate => TxRow_Replicate,
+                TxRow_Poison    => TxRow_Poison,
                 TxRow_Valid     => TxRow_Valid,
                 TxRow_Ready     => TxRow_Ready,
                 Enc_Data        => EncData,
                 Enc_K           => EncK,
                 Enc_Valid       => EncValid,
+                Enc_Poison      => EncPoison,
                 Enc_Ready       => EncReady,
                 Lane_SkipReq    => Lane_SkipReq
             );

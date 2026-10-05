@@ -116,6 +116,7 @@ begin
             Ctrl_Flush   => CodecCtrl.Flush,
             In_Data      => EncInData,
             In_K         => EncInK,
+            In_Poison    => CodecCtrl.Poison,
             In_Valid     => EncInValid,
             In_Ready     => EncInReady,
             Out_Data     => EncOutData,
