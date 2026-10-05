@@ -22,7 +22,9 @@
 | `LaneClk` | `ofb_pa_gty` (transmit user clock, 156.25 MHz) | `UserClk`, `CoreClk` and `LaneClk` of the core |
 
 The core reset is the power-on reset or `LaneRst` (transmitters not ready). The echo needs no buffering: the output
-port of every VC (`M_Vc`) feeds the input port of the same VC (`S_Vc`), back-pressure included.
+port of every VC (`M_Vc`) feeds the input port of the same VC (`S_Vc`), back-pressure included. The serial loopback
+enables of the core drive the adapter, and the comma alignment of the adapter (`Stat_Aligned`) is the bit
+synchronisation status of the core (`Phy_BitSync`, LANE_STATUS bit 6).
 
 ## 3. Constraints (`constr/ofb_vck190.xdc`)
 

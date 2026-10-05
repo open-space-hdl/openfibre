@@ -65,8 +65,8 @@ entity ofb_core is
         M_Bc_TValid            : out   std_logic;
         M_Bc_TReady            : in    std_logic;
         -- SCHEDULE.request (UserClk)
-        S_Sched_Slot           : in    std_logic_vector(5 downto 0) := (others => '0');
-        S_Sched_Valid          : in    std_logic                    := '0';
+        S_Sched_Slot           : in    std_logic_vector(5 downto 0)            := (others => '0');
+        S_Sched_Valid          : in    std_logic                               := '0';
         -- Management Information Base (MgmtClk)
         S_AxiLite_ArAddr       : in    std_logic_vector(11 downto 0);
         S_AxiLite_ArValid      : in    std_logic;
@@ -99,6 +99,8 @@ entity ofb_core is
         Phy_CdrEnable          : out   std_logic_vector(NumLanes_g-1 downto 0);
         Phy_RxInvert           : out   std_logic_vector(NumLanes_g-1 downto 0);
         Phy_NoSignal           : in    std_logic_vector(NumLanes_g-1 downto 0);
+        -- Bit synchronisation of the clock-data recovery per lane, for the status (LaneClk)
+        Phy_BitSync            : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
         -- Serial loopbacks of the Physical layer (MIB, LaneClk)
         Phy_SerialNearLoopback : out   std_logic_vector(NumLanes_g-1 downto 0);
         Phy_SerialFarLoopback  : out   std_logic_vector(NumLanes_g-1 downto 0)
@@ -687,6 +689,7 @@ begin
             Lane_State             => StLaneState,
             Lane_RxPolarity        => StRxPolarity,
             Lane_NoSignal          => Phy_NoSignal,
+            Phy_BitSync            => Phy_BitSync,
             Lane_RxErrCount        => StRxErrCount,
             Lane_FarCapability     => StFarCap,
             Lane_FarStandbyReason  => StStbyReason,

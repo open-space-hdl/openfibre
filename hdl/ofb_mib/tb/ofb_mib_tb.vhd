@@ -106,6 +106,7 @@ architecture sim of ofb_mib_tb is
     signal FarLb     : std_logic_vector(0 downto 0);
     signal SerNearLb : std_logic_vector(0 downto 0);
     signal SerFarLb  : std_logic_vector(0 downto 0);
+    signal BitSync   : std_logic_vector(0 downto 0)  := "0";
     signal Reason    : std_logic_vector(7 downto 0);
     signal LaneStat  : std_logic_vector(37 downto 0) := (others => '0');
     signal LaneEv    : std_logic_vector(3 downto 0)  := "0000";
@@ -247,10 +248,11 @@ begin
                 HasCredit <= "1010";
                 LaneStat  <= x"D1" & x"56" & x"78" & x"9A" & '1' & '0' & x"7";
                 MlStat    <= "1011";
+                BitSync   <= "1";
                 cycles(20);
                 chk(16#010#, x"0000013F", "Data Link status");
                 chk(16#030#, x"0000000A", "Has Credit");
-                chk(16#104#, x"00789A27", "Lane status");
+                chk(16#104#, x"00789A67", "Lane status with bit synchronisation (bit 6)");
                 chk(16#10C#, x"0000D156", "Lane reasons");
                 chk(16#040#, x"00000211", "Multi-Lane status");
 
@@ -541,6 +543,7 @@ begin
             Lane_StandbyReason     => Reason,
             Phy_SerialNearLoopback => SerNearLb,
             Phy_SerialFarLoopback  => SerFarLb,
+            Phy_BitSync            => BitSync,
             Lane_State             => LaneStat(3 downto 0),
             Lane_RxPolarity        => LaneStat(4 downto 4),
             Lane_NoSignal          => LaneStat(5 downto 5),

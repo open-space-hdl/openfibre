@@ -99,6 +99,7 @@ entity ofb_mib is
         Lane_State             : in    std_logic_vector(4*NumLanes_g-1 downto 0);
         Lane_RxPolarity        : in    std_logic_vector(NumLanes_g-1 downto 0);
         Lane_NoSignal          : in    std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_BitSync            : in    std_logic_vector(NumLanes_g-1 downto 0)      := (others => '0');
         Lane_RxErrCount        : in    std_logic_vector(8*NumLanes_g-1 downto 0);
         Lane_FarCapability     : in    std_logic_vector(8*NumLanes_g-1 downto 0);
         Lane_FarStandbyReason  : in    std_logic_vector(8*NumLanes_g-1 downto 0);
@@ -144,7 +145,7 @@ architecture rtl of ofb_mib is
     constant CoreStatW_c : positive := 8 + 3 * NumVc_g + 6;
     constant CoreEvW_c   : positive := 8 + 2 * NumVc_g;
     constant LaneCfgW_c  : positive := 17;
-    constant LaneStatW_c : positive := 38;
+    constant LaneStatW_c : positive := 39;
 
     type Cnt16Array_t is array (0 to NumLanes_g-1) of unsigned(15 downto 0);
     type Slv32Array_t is array (0 to NumVc_g-1) of std_logic_vector(31 downto 0);
@@ -606,6 +607,7 @@ begin
                             Data_v(4 downto 0)   := LaneCtrl(Lane_v)(4 downto 0);
                         elsif Reg_v = 16#04# then
                             Data_v(5 downto 0)   := LaneStat(Base_v + 5 downto Base_v);
+                            Data_v(6)            := LaneStat(Base_v + 38);
                             Data_v(15 downto 8)  := LaneStat(Base_v + 13 downto Base_v + 6);
                             Data_v(23 downto 16) := LaneStat(Base_v + 21 downto Base_v + 14);
                         elsif Reg_v = 16#08# then
@@ -774,7 +776,7 @@ begin
     begin
 
         for i in 0 to NumLanes_g-1 loop
-            Stat_v := Lane_FarLostReason(8*i+7 downto 8*i) & Lane_FarStandbyReason(8*i+7 downto 8*i) &
+            Stat_v := Phy_BitSync(i) & Lane_FarLostReason(8*i+7 downto 8*i) & Lane_FarStandbyReason(8*i+7 downto 8*i) &
                       Lane_FarCapability(8*i+7 downto 8*i) & Lane_RxErrCount(8*i+7 downto 8*i) &
                       Lane_NoSignal(i) & Lane_RxPolarity(i) & Lane_State(4*i+3 downto 4*i);
 

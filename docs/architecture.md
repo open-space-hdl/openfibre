@@ -301,7 +301,7 @@ interfaces (D6).
 
 | ID | Block | Responsibility | Open Logic | ECSS |
 | --- | --- | --- | --- | --- |
-| PA-1 | SerDes wrapper (vendor specific) | AMD Versal GTY of the VCK190 first (`ofb_pa_gty`, Versal Transceivers Wizard); other SerDes later: serialisation, near-end and far-end serial loopback (PMA loopbacks of the transceiver, enabled through the MIB), data signalling rate, loss of signal (receiver electrical idle, synchronised), polarity control; PHYSICAL_CONTROL and PHYSICAL_STATUS service | `olo_intf_sync` | 5.4.2.1 to 5.4.2.4, 6.4 |
+| PA-1 | SerDes wrapper (vendor specific) | AMD Versal GTY of the VCK190 first (`ofb_pa_gty`, Versal Transceivers Wizard); other SerDes later: serialisation, near-end and far-end serial loopback (PMA loopbacks of the transceiver, enabled through the MIB), data signalling rate, loss of signal (receiver electrical idle, synchronised), bit synchronisation status (comma alignment), polarity control; PHYSICAL_CONTROL and PHYSICAL_STATUS service | `olo_intf_sync` | 5.4.1, 5.4.2, 5.4.2.1 to 5.4.2.4, 6.4 |
 | PA-2 | 8B/10B codec | Transceiver hardware codec when present, otherwise a soft codec; code and disparity errors to LN-3 | none (no Open Logic codec; custom block) | 5.3.2 |
 | PA-3 | Receive elastic buffer | Transceiver clock correction on SKIP (Versal GTY), or a soft buffer from `RxClk(i)` to `LaneClk` with SKIP deletion for SerDes without clock correction | `olo_ft_fifo_async` (soft buffer) | none owned (SKIP removal of 5.5.3 for LN-2) |
 
@@ -439,7 +439,7 @@ specifications and the verification plans, lists the requirements and test cases
 | 5.3.10a, b, c1 to c3, c16, d to f, p | Precedence, Lane layer part | LN-2 |  | Unit |
 | 5.3.10c4, c5, g, h | Precedence, Multi-Lane part | ML-2 |  | Unit |
 | 5.3.10c6 to c15, i to o, q to s | Precedence, Data Link part | DT-5 | DT-7 | Layer |
-| 5.4.2.1 to 5.4.2.4 | Serialisation, serial loopback, rate, loss of signal | PA-1 | LN-1 | Target |
+| 5.4.1, 5.4.2, 5.4.2.1 to 5.4.2.4 | Physical layer interface, serialisation, bit synchronisation status, serial loopback, rate, loss of signal | PA-1 | LN-1, MG-1 | Target |
 | 5.5.2.1, 5.5.2.3 to 5.5.2.13 | Lane initialisation and standby | LN-1 | ML-1 | Unit |
 | 5.5.2.2 | RXERR word counter | LN-3 | MG-2 | Unit |
 | 5.5.3 | Data signalling rate compensation | LN-2 (insert SKIP) | PA-3 or LN-3 (remove) | Layer |

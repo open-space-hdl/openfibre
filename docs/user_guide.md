@@ -129,6 +129,7 @@ IRQ_MASK is set.
 | `Phy_RxInvert` | out | Invert the receive polarity (crossed pair detected) |
 | `Phy_NoSignal` | in | No signal on the line, synchronous to `LaneClk` (the adapter synchronises it) |
 | `Phy_SerialNearLoopback`, `Phy_SerialFarLoopback` | out | Near-end and far-end serial loopback (LANE_CTRL bits 16 and 17) |
+| `Phy_BitSync` | in | Bit synchronisation of the clock and data recovery (LANE_STATUS bit 6, ECSS 5.4.2e); optional, `ofb_pa_gty` provides it as `Stat_Aligned` |
 
 The adapter aligns the receive symbols to 10-bit symbol boundaries, decodes them, and passes them in `LaneClk`
 (receive clock correction with the SKIP words that the Lane layer sends, ECSS 5.5.3). The transmit side takes one word

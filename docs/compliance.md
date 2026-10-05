@@ -26,7 +26,7 @@ the standard" of the module specifications.
 | 5.3.10a, b, c1 to c3, c16, d to f, p | Precedence, Lane layer part | LN-2 | DL-TS-01, DL-TS-02, DL-TS-03, DL-TS-04, LN-TX-03 | TC-DL-02, TC-DL-03, TC-DL-05, TC-DL-10, TC-DL-15, TC-LN-05, TC-LN-52 | Verified |
 | 5.3.10c4, c5, g, h | Precedence, Multi-Lane part | ML-2 | DL-TS-01, DL-TS-02, DL-TS-03, DL-TS-04, LN-TX-03 | TC-DL-02, TC-DL-03, TC-DL-05, TC-DL-10, TC-DL-15, TC-LN-05, TC-LN-52 | Verified |
 | 5.3.10c6 to c15, i to o, q to s | Precedence, Data Link part | DT-5 | DL-TS-01, DL-TS-02, DL-TS-03, DL-TS-04, LN-TX-03 | TC-DL-02, TC-DL-03, TC-DL-05, TC-DL-10, TC-DL-15, TC-LN-05, TC-LN-52 | Verified |
-| 5.4.2.1 to 5.4.2.4 | Serialisation, serial loopback, rate, loss of signal | PA-1 | CORE-PL-01, PA-CK-01, PA-IF-03, PA-LB-01, PA-SE-01, VCK-IF-01 | TC-CORE-11, TC-CORE-12, TC-PA-01, TC-PA-02, TC-PA-04, TC-PA-05, TC-VCK-01 | Verified |
+| 5.4.1, 5.4.2, 5.4.2.1 to 5.4.2.4 | Physical layer interface, serialisation, bit synchronisation status, serial loopback, rate, loss of signal | PA-1 | CORE-PL-01, CORE-PL-02, LN-IF-04, MG-PL-01, MG-PL-02, PA-CK-01, PA-IF-01, PA-IF-02, PA-IF-03, PA-LB-01, PA-SE-01, PA-ST-01, VCK-IF-01 | TC-CORE-01, TC-CORE-11, TC-CORE-12, TC-LN-06, TC-MG-03, TC-MG-06, TC-PA-01, TC-PA-02, TC-PA-03, TC-PA-04, TC-PA-05, TC-VCK-01 | Verified |
 | 5.5.2.1, 5.5.2.3 to 5.5.2.13 | Lane initialisation and standby | LN-1 | LN-INIT-01, LN-INIT-02, LN-INIT-03, LN-INIT-04, LN-INIT-05, LN-INIT-06, LN-INIT-07, LN-INIT-08, LN-INIT-09, LN-INIT-10, LN-RX-04, LN-RX-05, LN-RX-06, LN-RX-07, LN-TX-01, LN-TX-02, ML-CO-04, ML-LM-15, VCK-ST-01 | TC-LN-01, TC-LN-02, TC-LN-03, TC-LN-04, TC-LN-06, TC-LN-08, TC-LN-09, TC-LN-10, TC-LN-11, TC-LN-12, TC-LN-20, TC-LN-21, TC-LN-22, TC-LN-23, TC-LN-24, TC-LN-25, TC-LN-26, TC-LN-27, TC-LN-28, TC-LN-29, TC-LN-30, TC-LN-31, TC-LN-32, TC-LN-44, TC-LN-45, TC-LN-46, TC-LN-47, TC-LN-50, TC-LN-51, TC-LN-52, TC-ML-30, TC-ML-32, TC-ML-34, TC-ML-41, TC-VCK-01 | Verified |
 | 5.5.2.2 | RXERR word counter | LN-3 | LN-RX-05 | TC-LN-08, TC-LN-09, TC-LN-32, TC-LN-45 | Verified |
 | 5.5.3 | Data signalling rate compensation | LN-2 (insert SKIP) | LN-TX-03, PA-CC-01 | TC-LN-05, TC-LN-52, TC-PA-02, TC-PA-03 | Verified |
@@ -92,14 +92,14 @@ reference included).
 
 | Module | Requirements | Verified by a test case | Without a test case |
 | --- | --- | --- | --- |
-| `ofb_core` | 9 | 9 | - |
+| `ofb_core` | 10 | 10 | - |
 | `ofb_dl` | 70 | 70 | - |
 | `ofb_lane` | 32 | 32 | - |
-| `ofb_mib` | 14 | 14 | - |
+| `ofb_mib` | 15 | 15 | - |
 | `ofb_multilane` | 66 | 66 | - |
 | `ofb_ni` | 7 | 7 | - |
 | `ofb_pa_gty` | 11 | 11 | - |
 | `ofb_pkg` | 11 | 11 | - |
 | `ofb_vck190` | 6 | 6 | - |
 
-Requirements: 226; without a test case: 0; test cases of the plans not run by a testbench: 0.
+Requirements: 228; without a test case: 0; test cases of the plans not run by a testbench: 0.
