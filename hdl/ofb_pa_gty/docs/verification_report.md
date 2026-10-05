@@ -30,6 +30,10 @@ delivered in order, DL_ERRORS zero and no retry at either end.
 
 A simulation of the transceiver model takes about 10 minutes of elaboration and 2 to 25 minutes of simulation.
 
+Rerun on the merged tree (serial loopbacks, bit synchronisation, fault injection campaign, DED containment) with
+the CPU otherwise idle: all runs pass, `ofb_pa_gty_core_tb` with the changed Multi-Lane and Data Link layers as
+well.
+
 ## 2. Summary
 
 All test cases pass. VSG reports no errors and no warnings (the port names of the transceiver wizard and of
@@ -46,3 +50,5 @@ Findings during verification:
 | Optional ports of the wizard set through `INTF0_TXRX_OPTIONAL_PORTS` are ignored | `INTF0_OPTIONAL_PORTS` takes the dictionary of all ports (`tcl/ofb_gtw.tcl`) |
 | With an inherited stdin, `export_simulation` writes the file list `vlog.prj` to stdout | The runner starts Vivado with stdin closed |
 | xsim does not order the files of a module | The runner orders the files by the units they define and use |
+| TC-PA-03 after the generic `RefPpmB_g` was introduced: no clock correction (the offset of B was computed wrongly) | Offset in whole picoseconds: `RefPpmB_g * 3200 ps / 1000000` |
+| The transceiver model is not deterministic under heavy CPU load: next to six GHDL simulations `ofb_pa_gty_tb` reached TX ready 14 ns early, two lanes never aligned and two slipped; idle CPU: nominal times and pass. One `ofb_vck190_tb` run hung with a PLL divider error of the far-end model at time 0 and was not reproduced | Simulations with the transceiver model run without other simulations (`docs/conventions.md`) |

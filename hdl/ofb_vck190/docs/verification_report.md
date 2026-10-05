@@ -11,7 +11,10 @@ Run on 2026-10-05 with Vivado 2025.2 (xsim): `python tools/run_xsim.py ofb_vck19
 
 TC-VCK-01: transceivers ready after 64.9 us, link initialised after 94.8 us (the far end started its lanes, the design
 started with AutoStart); 6 packets on each of the 8 VCs and 4 broadcast messages came back unchanged and in order;
-DL_ERRORS zero and no retry at the far end; LEDs 0 to 3 on.
+DL_ERRORS zero and no retry at the far end; LEDs 0 to 3 on. Rerun on the merged tree (serial loopback outputs of
+the core to the adapter, bit synchronisation from the adapter, fault injection fixes, DED containment): pass. One
+earlier run hung with a PLL divider error of the far-end transceiver model at time 0; it did not occur again
+(model not deterministic, see the report of `ofb_pa_gty`).
 
 TC-VCK-02: `vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl -tclargs project`, then `synth_design -rtl`:
 the design elaborates without errors. The remaining warnings are unconnected ports of generic entities (unused bits
