@@ -118,6 +118,7 @@ architecture sim of ofb_core_th is
     signal NoSignal   : LaneArray_t;
     signal SerNearLb  : LaneArray_t;
     signal SerFarLb   : LaneArray_t;
+    signal BitSync    : LaneArray_t;
 
 begin
 
@@ -165,6 +166,9 @@ begin
                 RValid  => RValid(i),
                 RReady  => RReady(i)
             );
+
+        -- Bit synchronisation of the model: signal at the receiver and CDR enabled
+        BitSync(i) <= not NoSignal(i) and CdrEnable(i);
 
         i_core : entity work.ofb_core
             generic map (
@@ -227,7 +231,8 @@ begin
                 Phy_RxInvert           => RxInvert(i),
                 Phy_NoSignal           => NoSignal(i),
                 Phy_SerialNearLoopback => SerNearLb(i),
-                Phy_SerialFarLoopback  => SerFarLb(i)
+                Phy_SerialFarLoopback  => SerFarLb(i),
+                Phy_BitSync            => BitSync(i)
             );
 
         -------------------------------------------------------------------------------------------

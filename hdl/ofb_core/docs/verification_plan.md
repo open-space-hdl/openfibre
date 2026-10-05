@@ -17,7 +17,7 @@ checked with scoreboards. The final end-to-end test with the transceiver model f
 
 | Test ID | Description | Requirements |
 | --- | --- | --- |
-| `test_link_up` (TC-CORE-01) | ID register; LaneStart of A through the MIB, AutoStart at B: both ends reach Link Initialised, lane Active, no error | CORE-IF-01, CORE-CK-01, CORE-RS-01, CORE-SY-01 |
+| `test_link_up` (TC-CORE-01) | ID register; LaneStart of A through the MIB, AutoStart at B: both ends reach Link Initialised, lane Active, no error; bit synchronisation of every lane of A (model: signal present and CDR enabled) in LANE_STATUS | CORE-IF-01, CORE-CK-01, CORE-RS-01, CORE-SY-01, CORE-PL-02, MG-PL-02 |
 | `test_traffic` (TC-CORE-02) | 15 packets per VC and 10 broadcast messages (random channel, B_TYPE and DELAYED flag) in both directions: all delivered unchanged, no error and no retry in the MIB | CORE-SY-01, CORE-CC-01, NI-IF-01, NI-IF-02, NI-RX-01 |
 | `test_error_recovery` (TC-CORE-03) | 20 bit errors per direction during traffic: all delivered, retries counted in the MIB, no link reset | CORE-SY-01 |
 | `test_link_reset` (TC-CORE-04) | Link Reset command at A through the MIB: both ends reset, Far-End Link Reset at B only, link up again, traffic | CORE-SY-01, CORE-CC-01 |

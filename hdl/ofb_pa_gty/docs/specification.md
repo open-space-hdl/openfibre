@@ -56,6 +56,7 @@ model follows the same flow.
   loopback retimes the received bits with the transmit clock of the loopback end: with different reference clocks at
   the two ends, bits are lost or repeated at intervals given by the frequency difference (seen in the simulation at
   1000 ppm); the error recovery of the Data Link layer at the far end corrects the affected frames.
-- Bit synchronisation status (5.4.2e) is reported as the comma alignment of the receiver (`Stat_Aligned`).
+- Bit synchronisation status (5.4.2e) is reported as the comma alignment of the receiver (`Stat_Aligned`). The
+  VCK190 reference design connects it to `Phy_BitSync` of the core (LANE_STATUS bit 6).
 - The deserialiser is ready within 150000 bits after a valid signal appears (5.4.2g) once the transceiver reset
   sequence is complete; the receive clock data recovery of the GTY locks within a few microseconds.

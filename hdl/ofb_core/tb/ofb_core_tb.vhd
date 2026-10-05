@@ -204,6 +204,11 @@ begin
                 rd(1, RegDlErrors_c, Data_v);
                 check_value(Data_v, x"00000000", error, "No error at B");
 
+                for l in 0 to NumLanes_g-1 loop
+                    rd(0, RegLaneStat_c + 16#20# * l, Data_v);
+                    check_value(Data_v(6), '1', error, "Bit synchronisation of lane " & to_string(l) & " at A");
+                end loop;
+
             -- TC-CORE-02: packets on all VCs and broadcast messages in both directions
             elsif run("test_traffic") then
                 linkUp(500 us);

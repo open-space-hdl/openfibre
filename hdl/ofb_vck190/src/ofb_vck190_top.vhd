@@ -248,7 +248,8 @@ begin
             Phy_RxInvert           => RxInvert,
             Phy_NoSignal           => NoSignal,
             Phy_SerialNearLoopback => SerNearLb,
-            Phy_SerialFarLoopback  => SerFarLb
+            Phy_SerialFarLoopback  => SerFarLb,
+            Phy_BitSync            => Aligned
         );
 
     -----------------------------------------------------------------------------------------------
