@@ -64,7 +64,9 @@ its own unit testbench. `hdl/<module>/README.md` links the four documents and ex
 - Tests observe ports and management interfaces only, never internal signals.
 - GHDL is the default simulator. Only the tests that instantiate the vendor transceiver model (PA-1 wrapper test and
   the end-to-end test of two cores over the transceivers) run in the AMD Vivado simulator
-  (`tools/run_xsim.py`); their testbenches use plain VHDL checks evaluated from the log.
+  (`tools/run_xsim.py`); their testbenches use plain VHDL checks evaluated from the log. The transceiver model (secure
+  IP with a firmware simulation) is not deterministic under heavy CPU load: an `ofb_pa_gty_tb` run next to six GHDL
+  simulations failed to align two lanes. Run `tools/run_xsim.py` without other simulations.
 - Negative tests inject the fault from the bench (corrupted word, wrong sequence number, ...) and expect the alert
   with `increment_expected_alerts`.
 
