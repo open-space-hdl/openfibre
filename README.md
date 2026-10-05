@@ -11,8 +11,12 @@ Management Information Base. All RAMs and clock domain crossings use the fault-t
 
 ## Status
 
-Early development. The first target is the AMD Versal AI Core XCVC1902 on the VCK190 evaluation board (4 GTY lanes
-on the QSFP connector, 6.25 Gbit/s per lane). See [docs/roadmap.md](docs/roadmap.md) for the state of every module.
+The core (1 to 4 lanes, 1 to 32 virtual channels, broadcast messages, quality of service, EDAC) is complete and
+verified in simulation; the [compliance matrix](docs/compliance.md) traces every ECSS clause in scope to its tests.
+The first target is the AMD Versal AI Core XCVC1902 on the VCK190 evaluation board (4 GTY lanes on the QSFP
+connector, 6.25 Gbit/s per lane): the Physical adapter for the GTY and a reference design are verified with the
+transceiver model; synthesis and the hardware test are open. See [docs/roadmap.md](docs/roadmap.md) for the state of
+every module.
 
 ## Documentation
 
@@ -33,7 +37,7 @@ openfibre/
 |-- hdl/<module>/     One folder per module: src/, tb/, docs/
 |-- tb/               Verification components shared by the testbenches
 |-- lint/             VSG configuration (Open Logic rules), synthesizability check
-|-- tools/            Compliance matrix generator
+|-- tools/            Compliance matrix generator, simulations with the transceiver model (xsim)
 |-- open-logic/       Git submodule: Open Logic (fault-tolerant entities branch)
 |-- uvvm/             Git submodule: UVVM verification framework
 |-- component_list.txt  Modules in dependency order
@@ -50,7 +54,8 @@ git submodule update --init
 python -m pip install -r requirements.txt
 python run.py -p 8              # full regression with GHDL, 8 parallel simulations
 python run.py "*ofb_pkg*"       # one module
-python run.py --questa <test>   # QuestaSim (only needed for the tests with the GTY transceiver model)
+python run.py --questa <test>   # QuestaSim (code coverage)
+python tools/run_xsim.py        # tests with the GTY transceiver model (AMD Vivado simulator)
 ```
 
 `run.py` compiles Open Logic into the VHDL library `olo`, the required UVVM components into their own libraries and

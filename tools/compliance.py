@@ -156,7 +156,11 @@ def main():
         if owner.startswith("Out of scope"):
             status = "Out of scope (routing switch)"
         elif level == "Target" or owner.startswith("PA-"):
-            status = "Physical adapter (PA-1, transceiver)" if not test_ids else "Verified; transceiver part with PA-1"
+            if test_ids:
+                status = "Verified"
+            else:
+                status = "Not traced"
+                missing.append(clause)
         elif test_ids:
             status = "Verified"
         else:

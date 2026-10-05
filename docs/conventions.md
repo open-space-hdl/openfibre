@@ -63,7 +63,8 @@ its own unit testbench. `hdl/<module>/README.md` links the four documents and ex
   (`ofb_tb_pkg.ofbTestEnd`).
 - Tests observe ports and management interfaces only, never internal signals.
 - GHDL is the default simulator. Only the tests that instantiate the vendor transceiver model (PA-1 wrapper test and
-  the final top-level end-to-end test) run in QuestaSim (`run.py --questa`).
+  the end-to-end test of two cores over the transceivers) run in the AMD Vivado simulator
+  (`tools/run_xsim.py`); their testbenches use plain VHDL checks evaluated from the log.
 - Negative tests inject the fault from the bench (corrupted word, wrong sequence number, ...) and expect the alert
   with `increment_expected_alerts`.
 

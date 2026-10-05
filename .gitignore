@@ -16,3 +16,6 @@ __pycache__/
 # UVVM log files
 *_Alert.txt
 *_Log.txt
+# Vivado projects and simulation of the transceiver adapter
+vivado_out/
+dfx_runtime.txt
