@@ -20,7 +20,10 @@ TC-VCK-02: `vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl -tclargs pro
 the design elaborates without errors. The remaining warnings are unconnected ports of generic entities (unused bits
 of the EDAC injection vectors, address bits of the AXI4-Lite slave, upper lanes of the 16-bit far-end activity
 vector), null ranges of unused generics and registers removed as unused. The critical warning about the constraints
-of the transceiver quad is expected at RTL level (the wizard instance is synthesised out of context).
+of the transceiver quad is expected at RTL level (the wizard instance is synthesised out of context). Rerun on main
+546b81a (serial loopbacks, bit synchronisation, fault injection fixes, DED containment, status changes): the design
+elaborates without errors; the clock constraint of the lane clock finds no clock at RTL level (the transmit clock of
+the transceiver exists only after synthesis), as before.
 
 ## 2. Summary
 
