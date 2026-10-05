@@ -38,7 +38,7 @@ until the transmit PLL is locked and holds the receivers in reset until their PM
 | `PhyRx_K` flags l | `ch_rxctrl0(3:0)` (K character per byte) |
 | `PhyRx_DispErr` flags l | `ch_rxctrl1(3:0)` (disparity error per byte) |
 | `PhyRx_CodeErr` flags l | `ch_rxctrl3(3:0)` (not in table per byte) |
-| `PhyRx_Valid(l)` | receivers ready (synchronised `rst_rx_done`) and `Phy_RxEnable(l)` |
+| `PhyRx_Valid(l)` | receivers ready (synchronised `rst_rx_done`), `Phy_RxEnable(l)` and a K character received on the lane since the receivers are ready (the receive buffer outputs zero words while it starts) |
 | `Phy_NoSignal(l)` | `ch_rxelecidle`, synchronised |
 | `Stat_ClkCor(l)` | `ch_rxclkcorcnt` /= 0 (a SKIP word inserted or removed in this cycle) |
 | `Stat_RxBufErr(l)` | `ch_rxbufstatus(2)` (receive elastic buffer overflow or underflow) |

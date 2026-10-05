@@ -39,7 +39,7 @@ target-specific part of OpenFibre; it is not part of the GHDL regression (sectio
 
 Transceiver settings (`tcl/ofb_gtw.tcl`): line rate 6.25 Gbit/s, reference clock frequency (argument, 156.25 MHz for
 the VCK190), LCPLL, 8B/10B, user data width 32 bits, internal width 40 bits, comma alignment on 4-byte boundaries,
-receive elastic buffer with clock correction sequence K28.7 D14.6 D31.3 D31.3.
+receive elastic buffer with clock correction sequence K28.7 D14.6 D31.3 D31.3 (expected rate difference 200 ppm).
 
 ## 4. Verification environment
 

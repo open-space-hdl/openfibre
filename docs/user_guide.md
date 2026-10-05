@@ -16,7 +16,8 @@ test cases.
 Not part of the core:
 
 - The Physical adapter (serialiser, 8B/10B codec, symbol alignment, receive clock correction). The core exchanges
-  decoded symbols with it (section 5.5). The adapter for the AMD Versal GTY (PA-1) is planned.
+  decoded symbols with it (section 5.5). `hdl/ofb_pa_gty` is the adapter for one AMD Versal GTY quad, and
+  `hdl/ofb_vck190` a reference design for the VCK190 board that uses it.
 - Routing switch functions (ECSS 5.8.8 to 5.8.11) and the forwarding of broadcast messages between several ports.
 
 ## 2. Sources
@@ -130,7 +131,8 @@ IRQ_MASK is set.
 
 The adapter aligns the receive symbols to 10-bit symbol boundaries, decodes them, and passes them in `LaneClk`
 (receive clock correction with the SKIP words that the Lane layer sends, ECSS 5.5.3). The transmit side takes one word
-per `LaneClk` cycle without gaps.
+per `LaneClk` cycle without gaps. For the AMD Versal GTY, `ofb_pa_gty` connects these ports one to one; its
+`LaneClk` output is the lane clock of the core (see `hdl/ofb_vck190/src/ofb_vck190_top.vhd`).
 
 ## 6. Programming sequence
 
@@ -167,4 +169,5 @@ into the buffers of a channel (test of the EDAC paths).
   `syn_encoding` to `safe`. The core does not set vendor attributes itself.
 - Clock crossings: constraints of section 4.
 
-Resource figures and timing results for the AMD Versal XCVC1902 follow with the VCK190 reference design.
+The VCK190 reference design is built with `vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl`; resource
+figures and timing results for the XCVC1902 follow with its first implementation.

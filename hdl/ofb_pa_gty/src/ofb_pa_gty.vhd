@@ -28,7 +28,8 @@ library unisim;
 ---------------------------------------------------------------------------------------------------
 entity ofb_pa_gty is
     generic (
-        NumLanes_g : positive range 1 to 4 := 4
+        NumLanes_g  : positive range 1 to 4 := 4;
+        SimDevice_g : string                := "VERSAL_AI_CORE" -- SIM_DEVICE of BUFG_GT (device family)
     );
     port (
         -- Free-running clock of the transceiver reset controller, asynchronous reset (high active)
@@ -247,6 +248,7 @@ architecture struct of ofb_pa_gty is
     signal SyncIn  : std_logic_vector(2*NumLanes_g+1 downto 0);
     signal SyncOut : std_logic_vector(2*NumLanes_g+1 downto 0);
     signal RxReady : std_logic;
+    signal RxSeenK : std_logic_vector(Ch_c-1 downto 0) := (others => '0');
 
 begin
 
@@ -254,8 +256,11 @@ begin
     -- User clock: transmit output clock of channel 0 for all transmitters and receivers (the
     -- receive elastic buffers cross from the recovered clock to the user clock)
     -----------------------------------------------------------------------------------------------
-    -- vsg_off port_map_002
+    -- vsg_off port_map_002 generic_map_002
     i_bufg : component bufg_gt
+        generic map (
+            SIM_DEVICE => SimDevice_g
+        )
         port map (
             CE      => '1',
             CEMASK  => '0',
@@ -266,9 +271,28 @@ begin
             O       => UsrClk
         );
 
-    -- vsg_on port_map_002
+    -- vsg_on port_map_002 generic_map_002
 
     LaneClk <= UsrClk;
+
+    -----------------------------------------------------------------------------------------------
+    -- First K character of every receiver after the receivers are ready
+    -----------------------------------------------------------------------------------------------
+    p_seen : process (UsrClk) is
+    begin
+        if rising_edge(UsrClk) then
+
+            for c in 0 to Ch_c-1 loop
+                if RxCtrl0(c)(3 downto 0) /= "0000" then
+                    RxSeenK(c) <= '1';
+                end if;
+            end loop;
+
+            if RxReady = '0' then
+                RxSeenK <= (others => '0');
+            end if;
+        end if;
+    end process;
 
     -----------------------------------------------------------------------------------------------
     -- Lanes to channels; channels without a lane send electrical idle
@@ -290,9 +314,11 @@ begin
             PhyRx_K(4*c+3 downto 4*c)       <= RxCtrl0(c)(3 downto 0);
             PhyRx_DispErr(4*c+3 downto 4*c) <= RxCtrl1(c)(3 downto 0);
             PhyRx_CodeErr(4*c+3 downto 4*c) <= RxCtrl3(c)(3 downto 0);
-            PhyRx_Valid(c)                  <= RxReady and Phy_RxEnable(c);
-            Stat_RxBufErr(c)                <= RxBufStat(c)(2);
-            Stat_ClkCor(c)                  <= '1' when RxClkCor(c) /= "00" else '0';
+            -- Words are valid from the first K character after the receivers are ready (the receive buffer
+            -- outputs zero words while it starts)
+            PhyRx_Valid(c)   <= RxReady and Phy_RxEnable(c) and (RxSeenK(c) or (or RxCtrl0(c)(3 downto 0)));
+            Stat_RxBufErr(c) <= RxBufStat(c)(2);
+            Stat_ClkCor(c)   <= '1' when RxClkCor(c) /= "00" else '0';
         end generate;
 
         g_unused : if c >= NumLanes_g generate

@@ -50,7 +50,7 @@ def run(cmd, cwd, log):
         result = subprocess.run(cmd, cwd=cwd, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
     if result.returncode != 0:
         text = (cwd / log).read_text(encoding="utf-8", errors="replace").splitlines()
-        print("\n".join(text[-30:]))
+        print("\n".join(text[-30:]), flush=True)
         raise SystemExit(f"{' '.join(cmd[:2])} failed, see {cwd / log}")
 
 
@@ -150,8 +150,8 @@ def simulate(export, tb):
     failed = re.search(r"FAIL|Error:|Failure:|FATAL", log) is not None or "Simulation done" not in log
     for line in log.splitlines():
         if re.search(r"Note:|Warning:|Error:|Failure:|FAIL|Simulation done", line):
-            print("  " + line.strip())
-    print(f"{'fail' if failed else 'pass'} {tb} ({time.time() - start:.0f} s)")
+            print("  " + line.strip(), flush=True)
+    print(f"{'fail' if failed else 'pass'} {tb} ({time.time() - start:.0f} s)", flush=True)
     return not failed
 
 
@@ -164,7 +164,7 @@ def main():
     export = generate_ip()
     compile_all(export, tbs)
     results = [simulate(export, tb) for tb in tbs]
-    print(f"{sum(results)} of {len(results)} passed")
+    print(f"{sum(results)} of {len(results)} passed", flush=True)
     sys.exit(0 if all(results) else 1)
 
 

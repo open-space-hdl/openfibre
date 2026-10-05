@@ -15,8 +15,9 @@
 #---------------------------------------------------------------------------------------------------
 
 # Transceiver settings of one line rate (LR0). Keys not listed keep the wizard defaults.
-# The combined clock correction fields RX_CC_K and RX_CC_VAL (10 bits per character: disparity, K flag, value;
-# sequence 2 in the upper 40 bits) are not derived from the per-character keys when the settings are set by Tcl.
+# The combined clock correction fields RX_CC_K (one K flag per character, sequence 1 in bits 3:0) and RX_CC_VAL
+# (10 bits per character, the value in bits 7:0, sequence 1 in the lower 40 bits) are not derived from the
+# per-character keys when the settings are set by Tcl; the format follows the Gigabit Ethernet preset of the wizard.
 proc ofb_gtw_lr0 {refclk_mhz} {
     set rc [format %.12f $refclk_mhz]
     return [list \
@@ -41,9 +42,9 @@ proc ofb_gtw_lr0 {refclk_mhz} {
         RX_CC_VAL_0_2 01111111 RX_CC_K_0_2 false RX_CC_DISP_0_2 false RX_CC_MASK_0_2 false \
         RX_CC_VAL_0_3 01111111 RX_CC_K_0_3 false RX_CC_DISP_0_3 false RX_CC_MASK_0_3 false \
         RX_CC_K 00000001 RX_CC_DISP 00000000 RX_CC_MASK 00000000 \
-        RX_CC_VAL [string repeat 0 40]0001111111000111111100110011100111111100 \
+        RX_CC_VAL [string repeat 0 40]0001111111000111111100110011100011111100 \
         RX_CB_NUM_SEQ 0 \
-        RX_EQ_MODE AUTO RX_COUPLING AC RX_SSC_PPM 0 RX_PPM_OFFSET 0 \
+        RX_EQ_MODE AUTO RX_COUPLING AC RX_SSC_PPM 0 RX_PPM_OFFSET 200 \
     ]
 }
 
