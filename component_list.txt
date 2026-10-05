@@ -6,3 +6,5 @@ hdl/ofb_dl
 hdl/ofb_ni
 hdl/ofb_mib
 hdl/ofb_core
+# hdl/ofb_pa_gty (Physical adapter for the Versal GTY) and hdl/ofb_vck190 (VCK190 reference design) need the AMD
+# transceiver model and are simulated with tools/run_xsim.py, not with run.py

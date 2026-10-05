@@ -13,7 +13,7 @@ the standard" of the module specifications.
 
 | ECSS clause | Title | Owner | Requirements | Test cases | Status |
 | --- | --- | --- | --- | --- | --- |
-| 5.3.2 | 8B/10B encode / decode | PA-2 | - | - | Physical adapter (PA-1, transceiver) |
+| 5.3.2 | 8B/10B encode / decode | PA-2 | PA-SE-02 | TC-PA-01, TC-PA-02 | Verified |
 | 5.3.3 | Lane control words | LN-2 (send), LN-3 (detect) | LN-INIT-08, LN-INIT-11, LN-RX-04, LN-TX-04, LN-TX-05, ML-LM-03, ML-LM-07, ML-LM-08, PKG-02, PKG-03, PKG-04, PKG-05 | TC-LN-01, TC-LN-04, TC-LN-09, TC-LN-10, TC-LN-11, TC-LN-28, TC-LN-29, TC-LN-30, TC-LN-44, TC-LN-53, TC-ML-22, TC-ML-25, TC-ML-36, TC-PKG-02, TC-PKG-03 | Verified |
 | 5.3.4 | Multi-Lane control words | ML-2 (send) | ML-DS-09, PKG-03, PKG-04 | TC-ML-31, TC-ML-33, TC-ML-35, TC-PKG-02, TC-PKG-03 | Verified |
 | 5.3.5.1 | Framing control words | DT-6 (send) | DL-BO-03, DL-FA-01, DL-FA-02, DL-FA-03, DL-SQ-01, DL-SR-01, PKG-04, PKG-05 | TC-DL-02, TC-DL-03, TC-DL-05, TC-DL-10, TC-DL-12, TC-DL-15, TC-PKG-02, TC-PKG-03 | Verified |
@@ -26,15 +26,15 @@ the standard" of the module specifications.
 | 5.3.10a, b, c1 to c3, c16, d to f, p | Precedence, Lane layer part | LN-2 | DL-TS-01, DL-TS-02, DL-TS-03, DL-TS-04, LN-TX-03 | TC-DL-02, TC-DL-03, TC-DL-05, TC-DL-10, TC-DL-15, TC-LN-05, TC-LN-52 | Verified |
 | 5.3.10c4, c5, g, h | Precedence, Multi-Lane part | ML-2 | DL-TS-01, DL-TS-02, DL-TS-03, DL-TS-04, LN-TX-03 | TC-DL-02, TC-DL-03, TC-DL-05, TC-DL-10, TC-DL-15, TC-LN-05, TC-LN-52 | Verified |
 | 5.3.10c6 to c15, i to o, q to s | Precedence, Data Link part | DT-5 | DL-TS-01, DL-TS-02, DL-TS-03, DL-TS-04, LN-TX-03 | TC-DL-02, TC-DL-03, TC-DL-05, TC-DL-10, TC-DL-15, TC-LN-05, TC-LN-52 | Verified |
-| 5.4.2.1 to 5.4.2.4 | Serialisation, serial loopback, rate, loss of signal | PA-1 | - | - | Physical adapter (PA-1, transceiver) |
-| 5.5.2.1, 5.5.2.3 to 5.5.2.13 | Lane initialisation and standby | LN-1 | LN-INIT-01, LN-INIT-02, LN-INIT-03, LN-INIT-04, LN-INIT-05, LN-INIT-06, LN-INIT-07, LN-INIT-08, LN-INIT-09, LN-INIT-10, LN-RX-04, LN-RX-05, LN-RX-06, LN-RX-07, LN-TX-01, LN-TX-02, ML-CO-04, ML-LM-15 | TC-LN-01, TC-LN-02, TC-LN-03, TC-LN-04, TC-LN-06, TC-LN-08, TC-LN-09, TC-LN-10, TC-LN-11, TC-LN-12, TC-LN-20, TC-LN-21, TC-LN-22, TC-LN-23, TC-LN-24, TC-LN-25, TC-LN-26, TC-LN-27, TC-LN-28, TC-LN-29, TC-LN-30, TC-LN-31, TC-LN-32, TC-LN-44, TC-LN-45, TC-LN-46, TC-LN-47, TC-LN-50, TC-LN-51, TC-LN-52, TC-ML-30, TC-ML-32, TC-ML-34, TC-ML-41 | Verified |
+| 5.4.2.1 to 5.4.2.4 | Serialisation, serial loopback, rate, loss of signal | PA-1 | PA-CK-01, PA-IF-03, PA-SE-01, VCK-IF-01 | TC-PA-01, TC-PA-02, TC-VCK-01 | Verified |
+| 5.5.2.1, 5.5.2.3 to 5.5.2.13 | Lane initialisation and standby | LN-1 | LN-INIT-01, LN-INIT-02, LN-INIT-03, LN-INIT-04, LN-INIT-05, LN-INIT-06, LN-INIT-07, LN-INIT-08, LN-INIT-09, LN-INIT-10, LN-RX-04, LN-RX-05, LN-RX-06, LN-RX-07, LN-TX-01, LN-TX-02, ML-CO-04, ML-LM-15, VCK-ST-01 | TC-LN-01, TC-LN-02, TC-LN-03, TC-LN-04, TC-LN-06, TC-LN-08, TC-LN-09, TC-LN-10, TC-LN-11, TC-LN-12, TC-LN-20, TC-LN-21, TC-LN-22, TC-LN-23, TC-LN-24, TC-LN-25, TC-LN-26, TC-LN-27, TC-LN-28, TC-LN-29, TC-LN-30, TC-LN-31, TC-LN-32, TC-LN-44, TC-LN-45, TC-LN-46, TC-LN-47, TC-LN-50, TC-LN-51, TC-LN-52, TC-ML-30, TC-ML-32, TC-ML-34, TC-ML-41, TC-VCK-01 | Verified |
 | 5.5.2.2 | RXERR word counter | LN-3 | LN-RX-05 | TC-LN-08, TC-LN-09, TC-LN-32, TC-LN-45 | Verified |
-| 5.5.3 | Data signalling rate compensation | LN-2 (insert SKIP) | LN-TX-03 | TC-LN-05, TC-LN-52 | Verified |
+| 5.5.3 | Data signalling rate compensation | LN-2 (insert SKIP) | LN-TX-03, PA-CC-01 | TC-LN-05, TC-LN-52, TC-PA-02, TC-PA-03 | Verified |
 | 5.5.4 | IDLE words | LN-2 | LN-RX-04, LN-TX-02 | TC-LN-04, TC-LN-44, TC-LN-52 | Verified |
 | 5.5.5 | Parallel loopback | LN-4 | LN-LB-01, LN-LB-02 | TC-LN-13, TC-LN-14 | Verified |
-| 5.5.6 | Symbol synchronisation | LN-3 | - | - | Physical adapter (PA-1, transceiver) |
-| 5.5.7, 5.5.8 | Word synchronisation, receive synchronisation state machine | LN-3 | LN-RX-01, LN-RX-02, LN-RX-03, LN-RX-07 | TC-LN-07, TC-LN-08, TC-LN-40, TC-LN-41, TC-LN-42, TC-LN-43, TC-LN-47 | Verified |
-| 5.6.1, 5.6.2 | Multi-Lane responsibilities, Multi-Lane link | ML-1 | CORE-ML-01, MG-ML-01, ML-BP-02, ML-CO-06, ML-DEC-05, ML-ENC-07, ML-IF-01, ML-IF-02, ML-IF-03, ML-IF-04, ML-IF-05, ML-IF-06, ML-IF-07, ML-LM-01, ML-LM-02, ML-LM-03, ML-LM-04, ML-LM-06, ML-LM-14, ML-LM-16 | TC-CORE-07, TC-CORE-08, TC-CORE-09, TC-MG-06, TC-ML-04, TC-ML-08, TC-ML-09, TC-ML-20, TC-ML-22, TC-ML-23, TC-ML-25, TC-ML-30, TC-ML-33, TC-ML-35, TC-ML-36, TC-ML-43 | Verified |
+| 5.5.6 | Symbol synchronisation | LN-3 | PA-SY-01 | TC-PA-01, TC-PA-02 | Verified |
+| 5.5.7, 5.5.8 | Word synchronisation, receive synchronisation state machine | LN-3 | LN-RX-01, LN-RX-02, LN-RX-03, LN-RX-07, PA-SE-02, PA-SY-01 | TC-LN-07, TC-LN-08, TC-LN-40, TC-LN-41, TC-LN-42, TC-LN-43, TC-LN-47, TC-PA-01, TC-PA-02 | Verified |
+| 5.6.1, 5.6.2 | Multi-Lane responsibilities, Multi-Lane link | ML-1 | CORE-ML-01, MG-ML-01, ML-BP-02, ML-CO-06, ML-DEC-05, ML-ENC-07, ML-IF-01, ML-IF-02, ML-IF-03, ML-IF-04, ML-IF-05, ML-IF-06, ML-IF-07, ML-LM-01, ML-LM-02, ML-LM-03, ML-LM-04, ML-LM-06, ML-LM-14, ML-LM-16, PA-CK-01, VCK-IF-01 | TC-CORE-07, TC-CORE-08, TC-CORE-09, TC-MG-06, TC-ML-04, TC-ML-08, TC-ML-09, TC-ML-20, TC-ML-22, TC-ML-23, TC-ML-25, TC-ML-30, TC-ML-33, TC-ML-35, TC-ML-36, TC-ML-43, TC-PA-01, TC-VCK-01 | Verified |
 | 5.6.3 | Multi-Lane bypass | ML-2 | MG-ML-01, ML-BP-01, ML-BP-02, ML-IF-07, ML-LM-01, ML-LM-06, ML-LM-07 | TC-MG-06, TC-ML-20, TC-ML-22, TC-ML-23, TC-ML-33, TC-ML-35, TC-ML-36 | Verified |
 | 5.6.4.1a to d, 5.6.4.2a, b | Rows, laning of data frames, PAD | ML-2 | DL-RW-01, DL-RW-03, ML-BP-01, ML-CO-02, ML-DEC-03, ML-DEC-04, ML-DS-01, ML-DS-02, ML-DS-03, ML-ENC-01, ML-ENC-04, ML-ENC-05, ML-IF-01 | TC-CORE-02, TC-CORE-03, TC-CORE-07, TC-CORE-08, TC-ML-01, TC-ML-02, TC-ML-03, TC-ML-05, TC-ML-06, TC-ML-07, TC-ML-08, TC-ML-09, TC-ML-20, TC-ML-30, TC-ML-31, TC-ML-33, TC-ML-41 | Verified |
 | 5.6.4.2c to h | Per-lane scrambling and CRC-16 | ML-3 (send), ML-4 (receive) | DL-RW-01, DL-RW-03, ML-CO-02, ML-DEC-03, ML-DEC-04, ML-DS-01, ML-DS-02, ML-ENC-01, ML-ENC-04, ML-ENC-05 | TC-CORE-02, TC-CORE-03, TC-CORE-07, TC-CORE-08, TC-ML-01, TC-ML-02, TC-ML-03, TC-ML-05, TC-ML-06, TC-ML-07, TC-ML-08, TC-ML-09, TC-ML-30, TC-ML-31, TC-ML-41 | Verified |
@@ -80,10 +80,10 @@ the standard" of the module specifications.
 | 6.2.2, 6.3.2 | Packet transfer and Virtual Channel services | NI-1 | NI-IF-01, NI-RX-01 | TC-CORE-02, TC-NI-01, TC-NI-04 | Verified |
 | 6.2.3, 6.3.3 | Broadcast message services | NI-3 | NI-IF-02 | TC-CORE-02 | Verified |
 | 6.3.4 | Schedule synchronisation service | NI-4 | DL-QS-06, NI-SC-01 | TC-CORE-06, TC-DL-21 | Verified |
-| 6.4 | Physical layer services | PA-1 | - | - | Physical adapter (PA-1, transceiver) |
+| 6.4 | Physical layer services | PA-1 | PA-IF-01, PA-IF-02 | TC-PA-01, TC-PA-02 | Verified |
 | 6.5 | Management Information Base service | MG-1 | CORE-IF-01, MG-IF-01 | TC-CORE-01, TC-CORE-05, TC-CORE-06, TC-MG-01, TC-MG-02, TC-MG-05 | Verified |
 
-Clauses: 69; verified: 64; not traced: 0.
+Clauses: 69; verified: 68; not traced: 0.
 
 ## 2. Requirements
 
@@ -98,6 +98,8 @@ reference included).
 | `ofb_mib` | 13 | 13 | - |
 | `ofb_multilane` | 66 | 66 | - |
 | `ofb_ni` | 7 | 7 | - |
+| `ofb_pa_gty` | 10 | 10 | - |
 | `ofb_pkg` | 11 | 11 | - |
+| `ofb_vck190` | 6 | 6 | - |
 
-Requirements: 207; without a test case: 0; test cases of the plans not run by a testbench: 0.
+Requirements: 223; without a test case: 0; test cases of the plans not run by a testbench: 0.
