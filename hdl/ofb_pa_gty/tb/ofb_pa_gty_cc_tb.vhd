@@ -61,7 +61,9 @@ architecture sim of ofb_pa_gty_cc_tb is
     type Nat2_t is array (0 to 1) of natural;
     type Time2_t is array (0 to 1) of time;
 
-    constant RefHalf_c : Time2_t := (3200 ps, 3200 ps + RefPpmB_g * 16 fs / 5); -- 3.2 fs per ppm
+    -- Half periods of the reference clocks: B slower by RefPpmB_g ppm (rounded to the 1 ps resolution of the
+    -- simulator: 1000 ppm give 3 ps, 937.5 ppm)
+    constant RefHalf_c : Time2_t := (3200 ps, 3200 ps + RefPpmB_g * 3200 ps / 1000000);
 
     signal RefClk     : Bit2_t                               := (others => '0');
     signal FreeRunClk : std_logic                            := '0';
