@@ -54,7 +54,6 @@ architecture sim of ofb_vck190_tb is
     type ErrArray_t is array (0 to Vcs_c) of natural;
 
     -- Design under test
-    signal SysClk   : std_logic := '0';
     signal GtRefClk : std_logic := '0';
     signal Led      : std_logic_vector(3 downto 0);
     signal DutTxP   : std_logic_vector(Lanes_c-1 downto 0);
@@ -136,7 +135,6 @@ architecture sim of ofb_vck190_tb is
 
 begin
 
-    SysClk     <= not SysClk after 2.5 ns;
     GtRefClk   <= not GtRefClk after 3200 ps;
     FarRefClk  <= not FarRefClk after 3200320 fs;
     FreeRunClk <= not FreeRunClk after 5 ns;
@@ -303,8 +301,6 @@ begin
             LedPollBits_g => 10
         )
         port map (
-            SysClk_P   => SysClk,
-            SysClk_N   => not SysClk,
             GtRefClk_P => GtRefClk,
             GtRefClk_N => not GtRefClk,
             Qsfp_TxP   => DutTxP,

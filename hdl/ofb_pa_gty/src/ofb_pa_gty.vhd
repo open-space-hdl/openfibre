@@ -252,10 +252,11 @@ architecture struct of ofb_pa_gty is
     signal RxDone : std_logic;
 
     -- Status synchronised to LaneClk
-    signal SyncIn  : std_logic_vector(2*NumLanes_g+1 downto 0);
-    signal SyncOut : std_logic_vector(2*NumLanes_g+1 downto 0);
-    signal RxReady : std_logic;
-    signal RxSeenK : std_logic_vector(Ch_c-1 downto 0) := (others => '0');
+    signal SyncIn     : std_logic_vector(2*NumLanes_g+1 downto 0);
+    signal SyncOut    : std_logic_vector(2*NumLanes_g+1 downto 0);
+    signal RxReady    : std_logic;
+    signal RxSeenK    : std_logic_vector(Ch_c-1 downto 0) := (others => '0');
+    signal LaneRstReg : std_logic                         := '1';
 
     -- Serial loopbacks: loopback mode per channel, transmit datapath reset after a change of the
     -- far-end loopback (FreeRunClk)
@@ -265,6 +266,7 @@ architecture struct of ofb_pa_gty is
     constant LbFarPma_c  : std_logic_vector(2 downto 0) := "100";
 
     signal Loopback  : Loopback_t                              := (others => "000");
+    signal FarLbLane : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
     signal FarLbFree : std_logic_vector(NumLanes_g-1 downto 0);
     signal FarLbLast : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
     signal TxDpCnt   : natural range 0 to 255                  := 0;
@@ -367,13 +369,22 @@ begin
         SyncIn(2 + NumLanes_g + l) <= RxAligned(l);
     end generate;
 
+    -- The far-end loopback enables come from logic of the lane clock domain (the voters of the MIB
+    -- crossing): a register of the lane clock in front of the synchroniser
+    p_farlb_lane : process (UsrClk) is
+    begin
+        if rising_edge(UsrClk) then
+            FarLbLane <= Phy_SerialFarLoopback;
+        end if;
+    end process;
+
     i_farlb_sync : entity olo.olo_intf_sync
         generic map (
             Width_g => NumLanes_g
         )
         port map (
             Clk       => FreeRunClk,
-            DataAsync => Phy_SerialFarLoopback,
+            DataAsync => FarLbLane,
             DataSync  => FarLbFree
         );
 
@@ -409,10 +420,18 @@ begin
             DataSync  => SyncOut
         );
 
+    -- Lane reset from a register: it is synchronised to other clock domains
+    p_lane_rst : process (UsrClk) is
+    begin
+        if rising_edge(UsrClk) then
+            LaneRstReg <= not SyncOut(0);
+        end if;
+    end process;
+
     RxReady      <= SyncOut(1);
     Stat_TxReady <= SyncOut(0);
     Stat_RxReady <= SyncOut(1);
-    LaneRst      <= not SyncOut(0);
+    LaneRst      <= LaneRstReg;
     Phy_NoSignal <= SyncOut(NumLanes_g+1 downto 2);
     Stat_Aligned <= SyncOut(2*NumLanes_g+1 downto NumLanes_g+2);
 

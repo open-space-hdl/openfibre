@@ -3,47 +3,62 @@
 ## 1. Block diagram
 
 ```text
- SysClk_P/N --> IBUFDS --> BUFG --> SysClk (200 MHz) --> olo_base_reset_gen --> PorRst
+ ofb_cips_wrapper (block design ofb_cips: versal_cips)
+   pl0_clk (100 MHz) --> MgmtClk --> olo_base_reset_gen (pl0_resetn) --> PorRst
+   pl1_clk (150 MHz) --> UserClk
                                       |
  GtRefClk_P/N --> IBUFDS_GTE5 --> ofb_pa_gty (quad 200) <--> Qsfp_Tx/Rx (lanes 0..3)
                                       | LaneClk, LaneRst
                                       v
-                                   ofb_core (8 VCs, 4 lanes)   UserClk = CoreClk = LaneClk = 156.25 MHz,
-                                   M_Vc --> S_Vc (echo)        MgmtClk = SysClk
+                                   ofb_core (8 VCs, 4 lanes)   CoreClk = LaneClk = 156.25 MHz,
+                                   M_Vc --> S_Vc (echo)        UserClk = 150 MHz, MgmtClk = 100 MHz
                                    M_Bc --> S_Bc (echo)
                                    AXI4-Lite <-- p_poll (DL_STATUS) --> Led(3)
-
- ofb_cips_wrapper (block design ofb_cips: versal_cips, no ports; only with IncludeCips_g)
 ```
 
 ## 2. Clocks and resets
 
 | Clock | Source | Use |
 | --- | --- | --- |
-| `SysClk` | 200 MHz LVDS, IBUFDS and BUFG | MIB (`MgmtClk`), free-running clock of the transceiver reset controller, power-on reset, LED poller |
-| `LaneClk` | `ofb_pa_gty` (transmit user clock, 156.25 MHz) | `UserClk`, `CoreClk` and `LaneClk` of the core |
+| `MgmtClk` | CIPS `pl0_ref_clk`, 100 MHz (`clk_pl_0`) | MIB, free-running clock of the transceiver reset controller, power-on reset (with the fabric reset `pl0_resetn`), LED poller |
+| `UserClk` | CIPS `pl1_ref_clk`, 150 MHz (`clk_pl_1`) | User side of the core (VC and broadcast ports, echo) |
+| `LaneClk` | `ofb_pa_gty` (transmit user clock, 156.25 MHz) | `CoreClk` and `LaneClk` of the core |
 
-The core reset is the power-on reset or `LaneRst` (transmitters not ready). The echo needs no buffering: the output
+`CoreClk` is the lane clock, so that it is never slower than `LaneClk` (CORE-CK-01). `UserClk` is independent of
+the link and exercises the user clock crossings of the core; at 150 MHz a VC port of 128 bits carries 19.2 Gbit/s,
+more than the 18.7 Gbit/s that four lanes deliver (94 % of the payload capacity, user guide section 7). In
+simulation (`IncludeCips_g` = false) clock models of the same frequencies replace the CIPS.
+
+The core reset is a register of `MgmtClk`: the power-on reset or `LaneRst` (transmitters not ready, a register of
+the lane clock, synchronised with `olo_intf_sync`), so that no logic sits in front of the reset synchronisers of the
+core. The echo needs no buffering: the output
 port of every VC (`M_Vc`) feeds the input port of the same VC (`S_Vc`), back-pressure included. The serial loopback
 enables of the core drive the adapter, and the comma alignment of the adapter (`Stat_Aligned`) is the bit
 synchronisation status of the core (`Phy_BitSync`, LANE_STATUS bit 6).
 
 ## 3. Constraints (`constr/ofb_vck190.xdc`)
 
-- System clock on AE42 / AF43 (LVDS15), transceiver reference clock on AD11 / AD10 (MGTREFCLK1_200).
+- Transceiver reference clock on AD11 / AD10 (MGTREFCLK1_200); the clocks of the CIPS are created by its IP
+  constraints (`clk_pl_0`, `clk_pl_1`).
 - Quad location GTY_QUAD_X1Y0 (quad 200) and the serial pins of channels 0 to 3.
 - LEDs on H34, J33, K36, L35 (LVCMOS18), false path.
-- Crossings between `SysClk` and `LaneClk`: `set_max_delay -datapath_only` with the period of the faster clock, as
-  required by Open Logic; the scoped constraints of Open Logic (base, intf) are added for implementation.
+- Crossings between `clk_pl_0`, `clk_pl_1` and the lane clock: `set_max_delay -datapath_only` with the period of
+  the faster clock of each pair, as required by Open Logic; the scoped constraints of the Open Logic base entities are
+  added for implementation. The scoped constraint of `olo_intf_sync` is not loaded: it constrains device pins, and the
+  design uses `olo_intf_sync` only for internal asynchronous signals (transceiver status, far-end loopback, lane
+  reset), whose crossings the clock pair constraints cover.
 
 ## 4. Build (`tcl/build.tcl`)
 
 Every Versal design needs the CIPS IP: its platform management controller loads the device image. The script
-creates the block design `ofb_cips` with one `versal_cips` in its default configuration (no interfaces to the
-programmable logic, JTAG boot), generates its wrapper and sets `IncludeCips_g` = true, so that the top instantiates
-the wrapper (a component without ports). The simulations keep the default false and need no CIPS model.
+creates the block design `ofb_cips` with one `versal_cips` (JTAG boot) whose PMC clock generator drives two clocks of
+the programmable logic (`pl0_ref_clk` 100 MHz, `pl1_ref_clk` 150 MHz) and the fabric reset `pl0_resetn`, all three
+external ports of the block design; it generates the wrapper and sets `IncludeCips_g` = true, so that the top
+instantiates it. The simulations keep the default false and use clock models instead.
 
 `vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl [-tclargs project | synth | impl | all]` creates the
-project in `vivado_out/ofb_vck190` (Open Logic in the library `olo`, OpenFibre in the default library, VHDL-2008),
+project in `vivado_out/ofb_vck190` or in the directory of the environment variable `OFB_VIVADO_OUT` (on Windows at
+most about 40 characters, see the hardware test procedure) (Open Logic in the library `olo`, OpenFibre in the default
+library, VHDL-2008, all files of one library with one `add_files` call),
 creates the transceiver wizard instance with `hdl/ofb_pa_gty/tcl/ofb_gtw.tcl`, adds the constraints and runs the
 requested steps up to the device image.

@@ -178,7 +178,9 @@ a row for a full input VC buffer is an overflow (`Ev_Overflow` per VC).
   resets them from the write side. The words of a received row (1 to N words, mask) are written to the banks in turn,
   starting at the bank `WrBank` that follows the last word written, so that the buffer holds the words without gaps:
   an FCT of M x 64 words is exactly M x 64 words of space, however the far end packed its rows.
-- Read side: beats of N words from the banks in turn, starting at `RdBank`. A beat is offered when N words are
+- Read side: every bank is followed by a register stage (`olo_base_pl_stage`, word and DED flag), and the beat is
+  formed from these registers, so that the read of a bank RAM does not depend on the words of the other banks (timing
+  of the user clock). Beats of N words from the banks in turn, starting at `RdBank`. A beat is offered when N words are
   available or a word with an EOP or EEP is among the available words; it then ends with that word and the rest of the
   beat is Fill words (DL-RW-06). All banks have the same crossing latency, so the available words are contiguous from
   `RdBank`.

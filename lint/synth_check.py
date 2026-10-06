@@ -30,9 +30,8 @@ def synth(top, generics, out_dir):
     with open(out_dir / f"{name}.vhd", "w") as netlist:
         res = subprocess.run(cmd, stdout=netlist, stderr=subprocess.PIPE, text=True)
     log = res.stderr
-    # Inferred latches are reported as "latch" warnings (Open Logic signals named LatchOut excluded)
-    latches = [line for line in log.splitlines() if re.search(r"\blatch\b", line, re.IGNORECASE)
-               and "LatchOut" not in line]
+    # Inferred latches are reported as "latch" warnings
+    latches = [line for line in log.splitlines() if re.search(r"\blatch\b", line, re.IGNORECASE)]
     errors = [line for line in log.splitlines() if "error" in line.lower() or "exception" in line.lower()]
     ok = res.returncode == 0 and not latches and not errors
     print(f"{name}: {'OK' if ok else 'FAILED'}")

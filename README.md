@@ -20,8 +20,8 @@ statement, branch and state machine transition of the core except a few defensiv
 justified in the [code coverage report](docs/coverage.md).
 The first target is the AMD Versal AI Core XCVC1902 on the VCK190 evaluation board (4 GTY lanes on the QSFP
 connector, 6.25 Gbit/s per lane): the Physical adapter for the GTY and a reference design are verified with the
-transceiver model; synthesis and the hardware test are open. See [docs/roadmap.md](docs/roadmap.md) for the state of
-every module.
+transceiver model; the first build was analysed and its findings fixed, timing closure and the hardware test are
+open. See [docs/roadmap.md](docs/roadmap.md) for the state of every module.
 
 ## Documentation
 

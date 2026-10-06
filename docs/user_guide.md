@@ -190,5 +190,8 @@ forward), so the latency grows with the frame length (up to 64 words per lane).
 - Clock crossings: constraints of section 4.
 
 The VCK190 reference design is built with `vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl` (with the CIPS
-block design that every Versal design needs); resource figures and timing results for the XCVC1902 follow with its
-first implementation. The hardware test procedure is `hdl/ofb_vck190/docs/hardware_test.md`.
+block design that every Versal design needs; on Windows the project path must be short, see the hardware test
+procedure `hdl/ofb_vck190/docs/hardware_test.md`). Resources of the whole reference design on the XCVC1902 (eight
+VCs, four lanes, first build): 43852 LUT (3505 as memory), 32239 registers, 37 RAMB36 and 10 RAMB18, 8 DSP. The
+timing results follow with the rebuild; the first build did not meet timing in the user side of the input VC
+buffers, which now have a register stage per bank.

@@ -3,16 +3,13 @@
 # Authors: Julian Schneider
 #---------------------------------------------------------------------------------------------------
 # Constraints of the OpenFibre reference design for the AMD VCK190 evaluation board (XCVC1902-VSVA2197).
-# Pins from the device package (GTY quad 200 = QSFP1, UG1366) and the VCK190 board files (LEDs, system clock).
+# Pins from the device package (GTY quad 200 = QSFP1, UG1366) and the VCK190 board files (LEDs).
 #
 # Documentation: hdl/ofb_vck190/docs/architecture.md
 #---------------------------------------------------------------------------------------------------
 
-# System clock: 200 MHz LVDS (DDR4 DIMM clock), bank 700
-set_property PACKAGE_PIN AE42 [get_ports SysClk_P]
-set_property PACKAGE_PIN AF43 [get_ports SysClk_N]
-set_property IOSTANDARD LVDS15 [get_ports {SysClk_P SysClk_N}]
-create_clock -period 5.000 -name sys_clk [get_ports SysClk_P]
+# Clocks of the programmable logic: the constraints of the CIPS IP create clk_pl_0 (100 MHz: MIB, transceiver reset
+# controller, power-on reset) and clk_pl_1 (150 MHz: user side of the core); the lane clock is TXOUTCLK of channel 0.
 
 # Transceiver reference clock: MGTREFCLK1 of quad 200 (8A34001 output Q1, programmed to 156.25 MHz)
 set_property PACKAGE_PIN AD11 [get_ports GtRefClk_P]
@@ -46,8 +43,14 @@ set_property PACKAGE_PIN L35 [get_ports {Led[3]}]
 set_property IOSTANDARD LVCMOS18 [get_ports {Led[*]}]
 set_false_path -to [get_ports {Led[*]}]
 
-# Clock domain crossings between the system clock (MgmtClk, free-running clock) and the lane clock (user clock of
-# the transceivers): Open Logic crossings, constrained with the period of the faster clock
+# Clock domain crossings between the clocks of the CIPS and the lane clock (Open Logic crossings): datapath delay of
+# at most the period of the faster clock of each pair
 set lane_clk [get_clocks -of_objects [get_pins -hierarchical -filter {NAME =~ *i_pa/i_bufg/O}]]
-set_max_delay -datapath_only -from [get_clocks sys_clk] -to $lane_clk 5.000
-set_max_delay -datapath_only -from $lane_clk -to [get_clocks sys_clk] 5.000
+set mgmt_clk [get_clocks clk_pl_0]
+set user_clk [get_clocks clk_pl_1]
+set_max_delay -datapath_only -from $mgmt_clk -to $lane_clk 6.400
+set_max_delay -datapath_only -from $lane_clk -to $mgmt_clk 6.400
+set_max_delay -datapath_only -from $user_clk -to $lane_clk 6.400
+set_max_delay -datapath_only -from $lane_clk -to $user_clk 6.400
+set_max_delay -datapath_only -from $mgmt_clk -to $user_clk 6.666
+set_max_delay -datapath_only -from $user_clk -to $mgmt_clk 6.666

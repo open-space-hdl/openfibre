@@ -27,21 +27,51 @@ the transceiver exists only after synthesis), as before.
 
 ## 2. Summary
 
-All test cases pass. Synthesis, implementation, the timing and resource reports and the hardware test with
-SpaceFibre test equipment are open: the host has no synthesis licence for the XCVC1902. The 8A34001 clock generator
-of the board must provide 156.25 MHz on MGTREFCLK1 of quad 200 for the hardware test.
+All test cases pass. The first build (section 3) produced a device image but did not meet timing; the findings
+are fixed, the rebuild and the hardware test with SpaceFibre test equipment are open. The 8A34001 clock generator of
+the board must provide 156.25 MHz on MGTREFCLK1 of quad 200 for the hardware test.
 
 Findings:
 
 | Finding | Fix |
 | --- | --- |
 | Review before the first build: the design had no CIPS; on Versal the platform management controller of the CIPS loads the device image | Block design `ofb_cips` with a default `versal_cips` created by `build.tcl`, instance in the top under `IncludeCips_g` (VCK-BD-02); RTL elaboration shows the instance |
+| First build: setup violations of up to 2.673 ns in the lane clock domain, all in the user side of the input VC buffers | Register stage after every bank of `ofb_dl_vc_in` (Data Link report); the user side runs on its own 150 MHz clock |
+| First build: the 200 MHz clock on bank 700 is the clock of the DDR4 DIMM | Clocks of the programmable logic from the CIPS: 100 MHz (`clk_pl_0`) for the MIB, the transceiver reset controller and the power-on reset with `pl0_resetn`, 150 MHz (`clk_pl_1`) for the user side; core clock = lane clock (VCK-CK-01) |
+| First build: 30 latches (TIMING-20, PDRC-153 gated clocks) in `olo_ft_cc_pulse`: the set/reset latch of each copy has gate and data both driven by the input pulse, so the end of the pulse races the closing of the latch and a pulse can be lost (for example an FCT block pulse of an input VC buffer, which would stall the VC) | `ofb_cc_pulse` rewritten without latch: handshake over `olo_ft_cc_bits` with triplicated request, pending and output registers (`ofb_pkg` report) |
+| First build: combinational logic before synchronisers (CDC-10, 8 endpoints): core reset = power-on reset or lane reset in a LUT before the reset synchronisers of the core; majority voter of the MIB crossing before the far-end loopback synchroniser of the adapter | Core reset from a register of the management clock (lane reset synchronised first); lane reset of the adapter from a register; register of the lane clock before the far-end loopback synchroniser |
+| First build: ERROR 18-513 / WARNING 18-402 from the scoped constraints of `olo_intf_sync` (they constrain device pins; the design uses the entity for internal signals) | Scoped constraints of `olo_intf` not loaded; the clock pair constraints cover the crossings |
+| First build: critical warning 12-3645 (files added one at a time) | One `add_files` call per library |
+| First build on a long Windows path: `write_device_image` failed while compiling the platform loader firmware (path length limit) | Environment variable `OFB_VIVADO_OUT` for a short project directory, warning in `build.tcl`, note in the hardware test procedure |
 
 ## 3. Hardware test
 
-Procedure: [hardware_test.md](hardware_test.md). Not run yet.
+Procedure: [hardware_test.md](hardware_test.md).
 
 | Test | Result | Notes |
 | --- | --- | --- |
-| Build (timing, resources) | Open | |
+| Build of d8d08ab (timing, resources) | Fail (timing) | Device image generated; WNS -2.673 ns (6130 endpoints, lane clock), WHS +0.009 ns; findings fixed (section 2), rebuild open |
 | TC-VCK-HW-01 to 07 | Open | |
+
+Resources of the build of d8d08ab (XCVC1902, whole design, eight VCs, four lanes): 43852 LUT (3505 as memory),
+32239 registers, 37 RAMB36 and 10 RAMB18 (42 block RAM tiles), 8 DSP, no URAM.
+
+Messages of the build of d8d08ab that need no change:
+
+| Message | Assessment |
+| --- | --- |
+| Netlist 29-151 `WEBWE[8]` (37 block RAMs) | The 72-bit RAMs of the VC buffers use `BWE_MODE_B` = `PARITY_INTERLEAVED`; the pin has no function in this mode |
+| DRC PDCNXA-2 (37 block RAMs, `DINPA` of the upper and lower section) | Same 72-bit RAMs: the parity inputs carry data bits 32 to 35 of the write port. A wrong mapping would show as ECC errors on every word (link resets, corrupted packets): covered by TC-VCK-HW-02 |
+| AVALXA-267/268/271 (`CLOCK_DOMAINS` = `COMMON`, possible address collision) | Asynchronous FIFOs whose two clocks were the same clock in this build; a FIFO never reads an address while writing it. With the separate user clock the RAMs of the input and output VC buffers are independent |
+| SYNTH-6 (no output register in 47 block RAMs) | Open Logic RAMs with read latency 1; the paths meet timing after the register stage of the input VC buffers |
+| CDC-6 (12 multi-bit buses through `olo_ft_cc_bits`) | Gray-coded pointers of `olo_ft_fifo_async`, and configuration levels of the MIB: the bits of one register write may arrive one cycle apart; the fields are used as levels (a STANDBY reason written together with clearing LaneStart may be the old one in the first of the 32 STANDBY words) |
+| CDC-15 (205, clock enable controlled crossings) | `olo_base_cc_status` (data held while the handshake crosses) |
+| PDRC-190 (2514 synchroniser chains placed suboptimally) | Triplicated synchroniser chains of the Open Logic FT entities; the clock pair constraints bound the delay |
+| Route 35-462 (60 bus skew paths not populated) | Constant bits of the status crossing of the MIB, removed by synthesis |
+| LUTAR-1 in the transceiver wizard IP | AMD IP |
+| DPBU-4, DPIP-3, DPOP-5/6 (8 DSP without pipeline registers) | Credit arithmetic of the medium access controller, combinational by design |
+| Synth 8-7129, 8-3332, 8-6014, 8-3917, 8-3936 | Unused ports and registers of generic entities (unused EDAC injection bits, unused VC slots, address bits) removed |
+| Synth 8-11358, 8-3919, 8-6774, 8-4747 | Null ranges of unused generics and the shared variable of the Open Logic RAM inference |
+| Synth 8-4767 (RAM in registers) | `olo_ft_fifo_packet`: small RAM in registers by default (`SmallRamStyle_g`) |
+| Synth 8-689, 8-7023, 8-7071 | Unused ports of the CIPS |
+| TIMING-10 (one synchroniser without `ASYNC_REG`) | No object named; the CDC report lists every synchroniser with `ASYNC_REG` (CDC-3, CDC-9). To be checked again in the rebuild |
