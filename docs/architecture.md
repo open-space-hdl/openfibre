@@ -1,6 +1,6 @@
 # OpenFibre Architecture
 
-Version 0.1, 2026-10-04. This file is the reference for the architecture and is versioned with the code.
+Version 0.2, 2026-10-06. This file is the reference for the architecture and is versioned with the code.
 
 ## 1 Purpose, scope and references
 
