@@ -32,7 +32,7 @@ Closure rules:
 
 ## 2. Result
 
-Run on 2026-10-06 (branch `feature/ofb_coverage`): 190 tests, all passed, 52 minutes with one simulator
+Run on 2026-10-06: 190 tests, all passed, 52 minutes with one simulator
 licence. Numbers are covered/total bins per file; bold marks a metric with misses.
 
 | File | Statements | Branches | FSM States | FSM Transitions | Conditions | Expressions |

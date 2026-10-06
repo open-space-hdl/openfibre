@@ -45,6 +45,6 @@ flag of character i of word w (EOP, EEP or Fill). Without NI-2 the virtual netwo
   (6.2.3, 6.3.3). The user decides which channels it sends on; a node that is not associated with a broadcast channel
   does not send (5.8.12f) and receives all messages. The acceptance rules for messages that arrive on several ports
   (port of arrival, broadcast time-out) belong to the broadcast mechanism of a routing switch or of a node with several
-  ports and are out of scope (O7).
+  ports and are out of scope (no routing switch, architecture section 1).
 - The STATUS parameter of BROADCAST_MESSAGE.indication and RX_BROADCAST.indication consists of the DELAYED and LATE
   flags (5.3.8.4); TX_BROADCAST.request takes DELAYED from the user, LATE is set by the Data Link layer (DL-BO-03).
