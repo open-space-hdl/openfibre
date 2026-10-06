@@ -19,6 +19,9 @@ write, clear or read path no test used (counter clears, W1C of several flags, CR
 limit, time-slots 63 to 32, lane events, SEC interrupt) and no test of the counter saturation (MG-ST-02). TC-MG-08 and
 TC-MG-09 cover them and passed without a design change; every statement and branch is covered.
 
+Register map: TC-MG-01 reads every fixed reset value of the register description (`regs/ofb_regs.yml`) back through
+the generated package `ofb_regs_pkg`; a reset value changed in the description fails TC-MG-01 (mutation check).
+
 Defects found during verification:
 
 | Finding | Fix |

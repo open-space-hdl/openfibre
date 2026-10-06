@@ -32,6 +32,7 @@ library vunit_lib;
 
 library work;
     use work.ofb_pkg.all;
+    use work.ofb_regs_pkg.all;
     use work.ofb_tb_pkg.all;
 
 ---------------------------------------------------------------------------------------------------
@@ -218,6 +219,31 @@ begin
                 check_value(DataScrambled, '1', error, "DataScrambled in the core domain");
                 check_value(BcInterval, x"0028", error, "Broadcast interval in the core domain");
                 check_value(std_logic_vector'(AutoStart(0) & LaneStart(0)), "10", error, "Lane configuration");
+                -- Every reset value of the register description (ofb_regs_pkg, generated from the register map)
+                chk(RegId_c, RegMapId_c, "ID of the register map");
+                chk(RegDlCtrl_c, RegDlCtrlReset_c, "DL_CTRL");
+                chk(RegDlBcInterval_c, RegDlBcIntervalReset_c, "DL_BC_INTERVAL");
+                chk(RegDlErrors_c, RegDlErrorsReset_c, "DL_ERRORS");
+                chk(RegDlRetries_c, RegDlRetriesReset_c, "DL_RETRIES");
+                chk(RegDlCrc16Count_c, RegDlCrc16CountReset_c, "DL_CRC16_COUNT");
+                chk(RegDlCrc8Count_c, RegDlCrc8CountReset_c, "DL_CRC8_COUNT");
+                chk(RegDlFrameCount_c, RegDlFrameCountReset_c, "DL_FRAME_COUNT");
+                chk(RegDlSeqCount_c, RegDlSeqCountReset_c, "DL_SEQ_COUNT");
+                chk(RegIrqMask_c, RegIrqMaskReset_c, "IRQ_MASK");
+                chk(RegVcIdleLimit_c, RegVcIdleLimitReset_c, "VC_IDLE_LIMIT");
+                chk(RegMlMisaligned_c, RegMlMisalignedReset_c, "ML_MISALIGNED");
+                chk(RegEccStatus_c, RegEccStatusReset_c, "ECC_STATUS");
+                chk(RegEccSelect_c, RegEccSelectReset_c, "ECC_SELECT");
+                chk(RegEccCount_c, RegEccCountReset_c, "ECC_COUNT");
+                chk(RegEccInject_c, RegEccInjectReset_c, "ECC_INJECT");
+                chk(RegLaneCtrl_c, RegLaneCtrlReset_c, "LANE_CTRL of lane 0");
+                chk(RegLaneEvents_c, RegLaneEventsReset_c, "LANE_EVENTS of lane 0");
+                chk(RegLaneTimeoutCount_c, RegLaneTimeoutCountReset_c, "LANE_TIMEOUT_COUNT of lane 0");
+
+                for v in 0 to NumVc_c-1 loop
+                    chk(RegVcSlotsLo_c + v * RegVcStride_c, RegVcSlotsLoReset_c, "VC_SLOTS_LO of VC " & to_string(v));
+                    chk(RegVcSlotsHi_c + v * RegVcStride_c, RegVcSlotsHiReset_c, "VC_SLOTS_HI of VC " & to_string(v));
+                end loop;
 
             -- TC-MG-02: configuration, commands, Interface Reset
             elsif run("test_config") then
