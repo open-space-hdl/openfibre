@@ -8,12 +8,14 @@ Compiles Open Logic into the library `olo`, the UVVM components used by the test
 libraries and every module of component_list.txt plus the shared verification components (tb/) into the
 library `openfibre`, then runs all testbenches.
 
-GHDL is the default simulator. `--questa` selects QuestaSim; it is only needed for the tests that use the
-vendor transceiver model and for code coverage.
+GHDL is the default simulator. `--questa` selects QuestaSim; `--questa --coverage` collects the code coverage
+(statements, branches, conditions, expressions, state machines) of the OpenFibre sources and merges it into
+coverage/coverage.ucdb with the text report coverage/coverage_report.txt.
 """
 
 import importlib.util
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -23,6 +25,9 @@ ROOT = Path(__file__).resolve().parent
 QUESTA_DEFAULT_PATH = r"D:\Microchip\Libero_SoC_2025.2\Libero_SoC\QuestaSim_Pro\win64"
 
 # Simulator selection must happen before VUnit parses the command line
+COVERAGE = "--coverage" in sys.argv
+if COVERAGE:
+    sys.argv.remove("--coverage")
 if "--questa" in sys.argv:
     sys.argv.remove("--questa")
     os.environ["VUNIT_SIMULATOR"] = "modelsim"
@@ -84,7 +89,9 @@ def add_openfibre(vu):
         for sub in ("src", "tb"):
             files = sorted((ROOT / module / sub).glob("*.vhd"))
             if files:
-                lib.add_source_files(files)
+                added = lib.add_source_files(files)
+                if COVERAGE and sub == "src":
+                    added.add_compile_option("modelsim.vcom_flags", ["+cover=sbcef"])
     return lib, modules
 
 
@@ -112,6 +119,21 @@ def set_simulator_options(vu):
     vu.set_sim_option("modelsim.vsim_flags", ["-suppress", "3009,3473,8684,8683"])
 
 
+def merge_coverage(results):
+    """Merges the coverage of all tests and writes a text report (with --coverage)."""
+    if not COVERAGE:
+        return
+    out = ROOT / "coverage"
+    out.mkdir(exist_ok=True)
+    ucdb = out / "coverage.ucdb"
+    results.merge_coverage(file_name=str(ucdb))
+    vcover = Path(os.environ["VUNIT_MODELSIM_PATH"]) / "vcover"
+    subprocess.run([str(vcover), "report", "-details", "-output", str(out / "coverage_report.txt"), str(ucdb)],
+                   check=False)
+    subprocess.run([str(vcover), "report", "-byfile", "-output", str(out / "coverage_byfile.txt"), str(ucdb)],
+                   check=False)
+
+
 def main():
     vu = VUnit.from_argv()
     vu.add_vhdl_builtins()
@@ -120,7 +142,9 @@ def main():
     lib, modules = add_openfibre(vu)
     apply_module_configs(lib, modules)
     set_simulator_options(vu)
-    vu.main()
+    if COVERAGE:
+        vu.set_sim_option("enable_coverage", True)
+    vu.main(post_run=merge_coverage)
 
 
 if __name__ == "__main__":

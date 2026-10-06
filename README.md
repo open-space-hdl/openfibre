@@ -15,7 +15,9 @@ The core (1 to 4 lanes, 1 to 32 virtual channels, broadcast messages, quality of
 verified in simulation; the [compliance matrix](docs/compliance.md) traces every ECSS clause in scope to its tests.
 A fault injection campaign (line errors, word slips, lane failures, single and double errors in the buffers)
 checks that no packet is lost, duplicated or corrupted unnoticed; with packets of up to 1024 bytes the core
-transfers 94 % of the lane capacity in one direction and 90 % per direction in both.
+transfers 94 % of the lane capacity in one direction and 90 % per direction in both. The regression covers every
+statement, branch and state machine transition of the core except a few defensive or unreachable items, each
+justified in the [code coverage report](docs/coverage.md).
 The first target is the AMD Versal AI Core XCVC1902 on the VCK190 evaluation board (4 GTY lanes on the QSFP
 connector, 6.25 Gbit/s per lane): the Physical adapter for the GTY and a reference design are verified with the
 transceiver model; synthesis and the hardware test are open. See [docs/roadmap.md](docs/roadmap.md) for the state of
@@ -30,6 +32,7 @@ every module.
 | [docs/conventions.md](docs/conventions.md) | Coding, verification and repository conventions |
 | [docs/roadmap.md](docs/roadmap.md) | Development plan and module status |
 | [docs/compliance.md](docs/compliance.md) | ECSS compliance matrix: requirements and test cases of every clause (generated) |
+| [docs/coverage.md](docs/coverage.md) | Code coverage of the regression (QuestaSim) and the justification of every item not covered |
 | `hdl/<module>/docs/` | Specification, architecture, verification plan and verification report of each module |
 
 ## Repository structure
@@ -57,7 +60,8 @@ git submodule update --init
 python -m pip install -r requirements.txt
 python run.py -p 8              # full regression with GHDL, 8 parallel simulations
 python run.py "*ofb_pkg*"       # one module
-python run.py --questa <test>   # QuestaSim (code coverage)
+python run.py --questa <test>   # QuestaSim
+python run.py --questa --coverage  # code coverage of the OpenFibre sources (QuestaSim), report in coverage/
 python tools/run_xsim.py        # tests with the GTY transceiver model (AMD Vivado simulator)
 ```
 
@@ -65,6 +69,11 @@ python tools/run_xsim.py        # tests with the GTY transceiver model (AMD Viva
 all OpenFibre sources into the library `openfibre`. Environment variables: `OFB_CAMPAIGN_SEEDS="2,3,4"` adds seeds to
 the fault injection campaign of the core (TC-CORE-13), `OFB_GHDL_SIM_FLAGS` passes extra flags to the GHDL simulation,
 for example `--vcd=wave.vcd --read-wave-opt=wave.opt` for a waveform of selected signals.
+
+`--coverage` compiles the OpenFibre sources with statement, branch, condition, expression and state machine
+coverage, merges the coverage of all tests into `coverage/coverage.ucdb` and writes the reports
+`coverage/coverage_report.txt` (details) and `coverage/coverage_byfile.txt`. The analysis of the last run is in
+[docs/coverage.md](docs/coverage.md).
 
 Checks besides the regression:
 

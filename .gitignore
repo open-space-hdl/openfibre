@@ -19,3 +19,4 @@ __pycache__/
 # Vivado projects and simulation of the transceiver adapter
 vivado_out/
 dfx_runtime.txt
+coverage/

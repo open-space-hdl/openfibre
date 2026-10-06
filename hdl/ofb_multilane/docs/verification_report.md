@@ -2,21 +2,21 @@
 
 ## 1. Test results
 
-Run on 2026-10-05 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_ml*"`
+Run on 2026-10-06 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_ml*"`
 `"*ofb_multilane*"`.
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
 | `ofb_ml_codec_tb` (ML-3, ML-4) | 10 | 10 |
 | `ofb_multilane_tb` (layer, one lane) | 6 | 6 |
-| `ofb_ml_align_tb` (ML-5, ML-6, four lanes) | 4 | 4 |
+| `ofb_ml_align_tb` (ML-5, ML-6, four lanes) | 5 | 5 |
 | `ofb_ml_link_tb` (multi-lane link, configurations `lanes2` and `lanes4`) | 11 x 2 | 22 |
 
-Full regression of the repository: 182 of 182 tests pass (phase 5, after the fault injection campaign of the core).
+Full regression of the repository: 190 of 190 tests pass (phase 5, after the code coverage closure).
 
 ## 2. Summary
 
-All 42 test cases pass; every requirement of the specification is covered (see the verification plan). The column
+All 43 test cases pass; every requirement of the specification is covered (see the verification plan). The column
 encoder reproduces ECSS Figures 5-42 and 5-44 bit-exactly, and the decoder restores them. VSG reports no errors and no
 warnings.
 
@@ -27,6 +27,11 @@ alignment ignored (TC-ML-41), the 4 us rule removed (TC-ML-42), interleaved cont
 words (TC-ML-43), the maximum number of data-sending lanes ignored (TC-ML-33), no SKIP request (TC-ML-31),
 FarEndActive not cleared by an ACTIVE word (TC-ML-35). Phase 5: held words discarded in Not Ready (the defect found
 by TC-CORE-13) fail TC-ML-44; a poison mark that the distributor does not pass on fails TC-ML-46.
+
+Code coverage (QuestaSim, [docs/coverage.md](../../../docs/coverage.md)): the first measurement showed five transitions
+of the frame state of the receiver (frame structure errors) and an incorrect ALIGN on a lane that is not data-receiving
+without a test. TC-ML-47 and the extension of TC-ML-42 cover them and passed without a design change; four branches
+remain, each justified in the coverage report.
 
 Defects found during verification:
 

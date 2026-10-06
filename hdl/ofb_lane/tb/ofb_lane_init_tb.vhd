@@ -450,6 +450,75 @@ begin
                 InitIn.CtrlLaneReset <= '0';
                 checkState(LaneStateClearLine_c, "LaneReset of the Multi-Lane layer: ClearLine");
 
+            -- TC-LN-33: exit conditions of every state before Connected: LaneReset in Wait, Started
+            -- and Connecting; NoSignal in Connecting; three iINIT2 select InvertRxPolarity; timeout in
+            -- InvertRxPolarity and Connecting; three STANDBY / LOST_SIGNAL in Started, InvertRxPolarity
+            -- and Connecting; more than three STANDBY / LOST_SIGNAL in Wait
+            elsif run("test_exit_matrix") then
+                waitState(LaneStateDisabled_c, ClearLineCycles_c + 5, "Disabled");
+                InitIn.AutoStart     <= '1';
+                cycles(2);
+                checkState(LaneStateWait_c, "Wait with AutoStart");
+                rxWords(KindStandby, 4);
+                rxWords(KindLostSignal, 4);
+                checkState(LaneStateWait_c, "STANDBY and LOST_SIGNAL ignored in Wait");
+                InitIn.CtrlLaneReset <= '1';
+                cycles(1);
+                InitIn.CtrlLaneReset <= '0';
+                checkState(LaneStateClearLine_c, "LaneReset in Wait");
+                InitIn.AutoStart     <= '0';
+                -- Started
+                goStarted;
+                InitIn.CfgLaneReset <= '1';
+                cycles(1);
+                InitIn.CfgLaneReset <= '0';
+                checkState(LaneStateClearLine_c, "LaneReset in Started");
+                goStarted;
+                rxWords(KindLostSignal, 3);
+                cycles(1);
+                checkState(LaneStateClearLine_c, "Three LOST_SIGNAL in Started");
+                -- InvertRxPolarity
+                goStarted;
+                rxWords(KindInvInit2, 3);
+                cycles(1);
+                checkState(LaneStateInvertRxPol_c, "InvertRxPolarity after three iINIT2");
+                rxWords(KindStandby, 3);
+                cycles(1);
+                checkState(LaneStateClearLine_c, "Three STANDBY in InvertRxPolarity");
+                goStarted;
+                rxWords(KindInvInit1, 3);
+                cycles(1);
+                checkState(LaneStateInvertRxPol_c, "InvertRxPolarity after three iINIT1");
+                waitState(LaneStateClearLine_c, TbInitTimeoutWords_c, "Timeout in InvertRxPolarity");
+                -- Connecting
+                goStarted;
+                rxWord(KindInit1);
+                rxWords(KindData, 1022);
+                waitState(LaneStateConnecting_c, 2, "Connecting");
+                InitIn.CtrlLaneReset <= '1';
+                cycles(1);
+                InitIn.CtrlLaneReset <= '0';
+                checkState(LaneStateClearLine_c, "LaneReset in Connecting");
+                goStarted;
+                rxWord(KindInit1);
+                rxWords(KindData, 1022);
+                waitState(LaneStateConnecting_c, 2, "Connecting");
+                InitIn.NoSignal      <= '1';
+                cycles(2);
+                checkState(LaneStateClearLine_c, "NoSignal in Connecting");
+                goStarted;
+                rxWord(KindInit1);
+                rxWords(KindData, 1022);
+                waitState(LaneStateConnecting_c, 2, "Connecting");
+                rxWords(KindLostSignal, 3);
+                cycles(1);
+                checkState(LaneStateClearLine_c, "Three LOST_SIGNAL in Connecting");
+                goStarted;
+                rxWord(KindInit1);
+                rxWords(KindData, 1022);
+                waitState(LaneStateConnecting_c, 2, "Connecting");
+                waitState(LaneStateClearLine_c, TbInitTimeoutWords_c, "Timeout in Connecting");
+
             end if;
 
         end loop;

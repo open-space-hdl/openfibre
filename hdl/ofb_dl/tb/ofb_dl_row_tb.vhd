@@ -432,6 +432,12 @@ begin
                 cycles(50);
                 check_value(RowStat.Crc8Errs, 1, error, "CRC-8 error");
                 check_value(txCount(KindNack), 0, error, "No NACK for a CRC error outside a frame");
+                -- Sequence error with the expected polarity in Error Positive: Error Negative
+                rxFrame(0, 1, 9);
+                waitRxIdle;
+                cycles(50);
+                check_value(RowStat.SeqErrs, 2, error, "Second sequence error");
+                check_value(RowStat.RxErrState, "11", error, "Error Negative after a sequence error in Error Positive");
 
             -- TC-DL-26: two out-of-sequence words in consecutive cycles with positive polarity (frame 2
             -- lost, EDF of frame 3 and its SIF back to back): one error recovery only, Error Negative,
@@ -457,6 +463,198 @@ begin
                         check_value(txWord(i), wordNack(x"01"), error, "NACK with positive polarity");
                     end if;
                 end loop;
+
+            -- TC-DL-27: CRC-8 errors of SIF, FULL, ACK and NACK outside a frame are counted and the word
+            -- is ignored (no NACK, no retry); an SIF inside a data frame and an EDF inside an idle frame
+            -- are frame errors and the data frame is discarded
+            elsif run("test_ctrl_word_errors") then
+                waitLinkInit(10 us);
+                cycles(400);
+                rxFrame(0, 3, 1);
+                waitRxIdle;
+                TxLog_v.clear;
+                rxWord(wordSif(x"01") xor x"01000000");
+                rxWord(wordFull(x"01") xor x"01000000");
+                rxWord(wordAck(x"00") xor x"01000000");
+                rxWord(wordNack(x"00") xor x"01000000");
+                waitRxIdle;
+                cycles(50);
+                check_value(RowStat.Crc8Errs, 4, error, "CRC-8 errors of SIF, FULL, ACK and NACK");
+                check_value(txCount(KindNack), 0, error, "No NACK for CRC errors outside a frame");
+                check_value(RowStat.Retries, 0, error, "NACK with a CRC error ignored");
+                check_value(RowStat.RxErrState, "00", error, "Still Valid Positive");
+                -- SIF inside a data frame
+                rxWord(wordSdf("00000"));
+                rxData(x"22222222");
+                rxWord(wordSif(x"01"));
+                waitRxIdle;
+                cycles(50);
+                check_value(RowStat.FrameErrs, 1, error, "SIF inside a data frame: frame error");
+                -- EDF inside an idle frame
+                rxWord(wordSif(x"01"));
+                rxData(x"33333333");
+                rxWord(wordEdf(x"02", x"0000"));
+                waitRxIdle;
+                cycles(50);
+                check_value(RowStat.FrameErrs, 2, error, "EDF inside an idle frame: frame error");
+                check_value(VcRxLog0_v.count, 3, error, "Only frame 1 delivered");
+                -- The next frame is accepted
+                rxFrame(0, 2, 2, '0', 10);
+                waitRxIdle;
+                cycles(50);
+                check_value(VcRxLog0_v.count, 5, error, "Frame 2 delivered");
+
+            -- TC-DL-28: Interface Reset: in Link Initialised it resets the link and the quality of service
+            -- configuration (time-slots 32 to 63, idle limit); in CheckFarEnd and in NearEndReset it
+            -- restarts the link reset state machine
+            elsif run("test_interface_reset") then
+                waitLinkInit(10 us);
+                cycles(400);
+                -- VC 0 not allocated to time-slot 33, idle limit of 16 words, writes without a register (an
+                -- offset in the VC range, an address outside the QoS registers)
+                regWrite(16#40C#, x"FFFFFFFD");
+                regWrite(16#050#, x"00000010");
+                regWrite(16#402#, x"00000000");
+                regWrite(16#054#, x"FFFFFFFF");
+                schedule(33);
+                rxFct(0, 1);
+                waitRxIdle;
+                TxLog_v.clear;
+                userPacket(0, 10, 0);
+                cycles(500);
+                check_value(txPayload, 0, error, "VC 0 waits in time-slot 33");
+
+                -- The idle VC 1 reaches the credit limit after 16384 words, 16 words later it under-uses
+                -- its bandwidth
+                for k in 0 to 20000 loop
+                    exit when RowStat.BwUnder(1) = '1';
+                    cycles(1);
+                end loop;
+
+                check_value(RowStat.BwUnder(1), '1', error, "Idle VC 1 under-uses its bandwidth (idle limit 16)");
+                -- Interface Reset in Link Initialised
+                RowCfg.IfReset <= '1';
+                cycles(1);
+                RowCfg.IfReset <= '0';
+                cycles(2);
+                check_value(RowStat.LinkState /= "11", error, "Link reset by the Interface Reset");
+                waitLinkInit(20 us);
+                rxFct(0, 1);
+                waitRxIdle;
+                TxLog_v.clear;
+                userPacket(0, 10, 100);
+                cycles(1000);
+                check_value(txPayload, 10, error, "VC 0 sends in time-slot 33 after the Interface Reset");
+                cycles(18000);
+                check_value(RowStat.BwUnder(1), '0', error, "Idle limit back to its reset value (156250 words)");
+                -- Interface Reset in CheckFarEnd (far end silent), held for three cycles: CheckFarEnd,
+                -- ConfigReset, NearEndReset, ConfigReset
+                RowCfg.AutoCap   <= false;
+                RowCfg.LinkReset <= '1';
+                cycles(1);
+                RowCfg.LinkReset <= '0';
+                cycles(20);
+                check_value(RowStat.LinkState, "10", error, "CheckFarEnd without the far end");
+                RowCfg.IfReset   <= '1';
+                cycles(3);
+                RowCfg.IfReset   <= '0';
+                cycles(20);
+                check_value(RowStat.LinkState, "10", error, "CheckFarEnd after the Interface Reset");
+                RowCfg.AutoCap   <= true;
+                RowCfg.LinkReset <= '1';
+                cycles(1);
+                RowCfg.LinkReset <= '0';
+                waitLinkInit(20 us);
+
+            -- TC-DL-29: a data frame for a VC that the core does not implement is acknowledged and
+            -- discarded; input VC buffer overflow: the far end sends more data than the credit allows while
+            -- the user does not read: the overflow is reported and the link is reset
+            elsif run("test_input_overflow") then
+                waitLinkInit(10 us);
+                cycles(400);
+                rxFrame(5, 2, 1);
+                rxFrame(0, 2, 2);
+                waitRxIdle;
+                cycles(100);
+                check_value(VcRxLog0_v.count, 2, error, "Only the frame for VC 0 delivered");
+                check_value(RowStat.SeqErrs + RowStat.FrameErrs, 0, error, "Frame for VC 5 accepted");
+                check_value(RowStat.LinkState, "11", error, "No link reset for a frame to an unknown VC");
+                RowCfg.RxReadyPct <= 0;
+
+                for f in 0 to 2 loop
+                    rxFrame(0, 64, 3 + f, '0', 100 * f);
+                end loop;
+
+                for k in 0 to 2000 loop
+                    exit when RowStat.LinkState /= "11";
+                    cycles(1);
+                end loop;
+
+                check_value(RowStat.LinkState /= "11", error, "Link reset after the input buffer overflow");
+                check_value(RowStat.InputOvfs > 0, error, "Input buffer overflow reported");
+                -- The buffer is reset; the packet that the user had started ends with an EEP, held until the
+                -- user is ready
+                cycles(200);
+                check_value(VcRxLog0_v.count, 2, error, "Nothing read while the user is not ready");
+                RowCfg.RxReadyPct <= 100;
+                waitLinkInit(20 us);
+                cycles(100);
+                check_value(VcRxLog0_v.count, 3, error, "EEP after the link reset");
+                check_value(VcRxLog0_v.get(2), "1111" & CharFill_c & CharFill_c & CharFill_c & CharEep_c, error, "EEP word");
+
+            -- TC-DL-30: continuous mode flush while a segment is copied into the error recovery buffer
+            -- (no lane active during the copy, ten offsets): the words copied so far form the segment,
+            -- the rest of the packet is discarded, the link continues; a packet afterwards is complete
+            elsif run("test_continuous_flush_copy") then
+                waitLinkInit(10 us);
+                regWrite(16#400#, x"00000103");
+                cycles(50);
+                TxLog_v.clear;
+
+                -- Each try starts after a link reset (no credit left), the packet waits for the FCT
+                for k in 0 to 9 loop
+                    RowCfg.LinkReset  <= '1';
+                    cycles(1);
+                    RowCfg.LinkReset  <= '0';
+                    waitLinkInit(20 us);
+                    cycles(50);
+                    userPacket(0, 60, 1000 * k);
+                    cycles(100);
+                    rxFct(0, 1);
+                    cycles(10 + 12 * k);
+                    RowCfg.LaneActive <= '0';
+                    cycles(100);
+                    RowCfg.LaneActive <= '1';
+                    cycles(300);
+                end loop;
+
+                check_value(RowStat.ProtErrs, 0, error, "No protocol error");
+                check_value(RowStat.LinkState, "11", error, "No link reset");
+
+                -- Every data word of the data frames belongs to the packets written, in order
+                Last_v := -1;
+                Idx_v  := 0;
+
+                for i in 0 to TxLog_v.count - 1 loop
+                    if txKind(i) = KindSdf then
+                        Idx_v := 1;
+                    elsif txKind(i) = KindEdf then
+                        Idx_v := 0;
+                    elsif Idx_v = 1 and txKind(i) = KindData and TxLog_v.get(i)(35 downto 32) = KData_c then
+                        check_value(unsigned(txWord(i)) < 10000, error, "Word of a packet");
+                        check_value(to_integer(unsigned(txWord(i)(15 downto 0))) > Last_v, error, "Words in order");
+                        Last_v := to_integer(unsigned(txWord(i)(15 downto 0)));
+                    end if;
+                end loop;
+
+                TxLog_v.clear;
+                userPacket(0, 5, 20000);
+                rxFct(0, 2);
+                waitRxIdle;
+                cycles(300);
+                Pos_v := txFind(KindSdf, 0);
+                check_value(Pos_v >= 0, error, "Packet after the flushes sent");
+                check_value(txPayload, 5, error, "Complete packet after the flushes");
 
             -- TC-DL-13: data word identification
             elsif run("test_word_id") then
@@ -642,6 +840,38 @@ begin
                 rxWord(wordAck(std_logic_vector(to_unsigned(Seq_v, 8))));
                 cycles(3000);
                 check_value(txPayload, 400, error, "All data sent after the ACK");
+                -- Data item limit: separate small frames without ACK stop after eight frames (ErbDataItems_g).
+                -- The frames sent after the first ACK are acknowledged first.
+                Seq_v := 0;
+
+                for i in 0 to TxLog_v.count - 1 loop
+                    if txKind(i) = KindEdf or txKind(i) = KindFct or txKind(i) = KindEbf then
+                        Seq_v := Seq_v + 1;
+                    end if;
+                end loop;
+
+                rxWord(wordAck(std_logic_vector(to_unsigned(Seq_v mod 128, 8))));
+                cycles(200);
+                TxLog_v.clear;
+
+                for p in 0 to 11 loop
+                    userPacket(0, 2, 1000 + 10 * p);
+                    cycles(60);
+                end loop;
+
+                cycles(500);
+                check_value(txCount(KindSdf), 8, error, "Eight data frames: all data items of the buffer used");
+                check_value(txPayload, 16, error, "Eight packets sent");
+
+                for i in 0 to TxLog_v.count - 1 loop
+                    if txKind(i) = KindEdf or txKind(i) = KindFct or txKind(i) = KindEbf then
+                        Seq_v := Seq_v + 1;
+                    end if;
+                end loop;
+
+                rxWord(wordAck(std_logic_vector(to_unsigned(Seq_v mod 128, 8))));
+                cycles(1000);
+                check_value(txPayload, 24, error, "All packets sent after the ACK");
 
             -- TC-DL-18: link reset rules of the VC buffers: spill on the output side, EEP on the input side
             elsif run("test_vc_link_reset") then

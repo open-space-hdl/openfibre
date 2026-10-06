@@ -243,6 +243,27 @@ begin
                     check_value(OutLog_v.get(Base_v + i), WordKs_v(i) & Words_v(i), error, "Word " & to_string(i));
                 end loop;
 
+                -- Realignment in CheckSync: a symbol error, a correct word, then a comma in another position
+                -- (the realignment is flagged on the word before the comma)
+                OutLog_v.clear;
+                addWord(Words_v(0), KData_c, "0001");
+                addWord(Words_v(1), WordKs_v(1));
+                addFill(2);
+                addPreamble;
+
+                for i in Words_v'range loop
+                    addWord(Words_v(i), WordKs_v(i));
+                end loop;
+
+                drain;
+                check_value(OutLog_v.get(0), RxErrWord_c, error, "Word with the symbol error passed up as RXERR");
+                Base_v := OutLog_v.count - Words_v'length;
+
+                for i in Words_v'range loop
+                    check_value(OutLog_v.get(Base_v + i), WordKs_v(i) & Words_v(i), error,
+                                "Word " & to_string(i) & " after the realignment in CheckSync");
+                end loop;
+
             -- TC-LN-42: a symbol error (code or disparity error) turns its word and the previous word
             -- into RXERR (ECSS 5.5.7j to l)
             elsif run("test_error_rule") then

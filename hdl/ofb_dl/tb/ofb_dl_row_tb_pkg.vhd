@@ -37,6 +37,7 @@ package ofb_dl_row_tb_pkg is
         AutoAck    : boolean;   -- Acknowledge every data frame, broadcast frame and FCT received in sequence
         TxReadyPct : natural;   -- Ready of the transmit rows, percent
         LinkReset  : std_logic;
+        IfReset    : std_logic; -- Interface Reset (level)
         BcInterval : std_logic_vector(15 downto 0);
         TxLogOn    : boolean;   -- Log the transmitted words
         RxReadyPct : natural;   -- Ready of the receive VC ports, percent
@@ -49,6 +50,7 @@ package ofb_dl_row_tb_pkg is
         AutoAck    => true,
         TxReadyPct => 100,
         LinkReset  => '0',
+        IfReset    => '0',
         BcInterval => x"0004",
         TxLogOn    => true,
         RxReadyPct => 100,
@@ -77,6 +79,7 @@ package ofb_dl_row_tb_pkg is
         FarEndResets : natural;
         BcRx         : natural;
         BcDiscards   : natural;
+        BwUnder      : std_logic_vector(RowNumVc_c-1 downto 0);
     end record;
 
     signal RowStat : RowStat_t;

@@ -973,7 +973,9 @@ begin
         end if;
     end process;
 
+    -- The write domain of a channel is a constant: one branch of each selection is unreachable
     g_inj_dom : for i in 0 to Ch_c-1 generate
+        -- coverage off
         EccInjToU(i)         <= EccInjCmd(i) when WrDomain_c(i) = DomUser else '0';
         EccInjToU(Ch_c + i)  <= EccInjCmd(Ch_c + i) when WrDomain_c(i) = DomUser else '0';
         EccInjToC(i)         <= EccInjCmd(i) when WrDomain_c(i) = DomCore else '0';
@@ -982,6 +984,7 @@ begin
         EccInjToL(Ch_c + i)  <= EccInjCmd(Ch_c + i) when WrDomain_c(i) = DomLane else '0';
         EccInjMgmt(i)        <= EccInjCmd(i) when WrDomain_c(i) = DomMgmt else '0';
         EccInjMgmt(Ch_c + i) <= EccInjCmd(Ch_c + i) when WrDomain_c(i) = DomMgmt else '0';
+        -- coverage on
     end generate;
 
     i_ecc_inj_core : entity work.ofb_cc_pulse

@@ -90,6 +90,7 @@ architecture sim of ofb_dl_row_th is
     signal EvFarRst  : std_logic;
     signal EvBcDisc  : std_logic;
     signal ErbEmpty  : std_logic;
+    signal BwUnder   : std_logic_vector(RowNumVc_c-1 downto 0);
     signal RxErrSt   : std_logic_vector(1 downto 0);
     signal WordIdSt  : std_logic_vector(2 downto 0);
     signal FarRxSeq  : natural   := 0;
@@ -175,6 +176,7 @@ begin
             Ml_FarCapabilityIdle  => '1',
             Ml_LaneActive         => RowCfg.LaneActive,
             Cfg_LinkReset         => RowCfg.LinkReset,
+            Cfg_InterfaceReset    => RowCfg.IfReset,
             Cfg_BcInterval        => RowCfg.BcInterval,
             Reg_Wr                => RegWr,
             Reg_Addr              => std_logic_vector(to_unsigned(RegWrAddr, 12)),
@@ -191,6 +193,7 @@ begin
             Ev_FarEndLinkReset    => EvFarRst,
             Ev_BcDiscard          => EvBcDisc,
             Stat_ErbEmpty         => ErbEmpty,
+            Stat_BwUnder          => BwUnder,
             Stat_LinkResetState   => LinkState,
             Stat_RxErrState       => RxErrSt,
             Stat_WordIdState      => WordIdSt
@@ -351,7 +354,8 @@ begin
                            InputOvfs => 0,
                            FarEndResets => 0,
                            BcRx => 0,
-                           BcDiscards => 0);
+                           BcDiscards => 0,
+                           BwUnder => (others => '0'));
                 Init_v := false;
             end if;
             if EvRetry = '1' then
@@ -392,6 +396,7 @@ begin
             Stat_v.FarRxSeq    := FarRxSeq;
             Stat_v.FarPol      := FarPolCmd;
             Stat_v.BcRx        := BcRxCount;
+            Stat_v.BwUnder     := BwUnder;
             RowStat            <= Stat_v;
         end if;
     end process;

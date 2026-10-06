@@ -26,31 +26,12 @@ library work;
     use work.ofb_ml_pkg.all;
     use work.ofb_tb_pkg.all;
     use work.ofb_ml_tb_pkg.all;
+    use work.ofb_ml_row_queue_pkg.all;
 
 ---------------------------------------------------------------------------------------------------
 -- Package Header
 ---------------------------------------------------------------------------------------------------
 package ofb_ml_link_tb_pkg is
-
-    constant MaxLanes_c : positive := 4;
-
-    -- Row of the Data Link layer (words beyond NumLanes_g are not used)
-    type TbRow_t is record
-        Data      : std_logic_vector(32*MaxLanes_c-1 downto 0);
-        K         : std_logic_vector(4*MaxLanes_c-1 downto 0);
-        Mask      : std_logic_vector(MaxLanes_c-1 downto 0);
-        Replicate : std_logic;
-    end record;
-
-    type RowQueue_t is protected
-
-        procedure push (row : TbRow_t);
-
-        impure function pop return TbRow_t;
-        impure function count return natural;
-
-        procedure clear;
-    end protected;
 
     -- Inputs of one end, driven by the test sequencer
     type LinkCfg_t is record
@@ -175,44 +156,6 @@ end package;
 -- Package Body
 ---------------------------------------------------------------------------------------------------
 package body ofb_ml_link_tb_pkg is
-
-    type RowQueue_t is protected body
-
-        type Rows_t is array (0 to 16383) of TbRow_t;
-
-        variable Rows_v  : Rows_t;
-        variable Head_v  : natural := 0;
-        variable Count_v : natural := 0;
-
-        procedure push (row : TbRow_t) is
-        begin
-            assert Count_v < Rows_t'length
-                report "RowQueue_t full"
-                severity failure;
-            Rows_v((Head_v + Count_v) mod Rows_t'length) := row;
-            Count_v                                      := Count_v + 1;
-        end procedure;
-
-        impure function pop return TbRow_t is
-            variable Row_v : TbRow_t;
-        begin
-            Row_v   := Rows_v(Head_v);
-            Head_v  := (Head_v + 1) mod Rows_t'length;
-            Count_v := Count_v - 1;
-            return Row_v;
-        end function;
-
-        impure function count return natural is
-        begin
-            return Count_v;
-        end function;
-
-        procedure clear is
-        begin
-            Count_v := 0;
-        end procedure;
-
-    end protected body;
 
     procedure expFrame (
         src  : natural;

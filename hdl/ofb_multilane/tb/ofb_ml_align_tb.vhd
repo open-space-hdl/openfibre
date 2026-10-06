@@ -657,6 +657,15 @@ begin
                 NumRxLanes <= "0011";
                 cycles(5);
                 check_value(MisCnt, Num_v + 1, error, "Near-end active lanes changed: Misaligned");
+                -- An incorrect ALIGN (#Lanes 4) on a lane that is active but not data-receiving is ignored
+                ActLanes <= "1111";
+                cycles(5);
+                align("0111", x"000F", 3);
+                Num_v    := MisCnt;
+                word(3, wordAlign(x"4", x"3"), KCtrl_c);
+                drain;
+                check_value(MisCnt, Num_v, error, "Incorrect ALIGN on a lane that is not data-receiving ignored");
+                check_value(AlignState, AlignBothEndsReady_c, error, "Both-Ends Ready kept");
 
             -- TC-ML-43: packing of data words into rows of four words with three data-receiving lanes
             elsif run("test_packing") then
@@ -709,6 +718,57 @@ begin
                 expectData(30, 2, "Incomplete row before RXERR");
                 expectCtrl(WordRxErr_c, "RXERR");
                 expectEnd("Packing");
+
+            -- TC-ML-47: frame structure errors at the receiver: an SIF inside a data frame passes the
+            -- waiting words and starts an idle frame; a second SBF without EBF, an SDF after a broadcast
+            -- frame and an SIF inside a broadcast frame (inside and outside a data frame) change the
+            -- packing as the new frame requires
+            elsif run("test_packing_errors") then
+                ActLanes   <= "0111";
+                RxLanes    <= "0111";
+                NumRxLanes <= "0011";
+                cycles(2);
+                align("0111", x"0007");
+                -- SIF inside a data frame
+                row(wordSdf("00001"), KCtrl_c, "0111");
+                dataRow(0, "0011");
+                word(2, WordPad_c, KPad_c);
+                row(Sif_c, KCtrl_c, "0111");
+                row(x"12345678", KData_c, "0111");
+                -- SBF inside a data frame, a second SBF, SDF after the broadcast frame
+                row(wordSdf("00010"), KCtrl_c, "0111");
+                row(wordSbf(x"05", x"06"), KCtrl_c, "0111");
+                row(wordSbf(x"07", x"08"), KCtrl_c, "0111");
+                row(x"CAFE0003", KData_c, "0111");
+                row(wordSdf("00011"), KCtrl_c, "0111");
+                dataRow(40, "0111");
+                row(edf(3), KCtrl_c, "0111");
+                -- SIF inside a broadcast frame inside and outside a data frame
+                row(wordSdf("00100"), KCtrl_c, "0111");
+                row(wordSbf(x"09", x"0A"), KCtrl_c, "0111");
+                row(Sif_c, KCtrl_c, "0111");
+                row(wordSbf(x"0B", x"0C"), KCtrl_c, "0111");
+                row(Sif_c, KCtrl_c, "0111");
+                row(x"9ABCDEF0", KData_c, "0111");
+                drain;
+                expectCtrl(wordSdf("00001"), "SDF 1");
+                expectData(0, 2, "Waiting words passed by the SIF");
+                expectCtrl(Sif_c, "SIF inside a data frame");
+                expectCtrl(x"12345678", "Idle word after the SIF: one word", '0', KData_c);
+                expectCtrl(wordSdf("00010"), "SDF 2");
+                expectCtrl(wordSbf(x"05", x"06"), "SBF inside the data frame");
+                expectCtrl(wordSbf(x"07", x"08"), "Second SBF");
+                expectCtrl(x"CAFE0003", "Broadcast word: one word", '0', KData_c);
+                expectCtrl(wordSdf("00011"), "SDF after the broadcast frame");
+                expectData(40, 3, "Data words packed again");
+                expectCtrl(edf(3), "EDF 3");
+                expectCtrl(wordSdf("00100"), "SDF 4");
+                expectCtrl(wordSbf(x"09", x"0A"), "SBF inside data frame 4");
+                expectCtrl(Sif_c, "SIF inside the broadcast frame");
+                expectCtrl(wordSbf(x"0B", x"0C"), "SBF outside a data frame");
+                expectCtrl(Sif_c, "SIF inside the broadcast frame outside a data frame");
+                expectCtrl(x"9ABCDEF0", "Idle word: one word", '0', KData_c);
+                expectEnd("Packing after frame structure errors");
 
             end if;
 

@@ -2,15 +2,15 @@
 
 ## 1. Test results
 
-Run on 2026-10-05 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_dl*"`.
+Run on 2026-10-06 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_dl*"`.
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
 | `ofb_dl_tb` (layer, two complete ends) | 7 | 7 |
-| `ofb_dl_row_tb` (row level) | 17 | 17 |
+| `ofb_dl_row_tb` (row level) | 21 | 21 |
 | `ofb_dl_mac_tb` (medium access controller) | 7 | 7 |
 
-Full regression of the repository: 182 of 182 tests pass (phase 5, after the DED containment of the core;
+Full regression of the repository: 190 of 190 tests pass (phase 5, after the code coverage closure;
 phase 4: rows of several words, verified in the core
 testbench with 2 and 4 lanes, plan section 3.5). VSG reports no errors and no warnings.
 
@@ -23,7 +23,7 @@ Error and recovery counters of the layer tests (both ends):
 
 ## 2. Summary
 
-All 30 test cases pass and cover the requirements of the specification (verification plan, section 4).
+All 34 test cases pass and cover the requirements of the specification (verification plan, section 4).
 
 Defects found and fixed during verification:
 
@@ -46,6 +46,15 @@ core tests TC-CORE-02 to TC-CORE-09 pass with 2 and 4 lanes.
 
 Phase 5 (coverage): TC-DL-23 (FULL after RXERR) and TC-DL-24 (broadcast input discard) close the open items of the
 plan; mutation check: without the FULL after RXERR rule TC-DL-23 fails.
+
+Code coverage (QuestaSim, [docs/coverage.md](../../../docs/coverage.md)): the first measurement showed behaviour that
+the requirements ask for but no test exercised: the input VC buffer overflow (DL-VI-03 was verified only by the absence
+of overflows), the Interface Reset in each state of the link reset state machine with the reset values of the time-slots
+32 to 63 and of the idle limit, CRC-8 errors of SIF, FULL, ACK and NACK, frame structure errors, the transition from
+Error Positive to Error Negative, the data item limit of the error recovery buffer and a continuous mode flush during
+the copy of a segment. TC-DL-27 to TC-DL-30 and the extensions of TC-DL-12 and TC-DL-17 cover them and passed without a
+design change (TC-DL-28 mutation checked); DL-WI-02 now states that a data frame for a VC that the core does not
+implement is discarded. Three branches and the body of one function remain, each justified in the coverage report.
 
 Observations:
 

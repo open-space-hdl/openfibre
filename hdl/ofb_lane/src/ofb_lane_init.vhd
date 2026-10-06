@@ -334,8 +334,10 @@ begin
                     v.State := ClearLine_s;
                 end if;
 
+            -- coverage off
             when others =>
                 v.State := ClearLine_s;
+            -- coverage on
 
         end case;
 
@@ -436,9 +438,11 @@ begin
                 State_v := LaneStateLossOfSignal_c;
                 Mode_v  := TxModeLostSignal_c;
                 Line_v  := true;
+            -- coverage off
             when others =>
                 State_v := LaneStateClearLine_c;
                 Mode_v  := TxModeOff_c;
+            -- coverage on
         end case;
 
         LaneRst_v := Cfg_LaneReset or Ctrl_LaneReset;
