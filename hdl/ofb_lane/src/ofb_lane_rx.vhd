@@ -264,8 +264,10 @@ begin
                         v.SyncState := CheckSync_s;
                         v.ErrCnt    := 1;
                     end if;
+                -- coverage off
                 when others =>
                     v.SyncState := LostSync_s;
+                -- coverage on
             end case;
 
             -- ECSS 5.5.7i, l: a realigned word or a word with an Rx Error symbol becomes RXERR; an Rx

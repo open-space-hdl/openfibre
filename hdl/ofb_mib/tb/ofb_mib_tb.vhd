@@ -451,6 +451,121 @@ begin
                 cycles(3);
                 check_value(Irq, '0', error, "No interrupt after the Link Reset command");
 
+            -- TC-MG-08: the remaining counters and flags: CRC-8, frame and sequence counters, credit
+            -- overflow, bandwidth and lane event flags; a write clears a counter, W1C clears only the
+            -- written bits; idle limit and time-slots 32 to 63 written, read back and forwarded;
+            -- undefined lane registers read as zero; interrupt of the SEC flag
+            elsif run("test_register_access") then
+                coreEvent(1);
+                coreEvent(2);
+                coreEvent(2);
+
+                for i in 1 to 3 loop
+                    coreEvent(3);
+                end loop;
+
+                coreEvent(0);
+                coreEvent(4);
+                wait until rising_edge(CoreClk);
+                CrOvf     <= "1001";
+                wait until rising_edge(CoreClk);
+                CrOvf     <= "0000";
+                BwOver(1) <= '1';
+                BwUnder   <= "0110";
+                cycles(20);
+                BwOver(1) <= '0';
+                BwUnder   <= "0000";
+                wait until rising_edge(LaneClk);
+                LaneEv    <= "1101";
+                wait until rising_edge(LaneClk);
+                LaneEv    <= "0000";
+                cycles(20);
+                chk(16#020#, x"00000001", "CRC-8 counter");
+                chk(16#024#, x"00000002", "Frame error counter");
+                chk(16#028#, x"00000003", "Sequence error counter");
+                chk(16#038#, x"00000009", "Credit overflow VC 0 and 3");
+                chk(16#048#, x"00000002", "Bandwidth over use VC 1");
+                chk(16#04C#, x"00000006", "Bandwidth under use VC 1 and 2");
+                chk(16#108#, x"0000000D", "Lane events");
+                wr(16#104#, x"FFFFFFFF");
+                chk(16#104#, x"00000000", "LANE_STATUS is read only");
+                chk(16#114#, x"00000000", "Undefined lane register");
+                chk(16#11C#, x"00000000", "Undefined lane register");
+                -- A write clears a counter
+                wr(16#018#, x"00000000");
+                wr(16#01C#, x"00000000");
+                wr(16#020#, x"00000000");
+                wr(16#024#, x"00000000");
+                wr(16#028#, x"00000000");
+                wr(16#110#, x"00000000");
+                chk(16#018#, x"00000000", "Retries cleared");
+                chk(16#01C#, x"00000000", "CRC-16 counter cleared");
+                chk(16#020#, x"00000000", "CRC-8 counter cleared");
+                chk(16#024#, x"00000000", "Frame error counter cleared");
+                chk(16#028#, x"00000000", "Sequence error counter cleared");
+                chk(16#110#, x"00000000", "Lane timeout counter cleared");
+                -- W1C clears only the written bits
+                wr(16#038#, x"00000008");
+                chk(16#038#, x"00000001", "Credit overflow VC 3 cleared, VC 0 kept");
+                wr(16#048#, x"00000002");
+                chk(16#048#, x"00000000", "Bandwidth over use cleared");
+                wr(16#04C#, x"00000004");
+                chk(16#04C#, x"00000002", "Bandwidth under use VC 2 cleared, VC 1 kept");
+                wr(16#108#, x"00000005");
+                chk(16#108#, x"00000008", "Lane events 0 and 2 cleared, 3 kept");
+                wait until rising_edge(CoreClk);
+                InOvf(2) <= '1';
+                wait until rising_edge(CoreClk);
+                InOvf(2) <= '0';
+                wait until rising_edge(UserClk);
+                NiEv(3)  <= '1';
+                wait until rising_edge(UserClk);
+                NiEv(3)  <= '0';
+                cycles(20);
+                wr(16#034#, x"00000004");
+                wr(16#03C#, x"00000001");
+                chk(16#034#, x"00000000", "Input overflow VC 2 cleared");
+                chk(16#03C#, x"00000008", "Framing error VC 3 kept");
+                -- Idle limit and time-slots 32 to 63
+                wr(16#050#, x"00001234");
+                wr(16#43C#, x"5555AAAA");
+                chk(16#050#, x"00001234", "Idle limit read back");
+                chk(16#43C#, x"5555AAAA", "Time-slots 63 to 32 of VC 3 read back");
+                cycles(10);
+                check_value(RegWrLast, x"43C" & x"5555AAAA", error, "Time-slots forwarded to the Data Link layer");
+                -- Interrupt of the SEC flag
+                wait until rising_edge(CoreClk);
+                EccCore(EccChFrameBuf_c) <= '1';
+                wait until rising_edge(CoreClk);
+                EccCore(EccChFrameBuf_c) <= '0';
+                cycles(10);
+                check_value(Irq, '0', error, "No interrupt without mask");
+                wr(16#044#, x"02000000");
+                cycles(3);
+                check_value(Irq, '1', error, "Interrupt of the SEC flag");
+                wr(16#060#, x"00000000");
+                cycles(3);
+                check_value(Irq, '0', error, "SEC flag cleared");
+
+            -- TC-MG-09: the event counters saturate at 0xFFFF (CRC-8 counter, the counters share the
+            -- saturating increment)
+            elsif run("test_counter_saturation") then
+
+                for i in 1 to 65537 loop
+                    wait until rising_edge(CoreClk);
+                    DlEv(1) <= '1';
+                    wait until rising_edge(CoreClk);
+                    DlEv(1) <= '0';
+
+                    for k in 1 to 6 loop
+                        wait until rising_edge(CoreClk);
+                    end loop;
+
+                end loop;
+
+                cycles(10);
+                chk(16#020#, x"0000FFFF", "CRC-8 counter saturated");
+
             end if;
 
         end loop;
@@ -459,7 +574,7 @@ begin
         wait;
     end process;
 
-    test_runner_watchdog(runner, 1 ms);
+    test_runner_watchdog(runner, 10 ms);
 
     -----------------------------------------------------------------------------------------------
     -- Harness

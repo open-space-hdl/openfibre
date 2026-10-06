@@ -34,6 +34,7 @@ the state of every module; a module is done when its verification report is writ
 | --- | --- |
 | Fault injection campaign at core level (TC-CORE-13): line errors, word slips, lane failures, SEC in every EDAC channel, DED in the row crossings | Done in simulation (5 seeds x 3 lane configurations, 600 faults); found the loss of held words in Not Ready (ML-DS-12), the silent DED corruption in the row crossings (CORE-ED-02) and the latency of the receive error state machine (DL-RE-01) |
 | DED containment in the Data Link buffers (VC, broadcast, error recovery and frame buffers) | Done: link reset for the transmit buffers and the frame buffer, EEP for the input VC buffers, discarded broadcast message (DL-ED-01, DL-ED-02, TC-CORE-14) |
+| Code coverage of the regression (QuestaSim) | Done: statements, branches and state machines closed or justified ([coverage.md](coverage.md)); the first measurement found untested behaviour (input buffer overflow, Interface Reset of the link reset state machine, exits of the lane initialisation, control word errors), closed by 12 new or extended tests |
 | Resource and timing closure on the XCVC1902 | Open (no synthesis licence on the development host) |
 
 ## Dependencies outside this repository

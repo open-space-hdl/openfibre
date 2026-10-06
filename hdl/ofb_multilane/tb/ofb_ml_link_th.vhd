@@ -29,6 +29,7 @@ library work;
     use work.ofb_ml_pkg.all;
     use work.ofb_tb_pkg.all;
     use work.ofb_ml_link_tb_pkg.all;
+    use work.ofb_ml_row_queue_pkg.all;
 
 ---------------------------------------------------------------------------------------------------
 -- Entity

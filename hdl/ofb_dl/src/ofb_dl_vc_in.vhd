@@ -177,7 +177,10 @@ begin
     -----------------------------------------------------------------------------------------------
     g_bank : for b in 0 to N_c-1 generate
 
+        -- Injection into bank 0 only (b is a constant: one branch is unreachable)
+        -- coverage off
         BankInj(b) <= EccInj_Valid when b = 0 else '0';
+        -- coverage on
 
         i_fifo : entity olo.olo_ft_fifo_async
             generic map (

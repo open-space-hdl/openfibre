@@ -380,9 +380,10 @@ hours and checks only selected properties, so it is reserved for the two target 
   scoreboard, serves the layer and core benches as driver, far end and scoreboard. It is the executable form of this
   document and of the ECSS clauses.
 - Simulator (decided on 2026-10-04): GHDL for every test that does not need the GTY model, so that many simulations run
-  in parallel and CI can run them; QuestaSim for code coverage. The two GTY simulations run in the AMD Vivado simulator
-  (changed on 2026-10-05): it ships the compiled transceiver models, needs no licence and runs the GTY model without
-  the instance limit of the Questa edition on this host (the only Questa licence is shared with other projects).
+  in parallel and CI can run them; QuestaSim for code coverage ([coverage.md](coverage.md)). The two GTY simulations
+  run in the AMD Vivado simulator (changed on 2026-10-05): it ships the compiled transceiver models, needs no licence
+  and runs the GTY model without the instance limit of the Questa edition on this host (the only Questa licence is
+  shared with other projects).
 - Repository layout of the process: `hdl/<module>/src`, `tb` and `docs` per module, where a module is one layer or one
   group of blocks of section 7 and every block keeps its own entity and unit testbench; `open-logic/` and `uvvm/` as git
   submodules. Each block has `specification.md`, `architecture.md`, `verification_plan.md` and `verification_report.md`;

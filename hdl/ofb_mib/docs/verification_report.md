@@ -2,17 +2,22 @@
 
 ## 1. Test results
 
-Run on 2026-10-05 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_mib*"`.
+Run on 2026-10-06 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_mib*"`.
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_mib_tb` | 7 | 7 |
+| `ofb_mib_tb` | 9 | 9 |
 
-Full regression of the repository: 182 of 182 tests pass. VSG reports no errors and no warnings.
+Full regression of the repository: 190 of 190 tests pass. VSG reports no errors and no warnings.
 
 ## 2. Summary
 
 All test cases pass and cover every requirement of the specification.
+
+Code coverage (QuestaSim, [docs/coverage.md](../../../docs/coverage.md)): the first measurement showed registers whose
+write, clear or read path no test used (counter clears, W1C of several flags, CRC-8, frame and sequence counters, idle
+limit, time-slots 63 to 32, lane events, SEC interrupt) and no test of the counter saturation (MG-ST-02). TC-MG-08 and
+TC-MG-09 cover them and passed without a design change; every statement and branch is covered.
 
 Defects found during verification:
 

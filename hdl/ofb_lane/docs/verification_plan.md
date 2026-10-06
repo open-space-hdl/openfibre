@@ -57,13 +57,14 @@ Lane clock 156.25 MHz (6.25 Gbit/s with 32-bit words). Simulator: GHDL.
 | `test_standby_and_stop` (TC-LN-30) | 32 STANDBY in PrepareStandby; three consecutive LOST_SIGNAL with SKIP transparent | LN-INIT-08, LN-INIT-09 |
 | `test_timeout` (TC-LN-31) | Timeout in Started and in Connected, one event | LN-INIT-03 |
 | `test_errclear` (TC-LN-32) | RXERR counter clear only in Connected and on LaneReset | LN-RX-05, LN-INIT-06 |
+| `test_exit_matrix` (TC-LN-33) | Exits of the states before Connected: LaneReset in Wait, Started and Connecting; NoSignal in Connecting; three iINIT2; timeout in InvertRxPolarity and Connecting; three STANDBY / LOST_SIGNAL in Started, InvertRxPolarity and Connecting (ignored in Wait, CDR off) | LN-INIT-01 to 04, LN-INIT-09 |
 
 ### 3.3 Unit testbench of LN-3 (`ofb_lane_rx_tb`)
 
 | Test ID | Description | Requirements |
 | --- | --- | --- |
 | `test_alignment` (TC-LN-40) | Words aligned for symbol offsets 0 to 3 | LN-RX-01 |
-| `test_realignment` (TC-LN-41) | Realigned word RXERR, words after the next comma correct | LN-RX-01 |
+| `test_realignment` (TC-LN-41) | Realigned word RXERR, words after the next comma correct; realignment in Ready and in CheckSync | LN-RX-01, LN-RX-03 |
 | `test_error_rule` (TC-LN-42) | Symbol error, first as code error, then as disparity error: its word and the previous word RXERR, exact output sequence | LN-RX-02, LN-IF-03 |
 | `test_lost_sync` (TC-LN-43) | Five error words: LostSync, all words RXERR until a comma | LN-RX-03 |
 | `test_lane_words` (TC-LN-44) | Detection of all lane control words, filtering, INIT1 / STANDBY / LOST_SIGNAL as RXERR, nothing outside Active | LN-RX-04, LN-RX-06 |
