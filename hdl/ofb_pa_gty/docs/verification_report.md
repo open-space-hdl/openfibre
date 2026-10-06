@@ -34,6 +34,14 @@ Rerun on the merged tree (serial loopbacks, bit synchronisation, fault injection
 the CPU otherwise idle: all runs pass, `ofb_pa_gty_core_tb` with the changed Multi-Lane and Data Link layers as
 well.
 
+Rerun after the findings of the first VCK190 build (lane reset and far-end loopback enables from registers,
+register stages of the input VC buffers, latch-free pulse crossing): `ofb_pa_gty_tb` and both runs of
+`ofb_pa_gty_cc_tb` pass with the results above. `ofb_pa_gty_core_tb` first failed: the transceiver model of end B
+reported a PLL divider error at time 0 under CPU load (the link never came up)
+and the input VC buffers of end A delivered one beat of undefined words before their reset (see the Data Link
+report); the rerun with the fix passes with the results above (link initialised after 94.2 us, all packets and
+broadcast messages delivered, no error, no retry).
+
 ## 2. Summary
 
 All test cases pass. VSG reports no errors and no warnings (the port names of the transceiver wizard and of
@@ -51,4 +59,4 @@ Findings during verification:
 | With an inherited stdin, `export_simulation` writes the file list `vlog.prj` to stdout | The runner starts Vivado with stdin closed |
 | xsim does not order the files of a module | The runner orders the files by the units they define and use |
 | TC-PA-03 after the generic `RefPpmB_g` was introduced: no clock correction (the offset of B was computed wrongly) | Offset in whole picoseconds: `RefPpmB_g * 3200 ps / 1000000` |
-| The transceiver model is not deterministic under heavy CPU load: next to six GHDL simulations `ofb_pa_gty_tb` reached TX ready 14 ns early, two lanes never aligned and two slipped; idle CPU: nominal times and pass. One `ofb_vck190_tb` run hung with a PLL divider error of the far-end model at time 0 and was not reproduced | Simulations with the transceiver model run without other simulations (`docs/conventions.md`) |
+| The transceiver model is not deterministic under heavy CPU load: next to six GHDL simulations `ofb_pa_gty_tb` reached TX ready 14 ns early, two lanes never aligned and two slipped; idle CPU: nominal times and pass. One `ofb_vck190_tb` run and one `ofb_pa_gty_core_tb` run hung with a PLL divider error of the model of one end at time 0 (`div_val has to be >= 9`); reruns pass | Simulations with the transceiver model run without other simulations (`docs/conventions.md`); a run with the PLL divider error is repeated |

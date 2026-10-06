@@ -149,7 +149,7 @@ Ten principles govern every block of the core; each implements a goal of section
 | --- | --- | --- |
 | P1 | One protocol function per block | A block implements one ECSS function (a clause or a state machine). Its specification names the clauses it owns; no clause is owned by two blocks. |
 | P2 | Streams everywhere | Every data path between blocks is a valid / ready stream with `Last` = end of frame and a sideband for K flags and metadata (Open Logic AXI4-Stream conventions). No read-enable with implied latency, no threshold handshakes. |
-| P3 | Few clock domains, proven crossings | Three internal domains per port (lane clock per lane, core clock, management clock) plus the user clock. Every crossing is an Open Logic FT entity: `olo_ft_fifo_async` for data, `olo_ft_cc_bits` for levels, `olo_ft_cc_pulse` for events, `olo_ft_cc_reset` for resets. |
+| P3 | Few clock domains, proven crossings | Three internal domains per port (lane clock per lane, core clock, management clock) plus the user clock. Every crossing is built from Open Logic FT entities: `olo_ft_fifo_async` for data, `olo_ft_cc_bits` for levels, `ofb_cc_pulse` (handshake over `olo_ft_cc_bits`) for events, `olo_ft_cc_reset` for resets. |
 | P4 | Explicit state semantics | An ECSS "received" condition is a one-cycle event from the block that decodes it. Every state register has a specified reset value. Resets follow the Open Logic convention: synchronous and high-active inside every block; `olo_ft_cc_reset` brings the power-on reset into each clock domain. Link reset and lane reset are synchronous commands. |
 | P5 | Fault tolerance by construction | All RAMs are `olo_ft_ram_*` (SECDED ECC), long-lived buffers use the scrubbing variants, all crossings are TMR. State machines use safe encoding with a defined recovery state. ECC events are counted in the MIB. |
 | P6 | Scalable by generics, optional by bypass | Lanes 1 to 4, VCs 1 to 32, broadcast channels, QoS mechanisms and scrambling are generics. A feature that is disabled is removed at elaboration or bypassed, never left half connected. One Lane layer serves all transceivers through a generic datapath width. |
@@ -202,9 +202,9 @@ every layer.
 | --- | --- | --- |
 | VC output and input buffers, broadcast buffers | N-Char and broadcast streams | `olo_ft_fifo_async` (the crossing FIFO is the ECSS VC buffer) |
 | Data Link to Multi-Lane, both directions | Row streams | `olo_ft_fifo_async` |
-| Data Link to Multi-Lane control | Link reset, capabilities, lane states | `olo_ft_cc_bits` (levels), `olo_ft_cc_pulse` (events) |
+| Data Link to Multi-Lane control | Link reset, capabilities, lane states | `olo_ft_cc_bits` (levels), `ofb_cc_pulse` (events) |
 | Receive side of each lane | Received words, SKIP removal | Transceiver elastic buffer, or `olo_ft_fifo_async` with SKIP deletion when the transceiver has none |
-| MIB to each domain | Configuration (quasi-static), status, event counters | `olo_ft_cc_bits`, `olo_ft_cc_pulse`; multi-bit snapshots through a small `olo_ft_fifo_async` |
+| MIB to each domain | Configuration (quasi-static), status, event counters | `olo_ft_cc_bits`, `ofb_cc_pulse`; multi-bit snapshots through a small `olo_ft_fifo_async` |
 | All domains | Resets | `olo_ft_cc_reset` |
 
 ### Internal interfaces
@@ -316,7 +316,7 @@ needs a new PA-1 and nothing else.
 | ID | Block | Responsibility | Open Logic | ECSS |
 | --- | --- | --- | --- | --- |
 | MG-1 | Register file | All configuration and status parameters, generated from one register description (`hdl/ofb_mib/regs/ofb_regs.yml`, `tools/regmap.py`); configuration crosses to the other domains as quasi-static levels | `olo_axi_lite_slave`, `olo_ft_cc_bits` | 5.9.1 to 5.9.4, 6.5 |
-| MG-2 | Event counters | One counter per event type and direction (frames, FCT, ACK, NACK, FULL, RETRY, RXERR, errors), sticky error flags, interrupt | `olo_ft_cc_pulse` | none owned (status counters of 5.9.4 for MG-1) |
+| MG-2 | Event counters | One counter per event type and direction (frames, FCT, ACK, NACK, FULL, RETRY, RXERR, errors), sticky error flags, interrupt | `ofb_cc_pulse` | none owned (status counters of 5.9.4 for MG-1) |
 | MG-3 | EDAC monitor | Collects the SEC / DED flags of every FT RAM and FIFO, counts them, raises an interrupt, drives error injection for tests | `olo_ft_ecc_monitor_axi` | none (fault tolerance, P5) |
 | MG-4 | Clock and reset | Power-on reset, reset synchronisation per domain, Interface Reset as configuration reset | `olo_base_reset_gen`, `olo_ft_cc_reset` | none owned (configuration reset of 5.7.9.2 for DC-1) |
 | TA-1 | Lane test access (injector and spy) | Per lane, replaces the Multi-Lane layer as source and sink of lane words | `olo_base_pl_stage` | none (test function) |
@@ -337,7 +337,7 @@ controller.
 | `olo_ft_ram_sdp` | DT-7 | Item list of the error recovery buffer |
 | `olo_ft_ram_sp`, `olo_ft_ram_sp_scrub` | NI-2, DT-4 | Virtual network table, time-slot table (long-lived: scrubbing variant) |
 | `olo_ft_cc_bits` | MG-1, PA-1, Data Link to Multi-Lane control | Quasi-static configuration, loss of signal, lane and link status levels |
-| `olo_ft_cc_pulse` | MG-2, Data Link to Multi-Lane control | Events: capability received, link reset request, counter increments across domains |
+| `olo_ft_cc_bits`, `olo_ft_cc_reset` in `ofb_cc_pulse` | MG-2, Data Link to Multi-Lane control | Events: capability received, link reset request, counter increments across domains (handshake per event, no latch; `olo_ft_cc_pulse` is latch-based and not used) |
 | `olo_ft_cc_reset` | MG-4, PA-1 | Reset synchronisation per domain |
 | `olo_ft_ecc_monitor_axi` | MG-3 | Collection of all SEC / DED events, error injection |
 | `olo_base_crc` | DT-8, DR-2, ML-3, ML-4 | CRC-8 (Data Link) and CRC-16 (per lane): polynomial, initial value, bit order and output XOR as generics |

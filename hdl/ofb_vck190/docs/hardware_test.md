@@ -39,18 +39,23 @@ vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl
 ```
 
 The script creates the project in `vivado_out/ofb_vck190` with the transceiver wizard instance, the CIPS block design
-(`ofb_cips`, default configuration, JTAG boot), the sources and the constraints, and runs synthesis, implementation and
-the device image. Record:
+(`ofb_cips`, JTAG boot, clocks of the programmable logic), the sources and the constraints, and runs synthesis,
+implementation and the device image. On Windows the project path must not be longer than about 40 characters: the
+device image step compiles the platform loader firmware in a deep directory below the project, and with a longer
+path `write_device_image` fails ("opening dependency file ... No such file or directory"). Either clone the
+repository to a short path (for example `C:/git/openfibre`) or set the environment variable `OFB_VIVADO_OUT` to a
+short project directory (for example `C:/ofb`); the paths below are then relative to that directory. Record:
 
 | Item | Where | Expected |
 | --- | --- | --- |
 | Device image | `vivado_out/ofb_vck190/ofb_vck190.runs/impl_1/*.pdi` | Present |
-| Timing | `vivado_out/ofb_vck190/timing_summary.rpt` | WNS and WHS of all clocks at least 0 ns (system clock 200 MHz, lane clock 156.25 MHz) |
+| Timing | `vivado_out/ofb_vck190/timing_summary.rpt` | WNS and WHS of all clocks at least 0 ns (`clk_pl_0` 100 MHz, `clk_pl_1` 150 MHz, lane clock 156.25 MHz) |
 | Resources | `vivado_out/ofb_vck190/utilization.rpt` | LUT, register, block RAM and URAM count of `i_core` |
 | Methodology and DRC | `report_methodology`, `report_drc` on the implemented design | No critical item about clock domain crossings or the transceivers |
 
-A timing violation in a crossing between the system clock and the lane clock points to a missing scoped constraint
-of Open Logic (section 3 of [architecture.md](architecture.md)).
+A timing violation in a crossing between `clk_pl_0`, `clk_pl_1` and the lane clock points to a missing clock pair
+constraint (section 3 of [architecture.md](architecture.md)). Expected warnings are listed in the verification
+report, section 3.
 
 ## 5. Board set-up
 

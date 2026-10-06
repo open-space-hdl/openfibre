@@ -11,7 +11,7 @@ licence; synthesis, implementation and the hardware test follow on a host with a
 
 | Testbench | DUT and environment |
 | --- | --- |
-| `ofb_vck190_tb` | `ofb_vck190_top` (`LedPollBits_g` = 10) with 200 MHz system clock and 156.25 MHz reference clock; far end: `ofb_core` (8 VCs, 4 lanes) with `ofb_pa_gty`, reference clock 100 ppm slower, AXI4-Lite access, packet generator and checker per VC, broadcast generator and checker |
+| `ofb_vck190_tb` | `ofb_vck190_top` (`LedPollBits_g` = 10) with clock models of the CIPS (100 MHz, 150 MHz) and 156.25 MHz reference clock; far end: `ofb_core` (8 VCs, 4 lanes) with `ofb_pa_gty`, reference clock 100 ppm slower, AXI4-Lite access, packet generator and checker per VC, broadcast generator and checker |
 
 ## 3. Test cases
 

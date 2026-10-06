@@ -10,7 +10,8 @@ Run on 2026-10-06 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 | `ofb_dl_row_tb` (row level) | 21 | 21 |
 | `ofb_dl_mac_tb` (medium access controller) | 7 | 7 |
 
-Full regression of the repository: 193 of 193 tests pass (phase 5, after the code coverage closure;
+Full regression of the repository: 205 of 205 tests pass (after the register stages of the input VC buffers and the
+latch-free pulse crossing; 193 of 193 in phase 5, after the code coverage closure;
 phase 4: rows of several words, verified in the core
 testbench with 2 and 4 lanes, plan section 3.5). VSG reports no errors and no warnings.
 
@@ -37,6 +38,9 @@ Defects found and fixed during verification:
 | TC-CORE-14 (core): words of the far end that arrived after a near-end link reset (an ACK of a discarded frame) caused a protocol error and a second link reset | Received words are checked only in Link Initialised (DL-LR-05) |
 | TC-CORE-13 (fault injection campaign of the core, 2 lanes): after a lane slip, an EDF and a SIF out of sequence arrived in consecutive cycles and were both checked against the old Receive Polarity Flag (the receive error state machine changed two cycles after the word). The second moved Error Negative on to Error Positive; the NACK with the other polarity started a second error recovery, and a data frame already accepted was resent with a new sequence number and delivered twice | The events of the word taken go to DR-3 without register, the next word is checked against the updated flag (DL-RE-01, TC-DL-26, mutation checked: the old latency fails TC-DL-26) |
 | Found with the MIB testbench: `olo_ft_cc_pulse` stretches every output pulse to two cycles, so the input VC buffer requested two FCTs per 64 words read (credit for more words than the buffer holds) | `ofb_cc_pulse` with an edge detector; TC-DL-20 checks the FCT count (mutation checked: 6 instead of 4 FCTs without the fix) |
+| First build of the VCK190 design: every failing timing path (up to 2.673 ns at 156.25 MHz, 18 to 25 logic levels) started at the bank RAMs of the input VC buffers: RAM, SECDED decoder, rotation of the banks, end-of-packet search and word count, ready of the banks back into the read logic of the FIFOs | Register stage (`olo_base_pl_stage`) after every bank; the beat is formed from the registers (architecture section 3.9). The ECC events are taken at the FIFO outputs |
+| `ofb_pa_gty_core_tb` and `ofb_vck190_tb` (xsim) after the register stages were added: one beat of undefined words per VC at the far end before its links started. The user clock of that end is the transmit clock of the transceiver, which starts late; the register stages had no reset before their first clock edge (their reset came only from the buffer, whose reset needs clock edges), and the beat logic took an undefined valid flag as valid | The register stages are also reset by the user reset (asserted from the start), and only a valid flag of '1' is taken; both tests pass |
+| First build of the VCK190 design: the latches of `olo_ft_cc_pulse` can lose a pulse (gate and data follow the input pulse); a lost FCT block pulse of an input VC buffer leaks credit until the VC stalls | `ofb_cc_pulse` without latch (`ofb_pkg` report) |
 
 Phase 3 (quality of service, continuous mode): the MAC unit tests and TC-DL-21 / TC-DL-22 passed on the first run;
 mutation check: with equal priorities the first frame of TC-DL-21 comes from VC 0 and the test fails as expected.

@@ -21,12 +21,13 @@ entities `olo_base_crc` and `olo_base_prbs` reproduce the ECSS algorithms.
 | PKG-08 | The package shall define generics for `olo_base_crc` that compute PKG-06 and PKG-07. | 5.7.6.4, 5.7.6.5 |
 | PKG-09 | The package shall provide a reference implementation of the random number generator G(x) = x^16 + x^5 + x^4 + x^3 + 1 with seed 0xFFFF, the first bit being the least significant bit of character 0. | 5.7.6.2.1b, c, f, 5.7.6.2.3c, d, e, g |
 | PKG-10 | The package shall define generics for `olo_base_prbs` (32 bits per symbol) that produce the sequence of PKG-09. | 5.7.6.2.1, 5.7.6.2.3 |
-| PKG-11 | The module shall provide `ofb_cc_pulse`, a pulse clock domain crossing with single-cycle output pulses (`olo_ft_cc_pulse` with a rising-edge detector; `olo_ft_cc_pulse` alone stretches every pulse to two output clock cycles). | none (implementation) |
+| PKG-11 | The module shall provide `ofb_cc_pulse`, a pulse clock domain crossing with single-cycle output pulses: free of latches, state registers triplicated with majority voters, level crossings with `olo_ft_cc_bits`, resets of both sides coupled with `olo_ft_cc_reset`. Every input pulse shall give exactly one output pulse within 3 input plus 4 output clock cycles when the pulses of one bit are at least 5 input plus 5 output clock cycles apart; one further pulse during a transfer shall be stored and sent afterwards. | none (implementation) |
 
 ## 3. Error conditions
 
-None. The package contains constants and pure functions; `ofb_cc_pulse` loses pulses of one bit that follow each other
-closer than 2 x SyncStages + 2 output clock cycles (8 cycles).
+None. The package contains constants and pure functions. `ofb_cc_pulse` merges the pulses of one bit that arrive
+during a transfer into one pending pulse (closer than 5 input plus 5 output clock cycles, after the first pending
+one); pulses during the reset of either side, including the synchronised release, are dropped.
 
 ## 4. Configuration parameters
 

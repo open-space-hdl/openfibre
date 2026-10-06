@@ -7,13 +7,14 @@
                                         |  ^            |  ^             |  ^
                     configuration, cmd  v  | status,    v  |             |  | events
                     olo_ft_cc_bits /    CoreClk:      LaneClk:          UserClk:
-                    olo_ft_cc_pulse     Data Link     Multi-Lane, Lane  Network interface
+                    ofb_cc_pulse        Data Link     Multi-Lane, Lane  Network interface
                     olo_base_cc_status  (cc_status, cc_pulse back)
 ```
 
-One crossing group per clock domain: configuration levels (`olo_ft_cc_bits`), commands (`olo_ft_cc_pulse`), status
-values (`olo_base_cc_status`, a consistent snapshot of the whole status vector), events (`olo_ft_cc_pulse`). An event
-that occurs again before the previous one has crossed may be counted once.
+One crossing group per clock domain: configuration levels (`olo_ft_cc_bits`), commands (`ofb_cc_pulse`), status
+values (`olo_base_cc_status`, a consistent snapshot of the whole status vector), events (`ofb_cc_pulse`). An event
+that occurs more than once while the previous one is crossing may be counted once (see `ofb_cc_pulse` in the
+`ofb_pkg` architecture).
 
 ## 2. Register file
 

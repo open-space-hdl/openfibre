@@ -76,6 +76,7 @@ architecture rtl of ofb_dl_vc_in is
     subtype Bank_t is natural range 0 to 3;
 
     type BankData_t is array (0 to N_c-1) of std_logic_vector(35 downto 0);
+    type BankStage_t is array (0 to N_c-1) of std_logic_vector(36 downto 0);
     type Words_t is array (0 to N_c-1) of Word_t;
     type Ks_t is array (0 to N_c-1) of WordK_t;
 
@@ -83,12 +84,19 @@ architecture rtl of ofb_dl_vc_in is
     signal BankIn    : BankData_t;
     signal BankInVld : std_logic_vector(N_c-1 downto 0);
     signal BankInRdy : std_logic_vector(N_c-1 downto 0);
+    signal FifoOut   : BankData_t;
+    signal FifoVld   : std_logic_vector(N_c-1 downto 0);
+    signal FifoRdy   : std_logic_vector(N_c-1 downto 0);
+    signal FifoSec   : std_logic_vector(N_c-1 downto 0);
+    signal FifoDed   : std_logic_vector(N_c-1 downto 0);
+    signal StageIn   : BankStage_t;
+    signal StageOut  : BankStage_t;
     signal BankOut   : BankData_t;
     signal BankVld   : std_logic_vector(N_c-1 downto 0);
     signal BankRdy   : std_logic_vector(N_c-1 downto 0);
     signal UsrRstIn  : std_logic_vector(N_c-1 downto 0);
-    signal BankSec   : std_logic_vector(N_c-1 downto 0);
     signal BankDed   : std_logic_vector(N_c-1 downto 0);
+    signal StageRst  : std_logic_vector(N_c-1 downto 0);
     signal BankInj   : std_logic_vector(N_c-1 downto 0);
 
     -- Core side
@@ -196,14 +204,38 @@ begin
                 Out_Clk           => UserClk,
                 Out_Rst           => UserRst,
                 Out_RstOut        => UsrRstIn(b),
-                Out_Data          => BankOut(b),
-                Out_Valid         => BankVld(b),
-                Out_Ready         => BankRdy(b),
-                Out_EccSec        => BankSec(b),
-                Out_EccDed        => BankDed(b),
+                Out_Data          => FifoOut(b),
+                Out_Valid         => FifoVld(b),
+                Out_Ready         => FifoRdy(b),
+                Out_EccSec        => FifoSec(b),
+                Out_EccDed        => FifoDed(b),
                 In_ErrInj_BitFlip => eccInjPattern(eccCodewordWidth(36), EccInj_Double),
                 In_ErrInj_Valid   => BankInj(b)
             );
+
+        -- Register stage after the bank: the beat logic below works on registers, and the read of the
+        -- bank RAM does not depend on the words of the other banks (timing). Reset with the buffer and with the
+        -- user reset, which is asserted from the start (the buffer reset needs clock edges)
+        StageIn(b)  <= FifoDed(b) & FifoOut(b);
+        StageRst(b) <= UsrRstIn(b) or UserRst;
+
+        i_stage : entity olo.olo_base_pl_stage
+            generic map (
+                Width_g => 37
+            )
+            port map (
+                Clk       => UserClk,
+                Rst       => StageRst(b),
+                In_Valid  => FifoVld(b),
+                In_Ready  => FifoRdy(b),
+                In_Data   => StageIn(b),
+                Out_Valid => BankVld(b),
+                Out_Ready => BankRdy(b),
+                Out_Data  => StageOut(b)
+            );
+
+        BankOut(b) <= StageOut(b)(35 downto 0);
+        BankDed(b) <= StageOut(b)(36);
 
     end generate;
 
@@ -230,7 +262,8 @@ begin
         for i in 0 to N_c-1 loop
             BeatData(32*i+31 downto 32*i) <= WordFill_c;
             Bank_v                        := (RdBank + i) mod N_c;
-            if BankVld(Bank_v) = '0' then
+            -- Not '1' instead of '0': a stage without its first reset (simulation) is not taken
+            if BankVld(Bank_v) /= '1' then
                 Avail_v := false;
             end if;
             if Avail_v and not Ended_v then
@@ -379,10 +412,10 @@ begin
     end process;
 
     -- ECC events of the words read from the banks (MG-3)
-    Ev_EccSec <= '1' when (BankSec and BankVld and BankRdy) /= (BankSec'range => '0') else '0';
-    Ev_EccDed <= '1' when (BankDed and BankVld and BankRdy) /= (BankDed'range => '0') else '0';
+    Ev_EccSec <= '1' when (FifoSec and FifoVld and FifoRdy) /= (FifoSec'range => '0') else '0';
+    Ev_EccDed <= '1' when (FifoDed and FifoVld and FifoRdy) /= (FifoDed'range => '0') else '0';
 
-    -- One-cycle pulse per 64 words read (olo_ft_cc_pulse alone stretches the pulse to 2 cycles)
+    -- One-cycle pulse per 64 words read
     i_blk_cc : entity work.ofb_cc_pulse
         port map (
             In_Clk       => UserClk,

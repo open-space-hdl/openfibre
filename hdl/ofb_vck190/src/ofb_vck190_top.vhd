@@ -10,7 +10,9 @@
 -- QSFP1 cage (GTY quad 200, 6.25 Gbit/s). The lanes start with AutoStart when the far end starts;
 -- every received packet and broadcast message is sent back on the same virtual channel (echo), so
 -- that SpaceFibre test equipment can exercise the link without software. LEDs show the transceiver
--- and link state.
+-- and link state. The clocks of the programmable logic come from the CIPS: 100 MHz for the MIB, the
+-- transceiver reset controller and the power-on reset, 150 MHz for the user side of the core; the
+-- core and lane clock is the lane clock of the transceivers.
 --
 -- Documentation: hdl/ofb_vck190/docs/architecture.md
 
@@ -35,12 +37,9 @@ entity ofb_vck190_top is
     generic (
         NumVc_g       : positive range 1 to 32 := 8;
         LedPollBits_g : positive range 4 to 24 := 16;   -- link state read every 2**LedPollBits_g cycles
-        IncludeCips_g : boolean                := false -- CIPS block design of tcl/build.tcl (not in simulation)
+        IncludeCips_g : boolean                := false -- CIPS block design of tcl/build.tcl (simulation: clock models)
     );
     port (
-        -- 200 MHz LVDS system clock (DDR4 DIMM clock, bank 700)
-        SysClk_P    : in    std_logic;
-        SysClk_N    : in    std_logic;
         -- Transceiver reference clock, 156.25 MHz (MGTREFCLK1 of quad 200)
         GtRefClk_P  : in    std_logic;
         GtRefClk_N  : in    std_logic;
@@ -61,14 +60,17 @@ architecture struct of ofb_vck190_top is
 
     constant Lanes_c : positive := 4;
 
-    -- Clocks and resets
-    signal SysClkIn : std_logic;
-    signal SysClk   : std_logic;
-    signal PorRst   : std_logic;
-    signal RefClk   : std_logic;
-    signal LaneClk  : std_logic;
-    signal LaneRst  : std_logic;
-    signal CoreRst  : std_logic;
+    -- Clocks and resets: MgmtClk (CIPS pl0, 100 MHz), UserClk (CIPS pl1, 150 MHz), lane clock
+    signal MgmtClk     : std_logic := '0';
+    signal UserClk     : std_logic := '0';
+    signal PlRstN      : std_logic := '1';
+    signal PorIn       : std_logic;
+    signal PorRst      : std_logic;
+    signal RefClk      : std_logic;
+    signal LaneClk     : std_logic;
+    signal LaneRst     : std_logic;
+    signal LaneRstMgmt : std_logic;
+    signal CoreRst     : std_logic := '1';
 
     -- Physical adapter interface
     signal PhyTxData : std_logic_vector(32*Lanes_c-1 downto 0);
@@ -110,39 +112,52 @@ architecture struct of ofb_vck190_top is
 
     -- Control, interfaces and processing system of the Versal device (block design ofb_cips, created by
     -- tcl/build.tcl): every Versal design needs it, its platform management controller configures the device
+    -- and its clock generator drives the clocks of the programmable logic (port names of the block design)
+    -- vsg_off port_010
     component ofb_cips_wrapper is
+        port (
+            pl0_clk    : out   std_logic;
+            pl1_clk    : out   std_logic;
+            pl0_resetn : out   std_logic
+        );
     end component;
 
+-- vsg_on port_010
+
 begin
-
-    g_cips : if IncludeCips_g generate
-
-        i_cips : component ofb_cips_wrapper;
-
-    end generate;
 
     -----------------------------------------------------------------------------------------------
     -- Clocks and power-on reset
     -----------------------------------------------------------------------------------------------
-    i_sysclk_ibuf : component ibufds
-        port map (
-            I  => SysClk_P,
-            IB => SysClk_N,
-            O  => SysClkIn
-        );
+    g_cips : if IncludeCips_g generate
 
-    i_sysclk_bufg : component bufg
-        port map (
-            I => SysClkIn,
-            O => SysClk
-        );
+        -- vsg_off port_map_002
+        i_cips : component ofb_cips_wrapper
+            port map (
+                pl0_clk    => MgmtClk,
+                pl1_clk    => UserClk,
+                pl0_resetn => PlRstN
+            );
+
+    -- vsg_on port_map_002
+
+    end generate;
+
+    -- Simulation: models of the two clocks of the CIPS
+    g_clk_model : if not IncludeCips_g generate
+        MgmtClk <= not MgmtClk after 5 ns;
+        UserClk <= not UserClk after 3333 ps;
+    end generate;
+
+    PorIn <= not PlRstN;
 
     i_por : entity olo.olo_base_reset_gen
         generic map (
             RstPulseCycles_g => 1000
         )
         port map (
-            Clk    => SysClk,
+            Clk    => MgmtClk,
+            RstIn  => PorIn,
             RstOut => PorRst
         );
 
@@ -167,7 +182,7 @@ begin
             NumLanes_g => Lanes_c
         )
         port map (
-            FreeRunClk             => SysClk,
+            FreeRunClk             => MgmtClk,
             Rst                    => PorRst,
             RefClk                 => RefClk,
             LaneClk                => LaneClk,
@@ -197,7 +212,21 @@ begin
             Phy_SerialFarLoopback  => SerFarLb
         );
 
-    CoreRst <= PorRst or LaneRst;
+    -- Reset of the core: power-on reset or transceivers not ready, from a register (no logic in front of the
+    -- reset synchronisers of the core)
+    i_lanerst_sync : entity olo.olo_intf_sync
+        port map (
+            Clk          => MgmtClk,
+            DataAsync(0) => LaneRst,
+            DataSync(0)  => LaneRstMgmt
+        );
+
+    p_core_rst : process (MgmtClk) is
+    begin
+        if rising_edge(MgmtClk) then
+            CoreRst <= PorRst or LaneRstMgmt;
+        end if;
+    end process;
 
     i_core : entity work.ofb_core
         generic map (
@@ -209,10 +238,10 @@ begin
         )
         port map (
             Rst                    => CoreRst,
-            UserClk                => LaneClk,
+            UserClk                => UserClk,
             CoreClk                => LaneClk,
             LaneClk                => LaneClk,
-            MgmtClk                => SysClk,
+            MgmtClk                => MgmtClk,
             S_Vc_TData             => VcData,
             S_Vc_TUser             => VcUser,
             S_Vc_TValid            => VcValid,
@@ -265,11 +294,11 @@ begin
         );
 
     -----------------------------------------------------------------------------------------------
-    -- Link state: DL_STATUS read every 2**LedPollBits_g cycles of the system clock
+    -- Link state: DL_STATUS read every 2**LedPollBits_g cycles of the management clock
     -----------------------------------------------------------------------------------------------
-    p_poll : process (SysClk) is
+    p_poll : process (MgmtClk) is
     begin
-        if rising_edge(SysClk) then
+        if rising_edge(MgmtClk) then
             PollCnt <= PollCnt + 1;
             if PollCnt = 0 then
                 ArValid <= '1';

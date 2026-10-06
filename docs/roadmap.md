@@ -26,7 +26,7 @@ the state of every module; a module is done when its verification report is writ
 | `ofb_mib` | MG-1 to MG-4, TA-1 | 2, 4 (Multi-Lane registers), 5 (MG-3 EDAC monitor), later (TA-1) | Done except TA-1 (MG-1 with the register map generated from one description, MG-2 with QoS and Multi-Lane registers, MG-3 EDAC monitor with error injection; MG-4 in the core top level) |
 | `ofb_pa_gty` | PA-1 for the Versal GTY (PA-2, PA-3 in the transceiver) | 2, 5 | Done in simulation (transceiver wizard, loopback test and end-to-end test of two cores over the transceiver model in xsim); synthesis and hardware test open |
 | `ofb_core` | Core top level | 2, 4, 5 | Phase 4 done (1 to 4 lanes, four clock domains, core testbench with 1, 2 and 4 lanes); phase 5: EDAC with DED containment, synthesizability check, [compliance matrix](compliance.md), fault injection campaign, throughput and latency measurement |
-| `ofb_vck190` | VCK190 board top level and constraints | 5 | Reference design (echo, LEDs), constraints and build script; top-level test with the transceiver model; synthesis and hardware test open (no licence for the XCVC1902 on the development host) |
+| `ofb_vck190` | VCK190 board top level and constraints | 5 | Reference design (echo, LEDs, clocks of the CIPS), constraints and build script; top-level test with the transceiver model; first build (device image, timing not met) analysed and its findings fixed; rebuild and hardware test open |
 
 ## Open hardening items (phase 5)
 
@@ -35,7 +35,7 @@ the state of every module; a module is done when its verification report is writ
 | Fault injection campaign at core level (TC-CORE-13): line errors, word slips, lane failures, SEC in every EDAC channel, DED in the row crossings | Done in simulation (5 seeds x 3 lane configurations, 600 faults); found the loss of held words in Not Ready (ML-DS-12), the silent DED corruption in the row crossings (CORE-ED-02) and the latency of the receive error state machine (DL-RE-01) |
 | DED containment in the Data Link buffers (VC, broadcast, error recovery and frame buffers) | Done: link reset for the transmit buffers and the frame buffer, EEP for the input VC buffers, discarded broadcast message (DL-ED-01, DL-ED-02, TC-CORE-14) |
 | Code coverage of the regression (QuestaSim) | Done: statements, branches and state machines closed or justified ([coverage.md](coverage.md)); the first measurement found untested behaviour (input buffer overflow, Interface Reset of the link reset state machine, exits of the lane initialisation, control word errors), closed by 12 new or extended tests |
-| Resource and timing closure on the XCVC1902 | Open (no synthesis licence on the development host) |
+| Resource and timing closure on the XCVC1902 | First build: 43852 LUT, 32239 registers, 42 block RAM tiles, 8 DSP; timing not met in the input VC buffers (fixed: register stage per bank); latches of `olo_ft_cc_pulse` replaced by the latch-free `ofb_cc_pulse`; rebuild open |
 
 ## Dependencies outside this repository
 
