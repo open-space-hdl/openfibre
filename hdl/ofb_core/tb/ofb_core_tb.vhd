@@ -112,6 +112,12 @@ begin
         variable Rate_v   : real;
         variable RateB_v  : real;
 
+        -- Functional coverage of the campaign: fault kinds, line faults per lane, single errors per
+        -- EDAC channel
+        variable CovFault_v : t_coverpoint;
+        variable CovLine_v  : t_coverpoint;
+        variable CovSec_v   : t_coverpoint;
+
         procedure cycles (n : natural) is
         begin
 
@@ -266,6 +272,7 @@ begin
             CoreSb_v.disable_log_msg(inst, ID_DATA);
         end loop;
 
+        coreCovInit;
         wait until Rst = '0';
         cycles(50);
 
@@ -536,9 +543,27 @@ begin
                 Sec_v    := (others => (others => '0'));
                 Ded_v    := (others => (others => '0'));
                 Faults_v := (others => 0);
+                CovFault_v.set_name("CovFault");
+                CovFault_v.add_bins(bin_range(FaultFlip_c, FaultDed_c, 0));
+                if NumLanes_g > 1 then
+                    CovFault_v.add_bins(bin(FaultCut_c));
+                end if;
+                CovLine_v.set_name("CovLine");
+                CovLine_v.add_cross(bin_range(FaultFlip_c, FaultSlip_c, 0) & bin(FaultCut_c), bin_range(0, NumLanes_g-1, 0));
+                CovSec_v.set_name("CovSec");
+                CovSec_v.add_cross(bin_range(0, 1, 0), bin_range(0, EccChannels_c-1, 0));
+
+                -- Packets of all length classes, so that faults hit packets of several data frames
+                for c in 0 to 1 loop
+
+                    for vc in 0 to CoreNumVc_c-1 loop
+                        CoreCfg(c).Vc(vc).LenClasses <= true;
+                    end loop;
+
+                end loop;
 
                 for f in 1 to CampaignFaults_c loop
-                    sendAll(20 * NumLanes_g); -- about 60 % load of the link
+                    sendAll(3 * NumLanes_g); -- about 60 % load of the link (209.5 bytes per packet on average)
                     CoreCfg(0).BcSend <= CoreCfg(0).BcSend + 1;
                     CoreCfg(1).BcSend <= CoreCfg(1).BcSend + 1;
                     randInt(200, 1500, N_v);
@@ -551,6 +576,10 @@ begin
                         Kind_v := FaultFlip_c;
                     end if;
                     Faults_v(Kind_v) := Faults_v(Kind_v) + 1;
+                    CovFault_v.sample_coverage(Kind_v);
+                    if Kind_v /= FaultSec_c and Kind_v /= FaultDed_c then
+                        CovLine_v.sample_coverage((Kind_v, Lane_v));
+                    end if;
 
                     case Kind_v is
 
@@ -576,6 +605,7 @@ begin
                             randInt(0, EccChannels_c-1, Ch_v);
                             wr(Core_v, RegEccInject_c, std_logic_vector(to_unsigned(Ch_v, 32)));
                             Sec_v(Core_v)(Ch_v) := '1';
+                            CovSec_v.sample_coverage((Core_v, Ch_v));
 
                         when FaultDed_c =>
                             -- A double error in a row crossing corrupts one word on the link: the receiver
@@ -639,6 +669,39 @@ begin
                 if NumLanes_g > 1 then
                     allLanes(2 ms);
                 end if;
+
+                CovFault_v.report_coverage(VOID);
+                CovLine_v.report_coverage(VOID);
+                CovSec_v.report_coverage(VOID);
+                check_value(CovFault_v.coverage_completed(BINS), error, "Every fault kind injected");
+                check_value(CovPkt_v.coverage_completed(BINS), error, "Every length class on every VC in both directions");
+
+            -- TC-CORE-17: traffic mix for the functional coverage: packets of every length class (1 to 4,
+            -- 5 to 64, 65 to 256, 257 to 1024 bytes) on every VC and broadcast messages with and without
+            -- DELAYED flag in both directions, receivers ready 70 % of the time
+            elsif run("test_traffic_mix") then
+                linkUp(500 us);
+
+                for c in 0 to 1 loop
+
+                    for vc in 0 to CoreNumVc_c-1 loop
+                        CoreCfg(c).Vc(vc).LenClasses <= true;
+                        CoreCfg(c).Vc(vc).ReadyPct   <= 70;
+                    end loop;
+
+                end loop;
+
+                CoreCfg(0).BcSend <= 20;
+                CoreCfg(1).BcSend <= 20;
+                sendAll(8);
+                waitDelivered(10 ms);
+                check_value(CovPkt_v.coverage_completed(BINS), error, "Every length class on every VC in both directions");
+                check_value(CovBc_v.coverage_completed(BINS), error, "Broadcast messages with and without DELAYED flag");
+
+                for c in 0 to 1 loop
+                    rd(c, RegDlErrors_c, Data_v);
+                    check_value(Data_v, x"00000000", error, "No error at core " & to_string(c));
+                end loop;
 
             -- TC-CORE-16: throughput and latency. Latency of a packet of one word on the idle link; payload
             -- throughput with packets of up to 1024 bytes on all VCs, from A to B only and in both directions,
@@ -810,6 +873,7 @@ begin
 
         end loop;
 
+        coreCovReport;
         ofbTestEnd(runner);
         wait;
     end process;

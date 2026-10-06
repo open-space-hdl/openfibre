@@ -257,6 +257,7 @@ begin
                 variable Pos_v   : natural  := 0;
                 variable BeatD_v : std_logic_vector(32*N_c-1 downto 0);
                 variable BeatK_v : std_logic_vector(4*N_c-1 downto 0);
+                variable Cls_v   : natural range 0 to 3;
 
                 impure function randInt (lo : natural; hi : natural) return natural is
                 begin
@@ -309,7 +310,13 @@ begin
                         Raw_v := RawQueue_v.pop;
                         sendWord(Raw_v(31 downto 0), Raw_v(35 downto 32), true);
                     elsif Sent_v < CoreCfg(i).Vc(v).Packets then
-                        Left_v := randInt(1, CoreCfg(i).Vc(v).MaxLen);
+                        if CoreCfg(i).Vc(v).LenClasses then
+                            -- The length classes of the functional coverage in turn
+                            Cls_v  := Sent_v mod 4;
+                            Left_v := randInt(LenMin_c(Cls_v), LenMax_c(Cls_v));
+                        else
+                            Left_v := randInt(1, CoreCfg(i).Vc(v).MaxLen);
+                        end if;
                         Term_v := false;
 
                         while not Term_v loop
@@ -351,6 +358,7 @@ begin
                 variable Eeps_v  : natural  := 0;
                 variable Lost_v  : natural  := 0;
                 variable Words_v : natural  := 0;
+                variable Bytes_v : natural  := 0;
 
                 -- A character of the word is an EOP or EEP (with an EEP only: the EEP)
                 function hasEnd (w : std_logic_vector(35 downto 0); eepOnly : boolean := false) return boolean is
@@ -431,6 +439,21 @@ begin
                                 else
                                     CoreSb_v.check_received(Inst_c, Word_v);
                                 end if;
+
+                                -- Functional coverage: length and end of the packets sent by the other core
+                                for c in 0 to 3 loop
+                                    if Word_v(32 + c) = '0' then
+                                        Bytes_v := Bytes_v + 1;
+                                    elsif Word_v(8*c+7 downto 8*c) = CharEop_c then
+                                        CovPkt_v.sample_coverage((1 - i, v, Bytes_v));
+                                        CovEnd_v.sample_coverage((1 - i, 0));
+                                        Bytes_v := 0;
+                                    elsif Word_v(8*c+7 downto 8*c) = CharEep_c then
+                                        CovEnd_v.sample_coverage((1 - i, 1));
+                                        Bytes_v := 0;
+                                    end if;
+                                end loop;
+
                             end if;
                         end loop;
 
@@ -525,6 +548,8 @@ begin
                     CoreSb_v.check_received(1 + 2 * CoreNumVc_c + i, "0000" & MBcData(i)(63 downto 32));
                     -- DELAYED, B_TYPE and channel; LATE depends on the error recovery
                     CoreSb_v.check_received(1 + 2 * CoreNumVc_c + i, x"0000" & "000" & MBcUser(i)(16 downto 0));
+                    CovBc_v.sample_coverage((1 - i, boolean'pos(MBcUser(i)(16) = '1')));
+                    CovLate_v.sample_coverage((1 - i, boolean'pos(MBcUser(i)(17) = '1')));
                 end if;
             end if;
         end process;

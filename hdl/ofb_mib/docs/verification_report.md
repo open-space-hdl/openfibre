@@ -8,7 +8,7 @@ Run on 2026-10-06 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 | --- | --- | --- |
 | `ofb_mib_tb` | 9 | 9 |
 
-Full regression of the repository: 190 of 190 tests pass. VSG reports no errors and no warnings.
+Full regression of the repository: 193 of 193 tests pass. VSG reports no errors and no warnings.
 
 ## 2. Summary
 
