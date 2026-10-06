@@ -96,6 +96,7 @@ architecture rtl of ofb_dl_vc_in is
     signal BankRdy   : std_logic_vector(N_c-1 downto 0);
     signal UsrRstIn  : std_logic_vector(N_c-1 downto 0);
     signal BankDed   : std_logic_vector(N_c-1 downto 0);
+    signal StageRst  : std_logic_vector(N_c-1 downto 0);
     signal BankInj   : std_logic_vector(N_c-1 downto 0);
 
     -- Core side
@@ -213,8 +214,10 @@ begin
             );
 
         -- Register stage after the bank: the beat logic below works on registers, and the read of the
-        -- bank RAM does not depend on the words of the other banks (timing)
-        StageIn(b) <= FifoDed(b) & FifoOut(b);
+        -- bank RAM does not depend on the words of the other banks (timing). Reset with the buffer and with the
+        -- user reset, which is asserted from the start (the buffer reset needs clock edges)
+        StageIn(b)  <= FifoDed(b) & FifoOut(b);
+        StageRst(b) <= UsrRstIn(b) or UserRst;
 
         i_stage : entity olo.olo_base_pl_stage
             generic map (
@@ -222,7 +225,7 @@ begin
             )
             port map (
                 Clk       => UserClk,
-                Rst       => UsrRstIn(b),
+                Rst       => StageRst(b),
                 In_Valid  => FifoVld(b),
                 In_Ready  => FifoRdy(b),
                 In_Data   => StageIn(b),
@@ -259,7 +262,8 @@ begin
         for i in 0 to N_c-1 loop
             BeatData(32*i+31 downto 32*i) <= WordFill_c;
             Bank_v                        := (RdBank + i) mod N_c;
-            if BankVld(Bank_v) = '0' then
+            -- Not '1' instead of '0': a stage without its first reset (simulation) is not taken
+            if BankVld(Bank_v) /= '1' then
                 Avail_v := false;
             end if;
             if Avail_v and not Ended_v then
