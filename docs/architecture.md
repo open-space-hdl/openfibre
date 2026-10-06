@@ -315,7 +315,7 @@ needs a new PA-1 and nothing else.
 
 | ID | Block | Responsibility | Open Logic | ECSS |
 | --- | --- | --- | --- | --- |
-| MG-1 | Register file | All configuration and status parameters, generated from one register description; configuration crosses to the other domains as quasi-static levels | `olo_axi_lite_slave`, `olo_ft_cc_bits` | 5.9.1 to 5.9.4, 6.5 |
+| MG-1 | Register file | All configuration and status parameters, generated from one register description (`hdl/ofb_mib/regs/ofb_regs.yml`, `tools/regmap.py`); configuration crosses to the other domains as quasi-static levels | `olo_axi_lite_slave`, `olo_ft_cc_bits` | 5.9.1 to 5.9.4, 6.5 |
 | MG-2 | Event counters | One counter per event type and direction (frames, FCT, ACK, NACK, FULL, RETRY, RXERR, errors), sticky error flags, interrupt | `olo_ft_cc_pulse` | none owned (status counters of 5.9.4 for MG-1) |
 | MG-3 | EDAC monitor | Collects the SEC / DED flags of every FT RAM and FIFO, counts them, raises an interrupt, drives error injection for tests | `olo_ft_ecc_monitor_axi` | none (fault tolerance, P5) |
 | MG-4 | Clock and reset | Power-on reset, reset synchronisation per domain, Interface Reset as configuration reset | `olo_base_reset_gen`, `olo_ft_cc_reset` | none owned (configuration reset of 5.7.9.2 for DC-1) |

@@ -32,6 +32,7 @@ every module.
 | [docs/conventions.md](docs/conventions.md) | Coding, verification and repository conventions |
 | [docs/roadmap.md](docs/roadmap.md) | Development plan and module status |
 | [docs/compliance.md](docs/compliance.md) | ECSS compliance matrix: requirements and test cases of every clause (generated) |
+| [hdl/ofb_mib/docs/register_map.md](hdl/ofb_mib/docs/register_map.md) | Register map of the MIB (generated; C header `sw/ofb_regs.h`) |
 | [docs/coverage.md](docs/coverage.md) | Code coverage of the regression (QuestaSim) and the justification of every item not covered |
 | `hdl/<module>/docs/` | Specification, architecture, verification plan and verification report of each module |
 
@@ -43,7 +44,8 @@ openfibre/
 |-- hdl/<module>/     One folder per module: src/, tb/, docs/
 |-- tb/               Verification components shared by the testbenches
 |-- lint/             VSG configuration (Open Logic rules), synthesizability check
-|-- tools/            Compliance matrix generator, simulations with the transceiver model (xsim)
+|-- tools/            Compliance matrix and register map generators, simulations with the transceiver model (xsim)
+|-- sw/               C header of the register map (generated)
 |-- open-logic/       Git submodule: Open Logic (fault-tolerant entities branch)
 |-- uvvm/             Git submodule: UVVM verification framework
 |-- component_list.txt  Modules in dependency order
@@ -81,6 +83,7 @@ Checks besides the regression:
 python lint/lint.py                 # VSG, no errors and no warnings
 python lint/synth_check.py          # GHDL synthesis of ofb_core for 1, 2 and 4 lanes (after python run.py --compile)
 python tools/compliance.py --check  # every ECSS clause and requirement traced to a test case
+python tools/regmap.py --check      # generated register map files match hdl/ofb_mib/regs/ofb_regs.yml
 ```
 
 ## Licence

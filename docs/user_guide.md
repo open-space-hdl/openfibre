@@ -3,7 +3,7 @@
 This guide describes how to integrate the OpenFibre core `ofb_core` into an FPGA design: sources, generics, clocks,
 interfaces, programming sequence and synthesis settings. The design itself is described in the
 [architecture](architecture.md) and in the documentation of every module (`hdl/<module>/docs/`); the register map is in
-the [MIB architecture](../hdl/ofb_mib/docs/architecture.md) (section 3).
+[register_map.md](../hdl/ofb_mib/docs/register_map.md), with the C header `sw/ofb_regs.h` for the software.
 
 ## 1. Scope
 
@@ -112,9 +112,9 @@ defaults keep time-slot 0.
 
 ### 5.4 Management Information Base (`MgmtClk`)
 
-AXI4-Lite slave with 12-bit byte addresses and 32-bit data, register map in the
-[MIB architecture](../hdl/ofb_mib/docs/architecture.md) (section 3). `Irq` is high while a sticky flag enabled in
-IRQ_MASK is set.
+AXI4-Lite slave with 12-bit byte addresses and 32-bit data, register map in
+[register_map.md](../hdl/ofb_mib/docs/register_map.md) (C header `sw/ofb_regs.h`, VHDL package `ofb_regs_pkg`). `Irq`
+is high while a sticky flag enabled in IRQ_MASK is set.
 
 ### 5.5 Physical adapter (`LaneClk`, per lane)
 

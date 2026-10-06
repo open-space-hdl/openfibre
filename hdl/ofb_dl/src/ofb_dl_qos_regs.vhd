@@ -20,6 +20,9 @@ library ieee;
     use ieee.std_logic_1164.all;
     use ieee.numeric_std.all;
 
+library work;
+    use work.ofb_regs_pkg.all;
+
 ---------------------------------------------------------------------------------------------------
 -- Entity
 ---------------------------------------------------------------------------------------------------
@@ -51,11 +54,8 @@ end entity;
 ---------------------------------------------------------------------------------------------------
 architecture rtl of ofb_dl_qos_regs is
 
-    constant AddrIdle_c   : natural := 16#050#;
-    constant AddrVcBase_c : natural := 16#400#;
-
     -- Reset values: lowest priority, 10 % for VC0, minimum bandwidth for the others, all slots
-    constant IdleReset_c : std_logic_vector(31 downto 0) := std_logic_vector(to_unsigned(156250, 32));
+    constant IdleReset_c : std_logic_vector(31 downto 0) := RegVcIdleLimitReset_c;
 
 begin
 
@@ -66,22 +66,22 @@ begin
     begin
         if rising_edge(Clk) then
             Addr_v := to_integer(unsigned(Reg_Addr));
-            Vc_v   := (Addr_v / 16) mod 32;
-            Reg_v  := Addr_v mod 16;
+            Vc_v   := ((Addr_v - RegVcBase_c) / RegVcStride_c) mod 32;
+            Reg_v  := Addr_v mod RegVcStride_c;
             if Reg_Wr = '1' then
-                if Addr_v = AddrIdle_c then
+                if Addr_v = RegVcIdleLimit_c then
                     Cfg_IdleLimit <= Reg_Data;
-                elsif Addr_v >= AddrVcBase_c and Addr_v < AddrVcBase_c + 16 * NumVc_g then
+                elsif Addr_v >= RegVcBase_c and Addr_v < RegVcBase_c + RegVcStride_c * NumVc_g then
 
                     case Reg_v is
-                        when 0 =>
+                        when RegVcCfgOfs_c =>
                             Cfg_Priority(4*Vc_v+3 downto 4*Vc_v) <= Reg_Data(3 downto 0);
                             Cfg_Continuous(Vc_v)                 <= Reg_Data(8);
-                        when 4 =>
+                        when RegVcBandwidthOfs_c =>
                             Cfg_BwFactor(16*Vc_v+15 downto 16*Vc_v) <= Reg_Data(15 downto 0);
-                        when 8 =>
+                        when RegVcSlotsLoOfs_c =>
                             Cfg_Slots(64*Vc_v+31 downto 64*Vc_v) <= Reg_Data;
-                        when 12 =>
+                        when RegVcSlotsHiOfs_c =>
                             Cfg_Slots(64*Vc_v+63 downto 64*Vc_v+32) <= Reg_Data;
                         when others =>
                             null;

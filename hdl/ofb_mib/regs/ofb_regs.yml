@@ -1,0 +1,287 @@
+# ---------------------------------------------------------------------------------------------------
+# Copyright (c) 2026 by Julian Schneider
+# Authors: Julian Schneider
+# ---------------------------------------------------------------------------------------------------
+# Register map of the OpenFibre MIB: the single description from which tools/regmap.py generates the
+# VHDL package hdl/ofb_pkg/src/ofb_regs_pkg.vhd, the documentation hdl/ofb_mib/docs/register_map.md and
+# the C header sw/ofb_regs.h.
+#
+# Byte addresses of 32-bit registers on the AXI4-Lite port (12-bit address). Access per field:
+#   RO   read only
+#   RW   read and write
+#   W1   write one: command, reads as zero
+#   W1C  sticky flag, write one to clear
+#   WO   write only, reads as zero
+#   RC   read only, any write to the register clears it (counters)
+# A reset value written as text depends on generics or on the instance (lane, VC); status fields have none.
+
+id: 0x0FB10005
+
+registers:
+  - name: ID
+    offset: 0x000
+    description: Identification of the core and version of the register map
+    fields:
+      - {name: ID, bits: "31:0", access: RO, reset: 0x0FB10005, description: "0x0FB1 (OpenFibre) and register map version 5"}
+
+  - name: GENERICS
+    offset: 0x004
+    description: Generics of the core
+    fields:
+      - {name: NUM_VC, bits: "7:0", access: RO, reset: NumVc_g, description: Number of virtual channels}
+      - {name: NUM_LANES, bits: "11:8", access: RO, reset: NumLanes_g, description: Number of lanes}
+
+  - name: DL_CTRL
+    offset: 0x008
+    description: Data Link control
+    fields:
+      - {name: LINK_RESET, bits: "0", access: W1, reset: 0, description: "Link Reset command; also clears the status of the Data Link, Multi-Lane and Lane layers (the EDAC status is kept)"}
+      - {name: INTERFACE_RESET, bits: "1", access: W1, reset: 0, description: Interface Reset command; all configuration registers take their reset values}
+      - {name: DATA_SCRAMBLED, bits: "8", access: RW, reset: 1, description: Data scrambling requested from the far end (near-end capability)}
+
+  - name: DL_BC_INTERVAL
+    offset: 0x00C
+    description: Broadcast flow control
+    fields:
+      - {name: INTERVAL, bits: "15:0", access: RW, reset: 40, description: "Words per broadcast credit (4 / Normalised Expected Broadcast Bandwidth)"}
+
+  - name: DL_STATUS
+    offset: 0x010
+    description: Data Link status
+    fields:
+      - {name: LINK_STATE, bits: "1:0", access: RO, description: "Link reset state machine: 0 Configuration Reset, 1 Near-End Reset, 2 Check Far-End Reset, 3 Link Initialised"}
+      - {name: RX_ERR_STATE, bits: "3:2", access: RO, description: "Receive error state machine: 0 Valid Positive, 1 Valid Negative, 2 Error Positive, 3 Error Negative"}
+      - {name: WORD_ID_STATE, bits: "6:4", access: RO, description: Data word identification state machine}
+      - {name: ERB_EMPTY, bits: "8", access: RO, description: Error recovery buffer empty}
+
+  - name: DL_ERRORS
+    offset: 0x014
+    description: Sticky error flags of the Data Link layer
+    fields:
+      - {name: CRC16, bits: "0", access: W1C, reset: 0, description: CRC-16 error}
+      - {name: CRC8, bits: "1", access: W1C, reset: 0, description: CRC-8 error}
+      - {name: FRAME, bits: "2", access: W1C, reset: 0, description: Frame error}
+      - {name: SEQUENCE, bits: "3", access: W1C, reset: 0, description: Sequence error}
+      - {name: PROTOCOL, bits: "4", access: W1C, reset: 0, description: Link Reset Caused by Protocol Error}
+      - {name: FAR_END_LINK_RESET, bits: "5", access: W1C, reset: 0, description: Far-End Link Reset}
+      - {name: BC_DISCARD, bits: "6", access: W1C, reset: 0, description: Broadcast message discarded}
+      - {name: INPUT_OVERFLOW, bits: "7", access: W1C, reset: 0, description: Input buffer overflow (any VC)}
+      - {name: CREDIT_OVERFLOW, bits: "8", access: W1C, reset: 0, description: FCT credit overflow (any VC)}
+      - {name: FRAMING_ERROR, bits: "9", access: W1C, reset: 0, description: Framing error of the Network interface (any VC)}
+      - {name: RX_ROW_OVERFLOW, bits: "10", access: W1C, reset: 0, description: Receive row lost in the crossing to the core clock}
+
+  - name: DL_RETRIES
+    offset: 0x018
+    description: Error recovery attempts
+    fields:
+      - {name: COUNT, bits: "31:0", access: RC, reset: 0, description: Number of error recovery attempts}
+
+  - name: DL_CRC16_COUNT
+    offset: 0x01C
+    description: CRC-16 errors
+    fields:
+      - {name: COUNT, bits: "15:0", access: RC, reset: 0, description: CRC-16 errors (saturating)}
+
+  - name: DL_CRC8_COUNT
+    offset: 0x020
+    description: CRC-8 errors
+    fields:
+      - {name: COUNT, bits: "15:0", access: RC, reset: 0, description: CRC-8 errors (saturating)}
+
+  - name: DL_FRAME_COUNT
+    offset: 0x024
+    description: Frame errors
+    fields:
+      - {name: COUNT, bits: "15:0", access: RC, reset: 0, description: Frame errors (saturating)}
+
+  - name: DL_SEQ_COUNT
+    offset: 0x028
+    description: Sequence errors
+    fields:
+      - {name: COUNT, bits: "15:0", access: RC, reset: 0, description: Sequence errors (saturating)}
+
+  - name: VC_HAS_CREDIT
+    offset: 0x030
+    description: Has Credit per VC
+    fields:
+      - {name: VC, bits: "NumVc-1:0", access: RO, description: Has Credit of VC v in bit v}
+
+  - name: VC_INPUT_OVERFLOW
+    offset: 0x034
+    description: Input buffer overflow per VC
+    fields:
+      - {name: VC, bits: "NumVc-1:0", access: W1C, reset: 0, description: Input buffer overflow of VC v in bit v}
+
+  - name: VC_CREDIT_OVERFLOW
+    offset: 0x038
+    description: FCT credit counter overflow per VC
+    fields:
+      - {name: VC, bits: "NumVc-1:0", access: W1C, reset: 0, description: FCT credit counter overflow of VC v in bit v}
+
+  - name: VC_FRAMING_ERROR
+    offset: 0x03C
+    description: Framing error of the Network interface per VC
+    fields:
+      - {name: VC, bits: "NumVc-1:0", access: W1C, reset: 0, description: Framing error of VC v in bit v}
+
+  - name: ML_STATUS
+    offset: 0x040
+    description: Multi-Lane status
+    fields:
+      - {name: DATA_SENDING, bits: "3:0", access: RO, description: Data-sending lanes}
+      - {name: DATA_RECEIVING, bits: "7:4", access: RO, description: Data-receiving lanes}
+      - {name: ALIGN_STATE, bits: "9:8", access: RO, description: "Alignment state machine: 0 Not Ready, 1 Near-End Ready, 2 Both-Ends Ready"}
+      - {name: BYPASS, bits: "10", access: RO, description: Multi-Lane bypass active}
+
+  - name: IRQ_MASK
+    offset: 0x044
+    description: Interrupt enables
+    fields:
+      - {name: DL_ERRORS, bits: "10:0", access: RW, reset: 0, description: Interrupt enable of the DL_ERRORS bits}
+      - {name: LANE_EVENTS, bits: "19:16", access: RW, reset: 0, description: Interrupt enable of the LANE_EVENTS bits of any lane}
+      - {name: ECC_DED, bits: "24", access: RW, reset: 0, description: Interrupt enable of the ECC DED flags}
+      - {name: ECC_SEC, bits: "25", access: RW, reset: 0, description: Interrupt enable of the ECC SEC flag}
+
+  - name: VC_BW_OVER
+    offset: 0x048
+    description: Bandwidth over use per VC
+    fields:
+      - {name: VC, bits: "NumVc-1:0", access: W1C, reset: 0, description: Bandwidth over use of VC v in bit v}
+
+  - name: VC_BW_UNDER
+    offset: 0x04C
+    description: Bandwidth under use per VC
+    fields:
+      - {name: VC, bits: "NumVc-1:0", access: W1C, reset: 0, description: Bandwidth under use of VC v in bit v}
+
+  - name: VC_IDLE_LIMIT
+    offset: 0x050
+    description: Virtual Channel Idle Time Limit
+    fields:
+      - {name: LIMIT, bits: "31:0", access: RW, reset: 156250, description: Idle time limit in words (1 ms at 6.25 Gbit/s)}
+
+  - name: SCHED_STATUS
+    offset: 0x054
+    description: Schedule status
+    fields:
+      - {name: TIME_SLOT, bits: "5:0", access: RO, description: Current time-slot}
+
+  - name: ML_CTRL
+    offset: 0x058
+    description: Multi-Lane control
+    fields:
+      - {name: MAX_DATA_LANES, bits: "2:0", access: RW, reset: NumLanes_g, description: Maximum number of data-sending lanes (taken over at link reset)}
+      - {name: BYPASS, bits: "8", access: RW, reset: 0, description: Multi-Lane bypass}
+
+  - name: ML_MISALIGNED
+    offset: 0x05C
+    description: Misaligned conditions
+    fields:
+      - {name: COUNT, bits: "15:0", access: RC, reset: 0, description: Misaligned conditions in Near-End Ready or Both-Ends Ready (saturating)}
+
+  - name: ECC_STATUS
+    offset: 0x060
+    description: EDAC monitor status; any write clears the flags and the counters of all channels
+    fields:
+      - {name: DED, bits: "8:0", access: RC, reset: 0, description: Uncorrectable error (DED) flag per EDAC channel}
+      - {name: SEC, bits: "16", access: RC, reset: 0, description: Corrected error (SEC) seen in any channel}
+
+  - name: ECC_SELECT
+    offset: 0x064
+    description: EDAC channel of ECC_COUNT
+    fields:
+      - {name: CHANNEL, bits: "3:0", access: RW, reset: 0, description: EDAC channel}
+
+  - name: ECC_COUNT
+    offset: 0x068
+    description: EDAC counters of the channel in ECC_SELECT; any write clears them
+    fields:
+      - {name: SEC_COUNT, bits: "15:0", access: RC, reset: 0, description: Corrected errors (saturating)}
+      - {name: DED_COUNT, bits: "31:16", access: RC, reset: 0, description: Uncorrectable errors (saturating)}
+
+  - name: ECC_INJECT
+    offset: 0x06C
+    description: Error injection into the next word written into the buffers of a channel
+    fields:
+      - {name: CHANNEL, bits: "3:0", access: WO, reset: 0, description: EDAC channel}
+      - {name: DOUBLE, bits: "8", access: WO, reset: 0, description: "Double error (uncorrectable) instead of a single error"}
+
+arrays:
+  - name: LANE
+    base: 0x100
+    stride: 0x20
+    count: NumLanes_g
+    description: Registers of lane i at address + i x 0x20
+    registers:
+      - name: LANE_CTRL
+        offset: 0x00
+        description: Lane control
+        fields:
+          - {name: LANE_START, bits: "0", access: RW, reset: 0, description: LaneStart}
+          - {name: AUTO_START, bits: "1", access: RW, reset: 1, description: AutoStart}
+          - {name: LANE_RESET, bits: "2", access: RW, reset: 0, description: LaneReset}
+          - {name: NEAR_LOOPBACK, bits: "3", access: RW, reset: 0, description: Near-end parallel loopback}
+          - {name: FAR_LOOPBACK, bits: "4", access: RW, reset: 0, description: Far-end parallel loopback}
+          - {name: TX_EN, bits: "5", access: RW, reset: 1, description: Transmit enable of the Multi-Lane layer (TxEn)}
+          - {name: RX_EN, bits: "6", access: RW, reset: 1, description: Receive enable of the Multi-Lane layer (RxEn)}
+          - {name: STANDBY_REASON, bits: "15:8", access: RW, reset: 0, description: Standby Reason sent in STANDBY words}
+          - {name: SERIAL_NEAR_LOOPBACK, bits: "16", access: RW, reset: 0, description: Near-end serial loopback (Physical layer)}
+          - {name: SERIAL_FAR_LOOPBACK, bits: "17", access: RW, reset: 0, description: Far-end serial loopback (Physical layer)}
+      - name: LANE_STATUS
+        offset: 0x04
+        description: Lane status
+        fields:
+          - {name: STATE, bits: "3:0", access: RO, description: Lane initialisation state}
+          - {name: RX_POLARITY, bits: "4", access: RO, description: Receive polarity inverted}
+          - {name: NO_SIGNAL, bits: "5", access: RO, description: No signal at the receiver}
+          - {name: BIT_SYNC, bits: "6", access: RO, description: Bit synchronisation of the Physical adapter}
+          - {name: RXERR_COUNT, bits: "15:8", access: RO, description: RXERR word counter}
+          - {name: FAR_CAPABILITY, bits: "23:16", access: RO, description: Far-end capabilities}
+      - name: LANE_EVENTS
+        offset: 0x08
+        description: Sticky lane events
+        fields:
+          - {name: RXERR_OVERFLOW, bits: "0", access: W1C, reset: 0, description: RXERR counter overflow}
+          - {name: TIMEOUT, bits: "1", access: W1C, reset: 0, description: Initialisation timeout}
+          - {name: FAR_STANDBY, bits: "2", access: W1C, reset: 0, description: Far end in standby}
+          - {name: FAR_LOST_SIGNAL, bits: "3", access: W1C, reset: 0, description: Far end lost the signal}
+      - name: LANE_REASONS
+        offset: 0x0C
+        description: Reasons received from the far end
+        fields:
+          - {name: STANDBY_REASON, bits: "7:0", access: RO, description: Far-end Standby Reason}
+          - {name: LOST_SIGNAL_REASON, bits: "15:8", access: RO, description: Far-end LOST_SIGNAL reason}
+      - name: LANE_TIMEOUT_COUNT
+        offset: 0x10
+        description: Initialisation timeouts
+        fields:
+          - {name: COUNT, bits: "15:0", access: RC, reset: 0, description: Initialisation timeouts (saturating)}
+
+  - name: VC
+    base: 0x400
+    stride: 0x10
+    count: NumVc_g
+    description: Quality of service registers of VC v at address + v x 0x10
+    registers:
+      - name: VC_CFG
+        offset: 0x0
+        description: VC configuration
+        fields:
+          - {name: PRIORITY, bits: "3:0", access: RW, reset: NumPrio_g-1, description: "Priority level (0 highest)"}
+          - {name: CONTINUOUS, bits: "8", access: RW, reset: 0, description: Continuous mode}
+          - {name: VN, bits: "21:16", access: RW, reset: v, description: "Virtual network number (VC 0: always 0)"}
+      - name: VC_BANDWIDTH
+        offset: 0x4
+        description: Expected bandwidth
+        fields:
+          - {name: FACTOR, bits: "15:0", access: RW, reset: "0x0A00 (VC 0), 0xFFFF", description: "1 / Normalised Expected Bandwidth, 8.8 fixed point (0x0100: 100 %, 0x0A00: 10 %, 0: no bandwidth)"}
+      - name: VC_SLOTS_LO
+        offset: 0x8
+        description: Time-slots 31 to 0
+        fields:
+          - {name: SLOTS, bits: "31:0", access: RW, reset: 0xFFFFFFFF, description: Allocated time-slots 31 to 0}
+      - name: VC_SLOTS_HI
+        offset: 0xC
+        description: Time-slots 63 to 32
+        fields:
+          - {name: SLOTS, bits: "31:0", access: RW, reset: 0xFFFFFFFF, description: Allocated time-slots 63 to 32}

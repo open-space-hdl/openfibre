@@ -24,6 +24,7 @@ library olo;
 
 library work;
     use work.ofb_pkg.all;
+    use work.ofb_regs_pkg.all;
 
 ---------------------------------------------------------------------------------------------------
 -- Entity
@@ -140,8 +141,7 @@ end entity;
 ---------------------------------------------------------------------------------------------------
 architecture rtl of ofb_mib is
 
-    constant Id_c : std_logic_vector(31 downto 0) := x"0FB10005";
-    constant Ch_c : positive                      := EccChannels_c;
+    constant Ch_c : positive := EccChannels_c;
 
     -- Widths of the crossing vectors
     constant CoreCfgW_c  : positive := 20;
@@ -310,8 +310,8 @@ begin
             CmdLinkReset <= '0';
             CmdIfReset   <= '0';
             Addr_v       := to_integer(unsigned(RbAddr));
-            Lane_v       := (Addr_v / 16#20#) - 8;
-            Reg_v        := Addr_v mod 16#20#;
+            Lane_v       := (Addr_v / RegLaneStride_c) - (RegLaneBase_c / RegLaneStride_c);
+            Reg_v        := Addr_v mod RegLaneStride_c;
 
             -- Events: sticky flags and counters
             DlErrors(3 downto 0) <= DlErrors(3 downto 0) or CoreEv(3 downto 0);
@@ -361,73 +361,73 @@ begin
             if RbWr = '1' then
 
                 case Addr_v is
-                    when 16#008# =>
-                        CmdLinkReset  <= RbWrData(0);
-                        CmdIfReset    <= RbWrData(1);
-                        DataScrambled <= RbWrData(8);
-                    when 16#00C# =>
+                    when RegDlCtrl_c =>
+                        CmdLinkReset  <= RbWrData(DlCtrlLinkReset_c);
+                        CmdIfReset    <= RbWrData(DlCtrlInterfaceReset_c);
+                        DataScrambled <= RbWrData(DlCtrlDataScrambled_c);
+                    when RegDlBcInterval_c =>
                         BcInterval <= RbWrData(15 downto 0);
-                    when 16#014# =>
+                    when RegDlErrors_c =>
                         DlErrors <= DlErrors and not RbWrData(10 downto 0);
-                    when 16#018# =>
+                    when RegDlRetries_c =>
                         Retries <= (others => '0');
-                    when 16#01C# =>
+                    when RegDlCrc16Count_c =>
                         Crc16Cnt <= (others => '0');
-                    when 16#020# =>
+                    when RegDlCrc8Count_c =>
                         Crc8Cnt <= (others => '0');
-                    when 16#024# =>
+                    when RegDlFrameCount_c =>
                         FrameCnt <= (others => '0');
-                    when 16#028# =>
+                    when RegDlSeqCount_c =>
                         SeqCnt <= (others => '0');
-                    when 16#034# =>
+                    when RegVcInputOverflow_c =>
                         VcInOvf <= VcInOvf and not RbWrData(NumVc_g-1 downto 0);
-                    when 16#038# =>
+                    when RegVcCreditOverflow_c =>
                         VcCrOvf <= VcCrOvf and not RbWrData(NumVc_g-1 downto 0);
-                    when 16#03C# =>
+                    when RegVcFramingError_c =>
                         VcFrErr <= VcFrErr and not RbWrData(NumVc_g-1 downto 0);
-                    when 16#044# =>
+                    when RegIrqMask_c =>
                         IrqMask <= RbWrData;
-                    when 16#048# =>
+                    when RegVcBwOver_c =>
                         VcBwOver <= VcBwOver and not RbWrData(NumVc_g-1 downto 0);
-                    when 16#04C# =>
+                    when RegVcBwUnder_c =>
                         VcBwUnder <= VcBwUnder and not RbWrData(NumVc_g-1 downto 0);
-                    when 16#050# =>
+                    when RegVcIdleLimit_c =>
                         IdleLimit <= RbWrData;
-                    when 16#058# =>
+                    when RegMlCtrl_c =>
                         MlMax    <= RbWrData(2 downto 0);
                         MlBypass <= RbWrData(8);
-                    when 16#05C# =>
+                    when RegMlMisaligned_c =>
                         MisalignCnt <= (others => '0');
-                    when 16#060# =>
+                    when RegEccStatus_c =>
                         EccSecStk <= '0';
-                    when 16#064# =>
+                    when RegEccSelect_c =>
                         EccSel <= RbWrData(3 downto 0);
                     when others =>
-                        if Addr_v >= 16#400# and Addr_v < 16#400# + 16 * NumVc_g then
-                            Vc_v := (Addr_v - 16#400#) / 16;
-                            if Reg_v mod 16 = 0 then
+                        if Addr_v >= RegVcBase_c and Addr_v < RegVcBase_c + RegVcStride_c * NumVc_g then
+                            Vc_v := (Addr_v - RegVcBase_c) / RegVcStride_c;
+                            if (Addr_v - RegVcBase_c) mod RegVcStride_c = RegVcCfgOfs_c then
                                 VcCfg(Vc_v)(3 downto 0) <= RbWrData(3 downto 0);
                                 VcCfg(Vc_v)(8)          <= RbWrData(8);
                                 if Vc_v /= 0 then
                                     -- VN0 is always mapped to VC0 (ECSS 5.8.3bb)
                                     VcCfg(Vc_v)(21 downto 16) <= RbWrData(21 downto 16);
                                 end if;
-                            elsif Reg_v mod 16 = 4 then
+                            elsif (Addr_v - RegVcBase_c) mod RegVcStride_c = RegVcBandwidthOfs_c then
                                 VcBw(Vc_v) <= RbWrData(15 downto 0);
-                            elsif Reg_v mod 16 = 8 then
+                            elsif (Addr_v - RegVcBase_c) mod RegVcStride_c = RegVcSlotsLoOfs_c then
                                 VcSlotsLo(Vc_v) <= RbWrData;
                             else
                                 VcSlotsHi(Vc_v) <= RbWrData;
                             end if;
                         end if;
                         if Lane_v >= 0 and Lane_v < NumLanes_g then
-                            if Reg_v = 16#00# then
+                            if Reg_v = RegLaneCtrlOfs_c then
                                 LaneCtrl(Lane_v) <= RbWrData(17 downto 16) & RbWrData(6 downto 5) & RbWrData(15 downto 8) &
                                                     RbWrData(4 downto 0);
-                            elsif Reg_v = 16#08# then
+                            elsif Reg_v = RegLaneEventsOfs_c then
                                 LaneEvents(4*Lane_v+3 downto 4*Lane_v) <= LaneEvents(4*Lane_v+3 downto 4*Lane_v) and
                                                                           not RbWrData(3 downto 0);
-                            elsif Reg_v = 16#10# then
+                            elsif Reg_v = RegLaneTimeoutCountOfs_c then
                                 TimeoutCnt(Lane_v) <= (others => '0');
                             end if;
                         end if;
@@ -442,7 +442,7 @@ begin
 
             -- Link Reset command: status of the Data Link, Multi-Lane and Lane layers cleared (ECSS 5.9.4e,
             -- the EDAC status is kept); Interface Reset: configuration reset
-            if (RbWr = '1' and Addr_v = 16#008# and RbWrData(0) = '1') then
+            if (RbWr = '1' and Addr_v = RegDlCtrl_c and RbWrData(DlCtrlLinkReset_c) = '1') then
                 DlErrors    <= (others => '0');
                 VcInOvf     <= (others => '0');
                 VcCrOvf     <= (others => '0');
@@ -458,10 +458,10 @@ begin
                 TimeoutCnt  <= (others => (others => '0'));
                 MisalignCnt <= (others => '0');
             end if;
-            if Rst = '1' or (RbWr = '1' and Addr_v = 16#008# and RbWrData(1) = '1') then
+            if Rst = '1' or (RbWr = '1' and Addr_v = RegDlCtrl_c and RbWrData(DlCtrlInterfaceReset_c) = '1') then
                 DataScrambled <= '1';
-                BcInterval    <= x"0028";
-                IdleLimit     <= std_logic_vector(to_unsigned(156250, 32));
+                BcInterval    <= RegDlBcIntervalReset_c(15 downto 0);
+                IdleLimit     <= RegVcIdleLimitReset_c;
                 VcSlotsLo     <= (others => (others => '1'));
                 VcSlotsHi     <= (others => (others => '1'));
 
@@ -528,82 +528,82 @@ begin
         if rising_edge(Clk) then
             RbRdValid <= RbRd;
             Addr_v    := to_integer(unsigned(RbAddr));
-            Lane_v    := (Addr_v / 16#20#) - 8;
-            Reg_v     := Addr_v mod 16#20#;
+            Lane_v    := (Addr_v / RegLaneStride_c) - (RegLaneBase_c / RegLaneStride_c);
+            Reg_v     := Addr_v mod RegLaneStride_c;
             Data_v    := (others => '0');
 
             case Addr_v is
-                when 16#000# =>
-                    Data_v := Id_c;
-                when 16#004# =>
+                when RegId_c =>
+                    Data_v := RegMapId_c;
+                when RegGenerics_c =>
                     Data_v(7 downto 0)  := std_logic_vector(to_unsigned(NumVc_g, 8));
                     Data_v(11 downto 8) := std_logic_vector(to_unsigned(NumLanes_g, 4));
-                when 16#008# =>
+                when RegDlCtrl_c =>
                     Data_v(8) := DataScrambled;
-                when 16#00C# =>
+                when RegDlBcInterval_c =>
                     Data_v(15 downto 0) := BcInterval;
-                when 16#010# =>
+                when RegDlStatus_c =>
                     Data_v(1 downto 0) := CoreStat(1 downto 0);
                     Data_v(3 downto 2) := CoreStat(3 downto 2);
                     Data_v(6 downto 4) := CoreStat(6 downto 4);
                     Data_v(8)          := CoreStat(7);
-                when 16#014# =>
+                when RegDlErrors_c =>
                     Data_v(10 downto 0) := DlErrors;
-                when 16#018# =>
+                when RegDlRetries_c =>
                     Data_v := std_logic_vector(Retries);
-                when 16#01C# =>
+                when RegDlCrc16Count_c =>
                     Data_v(15 downto 0) := std_logic_vector(Crc16Cnt);
-                when 16#020# =>
+                when RegDlCrc8Count_c =>
                     Data_v(15 downto 0) := std_logic_vector(Crc8Cnt);
-                when 16#024# =>
+                when RegDlFrameCount_c =>
                     Data_v(15 downto 0) := std_logic_vector(FrameCnt);
-                when 16#028# =>
+                when RegDlSeqCount_c =>
                     Data_v(15 downto 0) := std_logic_vector(SeqCnt);
-                when 16#030# =>
+                when RegVcHasCredit_c =>
                     Data_v(NumVc_g-1 downto 0) := CoreStat(7 + NumVc_g downto 8);
-                when 16#034# =>
+                when RegVcInputOverflow_c =>
                     Data_v(NumVc_g-1 downto 0) := VcInOvf;
-                when 16#038# =>
+                when RegVcCreditOverflow_c =>
                     Data_v(NumVc_g-1 downto 0) := VcCrOvf;
-                when 16#03C# =>
+                when RegVcFramingError_c =>
                     Data_v(NumVc_g-1 downto 0) := VcFrErr;
-                when 16#040# =>
+                when RegMlStatus_c =>
                     Base_v                        := LaneStatW_c * NumLanes_g;
                     Data_v(NumLanes_g-1 downto 0) := LaneStat(Base_v + NumLanes_g - 1 downto Base_v);
                     Data_v(NumLanes_g+3 downto 4) := LaneStat(Base_v + 2 * NumLanes_g - 1 downto Base_v + NumLanes_g);
                     Data_v(9 downto 8)            := LaneStat(Base_v + 2 * NumLanes_g + 1 downto Base_v + 2 * NumLanes_g);
                     Data_v(10)                    := LaneStat(Base_v + 2 * NumLanes_g + 2);
-                when 16#044# =>
+                when RegIrqMask_c =>
                     Data_v := IrqMask;
-                when 16#048# =>
+                when RegVcBwOver_c =>
                     Data_v(NumVc_g-1 downto 0) := VcBwOver;
-                when 16#04C# =>
+                when RegVcBwUnder_c =>
                     Data_v(NumVc_g-1 downto 0) := VcBwUnder;
-                when 16#050# =>
+                when RegVcIdleLimit_c =>
                     Data_v := IdleLimit;
-                when 16#054# =>
+                when RegSchedStatus_c =>
                     Data_v(5 downto 0) := CoreStat(CoreStatW_c - 1 downto CoreStatW_c - 6);
-                when 16#058# =>
+                when RegMlCtrl_c =>
                     Data_v(2 downto 0) := MlMax;
                     Data_v(8)          := MlBypass;
-                when 16#05C# =>
+                when RegMlMisaligned_c =>
                     Data_v(15 downto 0) := std_logic_vector(MisalignCnt);
-                when 16#060# =>
+                when RegEccStatus_c =>
                     Data_v(Ch_c-1 downto 0) := EccDedStk;
                     Data_v(16)              := EccSecStk;
-                when 16#064# =>
+                when RegEccSelect_c =>
                     Data_v(3 downto 0) := EccSel;
-                when 16#068# =>
+                when RegEccCount_c =>
                     Data_v(15 downto 0)  := EccSecCnt;
                     Data_v(31 downto 16) := EccDedCnt;
                 when others =>
-                    if Addr_v >= 16#400# and Addr_v < 16#400# + 16 * NumVc_g then
-                        Vc_v := (Addr_v - 16#400#) / 16;
-                        if Reg_v mod 16 = 0 then
+                    if Addr_v >= RegVcBase_c and Addr_v < RegVcBase_c + RegVcStride_c * NumVc_g then
+                        Vc_v := (Addr_v - RegVcBase_c) / RegVcStride_c;
+                        if (Addr_v - RegVcBase_c) mod RegVcStride_c = RegVcCfgOfs_c then
                             Data_v := VcCfg(Vc_v);
-                        elsif Reg_v mod 16 = 4 then
+                        elsif (Addr_v - RegVcBase_c) mod RegVcStride_c = RegVcBandwidthOfs_c then
                             Data_v(15 downto 0) := VcBw(Vc_v);
-                        elsif Reg_v mod 16 = 8 then
+                        elsif (Addr_v - RegVcBase_c) mod RegVcStride_c = RegVcSlotsLoOfs_c then
                             Data_v := VcSlotsLo(Vc_v);
                         else
                             Data_v := VcSlotsHi(Vc_v);
@@ -611,21 +611,21 @@ begin
                     end if;
                     if Lane_v >= 0 and Lane_v < NumLanes_g then
                         Base_v := LaneStatW_c * Lane_v;
-                        if Reg_v = 16#00# then
+                        if Reg_v = RegLaneCtrlOfs_c then
                             Data_v(15 downto 8)  := LaneCtrl(Lane_v)(12 downto 5);
                             Data_v(6 downto 5)   := LaneCtrl(Lane_v)(14 downto 13);
                             Data_v(17 downto 16) := LaneCtrl(Lane_v)(16 downto 15);
                             Data_v(4 downto 0)   := LaneCtrl(Lane_v)(4 downto 0);
-                        elsif Reg_v = 16#04# then
+                        elsif Reg_v = RegLaneStatusOfs_c then
                             Data_v(5 downto 0)   := LaneStat(Base_v + 5 downto Base_v);
                             Data_v(6)            := LaneStat(Base_v + 38);
                             Data_v(15 downto 8)  := LaneStat(Base_v + 13 downto Base_v + 6);
                             Data_v(23 downto 16) := LaneStat(Base_v + 21 downto Base_v + 14);
-                        elsif Reg_v = 16#08# then
+                        elsif Reg_v = RegLaneEventsOfs_c then
                             Data_v(3 downto 0) := LaneEvents(4*Lane_v+3 downto 4*Lane_v);
-                        elsif Reg_v = 16#0C# then
+                        elsif Reg_v = RegLaneReasonsOfs_c then
                             Data_v(15 downto 0) := LaneStat(Base_v + 37 downto Base_v + 22);
-                        elsif Reg_v = 16#10# then
+                        elsif Reg_v = RegLaneTimeoutCountOfs_c then
                             Data_v(15 downto 0) := std_logic_vector(TimeoutCnt(Lane_v));
                         end if;
                     end if;
@@ -698,7 +698,7 @@ begin
     begin
         Addr_v := to_integer(unsigned(RbAddr));
         QosWr  <= '0';
-        if RbWr = '1' and (Addr_v = 16#050# or (Addr_v >= 16#400# and Addr_v < 16#400# + 16 * NumVc_g)) then
+        if RbWr = '1' and (Addr_v = RegVcIdleLimit_c or (Addr_v >= RegVcBase_c and Addr_v < RegVcBase_c + RegVcStride_c * NumVc_g)) then
             QosWr <= '1';
         end if;
     end process;
@@ -932,8 +932,8 @@ begin
     EccDed <= EccCoreEv(2*Ch_c-1 downto Ch_c) or EccUserEv(2*Ch_c-1 downto Ch_c) or EccLaneEv(2*Ch_c-1 downto Ch_c);
 
     -- Counters, DED flags; ECC_STATUS write clears all, ECC_COUNT write clears the selected channel
-    EccClr   <= '1' when RbWr = '1' and unsigned(RbAddr) = 16#060# else '0';
-    EccRdClr <= '1' when RbWr = '1' and unsigned(RbAddr) = 16#068# else '0';
+    EccClr   <= '1' when RbWr = '1' and unsigned(RbAddr) = RegEccStatus_c else '0';
+    EccRdClr <= '1' when RbWr = '1' and unsigned(RbAddr) = RegEccCount_c else '0';
 
     i_ecc_mon : entity olo.olo_ft_ecc_monitor
         generic map (
@@ -964,7 +964,7 @@ begin
     begin
         EccInjCmd <= (others => '0');
         Ch_v      := to_integer(unsigned(RbWrData(3 downto 0)));
-        if RbWr = '1' and unsigned(RbAddr) = 16#06C# and Ch_v < Ch_c then
+        if RbWr = '1' and unsigned(RbAddr) = RegEccInject_c and Ch_v < Ch_c then
             if RbWrData(8) = '1' then
                 EccInjCmd(Ch_c + Ch_v) <= '1';
             else
