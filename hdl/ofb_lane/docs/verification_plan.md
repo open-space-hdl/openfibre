@@ -91,4 +91,5 @@ verified with the multi-lane link testbench (`ofb_ml_link_tb`, TC-ML-31: SKIP on
 ## 5. Functional coverage plan
 
 The random traffic of TC-LN-04 covers data words, words with EOP and Data Link control words in both directions.
-Functional coverage bins are added with the Multi-Lane and Data Link layer benches, where the traffic mix matters.
+The functional coverage of the traffic mix (packet lengths, VCs, broadcast flags, injected faults) is measured with
+the core testbench (`hdl/ofb_core/docs/verification_plan.md`, section 4).

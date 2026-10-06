@@ -12,7 +12,8 @@ Run on 2026-10-06 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 | `ofb_ml_align_tb` (ML-5, ML-6, four lanes) | 5 | 5 |
 | `ofb_ml_link_tb` (multi-lane link, configurations `lanes2` and `lanes4`) | 11 x 2 | 22 |
 
-Full regression of the repository: 190 of 190 tests pass (phase 5, after the code coverage closure).
+Full regression of the repository: 193 of 193 tests pass (phase 5, after the code coverage closure and the functional
+coverage of the core).
 
 ## 2. Summary
 
