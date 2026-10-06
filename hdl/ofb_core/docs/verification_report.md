@@ -23,7 +23,7 @@ buffer of the receiver. The losses are the framing words (SDF, EDF per data fram
 EOP and Fill characters, SKIP, and in both directions the ACKs and FCTs of the reverse traffic.
 
 Fault injection campaign (TC-CORE-13): the regression runs seed 1; the extended campaign
-`OFB_CAMPAIGN_SEEDS="2,3,4,5" python run.py "*test_fault_campaign*"` adds seeds 2 to 5. Since 2026-10-06 the
+`OFB_CAMPAIGN_SEEDS="2,3,4,5" python run.py "*test_fault_campaign*"` adds seeds 2 to 5. The
 packets cycle through the length classes 1 to 4, 5 to 64, 65 to 256 and 257 to 1024 bytes, so that faults also hit
 packets of several data frames. 15 runs, 600 faults, all pass (faults per kind; retries at A / B; coverage of the
 line faults per lane, `CovLine`; broadcast messages received with the LATE flag at A / B, `CovLate`):

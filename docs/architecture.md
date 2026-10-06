@@ -12,7 +12,7 @@ ECSS requirements each block owns and the Open Logic entities each block is buil
 
 - Physical layer adaptation: serialiser/deserialiser (SerDes) abstraction, loss of signal, serial loopback control.
 - Lane layer, one instance per lane.
-- Multi-Lane layer with 1 to 4 lanes (ECSS allows up to 16; 4 decided on 2026-09-30), including asymmetric links,
+- Multi-Lane layer with 1 to 4 lanes (ECSS allows up to 16), including asymmetric links,
   unidirectional lanes and hot redundant lanes.
 - Data Link layer with all features: up to 32 virtual channels, all quality of service (QoS) mechanisms, broadcast,
   scrambling, error recovery, link reset.
@@ -24,13 +24,13 @@ ECSS requirements each block owns and the Open Logic entities each block is buil
 ### Out of scope
 
 - The routing switch, path and logical addressing and group adaptive routing (ECSS 5.8.8 to 5.8.11). OpenFibre has no
-  routing switch (decided on 2026-10-04).
+  routing switch.
 - Electrical and optical media, connectors and cables (ECSS 5.4.3 to 5.4.6). They are properties of the transceiver and
   the board.
 
 ### Target device
 
-The first supported target (decided on 2026-09-30) is the AMD Versal AI Core XCVC1902 (part xcvc1902-vsva2197-2MP-e-S)
+The first supported target is the AMD Versal AI Core XCVC1902 (part xcvc1902-vsva2197-2MP-e-S)
 on the VCK190 evaluation board, with the 4 lanes on GTY transceivers routed to the QSFP connector of the board. Further
 devices and boards are added through a new Physical adapter (PA-1) and board constraints only; nothing above the
 Physical adapter depends on the target (section 7.6).
@@ -39,8 +39,8 @@ Physical adapter depends on the target (section 7.6).
 
 OpenFibre is an open SpaceFibre implementation that is based on the Open Logic VHDL Library. The code lives in
 [rustyqt/openfibre](https://github.com/rustyqt/openfibre) under the PSI HDL Library License, Version 1.0, the licence of
-Open Logic. Open Logic is pinned to the head of `feature/fault-tolerant-all-entities` of rustyqt/open-logic (4990f33e,
-2026-09-30). The line rate is 6.25 Gbit/s per lane. All four points were decided on 2026-10-04.
+Open Logic. Open Logic is pinned to `feature/fault-tolerant-all-entities` of rustyqt/open-logic (4990f33e). The line
+rate is 6.25 Gbit/s per lane.
 
 ### References
 
@@ -150,7 +150,7 @@ Ten principles govern every block of the core; each implements a goal of section
 | P1 | One protocol function per block | A block implements one ECSS function (a clause or a state machine). Its specification names the clauses it owns; no clause is owned by two blocks. |
 | P2 | Streams everywhere | Every data path between blocks is a valid / ready stream with `Last` = end of frame and a sideband for K flags and metadata (Open Logic AXI4-Stream conventions). No read-enable with implied latency, no threshold handshakes. |
 | P3 | Few clock domains, proven crossings | Three internal domains per port (lane clock per lane, core clock, management clock) plus the user clock. Every crossing is an Open Logic FT entity: `olo_ft_fifo_async` for data, `olo_ft_cc_bits` for levels, `olo_ft_cc_pulse` for events, `olo_ft_cc_reset` for resets. |
-| P4 | Explicit state semantics | An ECSS "received" condition is a one-cycle event from the block that decodes it. Every state register has a specified reset value. Resets follow the Open Logic convention: synchronous and high-active inside every block; `olo_ft_cc_reset` brings the power-on reset into each clock domain (decided on 2026-10-04). Link reset and lane reset are synchronous commands. |
+| P4 | Explicit state semantics | An ECSS "received" condition is a one-cycle event from the block that decodes it. Every state register has a specified reset value. Resets follow the Open Logic convention: synchronous and high-active inside every block; `olo_ft_cc_reset` brings the power-on reset into each clock domain. Link reset and lane reset are synchronous commands. |
 | P5 | Fault tolerance by construction | All RAMs are `olo_ft_ram_*` (SECDED ECC), long-lived buffers use the scrubbing variants, all crossings are TMR. State machines use safe encoding with a defined recovery state. ECC events are counted in the MIB. |
 | P6 | Scalable by generics, optional by bypass | Lanes 1 to 4, VCs 1 to 32, broadcast channels, QoS mechanisms and scrambling are generics. A feature that is disabled is removed at elaboration or bypassed, never left half connected. One Lane layer serves all transceivers through a generic datapath width. |
 | P7 | One management interface | All configuration and status parameters of ECSS 5.9 live in one register file behind one AXI4-Lite port, generated from a single register description (VHDL package, documentation, C header, test model). |
@@ -176,12 +176,15 @@ every layer.
 | ID | Decision | Reason |
 | --- | --- | --- |
 | D1 | The Multi-Lane layer is always instantiated; with `NumLanes_g = 1` it reduces to the bypass of ECSS 5.6.3 | One Data Link layer for 1 to 4 lanes; lanes are added without a change of the Data Link layer |
-| D2 | The Data Link datapath carries one row per beat: up to `MaxDataLanes_g` data words (4, decided on 2026-09-30), or one Data Link control word | ECSS 5.6.4.1d, note 1: control words are processed at a rate independent of the number of lanes. The row width follows the maximum number of data-sending lanes (MaxDataLanes_g), not the number of physical lanes (NumLanes_g); both are 4 (decided on 2026-09-30). When the data-sending lane parameter is set lower at run time, the further active lanes are hot redundant lanes (ECSS 5.6.10d, e) |
+| D2 | The Data Link datapath carries one row per beat: up to `MaxDataLanes_g` data words (4), or one Data Link control word | ECSS 5.6.4.1d, note 1: control words are processed at a rate independent of the number of lanes. The row width follows the maximum number of data-sending lanes (MaxDataLanes_g), not the number of physical lanes (NumLanes_g); both are 4. When the data-sending lane parameter is set lower at run time, the further active lanes are hot redundant lanes (ECSS 5.6.10d, e) |
 | D3 | Data frame CRC-16 and data scrambling are computed per lane (per column) in the Multi-Lane layer; CRC-8, sequence numbers and polarity stay in the Data Link layer | ECSS 5.6.4.2c, 5.6.4.2d and 5.6.4.2h require the CRC-16 and scrambling per data-sending lane |
 | D4 | The error recovery buffer stores frames before sequence numbering and CRC | Resent frames get new sequence numbers (ECSS 5.7.7.2.4c.2) |
 | D5 | Four clock domains: user, core, lane, management | Few crossings; every crossing at a layer or buffer boundary |
 | D6 | One Lane layer with 1 or 2 words per lane clock cycle | One implementation for transceivers with 32-bit and 64-bit interfaces |
 | D7 | Precedence of control words and frames (ECSS 5.3.10c) is decided in two places only: the Data Link transmit scheduler (RETRY to idle frame) and the Lane layer (SKIP, LOST_SIGNAL, STANDBY) with the Multi-Lane layer (ALIGN, ACTIVE) | Each insertion point owns a contiguous part of the precedence list |
+| D8 | The user width of a VC port is NumLanes_g x 32 bit (32, 64 or 128 bit) and `MaxDataLanes_g` equals NumLanes_g; rows of fewer data-sending lanes are packed in DT-1 and DR-6 | A 32-bit port would limit one VC to the bandwidth of one lane |
+| D9 | The protocol state machines use safe encoding with a defined recovery state, without TMR; the `olo_ft_*` crossings keep their TMR synchronisers | TMR stays where Open Logic provides it (P5); a state machine recovers from an upset through its recovery state and the protocol (link reset, error recovery) |
+| D10 | SCHEDULE.request (ECSS 6.3.4) comes from the NI-4 user port; a generic adds the time-slot start by a received broadcast message of a configurable type (off by default) | The source of the time-slot start depends on the network |
 
 ### Clock domains
 
@@ -208,7 +211,7 @@ every layer.
 
 | Interface | Between | Payload per beat | Protocol |
 | --- | --- | --- | --- |
-| VC stream (one per VC) | User and Network interface | NumLanes_g x 32-bit N-Chars (32 to 128 bit, O2), one K flag per byte in `TUSER` (EOP, EEP, Fill) | AXI4-Stream |
+| VC stream (one per VC) | User and Network interface | NumLanes_g x 32-bit N-Chars (32 to 128 bit, D8), one K flag per byte in `TUSER` (EOP, EEP, Fill) | AXI4-Stream |
 | Broadcast stream | User and Network interface | One broadcast message (8 bytes); broadcast channel, B_TYPE, DELAYED and LATE flags in `TUSER` | AXI4-Stream |
 | Frame source stream (one per source) | VC / broadcast buffers and transmit scheduler | Row of N-Chars with valid mask, `Last` = end of packet or 64-word frame limit | Valid / ready |
 | Transmit row stream | Data Link and Multi-Lane layers | One row: up to `MaxDataLanes_g` x (32 bit + 4 K flags) with a word mask, or one control word; replicate flag (word 0 goes to every data-sending lane: control words, broadcast and idle frame words) | Valid / ready through `olo_ft_fifo_async` |
@@ -236,7 +239,7 @@ implementation adds, per block, the port list, the register reset values and the
 
 | ID | Block | Responsibility | Open Logic | ECSS |
 | --- | --- | --- | --- | --- |
-| NI-1 | VC port (x `NumVc_g`, 1 to 32) | AXI4-Stream N-Char port per VC, NumLanes_g x 32 bit wide (O2), packet framing check (EOP / EEP), optional continuous mode (flush and EEP on overflow) | `olo_base_pl_stage` | 6.2.2, 6.3.2, 5.3.7, 5.3.9, 5.8.5 to 5.8.7, 5.8.13 |
+| NI-1 | VC port (x `NumVc_g`, 1 to 32) | AXI4-Stream N-Char port per VC, NumLanes_g x 32 bit wide (D8), packet framing check (EOP / EEP), optional continuous mode (flush and EEP on overflow) | `olo_base_pl_stage` | 6.2.2, 6.3.2, 5.3.7, 5.3.9, 5.8.5 to 5.8.7, 5.8.13 |
 | NI-2 | Virtual network number | Virtual network number of every VC (one end-point per VC, VN0 on VC0) as a MIB register; no data path in a node with one port | none (MIB register) | 5.8.3 |
 | NI-3 | Broadcast port | Broadcast message service per channel: 8-byte message, B_TYPE, DELAYED and LATE flags | `olo_base_pl_stage` | 6.2.3, 6.3.3, 5.8.12 |
 | NI-4 | Schedule port | SCHEDULE.request: time-slot start from the user or from a broadcast of the schedule type | none (custom) | 6.3.4 |
@@ -340,7 +343,7 @@ controller.
 | `olo_base_crc` | DT-8, DR-2, ML-3, ML-4 | CRC-8 (Data Link) and CRC-16 (per lane): polynomial, initial value, bit order and output XOR as generics |
 | `olo_base_prbs` | DT-6, ML-2, ML-3, ML-4, LN-2 | Idle frame PRBS, data scrambling (G(x) = x^16 + x^5 + x^4 + x^3 + 1), initialisation data words, hot redundant lane PRBS |
 | `olo_base_arb_prio`, `olo_base_arb_rr` | DT-4, DT-5 | Precedence and round-robin selection among eligible VCs and frame sources |
-| `olo_base_wconv_n2xn`, `olo_base_wconv_xn2n` | DT-1, DR-6 | User words to rows and back; the packing for fewer data-sending lanes than NumLanes_g is specified with DT-1 and DR-6 (O2) |
+| `olo_base_wconv_n2xn`, `olo_base_wconv_xn2n` | DT-1, DR-6 | User words to rows and back; the packing for fewer data-sending lanes than NumLanes_g is specified with DT-1 and DR-6 (D8) |
 | `olo_base_pl_stage` | NI-1, NI-3, LN-2, TA-1 | Register slices with back-pressure at block boundaries |
 | `olo_base_reset_gen` | MG-4 | Power-on reset |
 | `olo_axi_lite_slave` | MG-1 | AXI4-Lite access to the register file |
@@ -349,15 +352,16 @@ controller.
 
 | Gap | Resolution in this architecture |
 | --- | --- |
-| No FT variant of `olo_base_cc_status`, `olo_base_cc_simple` and `olo_base_cc_handshake` | Multi-bit values cross through a small `olo_ft_fifo_async` (depth 4) or as quasi-static levels through `olo_ft_cc_bits`; until the FT variants exist in the Open Logic backlog (O4) |
+| No FT variant of `olo_base_cc_status`, `olo_base_cc_simple` and `olo_base_cc_handshake` | Multi-bit values cross through a small `olo_ft_fifo_async` (depth 4) or as quasi-static levels through `olo_ft_cc_bits` until Open Logic provides FT variants |
 | No 8B/10B codec | Transceiver codec where the SerDes has one (AMD GTY); a small custom codec (PA-2) for SerDes without one |
 | No packet FIFO with random rewind over several frames | The error recovery buffer is a custom controller on `olo_ft_ram_sdp_scrub` |
-| No TMR helper for protocol state machines | Safe FSM encoding with a recovery state in the custom blocks; no TMR of state machines for now (O3) |
+| No TMR helper for protocol state machines | Safe FSM encoding with a recovery state in the custom blocks; no TMR of state machines (D9) |
 
 ## 9 Verification architecture
 
-The core is verified with VUnit and UVVM in the seven-phase module workflow of the `fpga-module-dev` process, which maps
-to ECSS-E-ST-20-40C: every building block of section 7 is a module with its own specification, verification plan,
+The core is verified with VUnit and UVVM in a seven-phase module workflow (requirements, architecture, verification
+plan, RTL, testbenches, verification, integration; see [conventions.md](conventions.md)), which maps to
+ECSS-E-ST-20-40C: every building block of section 7 is a module with its own specification, verification plan,
 testbench and verification report, and layer, core and target tests cross the seams between the blocks. Every test case
 names the ECSS clauses it verifies, so the traceability matrix of section 10 is produced by the regression. Word- and
 row-level benches find protocol defects in seconds to minutes; a bit-serial simulation with the transceiver model takes
@@ -370,20 +374,18 @@ hours and checks only selected properties, so it is reserved for the two target 
 | Core (seams) | Two cores back to back through a lane channel model at the symbol stream (behavioural PA model, no vendor transceiver model) | Random traffic on all VCs and broadcast channels, QoS configurations; channel VVC with bit errors, lost and duplicated words, lane skew, lane loss, lane add and remove | End-to-end packet integrity and order, no loss outside link resets, QoS bandwidth and latency bounds, recovery after every injected error; functional coverage of the traffic mix and of the injected faults | Nightly: a VUnit configuration enabled by an environment variable, with a fast self-skipping stub in the default tier |
 | Target | Core with the vendor transceiver model (PA-1), and hardware | Exactly two simulations with the GTY model: one PA-1 wrapper test, and one top-level end-to-end test as the last step; lab tests on the VCK190 against STAR-Dundee equipment | Link initialisation, throughput, interoperability on each target | On demand and per release |
 
-### Framework (decided on 2026-09-30)
+### Framework
 
 - VUnit (`run.py` at the repository root) discovers and runs every test and is the CI regression. UVVM supplies the
   verification building blocks: VVCs and BFMs (`axistream_vvc` for the VC ports, custom SpaceFibre word and row VVCs for
   the layer boundaries), alert and log handling, `check_value` / `await_value`, constrained randomisation (`t_rand`) and
-  functional coverage (`func_cov_pkg`). No other randomisation or coverage framework, no cocotb.
+  functional coverage (`func_cov_pkg`). No other randomisation or coverage framework.
 - One reference model of SpaceFibre at word and row level, written in VHDL as UVVM VVCs with the UVVM generic
   scoreboard, serves the layer and core benches as driver, far end and scoreboard. It is the executable form of this
   document and of the ECSS clauses.
-- Simulator (decided on 2026-10-04): GHDL for every test that does not need the GTY model, so that many simulations run
-  in parallel and CI can run them; QuestaSim for code coverage ([coverage.md](coverage.md)). The two GTY simulations
-  run in the AMD Vivado simulator (changed on 2026-10-05): it ships the compiled transceiver models, needs no licence
-  and runs the GTY model without the instance limit of the Questa edition on this host (the only Questa licence is
-  shared with other projects).
+- Simulators: GHDL for every test that does not need the GTY model, so that many simulations run in parallel and CI
+  can run them; QuestaSim for code coverage ([coverage.md](coverage.md)). The two GTY simulations run in the AMD Vivado
+  simulator, which ships the compiled transceiver models.
 - Repository layout of the process: `hdl/<module>/src`, `tb` and `docs` per module, where a module is one layer or one
   group of blocks of section 7 and every block keeps its own entity and unit testbench; `open-logic/` and `uvvm/` as git
   submodules. Each block has `specification.md`, `architecture.md`, `verification_plan.md` and `verification_report.md`;
@@ -414,9 +416,8 @@ hours and checks only selected properties, so it is reserved for the two target 
 - A failed check fails the test; a test cannot pass with a failed step.
 - Every commit passes the full default-tier regression.
 - PA-1 is the only block with vendor transceiver code and is cut at the symbol stream. Every test except the two target
-  simulations runs with a behavioural PA model, without the GTY model (decided on 2026-10-04: there is one Questa
-  licence, and the GTY model slows a Questa simulation by a factor of about 25 to 30). The target simulations run in
-  the AMD Vivado simulator (`tools/run_xsim.py`).
+  simulations runs with a behavioural PA model, without the slow GTY model. The target simulations run in the AMD
+  Vivado simulator (`tools/run_xsim.py`).
 
 ## 10 Requirement traceability matrix
 
@@ -516,10 +517,4 @@ further features are added.
 
 | ID | Open point | Proposal |
 | --- | --- | --- |
-| O1 | Resource cost of the row width: `MaxDataLanes_g` = 4 (decided on 2026-09-30) gives rows of 128 data bits in all Data Link buffers, crossings and the ERB | Rows scale with NumLanes_g (O2): 32 data bits for one lane, 128 for four. Confirm the 4-lane budget at the first 4-lane synthesis (migration phase 4) |
-| O2 | A 32-bit VC user interface limits one VC to one lane of bandwidth | Decided on 2026-10-04: the user width scales with the physical lanes, NumLanes_g x 32 bit (1 lane 32 bit, 2 lanes 64 bit, 4 lanes 128 bit), and MaxDataLanes_g equals NumLanes_g. Rows of fewer data-sending lanes are packed in DT-1 and DR-6 |
-| O3 | SEU protection of the protocol state machines | Decided on 2026-10-04: no TMR of state machines in the VHDL for now; safe encoding stays, and the `olo_ft_*` crossings keep their TMR synchronisers |
-| O4 | No FT variants of `olo_base_cc_status`, olo_base_cc_simple and `olo_base_cc_handshake` | Decided on 2026-10-04: a subagent develops `olo_ft_cc_status`, `olo_ft_cc_simple` and `olo_ft_cc_handshake` in the Open Logic backlog (rustyqt `feature/fault-tolerant-all-entities`) with the open-logic-dev workflow; `olo_ft_fifo_async` bridges the gap until then |
-| O5 | Source of time-slot start for scheduled QoS (SCHEDULE.request, ECSS 6.3.4) | Decided on 2026-10-04: SCHEDULE.request comes from the NI-4 user port; a generic adds the start by a received broadcast message of a configurable type (off by default) |
-| O6 | Verification framework | Decided on 2026-09-30: VUnit, UVVM where needed, no cocotb (section 9) |
-| O7 | Routing switch | Decided on 2026-10-04: no routing switch in OpenFibre |
+| O1 | Resource cost of the row width: `MaxDataLanes_g` = 4 gives rows of 128 data bits in all Data Link buffers, crossings and the ERB | Rows scale with NumLanes_g (D8): 32 data bits for one lane, 128 for four. Confirm the 4-lane budget at the first 4-lane synthesis (migration phase 4) |
