@@ -212,7 +212,9 @@ forward), so the latency grows with the frame length (up to 64 words per lane).
 
 The VCK190 reference design is built with `vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl` (with the CIPS
 block design that every Versal design needs; on Windows the project path must be short, see the hardware test
-procedure `hdl/ofb_vck190/docs/hardware_test.md`). Resources of the whole reference design on the XCVC1902 (eight
+procedure `hdl/ofb_vck190/docs/hardware_test.md`). Its MIB is reachable over JTAG through the master port M_AXI_FPD
+of the CIPS at 0xA400_0000; `hdl/ofb_vck190/tcl/xsdb_mib.tcl` reads and writes the registers in XSDB and runs the
+bit error rate test of section 6. Resources of the whole reference design on the XCVC1902 (eight
 VCs, four lanes, first build): 43852 LUT (3505 as memory), 32239 registers, 37 RAMB36 and 10 RAMB18, 8 DSP. The
 timing results follow with the rebuild; the first build did not meet timing in the user side of the input VC
 buffers, which now have a register stage per bank.
