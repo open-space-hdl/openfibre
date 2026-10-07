@@ -10,7 +10,8 @@
 -- lanes are looped back; every lane sends a stream of comma words, SKIP words and counting data
 -- words, which must be received in order, with K flags and without code or disparity errors.
 -- Then the external loopback is removed and the near-end serial loopback of every lane enabled; the
--- words must again be received in order.
+-- words must again be received in order. Finally the PRBS-31 generator and checker of every channel
+-- are tested with the external loopback (lock, no error, bit errors on one line, pattern mismatch).
 --
 -- Documentation: hdl/ofb_pa_gty/docs/verification_plan.md
 
@@ -76,9 +77,20 @@ architecture sim of ofb_pa_gty_tb is
     signal CheckEn : std_logic                            := '1';
     signal RxLineP : std_logic_vector(Lanes_c-1 downto 0);
     signal RxLineN : std_logic_vector(Lanes_c-1 downto 0);
+    signal LineInv : std_logic_vector(Lanes_c-1 downto 0) := (others => '0');
 
     signal Checked : CntArray_t := (others => 0);
     signal Errors  : CntArray_t := (others => 0);
+
+    -- PRBS test (TC-PA-06)
+    signal PrbsTxSel  : std_logic_vector(4*Lanes_c-1 downto 0) := (others => '0');
+    signal PrbsRxSel  : std_logic_vector(4*Lanes_c-1 downto 0) := (others => '0');
+    signal PrbsForce  : std_logic_vector(Lanes_c-1 downto 0)   := (others => '0');
+    signal PrbsCntRst : std_logic_vector(Lanes_c-1 downto 0)   := (others => '0');
+    signal PrbsErr    : std_logic_vector(Lanes_c-1 downto 0);
+    signal PrbsLocked : std_logic_vector(Lanes_c-1 downto 0);
+    signal PrbsCount  : boolean                                := false;
+    signal PrbsErrCnt : CntArray_t                             := (others => 0);
 
 begin
 
@@ -158,13 +170,103 @@ begin
                 severity error;
         end loop;
 
+        -- TC-PA-06: PRBS-31 generator and checker of every channel with the external loopback (bypassing
+        -- 8B/10B): lock, no error, bit errors on one line counted on that lane only, a checker with another
+        -- pattern counts errors. The transceiver model does not insert the forced error of the generator
+        -- (TXPRBSFORCEERR); the forced error is tested on the hardware.
+        CheckEn    <= '0';
+        NearLb     <= (others => '0');
+        ExtLoop    <= true;
+        PrbsTxSel  <= x"5555";
+        PrbsRxSel  <= x"5555";
+        wait for 10 us;
+        wait until rising_edge(LaneClk);
+        PrbsCntRst <= (others => '1');
+        wait until rising_edge(LaneClk);
+        PrbsCntRst <= (others => '0');
+        wait until PrbsLocked = "1111" for 20 us;
+        report "PRBS-31 checkers locked: " & to_string(PrbsLocked) & " at " & time'image(now);
+        assert PrbsLocked = "1111"
+            report "FAIL: PRBS checkers not locked"
+            severity error;
+        PrbsCount  <= true;
+        wait for 5 us;
+
+        for l in 0 to Lanes_c-1 loop
+            assert PrbsErrCnt(l) = 0
+                report "FAIL: lane " & integer'image(l) & " PRBS errors without forced error"
+                severity error;
+        end loop;
+
+        -- Bit errors: the line of one lane is inverted for 1 ns (about six bits)
+        for l in 0 to Lanes_c-1 loop
+            Base_v     := PrbsErrCnt;
+            LineInv(l) <= '1';
+            wait for 1 ns;
+            LineInv(l) <= '0';
+            wait for 2 us;
+
+            for k in 0 to Lanes_c-1 loop
+                if k = l then
+                    report "Lane " & integer'image(l) & ": " & integer'image(PrbsErrCnt(k) - Base_v(k)) &
+                           " word(s) with error after bit errors on the line";
+                    assert PrbsErrCnt(k) > Base_v(k)
+                        report "FAIL: bit errors of lane " & integer'image(l) & " not detected"
+                        severity error;
+                    assert PrbsLocked(k) = '1'
+                        report "FAIL: PRBS checker of lane " & integer'image(l) & " lost lock"
+                        severity error;
+                else
+                    assert PrbsErrCnt(k) = Base_v(k)
+                        report "FAIL: bit errors of lane " & integer'image(l) & " seen on lane " &
+                               integer'image(k)
+                        severity error;
+                end if;
+            end loop;
+
+        end loop;
+
+        -- After the bit errors, no further error
+        Base_v := PrbsErrCnt;
+        wait for 5 us;
+
+        for l in 0 to Lanes_c-1 loop
+            assert PrbsErrCnt(l) = Base_v(l)
+                report "FAIL: lane " & integer'image(l) & " PRBS errors after the bit errors"
+                severity error;
+        end loop;
+
+        -- Checker of lane 0 set to PRBS-7 while PRBS-31 is received: errors
+        Base_v                := PrbsErrCnt;
+        PrbsRxSel(3 downto 0) <= x"1";
+        wait for 5 us;
+        report "Lane 0 with PRBS-7 checker on PRBS-31: " & integer'image(PrbsErrCnt(0) - Base_v(0)) &
+               " words with errors";
+        assert PrbsErrCnt(0) > Base_v(0)
+            report "FAIL: pattern mismatch not detected"
+            severity error;
+
         report "Simulation done at " & time'image(now);
         finish;
     end process;
 
-    -- External loopback of the serial lines (a disconnected line is static)
-    RxLineP <= TxP when ExtLoop else (others => '0');
-    RxLineN <= TxN when ExtLoop else (others => '1');
+    -- PRBS checker errors per lane (words with at least one error)
+    p_prbs_cnt : process (LaneClk) is
+    begin
+        if rising_edge(LaneClk) then
+
+            for l in 0 to Lanes_c-1 loop
+                if PrbsCount and PrbsErr(l) = '1' then
+                    PrbsErrCnt(l) <= PrbsErrCnt(l) + 1;
+                end if;
+            end loop;
+
+        end if;
+    end process;
+
+    -- External loopback of the serial lines (a disconnected line is static, LineInv inverts a line)
+    RxLineP <= (TxP xor LineInv) when ExtLoop else (others => '0');
+    RxLineN <= (TxN xor LineInv) when ExtLoop else (others => '1');
 
     -----------------------------------------------------------------------------------------------
     -- Transmitters: per lane IDLE words, a SKIP word every 64 words, counting data words
@@ -282,7 +384,13 @@ begin
             Stat_Aligned           => Aligned,
             Stat_RxBufErr          => RxBufErr,
             Stat_ClkCor            => open,
-            Phy_SerialNearLoopback => NearLb
+            Phy_SerialNearLoopback => NearLb,
+            Phy_PrbsTxSel          => PrbsTxSel,
+            Phy_PrbsRxSel          => PrbsRxSel,
+            Phy_PrbsForceErr       => PrbsForce,
+            Phy_PrbsCntReset       => PrbsCntRst,
+            Phy_PrbsErr            => PrbsErr,
+            Phy_PrbsLocked         => PrbsLocked
         );
 
 end architecture;

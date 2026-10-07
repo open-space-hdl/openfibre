@@ -15,14 +15,14 @@
 #   RC   read only, any write to the register clears it (counters)
 # A reset value written as text depends on generics or on the instance (lane, VC); status fields have none.
 
-id: 0x0FB10005
+id: 0x0FB10006
 
 registers:
   - name: ID
     offset: 0x000
     description: Identification of the core and version of the register map
     fields:
-      - {name: ID, bits: "31:0", access: RO, reset: 0x0FB10005, description: "0x0FB1 (OpenFibre) and register map version 5"}
+      - {name: ID, bits: "31:0", access: RO, reset: 0x0FB10006, description: "0x0FB1 (OpenFibre) and register map version 6"}
 
   - name: GENERICS
     offset: 0x004
@@ -235,6 +235,7 @@ arrays:
           - {name: RX_POLARITY, bits: "4", access: RO, description: Receive polarity inverted}
           - {name: NO_SIGNAL, bits: "5", access: RO, description: No signal at the receiver}
           - {name: BIT_SYNC, bits: "6", access: RO, description: Bit synchronisation of the Physical adapter}
+          - {name: PRBS_LOCKED, bits: "7", access: RO, description: PRBS checker of the Physical adapter locked to the received pattern}
           - {name: RXERR_COUNT, bits: "15:8", access: RO, description: RXERR word counter}
           - {name: FAR_CAPABILITY, bits: "23:16", access: RO, description: Far-end capabilities}
       - name: LANE_EVENTS
@@ -256,6 +257,25 @@ arrays:
         description: Initialisation timeouts
         fields:
           - {name: COUNT, bits: "15:0", access: RC, reset: 0, description: Initialisation timeouts (saturating)}
+      - name: LANE_PRBS_CTRL
+        offset: 0x14
+        description: PRBS test of the Physical adapter (bit error rate, 8B/10B bypassed, lane without traffic)
+        fields:
+          - {name: TX_PATTERN, bits: "3:0", access: RW, reset: 0, description: "Transmitted pattern: 0 normal data, 1 PRBS-7, 2 PRBS-9, 3 PRBS-15, 4 PRBS-23, 5 PRBS-31 (other values: transceiver test patterns)"}
+          - {name: RX_PATTERN, bits: "7:4", access: RW, reset: 0, description: "Checked pattern: 0 checker off, 1 PRBS-7, 2 PRBS-9, 3 PRBS-15, 4 PRBS-23, 5 PRBS-31"}
+          - {name: HOLD, bits: "8", access: RW, reset: 0, description: "Counters stopped (consistent read of LANE_PRBS_ERRORS and LANE_PRBS_WORDS)"}
+          - {name: COUNT_RESET, bits: "16", access: W1, reset: 0, description: Clears the PRBS counters and restarts the lock detection of the checker}
+          - {name: FORCE_ERROR, bits: "17", access: W1, reset: 0, description: Inserts one bit error into the transmitted pattern}
+      - name: LANE_PRBS_ERRORS
+        offset: 0x18
+        description: PRBS checker errors
+        fields:
+          - {name: COUNT, bits: "31:0", access: RO, reset: 0, description: "Received words with at least one bit error while the checker is on (saturating)"}
+      - name: LANE_PRBS_WORDS
+        offset: 0x1C
+        description: PRBS checked words
+        fields:
+          - {name: COUNT, bits: "31:0", access: RO, reset: 0, description: "Words checked while the checker is on, in units of 65536 words of 40 bits (saturating)"}
 
   - name: VC
     base: 0x400

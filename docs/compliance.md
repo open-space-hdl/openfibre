@@ -92,14 +92,14 @@ reference included).
 
 | Module | Requirements | Verified by a test case | Without a test case |
 | --- | --- | --- | --- |
-| `ofb_core` | 14 | 14 | - |
+| `ofb_core` | 15 | 15 | - |
 | `ofb_dl` | 73 | 73 | - |
 | `ofb_lane` | 32 | 32 | - |
-| `ofb_mib` | 16 | 16 | - |
+| `ofb_mib` | 19 | 19 | - |
 | `ofb_multilane` | 69 | 69 | - |
 | `ofb_ni` | 7 | 7 | - |
-| `ofb_pa_gty` | 11 | 11 | - |
+| `ofb_pa_gty` | 12 | 12 | - |
 | `ofb_pkg` | 11 | 11 | - |
 | `ofb_vck190` | 7 | 7 | - |
 
-Requirements: 240; without a test case: 0; test cases of the plans not run by a testbench: 0.
+Requirements: 245; without a test case: 0; test cases of the plans not run by a testbench: 0.

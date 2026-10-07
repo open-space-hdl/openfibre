@@ -86,10 +86,12 @@ report, section 3.
 | TC-VCK-HW-05 Link reset | Link reset at the far end, then traffic as in TC-VCK-HW-02 | LED 3 goes off and on again; traffic afterwards correct |
 | TC-VCK-HW-06 Lane failure | If the far end can disable a lane: disable lane 3 during traffic, enable it again | Traffic continues on three lanes without loss, the lane joins again |
 | TC-VCK-HW-07 Error recovery | If the far end can inject errors: bit errors or corrupted frames during traffic | Every packet comes back unchanged; the far end counts the retries |
+| TC-VCK-HW-08 Bit error rate | PRBS test of every lane (user guide, section 6): PRBS-31 and PRBS-7 sent and checked, with a QSFP loopback module, with the far end (same pattern) or in the near-end serial loopback; count reset, at least 8 minutes per lane, then one forced error | Checkers locked; no error (BER below 1e-12 at 95 % confidence); the forced error counted once |
 
 ## 8. Limits of the reference design
 
 - The MIB is read only by the LED poller: status registers and counters are not visible on the board. Diagnosis uses
-  the LEDs and the statistics of the far end.
+  the LEDs and the statistics of the far end. TC-VCK-HW-08 needs write and read access to the MIB registers, which
+  the reference design does not provide yet.
 - The design echoes what it receives. A far end that sends faster than it reads back sees back-pressure through the
   flow control of the link, not data loss.

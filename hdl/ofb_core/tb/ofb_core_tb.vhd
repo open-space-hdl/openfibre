@@ -33,6 +33,7 @@ library vunit_lib;
 
 library work;
     use work.ofb_pkg.all;
+    use work.ofb_regs_pkg.all;
     use work.ofb_tb_pkg.all;
     use work.ofb_tb_pa_pkg.all;
     use work.ofb_core_tb_pkg.all;
@@ -321,7 +322,7 @@ begin
             -- TC-CORE-01: identification, link start through the MIB
             if run("test_link_up") then
                 rd(0, RegId_c, Data_v);
-                check_value(Data_v, x"0FB10005", error, "ID of A");
+                check_value(Data_v, x"0FB10006", error, "ID of A");
                 linkUp(500 us);
                 rd(1, RegDlErrors_c, Data_v);
                 check_value(Data_v, x"00000000", error, "No error at B");
@@ -843,6 +844,50 @@ begin
             -- traffic: no wrong word reaches a user. Output VC buffers, error recovery buffer, frame buffer
             -- and broadcast output buffer: link reset (packets end with EEP or are lost); input VC buffer:
             -- the packet ends with EEP; broadcast input buffer: the message is discarded
+            -- TC-CORE-18: PRBS test from A to B on every lane (behavioural adapter model): the MIB patterns reach
+            -- the adapters, B locks, a forced error at A is counted at B on its lane only, a different pattern at
+            -- the checker counts errors
+            elsif run("test_prbs") then
+                linkUp(500 us);
+
+                for l in 0 to NumLanes_g-1 loop
+                    wr(0, RegLanePrbsCtrl_c + l * RegLaneStride_c, x"00000005");
+                    wr(1, RegLanePrbsCtrl_c + l * RegLaneStride_c, x"00000050");
+                end loop;
+
+                cycles(100);
+
+                for l in 0 to NumLanes_g-1 loop
+                    wr(1, RegLanePrbsCtrl_c + l * RegLaneStride_c, x"00010050");
+                end loop;
+
+                cycles(200);
+
+                for l in 0 to NumLanes_g-1 loop
+                    rd(1, RegLaneStatus_c + l * RegLaneStride_c, Data_v);
+                    check_value(Data_v(LaneStatusPrbsLocked_c), '1', error, "PRBS checker of B locked, lane " &
+                                to_string(l));
+                    rd(1, RegLanePrbsErrors_c + l * RegLaneStride_c, Data_v);
+                    check_value(Data_v, x"00000000", error, "No PRBS error at B, lane " & to_string(l));
+                end loop;
+
+                wr(0, RegLanePrbsCtrl_c, x"00020005");
+                cycles(200);
+
+                for l in 0 to NumLanes_g-1 loop
+                    rd(1, RegLanePrbsErrors_c + l * RegLaneStride_c, Data_v);
+                    if l = 0 then
+                        check_value(Data_v, x"00000001", error, "Forced error of A counted at B, lane 0");
+                    else
+                        check_value(Data_v, x"00000000", error, "No PRBS error at B, lane " & to_string(l));
+                    end if;
+                end loop;
+
+                wr(1, RegLanePrbsCtrl_c, x"00010010");
+                cycles(200);
+                rd(1, RegLanePrbsErrors_c, Data_v);
+                check_value(unsigned(Data_v) > 0, error, "PRBS-7 checker on PRBS-31 counts errors");
+
             elsif run("test_ded_containment") then
                 enable_log_msg(ID_SEQUENCER);
                 CoreCfg(0).Lossy <= true;

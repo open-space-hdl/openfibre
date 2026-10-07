@@ -59,8 +59,17 @@ entity ofb_pa_gty is
         Phy_RxInvert           : in    std_logic_vector(NumLanes_g-1 downto 0);
         Phy_NoSignal           : out   std_logic_vector(NumLanes_g-1 downto 0);
         -- Serial loopbacks (MIB, ECSS 5.4.2.2): near-end PMA and far-end PMA loopback of the channel
-        Phy_SerialNearLoopback : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
-        Phy_SerialFarLoopback  : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+        Phy_SerialNearLoopback : in    std_logic_vector(NumLanes_g-1 downto 0)   := (others => '0');
+        Phy_SerialFarLoopback  : in    std_logic_vector(NumLanes_g-1 downto 0)   := (others => '0');
+        -- PRBS test (LaneClk): pattern generator and checker of the transceiver, bypassing 8B/10B
+        -- (pattern 0: off, 1 PRBS-7, 2 PRBS-9, 3 PRBS-15, 4 PRBS-23, 5 PRBS-31), single-cycle force error
+        -- and checker reset, checker error per word and lock
+        Phy_PrbsTxSel          : in    std_logic_vector(4*NumLanes_g-1 downto 0) := (others => '0');
+        Phy_PrbsRxSel          : in    std_logic_vector(4*NumLanes_g-1 downto 0) := (others => '0');
+        Phy_PrbsForceErr       : in    std_logic_vector(NumLanes_g-1 downto 0)   := (others => '0');
+        Phy_PrbsCntReset       : in    std_logic_vector(NumLanes_g-1 downto 0)   := (others => '0');
+        Phy_PrbsErr            : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_PrbsLocked         : out   std_logic_vector(NumLanes_g-1 downto 0);
         -- Status (LaneClk)
         Stat_TxReady           : out   std_logic;
         Stat_RxReady           : out   std_logic;
@@ -83,6 +92,7 @@ architecture struct of ofb_pa_gty is
     type Ctrl8_t is array (0 to Ch_c-1) of std_logic_vector(7 downto 0);
     type Status3_t is array (0 to Ch_c-1) of std_logic_vector(2 downto 0);
     type Status2_t is array (0 to Ch_c-1) of std_logic_vector(1 downto 0);
+    type Status4_t is array (0 to Ch_c-1) of std_logic_vector(3 downto 0);
 
     -- Port names of the transceiver wizard
     -- vsg_off port_010
@@ -118,6 +128,8 @@ architecture struct of ofb_pa_gty is
             INTF0_TX0_ch_txctrl0             : in    std_logic_vector(15 downto 0);
             INTF0_TX0_ch_txctrl1             : in    std_logic_vector(15 downto 0);
             INTF0_TX0_ch_txctrl2             : in    std_logic_vector(7 downto 0);
+            INTF0_TX0_ch_txprbssel           : in    std_logic_vector(3 downto 0);
+            INTF0_TX0_ch_txprbsforceerr      : in    std_logic_vector(0 downto 0);
             INTF0_TX1_ch_txdata              : in    std_logic_vector(127 downto 0);
             INTF0_TX1_ch_txbufstatus         : out   std_logic_vector(1 downto 0);
             INTF0_TX1_ch_txresetdone         : out   std_logic_vector(0 downto 0);
@@ -127,6 +139,8 @@ architecture struct of ofb_pa_gty is
             INTF0_TX1_ch_txctrl0             : in    std_logic_vector(15 downto 0);
             INTF0_TX1_ch_txctrl1             : in    std_logic_vector(15 downto 0);
             INTF0_TX1_ch_txctrl2             : in    std_logic_vector(7 downto 0);
+            INTF0_TX1_ch_txprbssel           : in    std_logic_vector(3 downto 0);
+            INTF0_TX1_ch_txprbsforceerr      : in    std_logic_vector(0 downto 0);
             INTF0_TX2_ch_txdata              : in    std_logic_vector(127 downto 0);
             INTF0_TX2_ch_txbufstatus         : out   std_logic_vector(1 downto 0);
             INTF0_TX2_ch_txresetdone         : out   std_logic_vector(0 downto 0);
@@ -136,6 +150,8 @@ architecture struct of ofb_pa_gty is
             INTF0_TX2_ch_txctrl0             : in    std_logic_vector(15 downto 0);
             INTF0_TX2_ch_txctrl1             : in    std_logic_vector(15 downto 0);
             INTF0_TX2_ch_txctrl2             : in    std_logic_vector(7 downto 0);
+            INTF0_TX2_ch_txprbssel           : in    std_logic_vector(3 downto 0);
+            INTF0_TX2_ch_txprbsforceerr      : in    std_logic_vector(0 downto 0);
             INTF0_TX3_ch_txdata              : in    std_logic_vector(127 downto 0);
             INTF0_TX3_ch_txbufstatus         : out   std_logic_vector(1 downto 0);
             INTF0_TX3_ch_txresetdone         : out   std_logic_vector(0 downto 0);
@@ -145,6 +161,8 @@ architecture struct of ofb_pa_gty is
             INTF0_TX3_ch_txctrl0             : in    std_logic_vector(15 downto 0);
             INTF0_TX3_ch_txctrl1             : in    std_logic_vector(15 downto 0);
             INTF0_TX3_ch_txctrl2             : in    std_logic_vector(7 downto 0);
+            INTF0_TX3_ch_txprbssel           : in    std_logic_vector(3 downto 0);
+            INTF0_TX3_ch_txprbsforceerr      : in    std_logic_vector(0 downto 0);
             INTF0_RX0_ch_rxbufstatus         : out   std_logic_vector(2 downto 0);
             INTF0_RX0_ch_rxcdrhold           : in    std_logic_vector(0 downto 0);
             INTF0_RX0_ch_rxpolarity          : in    std_logic_vector(0 downto 0);
@@ -160,6 +178,10 @@ architecture struct of ofb_pa_gty is
             INTF0_RX0_ch_rxctrl3             : out   std_logic_vector(7 downto 0);
             INTF0_RX0_ch_rxelecidle          : out   std_logic_vector(0 downto 0);
             INTF0_RX0_ch_rxresetdone         : out   std_logic_vector(0 downto 0);
+            INTF0_RX0_ch_rxprbssel           : in    std_logic_vector(3 downto 0);
+            INTF0_RX0_ch_rxprbscntreset      : in    std_logic_vector(0 downto 0);
+            INTF0_RX0_ch_rxprbserr           : out   std_logic_vector(0 downto 0);
+            INTF0_RX0_ch_rxprbslocked        : out   std_logic_vector(0 downto 0);
             INTF0_RX1_ch_rxbufstatus         : out   std_logic_vector(2 downto 0);
             INTF0_RX1_ch_rxcdrhold           : in    std_logic_vector(0 downto 0);
             INTF0_RX1_ch_rxpolarity          : in    std_logic_vector(0 downto 0);
@@ -175,6 +197,10 @@ architecture struct of ofb_pa_gty is
             INTF0_RX1_ch_rxctrl3             : out   std_logic_vector(7 downto 0);
             INTF0_RX1_ch_rxelecidle          : out   std_logic_vector(0 downto 0);
             INTF0_RX1_ch_rxresetdone         : out   std_logic_vector(0 downto 0);
+            INTF0_RX1_ch_rxprbssel           : in    std_logic_vector(3 downto 0);
+            INTF0_RX1_ch_rxprbscntreset      : in    std_logic_vector(0 downto 0);
+            INTF0_RX1_ch_rxprbserr           : out   std_logic_vector(0 downto 0);
+            INTF0_RX1_ch_rxprbslocked        : out   std_logic_vector(0 downto 0);
             INTF0_RX2_ch_rxbufstatus         : out   std_logic_vector(2 downto 0);
             INTF0_RX2_ch_rxcdrhold           : in    std_logic_vector(0 downto 0);
             INTF0_RX2_ch_rxpolarity          : in    std_logic_vector(0 downto 0);
@@ -190,6 +216,10 @@ architecture struct of ofb_pa_gty is
             INTF0_RX2_ch_rxctrl3             : out   std_logic_vector(7 downto 0);
             INTF0_RX2_ch_rxelecidle          : out   std_logic_vector(0 downto 0);
             INTF0_RX2_ch_rxresetdone         : out   std_logic_vector(0 downto 0);
+            INTF0_RX2_ch_rxprbssel           : in    std_logic_vector(3 downto 0);
+            INTF0_RX2_ch_rxprbscntreset      : in    std_logic_vector(0 downto 0);
+            INTF0_RX2_ch_rxprbserr           : out   std_logic_vector(0 downto 0);
+            INTF0_RX2_ch_rxprbslocked        : out   std_logic_vector(0 downto 0);
             INTF0_RX3_ch_rxbufstatus         : out   std_logic_vector(2 downto 0);
             INTF0_RX3_ch_rxcdrhold           : in    std_logic_vector(0 downto 0);
             INTF0_RX3_ch_rxpolarity          : in    std_logic_vector(0 downto 0);
@@ -205,6 +235,10 @@ architecture struct of ofb_pa_gty is
             INTF0_RX3_ch_rxctrl3             : out   std_logic_vector(7 downto 0);
             INTF0_RX3_ch_rxelecidle          : out   std_logic_vector(0 downto 0);
             INTF0_RX3_ch_rxresetdone         : out   std_logic_vector(0 downto 0);
+            INTF0_RX3_ch_rxprbssel           : in    std_logic_vector(3 downto 0);
+            INTF0_RX3_ch_rxprbscntreset      : in    std_logic_vector(0 downto 0);
+            INTF0_RX3_ch_rxprbserr           : out   std_logic_vector(0 downto 0);
+            INTF0_RX3_ch_rxprbslocked        : out   std_logic_vector(0 downto 0);
             INTF0_TX_clr_out                 : out   std_logic;
             INTF0_TX_clrb_leaf_out           : out   std_logic;
             INTF0_RX_clr_out                 : out   std_logic;
@@ -240,6 +274,12 @@ architecture struct of ofb_pa_gty is
     signal RxAligned  : std_logic_vector(Ch_c-1 downto 0);
     signal RxBufStat  : Status3_t;
     signal RxClkCor   : Status2_t;
+    signal PrbsTxSel  : Status4_t;
+    signal PrbsRxSel  : Status4_t;
+    signal PrbsForce  : std_logic_vector(Ch_c-1 downto 0);
+    signal PrbsCntRst : std_logic_vector(Ch_c-1 downto 0);
+    signal PrbsErr    : std_logic_vector(Ch_c-1 downto 0);
+    signal PrbsLocked : std_logic_vector(Ch_c-1 downto 0);
 
     -- Serial lines of the four channels
     signal TxP4 : std_logic_vector(Ch_c-1 downto 0);
@@ -344,6 +384,13 @@ begin
             Loopback(c)      <= LbNearPma_c when Phy_SerialNearLoopback(c) = '1' else
                                 LbFarPma_c when Phy_SerialFarLoopback(c) = '1' else
                                 "000";
+            PrbsTxSel(c)     <= Phy_PrbsTxSel(4*c+3 downto 4*c);
+            PrbsRxSel(c)     <= Phy_PrbsRxSel(4*c+3 downto 4*c);
+            PrbsForce(c)     <= Phy_PrbsForceErr(c);
+            PrbsCntRst(c)    <= Phy_PrbsCntReset(c);
+            -- Checker status: outputs of the transceiver in the receive user clock domain (LaneClk)
+            Phy_PrbsErr(c)    <= PrbsErr(c);
+            Phy_PrbsLocked(c) <= PrbsLocked(c);
         end generate;
 
         g_unused : if c >= NumLanes_g generate
@@ -354,6 +401,10 @@ begin
             TxElecIdle(c) <= '1';
             RxPolarity(c) <= '0';
             RxCdrHold(c)  <= '0';
+            PrbsTxSel(c)  <= "0000";
+            PrbsRxSel(c)  <= "0000";
+            PrbsForce(c)  <= '0';
+            PrbsCntRst(c) <= '0';
         end generate;
 
     end generate;
@@ -441,134 +492,158 @@ begin
     -- vsg_off port_map_002
     i_gtw : component ofb_gtw
         port map (
-            gtpowergood                      => open,
-            gtwiz_freerun_clk                => FreeRunClk,
-            QUAD0_GTREFCLK0                  => RefClk,
-            QUAD0_TX0_outclk                 => TxOutClk,
-            QUAD0_RX0_outclk                 => open,
-            QUAD0_rxp                        => RxP4,
-            QUAD0_rxn                        => RxN4,
-            QUAD0_txp                        => TxP4,
-            QUAD0_txn                        => TxN4,
-            QUAD0_TX0_usrclk                 => UsrClk,
-            QUAD0_TX1_usrclk                 => UsrClk,
-            QUAD0_TX2_usrclk                 => UsrClk,
-            QUAD0_TX3_usrclk                 => UsrClk,
-            QUAD0_RX0_usrclk                 => UsrClk,
-            QUAD0_RX1_usrclk                 => UsrClk,
-            QUAD0_RX2_usrclk                 => UsrClk,
-            QUAD0_RX3_usrclk                 => UsrClk,
-            QUAD0_ch0_loopback               => Loopback(0),
-            QUAD0_ch1_loopback               => Loopback(1),
-            QUAD0_ch2_loopback               => Loopback(2),
-            QUAD0_ch3_loopback               => Loopback(3),
-            INTF0_TX0_ch_txdata              => TxData(0),
-            INTF0_TX0_ch_txbufstatus         => open,
-            INTF0_TX0_ch_txresetdone         => open,
-            INTF0_TX0_ch_txpolarity          => "0",
-            INTF0_TX0_ch_txrate              => x"00",
-            INTF0_TX0_ch_txelecidle(0)       => TxElecIdle(0),
-            INTF0_TX0_ch_txctrl0             => x"0000",
-            INTF0_TX0_ch_txctrl1             => x"0000",
-            INTF0_TX0_ch_txctrl2             => TxCtrl2(0),
-            INTF0_TX1_ch_txdata              => TxData(1),
-            INTF0_TX1_ch_txbufstatus         => open,
-            INTF0_TX1_ch_txresetdone         => open,
-            INTF0_TX1_ch_txpolarity          => "0",
-            INTF0_TX1_ch_txrate              => x"00",
-            INTF0_TX1_ch_txelecidle(0)       => TxElecIdle(1),
-            INTF0_TX1_ch_txctrl0             => x"0000",
-            INTF0_TX1_ch_txctrl1             => x"0000",
-            INTF0_TX1_ch_txctrl2             => TxCtrl2(1),
-            INTF0_TX2_ch_txdata              => TxData(2),
-            INTF0_TX2_ch_txbufstatus         => open,
-            INTF0_TX2_ch_txresetdone         => open,
-            INTF0_TX2_ch_txpolarity          => "0",
-            INTF0_TX2_ch_txrate              => x"00",
-            INTF0_TX2_ch_txelecidle(0)       => TxElecIdle(2),
-            INTF0_TX2_ch_txctrl0             => x"0000",
-            INTF0_TX2_ch_txctrl1             => x"0000",
-            INTF0_TX2_ch_txctrl2             => TxCtrl2(2),
-            INTF0_TX3_ch_txdata              => TxData(3),
-            INTF0_TX3_ch_txbufstatus         => open,
-            INTF0_TX3_ch_txresetdone         => open,
-            INTF0_TX3_ch_txpolarity          => "0",
-            INTF0_TX3_ch_txrate              => x"00",
-            INTF0_TX3_ch_txelecidle(0)       => TxElecIdle(3),
-            INTF0_TX3_ch_txctrl0             => x"0000",
-            INTF0_TX3_ch_txctrl1             => x"0000",
-            INTF0_TX3_ch_txctrl2             => TxCtrl2(3),
-            INTF0_RX0_ch_rxbufstatus         => RxBufStat(0),
-            INTF0_RX0_ch_rxcdrhold(0)        => RxCdrHold(0),
-            INTF0_RX0_ch_rxpolarity(0)       => RxPolarity(0),
-            INTF0_RX0_ch_rxrate              => x"00",
-            INTF0_RX0_ch_rxdata              => RxData(0),
-            INTF0_RX0_ch_rxclkcorcnt         => RxClkCor(0),
-            INTF0_RX0_ch_rxcommadet          => open,
-            INTF0_RX0_ch_rxbyteisaligned(0)  => RxAligned(0),
-            INTF0_RX0_ch_rxbyterealign       => open,
-            INTF0_RX0_ch_rxctrl0             => RxCtrl0(0),
-            INTF0_RX0_ch_rxctrl1             => RxCtrl1(0),
-            INTF0_RX0_ch_rxctrl2             => open,
-            INTF0_RX0_ch_rxctrl3             => RxCtrl3(0),
-            INTF0_RX0_ch_rxelecidle(0)       => RxElecIdle(0),
-            INTF0_RX0_ch_rxresetdone         => open,
-            INTF0_RX1_ch_rxbufstatus         => RxBufStat(1),
-            INTF0_RX1_ch_rxcdrhold(0)        => RxCdrHold(1),
-            INTF0_RX1_ch_rxpolarity(0)       => RxPolarity(1),
-            INTF0_RX1_ch_rxrate              => x"00",
-            INTF0_RX1_ch_rxdata              => RxData(1),
-            INTF0_RX1_ch_rxclkcorcnt         => RxClkCor(1),
-            INTF0_RX1_ch_rxcommadet          => open,
-            INTF0_RX1_ch_rxbyteisaligned(0)  => RxAligned(1),
-            INTF0_RX1_ch_rxbyterealign       => open,
-            INTF0_RX1_ch_rxctrl0             => RxCtrl0(1),
-            INTF0_RX1_ch_rxctrl1             => RxCtrl1(1),
-            INTF0_RX1_ch_rxctrl2             => open,
-            INTF0_RX1_ch_rxctrl3             => RxCtrl3(1),
-            INTF0_RX1_ch_rxelecidle(0)       => RxElecIdle(1),
-            INTF0_RX1_ch_rxresetdone         => open,
-            INTF0_RX2_ch_rxbufstatus         => RxBufStat(2),
-            INTF0_RX2_ch_rxcdrhold(0)        => RxCdrHold(2),
-            INTF0_RX2_ch_rxpolarity(0)       => RxPolarity(2),
-            INTF0_RX2_ch_rxrate              => x"00",
-            INTF0_RX2_ch_rxdata              => RxData(2),
-            INTF0_RX2_ch_rxclkcorcnt         => RxClkCor(2),
-            INTF0_RX2_ch_rxcommadet          => open,
-            INTF0_RX2_ch_rxbyteisaligned(0)  => RxAligned(2),
-            INTF0_RX2_ch_rxbyterealign       => open,
-            INTF0_RX2_ch_rxctrl0             => RxCtrl0(2),
-            INTF0_RX2_ch_rxctrl1             => RxCtrl1(2),
-            INTF0_RX2_ch_rxctrl2             => open,
-            INTF0_RX2_ch_rxctrl3             => RxCtrl3(2),
-            INTF0_RX2_ch_rxelecidle(0)       => RxElecIdle(2),
-            INTF0_RX2_ch_rxresetdone         => open,
-            INTF0_RX3_ch_rxbufstatus         => RxBufStat(3),
-            INTF0_RX3_ch_rxcdrhold(0)        => RxCdrHold(3),
-            INTF0_RX3_ch_rxpolarity(0)       => RxPolarity(3),
-            INTF0_RX3_ch_rxrate              => x"00",
-            INTF0_RX3_ch_rxdata              => RxData(3),
-            INTF0_RX3_ch_rxclkcorcnt         => RxClkCor(3),
-            INTF0_RX3_ch_rxcommadet          => open,
-            INTF0_RX3_ch_rxbyteisaligned(0)  => RxAligned(3),
-            INTF0_RX3_ch_rxbyterealign       => open,
-            INTF0_RX3_ch_rxctrl0             => RxCtrl0(3),
-            INTF0_RX3_ch_rxctrl1             => RxCtrl1(3),
-            INTF0_RX3_ch_rxctrl2             => open,
-            INTF0_RX3_ch_rxctrl3             => RxCtrl3(3),
-            INTF0_RX3_ch_rxelecidle(0)       => RxElecIdle(3),
-            INTF0_RX3_ch_rxresetdone         => open,
-            INTF0_TX_clr_out                 => TxClr,
-            INTF0_TX_clrb_leaf_out           => open,
-            INTF0_RX_clr_out                 => open,
-            INTF0_RX_clrb_leaf_out           => open,
-            INTF0_rst_all_in                 => Rst,
-            INTF0_rst_tx_pll_and_datapath_in => '0',
-            INTF0_rst_tx_datapath_in         => TxDpReset,
-            INTF0_rst_tx_done_out            => TxDone,
-            INTF0_rst_rx_pll_and_datapath_in => '0',
-            INTF0_rst_rx_datapath_in         => '0',
-            INTF0_rst_rx_done_out            => RxDone
+            gtpowergood                        => open,
+            gtwiz_freerun_clk                  => FreeRunClk,
+            QUAD0_GTREFCLK0                    => RefClk,
+            QUAD0_TX0_outclk                   => TxOutClk,
+            QUAD0_RX0_outclk                   => open,
+            QUAD0_rxp                          => RxP4,
+            QUAD0_rxn                          => RxN4,
+            QUAD0_txp                          => TxP4,
+            QUAD0_txn                          => TxN4,
+            QUAD0_TX0_usrclk                   => UsrClk,
+            QUAD0_TX1_usrclk                   => UsrClk,
+            QUAD0_TX2_usrclk                   => UsrClk,
+            QUAD0_TX3_usrclk                   => UsrClk,
+            QUAD0_RX0_usrclk                   => UsrClk,
+            QUAD0_RX1_usrclk                   => UsrClk,
+            QUAD0_RX2_usrclk                   => UsrClk,
+            QUAD0_RX3_usrclk                   => UsrClk,
+            QUAD0_ch0_loopback                 => Loopback(0),
+            QUAD0_ch1_loopback                 => Loopback(1),
+            QUAD0_ch2_loopback                 => Loopback(2),
+            QUAD0_ch3_loopback                 => Loopback(3),
+            INTF0_TX0_ch_txdata                => TxData(0),
+            INTF0_TX0_ch_txbufstatus           => open,
+            INTF0_TX0_ch_txresetdone           => open,
+            INTF0_TX0_ch_txpolarity            => "0",
+            INTF0_TX0_ch_txrate                => x"00",
+            INTF0_TX0_ch_txelecidle(0)         => TxElecIdle(0),
+            INTF0_TX0_ch_txctrl0               => x"0000",
+            INTF0_TX0_ch_txctrl1               => x"0000",
+            INTF0_TX0_ch_txctrl2               => TxCtrl2(0),
+            INTF0_TX0_ch_txprbssel             => PrbsTxSel(0),
+            INTF0_TX0_ch_txprbsforceerr(0)     => PrbsForce(0),
+            INTF0_TX1_ch_txdata                => TxData(1),
+            INTF0_TX1_ch_txbufstatus           => open,
+            INTF0_TX1_ch_txresetdone           => open,
+            INTF0_TX1_ch_txpolarity            => "0",
+            INTF0_TX1_ch_txrate                => x"00",
+            INTF0_TX1_ch_txelecidle(0)         => TxElecIdle(1),
+            INTF0_TX1_ch_txctrl0               => x"0000",
+            INTF0_TX1_ch_txctrl1               => x"0000",
+            INTF0_TX1_ch_txctrl2               => TxCtrl2(1),
+            INTF0_TX1_ch_txprbssel             => PrbsTxSel(1),
+            INTF0_TX1_ch_txprbsforceerr(0)     => PrbsForce(1),
+            INTF0_TX2_ch_txdata                => TxData(2),
+            INTF0_TX2_ch_txbufstatus           => open,
+            INTF0_TX2_ch_txresetdone           => open,
+            INTF0_TX2_ch_txpolarity            => "0",
+            INTF0_TX2_ch_txrate                => x"00",
+            INTF0_TX2_ch_txelecidle(0)         => TxElecIdle(2),
+            INTF0_TX2_ch_txctrl0               => x"0000",
+            INTF0_TX2_ch_txctrl1               => x"0000",
+            INTF0_TX2_ch_txctrl2               => TxCtrl2(2),
+            INTF0_TX2_ch_txprbssel             => PrbsTxSel(2),
+            INTF0_TX2_ch_txprbsforceerr(0)     => PrbsForce(2),
+            INTF0_TX3_ch_txdata                => TxData(3),
+            INTF0_TX3_ch_txbufstatus           => open,
+            INTF0_TX3_ch_txresetdone           => open,
+            INTF0_TX3_ch_txpolarity            => "0",
+            INTF0_TX3_ch_txrate                => x"00",
+            INTF0_TX3_ch_txelecidle(0)         => TxElecIdle(3),
+            INTF0_TX3_ch_txctrl0               => x"0000",
+            INTF0_TX3_ch_txctrl1               => x"0000",
+            INTF0_TX3_ch_txctrl2               => TxCtrl2(3),
+            INTF0_TX3_ch_txprbssel             => PrbsTxSel(3),
+            INTF0_TX3_ch_txprbsforceerr(0)     => PrbsForce(3),
+            INTF0_RX0_ch_rxbufstatus           => RxBufStat(0),
+            INTF0_RX0_ch_rxcdrhold(0)          => RxCdrHold(0),
+            INTF0_RX0_ch_rxpolarity(0)         => RxPolarity(0),
+            INTF0_RX0_ch_rxrate                => x"00",
+            INTF0_RX0_ch_rxdata                => RxData(0),
+            INTF0_RX0_ch_rxclkcorcnt           => RxClkCor(0),
+            INTF0_RX0_ch_rxcommadet            => open,
+            INTF0_RX0_ch_rxbyteisaligned(0)    => RxAligned(0),
+            INTF0_RX0_ch_rxbyterealign         => open,
+            INTF0_RX0_ch_rxctrl0               => RxCtrl0(0),
+            INTF0_RX0_ch_rxctrl1               => RxCtrl1(0),
+            INTF0_RX0_ch_rxctrl2               => open,
+            INTF0_RX0_ch_rxctrl3               => RxCtrl3(0),
+            INTF0_RX0_ch_rxelecidle(0)         => RxElecIdle(0),
+            INTF0_RX0_ch_rxresetdone           => open,
+            INTF0_RX0_ch_rxprbssel             => PrbsRxSel(0),
+            INTF0_RX0_ch_rxprbscntreset(0)     => PrbsCntRst(0),
+            INTF0_RX0_ch_rxprbserr(0)          => PrbsErr(0),
+            INTF0_RX0_ch_rxprbslocked(0)       => PrbsLocked(0),
+            INTF0_RX1_ch_rxbufstatus           => RxBufStat(1),
+            INTF0_RX1_ch_rxcdrhold(0)          => RxCdrHold(1),
+            INTF0_RX1_ch_rxpolarity(0)         => RxPolarity(1),
+            INTF0_RX1_ch_rxrate                => x"00",
+            INTF0_RX1_ch_rxdata                => RxData(1),
+            INTF0_RX1_ch_rxclkcorcnt           => RxClkCor(1),
+            INTF0_RX1_ch_rxcommadet            => open,
+            INTF0_RX1_ch_rxbyteisaligned(0)    => RxAligned(1),
+            INTF0_RX1_ch_rxbyterealign         => open,
+            INTF0_RX1_ch_rxctrl0               => RxCtrl0(1),
+            INTF0_RX1_ch_rxctrl1               => RxCtrl1(1),
+            INTF0_RX1_ch_rxctrl2               => open,
+            INTF0_RX1_ch_rxctrl3               => RxCtrl3(1),
+            INTF0_RX1_ch_rxelecidle(0)         => RxElecIdle(1),
+            INTF0_RX1_ch_rxresetdone           => open,
+            INTF0_RX1_ch_rxprbssel             => PrbsRxSel(1),
+            INTF0_RX1_ch_rxprbscntreset(0)     => PrbsCntRst(1),
+            INTF0_RX1_ch_rxprbserr(0)          => PrbsErr(1),
+            INTF0_RX1_ch_rxprbslocked(0)       => PrbsLocked(1),
+            INTF0_RX2_ch_rxbufstatus           => RxBufStat(2),
+            INTF0_RX2_ch_rxcdrhold(0)          => RxCdrHold(2),
+            INTF0_RX2_ch_rxpolarity(0)         => RxPolarity(2),
+            INTF0_RX2_ch_rxrate                => x"00",
+            INTF0_RX2_ch_rxdata                => RxData(2),
+            INTF0_RX2_ch_rxclkcorcnt           => RxClkCor(2),
+            INTF0_RX2_ch_rxcommadet            => open,
+            INTF0_RX2_ch_rxbyteisaligned(0)    => RxAligned(2),
+            INTF0_RX2_ch_rxbyterealign         => open,
+            INTF0_RX2_ch_rxctrl0               => RxCtrl0(2),
+            INTF0_RX2_ch_rxctrl1               => RxCtrl1(2),
+            INTF0_RX2_ch_rxctrl2               => open,
+            INTF0_RX2_ch_rxctrl3               => RxCtrl3(2),
+            INTF0_RX2_ch_rxelecidle(0)         => RxElecIdle(2),
+            INTF0_RX2_ch_rxresetdone           => open,
+            INTF0_RX2_ch_rxprbssel             => PrbsRxSel(2),
+            INTF0_RX2_ch_rxprbscntreset(0)     => PrbsCntRst(2),
+            INTF0_RX2_ch_rxprbserr(0)          => PrbsErr(2),
+            INTF0_RX2_ch_rxprbslocked(0)       => PrbsLocked(2),
+            INTF0_RX3_ch_rxbufstatus           => RxBufStat(3),
+            INTF0_RX3_ch_rxcdrhold(0)          => RxCdrHold(3),
+            INTF0_RX3_ch_rxpolarity(0)         => RxPolarity(3),
+            INTF0_RX3_ch_rxrate                => x"00",
+            INTF0_RX3_ch_rxdata                => RxData(3),
+            INTF0_RX3_ch_rxclkcorcnt           => RxClkCor(3),
+            INTF0_RX3_ch_rxcommadet            => open,
+            INTF0_RX3_ch_rxbyteisaligned(0)    => RxAligned(3),
+            INTF0_RX3_ch_rxbyterealign         => open,
+            INTF0_RX3_ch_rxctrl0               => RxCtrl0(3),
+            INTF0_RX3_ch_rxctrl1               => RxCtrl1(3),
+            INTF0_RX3_ch_rxctrl2               => open,
+            INTF0_RX3_ch_rxctrl3               => RxCtrl3(3),
+            INTF0_RX3_ch_rxelecidle(0)         => RxElecIdle(3),
+            INTF0_RX3_ch_rxresetdone           => open,
+            INTF0_RX3_ch_rxprbssel             => PrbsRxSel(3),
+            INTF0_RX3_ch_rxprbscntreset(0)     => PrbsCntRst(3),
+            INTF0_RX3_ch_rxprbserr(0)          => PrbsErr(3),
+            INTF0_RX3_ch_rxprbslocked(0)       => PrbsLocked(3),
+            INTF0_TX_clr_out                   => TxClr,
+            INTF0_TX_clrb_leaf_out             => open,
+            INTF0_RX_clr_out                   => open,
+            INTF0_RX_clrb_leaf_out             => open,
+            INTF0_rst_all_in                   => Rst,
+            INTF0_rst_tx_pll_and_datapath_in   => '0',
+            INTF0_rst_tx_datapath_in           => TxDpReset,
+            INTF0_rst_tx_done_out              => TxDone,
+            INTF0_rst_rx_pll_and_datapath_in   => '0',
+            INTF0_rst_rx_datapath_in           => '0',
+            INTF0_rst_rx_done_out              => RxDone
         );
 
 -- vsg_on port_map_002

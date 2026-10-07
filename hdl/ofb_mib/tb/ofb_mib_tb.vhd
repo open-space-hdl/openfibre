@@ -121,6 +121,16 @@ architecture sim of ofb_mib_tb is
     signal MlBypass  : std_logic;
     signal DlMax     : std_logic_vector(2 downto 0);
 
+    -- PRBS test of the Physical adapter
+    signal PrbsTxSel  : std_logic_vector(3 downto 0);
+    signal PrbsRxSel  : std_logic_vector(3 downto 0);
+    signal PrbsForce  : std_logic_vector(0 downto 0);
+    signal PrbsCntRst : std_logic_vector(0 downto 0);
+    signal PrbsErr    : std_logic_vector(0 downto 0) := "0";
+    signal PrbsLocked : std_logic_vector(0 downto 0) := "0";
+    signal ForceCnt   : natural                      := 0;
+    signal CntRstCnt  : natural                      := 0;
+
     -- User domain
     signal NiEv : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
 
@@ -208,7 +218,7 @@ begin
 
             -- TC-MG-01: identification and reset values
             if run("test_reset_values") then
-                chk(16#000#, x"0FB10005", "ID");
+                chk(16#000#, x"0FB10006", "ID");
                 chk(16#004#, x"00000104", "Generics");
                 chk(16#008#, x"00000100", "DataScrambled set");
                 chk(16#00C#, x"00000028", "Broadcast interval 40");
@@ -239,6 +249,7 @@ begin
                 chk(RegLaneCtrl_c, RegLaneCtrlReset_c, "LANE_CTRL of lane 0");
                 chk(RegLaneEvents_c, RegLaneEventsReset_c, "LANE_EVENTS of lane 0");
                 chk(RegLaneTimeoutCount_c, RegLaneTimeoutCountReset_c, "LANE_TIMEOUT_COUNT of lane 0");
+                chk(RegLanePrbsCtrl_c, RegLanePrbsCtrlReset_c, "LANE_PRBS_CTRL of lane 0");
 
                 for v in 0 to NumVc_c-1 loop
                     chk(RegVcSlotsLo_c + v * RegVcStride_c, RegVcSlotsLoReset_c, "VC_SLOTS_LO of VC " & to_string(v));
@@ -592,6 +603,81 @@ begin
                 cycles(10);
                 chk(16#020#, x"0000FFFF", "CRC-8 counter saturated");
 
+            -- TC-MG-10: PRBS test registers of a lane: patterns to the Physical adapter, lock status, error
+            -- and word counters, hold, count reset and force error commands, Interface Reset
+            elsif run("test_prbs") then
+                chk(RegLanePrbsCtrl_c, x"00000000", "PRBS control reset value");
+                chk(RegLanePrbsErrors_c, x"00000000", "PRBS errors reset value");
+                chk(RegLanePrbsWords_c, x"00000000", "PRBS words reset value");
+                -- Patterns: TX PRBS-31, RX PRBS-15
+                wr(RegLanePrbsCtrl_c, x"00000035");
+                chk(RegLanePrbsCtrl_c, x"00000035", "PRBS control read back");
+                cycles(20);
+                check_value(PrbsTxSel, "0101", error, "TX pattern to the Physical adapter");
+                check_value(PrbsRxSel, "0011", error, "RX pattern to the Physical adapter");
+                -- Lock status
+                PrbsLocked <= "1";
+                cycles(40);
+                chk(RegLaneStatus_c, x"00000080", "PRBS locked in LANE_STATUS");
+                -- Ten words with errors
+                wr(RegLanePrbsCtrl_c, x"00010035");
+                cycles(20);
+                check_value(CntRstCnt, 1, error, "Count reset pulse to the Physical adapter");
+
+                for i in 1 to 10 loop
+                    wait until rising_edge(LaneClk);
+                    PrbsErr <= "1";
+                    wait until rising_edge(LaneClk);
+                    PrbsErr <= "0";
+                end loop;
+
+                cycles(40);
+                chk(RegLanePrbsErrors_c, x"0000000A", "Ten words with errors counted");
+                -- Hold: no counting
+                wr(RegLanePrbsCtrl_c, x"00000135");
+                cycles(20);
+
+                for i in 1 to 5 loop
+                    wait until rising_edge(LaneClk);
+                    PrbsErr <= "1";
+                    wait until rising_edge(LaneClk);
+                    PrbsErr <= "0";
+                end loop;
+
+                cycles(40);
+                chk(RegLanePrbsErrors_c, x"0000000A", "No counting while held");
+                -- Checker off: no counting
+                wr(RegLanePrbsCtrl_c, x"00000005");
+                cycles(20);
+                wait until rising_edge(LaneClk);
+                PrbsErr <= "1";
+                wait until rising_edge(LaneClk);
+                PrbsErr <= "0";
+                cycles(40);
+                chk(RegLanePrbsErrors_c, x"0000000A", "No counting with the checker off");
+                -- Force error command
+                wr(RegLanePrbsCtrl_c, x"00020035");
+                cycles(20);
+                check_value(ForceCnt, 1, error, "Force error pulse to the Physical adapter");
+                -- Count reset clears the counters; words counted in units of 65536
+                wr(RegLanePrbsCtrl_c, x"00010035");
+                cycles(40);
+                chk(RegLanePrbsErrors_c, x"00000000", "Errors cleared by the count reset");
+                Start_v := now;
+
+                while now - Start_v < 65540 * 6.8 ns loop
+                    wait until rising_edge(LaneClk);
+                end loop;
+
+                cycles(40);
+                chk(RegLanePrbsWords_c, x"00000001", "65536 words checked");
+                -- Interface Reset: configuration reset
+                wr(RegDlCtrl_c, x"00000002");
+                cycles(20);
+                chk(RegLanePrbsCtrl_c, x"00000000", "PRBS control after Interface Reset");
+                cycles(20);
+                check_value(PrbsTxSel, "0000", error, "TX pattern off after Interface Reset");
+
             end if;
 
         end loop;
@@ -695,6 +781,12 @@ begin
             Lane_StandbyReason     => Reason,
             Phy_SerialNearLoopback => SerNearLb,
             Phy_SerialFarLoopback  => SerFarLb,
+            Phy_PrbsTxSel          => PrbsTxSel,
+            Phy_PrbsRxSel          => PrbsRxSel,
+            Phy_PrbsForceErr       => PrbsForce,
+            Phy_PrbsCntReset       => PrbsCntRst,
+            Phy_PrbsErr            => PrbsErr,
+            Phy_PrbsLocked         => PrbsLocked,
             Phy_BitSync            => BitSync,
             Lane_State             => LaneStat(3 downto 0),
             Lane_RxPolarity        => LaneStat(4 downto 4),
@@ -769,6 +861,19 @@ begin
                 end if;
             end loop;
 
+        end if;
+    end process;
+
+    -- PRBS commands to the Physical adapter: single-cycle pulses
+    p_prbs_cmd : process (LaneClk) is
+    begin
+        if rising_edge(LaneClk) then
+            if PrbsForce(0) = '1' then
+                ForceCnt <= ForceCnt + 1;
+            end if;
+            if PrbsCntRst(0) = '1' then
+                CntRstCnt <= CntRstCnt + 1;
+            end if;
         end if;
     end process;
 

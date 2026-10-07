@@ -9,7 +9,8 @@
 -- Behavioural model of two Physical adapters connected by a lane (both directions), at the symbol
 -- stream of the Lane layer: 8B/10B encoding with running disparity, channel effects (disconnection,
 -- crossed pair, symbol offset, bit errors, skew in words) and decoding with code and disparity
--- error flags.
+-- error flags. A functional PRBS test: a checker locks to the pattern of the far end, forced errors
+-- and pattern mismatches give words with errors.
 --
 -- What this model does NOT reproduce:
 -- - Different clocks at both ends (both ends use Clk; no elastic buffer, no SKIP removal).
@@ -53,8 +54,14 @@ entity ofb_tb_pa_model is
         A_Rx_DispErr : out   WordK_t;
         A_Rx_Valid   : out   std_logic;
         A_NoSignal   : out   std_logic;
-        A_NearSerLb  : in    std_logic := '0';
-        A_FarSerLb   : in    std_logic := '0';
+        A_NearSerLb  : in    std_logic                    := '0';
+        A_FarSerLb   : in    std_logic                    := '0';
+        A_PrbsTxSel  : in    std_logic_vector(3 downto 0) := "0000";
+        A_PrbsRxSel  : in    std_logic_vector(3 downto 0) := "0000";
+        A_PrbsForce  : in    std_logic                    := '0';
+        A_PrbsCntRst : in    std_logic                    := '0';
+        A_PrbsErr    : out   std_logic;
+        A_PrbsLocked : out   std_logic;
         -- End B
         B_Tx_Data    : in    Word_t;
         B_Tx_K       : in    WordK_t;
@@ -68,8 +75,14 @@ entity ofb_tb_pa_model is
         B_Rx_DispErr : out   WordK_t;
         B_Rx_Valid   : out   std_logic;
         B_NoSignal   : out   std_logic;
-        B_NearSerLb  : in    std_logic := '0';
-        B_FarSerLb   : in    std_logic := '0'
+        B_NearSerLb  : in    std_logic                    := '0';
+        B_FarSerLb   : in    std_logic                    := '0';
+        B_PrbsTxSel  : in    std_logic_vector(3 downto 0) := "0000";
+        B_PrbsRxSel  : in    std_logic_vector(3 downto 0) := "0000";
+        B_PrbsForce  : in    std_logic                    := '0';
+        B_PrbsCntRst : in    std_logic                    := '0';
+        B_PrbsErr    : out   std_logic;
+        B_PrbsLocked : out   std_logic
     );
 end entity;
 
@@ -213,6 +226,39 @@ architecture sim of ofb_tb_pa_model is
     signal BtoA_K    : WordK_t;
     signal BtoA_En   : std_logic;
 
+    -- PRBS test of the transceiver (functional model): the checker at end Y locks eight cycles after a checker reset
+    -- when it checks the pattern that end X sends over a connected line and stays locked until the next reset; a
+    -- forced error at X gives one word with an error at Y; another pattern or no signal gives an error in every word
+    procedure prbsDirection (
+        signal tx_sel     : in    std_logic_vector(3 downto 0);
+        signal tx_force   : in    std_logic;
+        signal tx_enable  : in    std_logic;
+        signal rx_sel     : in    std_logic_vector(3 downto 0);
+        signal rx_cnt_rst : in    std_logic;
+        constant ctrl     : in    PaDirCtrl_t;
+        variable cnt      : inout natural;
+        variable locked   : inout boolean;
+        signal err        : out   std_logic;
+        signal lock_out   : out   std_logic) is
+    begin
+        err <= '0';
+        if rx_sel = "0000" or rx_cnt_rst = '1' then
+            cnt    := 0;
+            locked := false;
+        elsif rx_sel = tx_sel and tx_enable = '1' and not ctrl.Cut then
+            if cnt < 8 then
+                cnt := cnt + 1;
+            else
+                locked := true;
+                err    <= tx_force;
+            end if;
+        else
+            cnt := 0;
+            err <= '1';
+        end if;
+        lock_out <= '1' when locked else '0';
+    end procedure;
+
 begin
 
     -- Receiver of B: own transmitter in near-end loopback at B or far-end loopback at A, else A
@@ -252,6 +298,20 @@ begin
             direction(BtoA_Data, BtoA_K, BtoA_En, A_RxEnable, A_CdrEnable, A_RxInvert,
                       PaCtrl(Instance_g).BtoA, EncRd_v, DecRd_v, Flips_v, Buf_v, Present_v, Dly_v,
                       A_Rx_Data, A_Rx_K, A_Rx_CodeErr, A_Rx_DispErr, A_Rx_Valid, A_NoSignal);
+        end if;
+    end process;
+
+    p_prbs : process (Clk) is
+        variable CntA_v    : natural := 0;
+        variable CntB_v    : natural := 0;
+        variable LockedA_v : boolean := false;
+        variable LockedB_v : boolean := false;
+    begin
+        if rising_edge(Clk) then
+            prbsDirection(A_PrbsTxSel, A_PrbsForce, A_TxEnable, B_PrbsRxSel, B_PrbsCntRst, PaCtrl(Instance_g).AtoB,
+                          CntB_v, LockedB_v, B_PrbsErr, B_PrbsLocked);
+            prbsDirection(B_PrbsTxSel, B_PrbsForce, B_TxEnable, A_PrbsRxSel, A_PrbsCntRst, PaCtrl(Instance_g).BtoA,
+                          CntA_v, LockedA_v, A_PrbsErr, A_PrbsLocked);
         end if;
     end process;
 

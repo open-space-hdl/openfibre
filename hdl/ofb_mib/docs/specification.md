@@ -12,7 +12,7 @@ an interrupt. It contains the crossings between the management clock and the clo
 | MG-2 | Sticky error flags, event counters, interrupt | Complete for the events of phase 2 |
 | MG-3 | EDAC monitor | Complete |
 | MG-4 | Reset per clock domain | In `ofb_core` |
-| TA-1 | Lane test access | Later |
+| MG-5 | PRBS test of the Physical adapters (bit error rate) | Complete |
 
 ## 2. Requirements
 
@@ -33,6 +33,9 @@ an interrupt. It contains the crossings between the management clock and the clo
 | MG-ED-01 | The SEC and DED events of every fault-tolerant buffer of the core shall be counted per channel (output VC buffers, error recovery buffer, frame buffer, input VC buffers, broadcast output and input buffers, transmit and receive row crossings, control crossings) in saturating 16-bit counters; a DED shall set a sticky flag of its channel, a SEC a common sticky flag. | none (fault tolerance, architecture P5) |
 | MG-ED-02 | The counters of a selected channel shall be readable and clearable; the flags and all counters shall be clearable at once; the DED flags and the SEC flag shall be interrupt sources. | none |
 | MG-ED-03 | A single or double bit error shall be injectable into the next word written into the buffers of a selected channel. | none (verification of the EDAC paths) |
+| MG-PR-01 | The transmitted and the checked PRBS pattern of every lane (4 bits each, 0 off, transceiver encoding) and a hold bit shall be readable and writable (reset and Interface Reset: 0) and passed to the Physical adapter of the lane (lane clock). | none (test function) |
+| MG-PR-02 | Count reset and force error shall be commands per lane: a write of one sends one pulse to the Physical adapter (lane clock); the count reset also clears the PRBS counters of the lane. | none (test function) |
+| MG-PR-03 | While the checker of a lane is on and not held, the lane clock cycles (checked words) shall be counted in a 48-bit counter and the cycles with a checker error (words with at least one bit error) in a 32-bit counter, both saturating; the error counter and bits 47:16 of the word counter and the lock status of the checker shall be readable. | none (test function) |
 | MG-CC-01 | Configuration levels shall cross to the core and lane clock domains with `olo_ft_cc_bits`, commands and events with `ofb_cc_pulse`, multi-bit status values with `olo_ft_cc_status`. | none (architecture section 6) |
 
 ## 3. Register map

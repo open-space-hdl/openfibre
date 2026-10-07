@@ -96,8 +96,6 @@
 <rect x="452" y="636" width="116" height="48" rx="8" fill="#ffffff" stroke="#6b7280" stroke-width="1.25"/>
 <text x="464" y="655" font-size="11.5" font-weight="600" fill="#111827">ML-5</text>
 <text x="464" y="673" font-size="11" fill="#111827">Lane alignment</text>
-<rect x="24" y="708" width="560" height="26" rx="6" fill="none" stroke="#6b7280" stroke-width="1" stroke-dasharray="4 4"/>
-<text x="40" y="725" font-size="11" fill="#4b5563">TA-1 lane test access: injector and spy</text>
 <rect x="24" y="742" width="560" height="98" rx="8" fill="none" stroke="#6b7280" stroke-width="1.25"/>
 <text x="40" y="764" font-size="13" font-weight="600" fill="#111827">Lane layer x N</text>
 <text x="568" y="764" font-size="11.5" text-anchor="end" fill="#4b5563">LaneClk</text>
@@ -127,7 +125,7 @@
 <text x="332" y="927" font-size="11" fill="#111827">Elastic buffer</text>
 <g fill="none" stroke="#6b7280" stroke-width="1.25"><path d="M298 58V968" marker-end="url(#arrow)"/><path d="M310 968V56" marker-end="url(#arrow)"/></g>
 <text x="304" y="988" font-size="11.5" text-anchor="middle" fill="#4b5563">Serial lanes 0 to N-1, N up to 4</text>
-<rect x="600" y="66" width="136" height="290" rx="8" fill="none" stroke="#6b7280" stroke-width="1.25"/>
+<rect x="600" y="66" width="136" height="354" rx="8" fill="none" stroke="#6b7280" stroke-width="1.25"/>
 <text x="612" y="88" font-size="13" font-weight="600" fill="#111827">MIB</text>
 <text x="724" y="88" font-size="11.5" text-anchor="end" fill="#4b5563">MgmtClk</text>
 <rect x="612" y="100" width="112" height="48" rx="8" fill="#ffffff" stroke="#6b7280" stroke-width="1.25"/>
@@ -142,5 +140,8 @@
 <rect x="612" y="292" width="112" height="48" rx="8" fill="#ffffff" stroke="#6b7280" stroke-width="1.25"/>
 <text x="624" y="311" font-size="11.5" font-weight="600" fill="#111827">MG-4</text>
 <text x="624" y="329" font-size="11" fill="#111827">Clocks, resets</text>
+<rect x="612" y="356" width="112" height="48" rx="8" fill="#ffffff" stroke="#6b7280" stroke-width="1.25"/>
+<text x="624" y="375" font-size="11.5" font-weight="600" fill="#111827">MG-5</text>
+<text x="624" y="393" font-size="11" fill="#111827">PRBS test</text>
 <g fill="none" stroke="#6b7280" stroke-width="1.25"><path d="M592 115V905"/><path d="M584 115H600"/><path d="M584 351H592"/><path d="M584 619H592"/><path d="M584 791H592"/><path d="M584 905H592"/></g>
 </svg>

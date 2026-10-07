@@ -2,11 +2,11 @@
 
 ## 1. Test results
 
-Run on 2026-10-06 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_core*"`.
+Run on 2026-10-07 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_core*"`.
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_core_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 17 x 3 | 51 |
+| `ofb_core_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 18 x 3 | 54 |
 | `ofb_core_tb`, configuration `lanes1_slowcore` (TC-CORE-15 only) | 1 | 1 |
 
 Throughput and latency (TC-CORE-16, lane capacity 5 Gbit/s per lane: 32 bits per 6.4 ns; core clock 166.7 MHz, user
@@ -54,6 +54,10 @@ with one lane); the union of the five seeds covers every line fault kind on ever
 Functional coverage of the traffic (TC-CORE-17, all configurations): every length class on every VC in both
 directions (`CovPkt`, 32 of 32 bins) and broadcast messages with and without DELAYED flag in both directions
 (`CovBc`, 4 of 4 bins).
+
+PRBS test (TC-CORE-18, all configurations): the checkers of B lock on every lane, no error, the forced error of A is
+counted once at B on lane 0, the PRBS-7 checker on the PRBS-31 pattern counts errors. Without the forced error in the
+adapter model the test fails (mutation check).
 
 The campaign found three design defects (section 2): words lost in the Multi-Lane distributor in Not Ready, silent
 corruption by double errors in the row crossings, and a second error recovery caused by the latency of the receive

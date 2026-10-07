@@ -130,6 +130,9 @@ is high while a sticky flag enabled in IRQ_MASK is set.
 | `Phy_NoSignal` | in | No signal on the line, synchronous to `LaneClk` (the adapter synchronises it) |
 | `Phy_SerialNearLoopback`, `Phy_SerialFarLoopback` | out | Near-end and far-end serial loopback (LANE_CTRL bits 16 and 17) |
 | `Phy_BitSync` | in | Bit synchronisation of the clock and data recovery (LANE_STATUS bit 6, ECSS 5.4.2e); optional, `ofb_pa_gty` provides it as `Stat_Aligned` |
+| `Phy_PrbsTxSel`, `Phy_PrbsRxSel` | out | PRBS test: transmitted and checked pattern per lane (4 bits, LANE_PRBS_CTRL) |
+| `Phy_PrbsForceErr`, `Phy_PrbsCntReset` | out | PRBS test: single-cycle pulses, one error in the transmitted pattern, checker reset |
+| `Phy_PrbsErr`, `Phy_PrbsLocked` | in | PRBS test: received word with a bit error, checker locked (optional) |
 
 The adapter aligns the receive symbols to 10-bit symbol boundaries, decodes them, and passes them in `LaneClk`
 (receive clock correction with the SKIP words that the Lane layer sends, ECSS 5.5.3). The transmit side takes one word
@@ -138,7 +141,7 @@ per `LaneClk` cycle without gaps. For the AMD Versal GTY, `ofb_pa_gty` connects 
 
 ## 6. Programming sequence
 
-1. Release `Rst`. Read ID (0x0FB10005) and GENERICS.
+1. Release `Rst`. Read ID (0x0FB10006) and GENERICS.
 2. Optional configuration before the link start:
    - DL_CTRL bit 8 DataScrambled (set after reset), DL_BC_INTERVAL.
    - Per VC: VC_CFG (priority, continuous mode, virtual network number), VC_BANDWIDTH, VC_SLOTS_LO / HI.
@@ -161,6 +164,24 @@ per `LaneClk` cycle without gaps. For the AMD Versal GTY, `ofb_pa_gty` connects 
    Interface Reset (DL_CTRL bit 1) sets all configuration registers to their reset values.
 7. Stop: LANE_CTRL with LaneStart and AutoStart cleared sends STANDBY (with the Standby Reason of bits 15:8) and
    disables the lane.
+
+Bit error rate test of the electrical link (PRBS test, MG-5): the PRBS generator and checker of the transceiver
+replace the SpaceFibre traffic of a lane (8B/10B bypassed), so the link goes down while a pattern is sent.
+
+1. Far end or loopback: the far end sends the same pattern (or a QSFP loopback module, or the near-end serial
+   loopback of LANE_CTRL bit 16 for a self-test of the transceiver).
+2. LANE_PRBS_CTRL = 0x55 (PRBS-31 sent and checked; 0x11 for PRBS-7, closer to the run lengths of 8B/10B).
+3. LANE_PRBS_CTRL = 0x10055 (count reset: clears the counters and restarts the lock detection of the checker), then
+   wait for LANE_STATUS bit 7 (checker locked).
+4. Measurement time, then LANE_PRBS_CTRL = 0x155 (hold), read LANE_PRBS_ERRORS (E, words with at least one bit
+   error) and LANE_PRBS_WORDS (W, checked words / 65536), LANE_PRBS_CTRL = 0x55 to continue.
+5. Bit error rate: BER = E / (W x 65536 x 40) (40 line bits per word). Without errors the upper bound of the BER at
+   95 % confidence is 3 / (W x 65536 x 40): BER below 1e-12 needs 3e12 bits, about 8 minutes at 6.25 Gbit/s.
+6. LANE_PRBS_CTRL bit 17 inserts one error into the transmitted pattern (test of the measurement chain).
+7. LANE_PRBS_CTRL = 0 ends the test; LaneStart starts the link again.
+
+An errored word counts once, also when it holds several bit errors; at the bit error rates of interest (below 1e-9)
+the difference is negligible.
 
 EDAC: ECC_STATUS shows the uncorrectable errors per channel and corrected errors of any channel; ECC_SELECT and
 ECC_COUNT read the counters of one channel. ECC_INJECT injects a single or double bit error into the next word written

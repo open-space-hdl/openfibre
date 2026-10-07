@@ -34,7 +34,8 @@ the lane clock, synchronised with `olo_ft_sync`), so that no logic sits in front
 core. The echo needs no buffering: the output
 port of every VC (`M_Vc`) feeds the input port of the same VC (`S_Vc`), back-pressure included. The serial loopback
 enables of the core drive the adapter, and the comma alignment of the adapter (`Stat_Aligned`) is the bit
-synchronisation status of the core (`Phy_BitSync`, LANE_STATUS bit 6).
+synchronisation status of the core (`Phy_BitSync`, LANE_STATUS bit 6). The PRBS test signals of the core (`Phy_Prbs*`)
+connect to the PRBS generator and checker of the transceiver channels.
 
 ## 3. Constraints (`constr/ofb_vck190.xdc`)
 

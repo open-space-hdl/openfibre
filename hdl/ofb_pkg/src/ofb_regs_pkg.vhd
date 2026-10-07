@@ -25,7 +25,7 @@ package ofb_regs_pkg is
     -----------------------------------------------------------------------------------------------
     -- Identification
     -----------------------------------------------------------------------------------------------
-    constant RegMapId_c : std_logic_vector(31 downto 0) := x"0FB10005";
+    constant RegMapId_c : std_logic_vector(31 downto 0) := x"0FB10006";
 
     -----------------------------------------------------------------------------------------------
     -- Register addresses (byte addresses)
@@ -68,11 +68,17 @@ package ofb_regs_pkg is
     constant RegLaneEvents_c          : natural := 16#108#;
     constant RegLaneReasons_c         : natural := 16#10C#;
     constant RegLaneTimeoutCount_c    : natural := 16#110#;
+    constant RegLanePrbsCtrl_c        : natural := 16#114#;
+    constant RegLanePrbsErrors_c      : natural := 16#118#;
+    constant RegLanePrbsWords_c       : natural := 16#11C#;
     constant RegLaneCtrlOfs_c         : natural := 16#00#;
     constant RegLaneStatusOfs_c       : natural := 16#04#;
     constant RegLaneEventsOfs_c       : natural := 16#08#;
     constant RegLaneReasonsOfs_c      : natural := 16#0C#;
     constant RegLaneTimeoutCountOfs_c : natural := 16#10#;
+    constant RegLanePrbsCtrlOfs_c     : natural := 16#14#;
+    constant RegLanePrbsErrorsOfs_c   : natural := 16#18#;
+    constant RegLanePrbsWordsOfs_c    : natural := 16#1C#;
 
     -----------------------------------------------------------------------------------------------
     -- VC registers: address of instance n = Reg<Name>_c + n * RegVcStride_c
@@ -215,6 +221,7 @@ package ofb_regs_pkg is
     constant LaneStatusRxPolarity_c      : natural := 4;
     constant LaneStatusNoSignal_c        : natural := 5;
     constant LaneStatusBitSync_c         : natural := 6;
+    constant LaneStatusPrbsLocked_c      : natural := 7;
     constant LaneStatusRxerrCountLo_c    : natural := 8;
     constant LaneStatusRxerrCountHi_c    : natural := 15;
     constant LaneStatusFarCapabilityLo_c : natural := 16;
@@ -232,6 +239,20 @@ package ofb_regs_pkg is
 
     constant LaneTimeoutCountCountLo_c : natural := 0;
     constant LaneTimeoutCountCountHi_c : natural := 15;
+
+    constant LanePrbsCtrlTxPatternLo_c : natural := 0;
+    constant LanePrbsCtrlTxPatternHi_c : natural := 3;
+    constant LanePrbsCtrlRxPatternLo_c : natural := 4;
+    constant LanePrbsCtrlRxPatternHi_c : natural := 7;
+    constant LanePrbsCtrlHold_c        : natural := 8;
+    constant LanePrbsCtrlCountReset_c  : natural := 16;
+    constant LanePrbsCtrlForceError_c  : natural := 17;
+
+    constant LanePrbsErrorsCountLo_c : natural := 0;
+    constant LanePrbsErrorsCountHi_c : natural := 31;
+
+    constant LanePrbsWordsCountLo_c : natural := 0;
+    constant LanePrbsWordsCountHi_c : natural := 31;
 
     constant VcCfgPriorityLo_c : natural := 0;
     constant VcCfgPriorityHi_c : natural := 3;
@@ -269,6 +290,7 @@ package ofb_regs_pkg is
     constant RegLaneCtrlReset_c         : std_logic_vector(31 downto 0) := x"00000062";
     constant RegLaneEventsReset_c       : std_logic_vector(31 downto 0) := x"00000000";
     constant RegLaneTimeoutCountReset_c : std_logic_vector(31 downto 0) := x"00000000";
+    constant RegLanePrbsCtrlReset_c     : std_logic_vector(31 downto 0) := x"00000000";
     constant RegVcSlotsLoReset_c        : std_logic_vector(31 downto 0) := x"FFFFFFFF";
     constant RegVcSlotsHiReset_c        : std_logic_vector(31 downto 0) := x"FFFFFFFF";
 
