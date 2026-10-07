@@ -12,6 +12,7 @@ simulator (xsim) and runs the testbenches (default: all of TESTBENCHES). A testb
 and no line with "FAIL" or an error. The Vivado installation is taken from VIVADO_PATH (default D:/AMD/2025.2/Vivado).
 """
 
+import hashlib
 import os
 import re
 import shutil
@@ -138,11 +139,22 @@ def compile_vhdl(export, lib, files, log):
     run([tool("xvhdl"), "--2008", "--relax", "-work", lib] + files, export, log)
 
 
+def olo_stamp():
+    """Hash of the Open Logic sources compiled into olo (changes when the submodule moves)."""
+    h = hashlib.sha1()
+    for f in olo_files():
+        h.update(Path(f).read_bytes())
+    return h.hexdigest()
+
+
 def compile_all(export, entities):
     if not (export / ".ip_compiled").exists():
         run([tool("xvlog"), "--incr", "--relax", "-prj", "vlog.prj"], export, "compile_ip.log")
-        compile_vhdl(export, "olo", olo_files(), "compile_olo.log")
         (export / ".ip_compiled").touch()
+    stamp = export / ".olo_compiled"
+    if not stamp.exists() or stamp.read_text() != olo_stamp():
+        compile_vhdl(export, "olo", olo_files(), "compile_olo.log")
+        stamp.write_text(olo_stamp())
     files = module_files()
     for tb in sorted(set(entities)):
         found = sorted(ROOT.glob(f"hdl/*/tb/{tb}.vhd"))
