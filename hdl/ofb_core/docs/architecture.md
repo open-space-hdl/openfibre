@@ -8,7 +8,7 @@
  M_Vc_*, M_Bc_* <-- ofb_ni <-- ofb_dl <== ofb_core_cc <== ofb_multilane <-- ofb_lane <-- PhyRx_*
                                   ^            ^                ^              ^
                                   +------------+---- ofb_mib ---+--------------+      <-- AXI4-Lite, Irq
- Rst --> olo_base_reset_gen (one per clock domain)
+ Rst --> olo_ft_reset_gen (one per clock domain)
 ```
 
 ## 2. ofb_core_cc
@@ -24,8 +24,9 @@
 
 ## 3. Resets
 
-`olo_base_reset_gen` per domain synchronises the asynchronous `Rst` input; inside the domains all resets are
-synchronous and high-active.
+`olo_ft_reset_gen` per domain synchronises the asynchronous `Rst` input with three synchroniser chains and a
+majority voter, so that an upset does not reset a domain; inside the domains all resets are synchronous and
+high-active.
 
 ## 4. Open points
 

@@ -81,6 +81,8 @@ Per pulse bit a two-phase handshake (no latch, every path between the clock doma
 - `olo_ft_cc_reset` couples the resets: a reset of either side resets both; request, acknowledge and `Last` restart
   from 0, so a reset creates no output pulse.
 
-`olo_ft_cc_pulse` of Open Logic is not used: it is built from a set/reset latch per copy, which the FPGA tools map to
-a transparent latch whose gate and data both follow the input pulse, so the end of the pulse races the closing of the
-latch, and the path through the latch is not timed.
+`ofb_cc_pulse` differs from `olo_ft_cc_pulse` of Open Logic (a toggle crossing with the semantics of
+`olo_base_cc_pulse`) in the pending pulse: a second pulse during a transfer is kept and sent afterwards, where
+`olo_ft_cc_pulse` merges pulses closer than its minimum spacing. Earlier versions of `olo_ft_cc_pulse` were built
+from a set/reset latch per copy, which the FPGA tools map to a transparent latch whose gate and data both follow the
+input pulse.

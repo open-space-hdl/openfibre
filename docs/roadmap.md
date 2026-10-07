@@ -41,9 +41,6 @@ the state of every module; a module is done when its verification report is writ
 
 | Item | State |
 | --- | --- |
-| `olo_ft_cc_simple`, `olo_ft_cc_status`, `olo_ft_cc_handshake` (Open Logic fault-tolerant backlog) | Implemented in the backlog, not yet pushed; the status snapshots of the MIB use `olo_base_cc_status` (not hardened) until the submodule is repinned |
-| `olo_ft_cc_pulse` (Open Logic fault-tolerant backlog) | Built from latches whose gate and data both follow the input pulse; not used, `ofb_cc_pulse` is a latch-free handshake over `olo_ft_cc_bits` |
-| Reset synchronisation per clock domain | `olo_base_reset_gen` per domain (single synchroniser chain); the architecture names `olo_ft_cc_reset`, whose request chains are not triplicated either; Open Logic has no fault-tolerant reset synchroniser |
-| Asynchronous status signals of the transceivers (`ofb_pa_gty`, reference design) | `olo_intf_sync` (single synchroniser chain); `olo_ft_cc_bits` needs a source clock |
+| `olo_ft_cc_status`, `olo_ft_reset_gen`, `olo_ft_sync`, latch-free `olo_ft_cc_pulse` (Open Logic fault-tolerant backlog) | Done: on the backlog branch of the submodule; used for the status snapshots of the MIB, the reset synchronisation per domain and the asynchronous transceiver status |
 | Synthesis licence for the XCVC1902 | Open |
 | Lab set-up with STAR-Dundee equipment for the phase 2 exit criterion | Open |

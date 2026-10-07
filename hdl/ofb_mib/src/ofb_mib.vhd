@@ -734,7 +734,7 @@ begin
     CoreStatIn <= Dl_TimeSlot & Dl_BwUnder & Dl_BwOver & Dl_HasCredit & Dl_ErbEmpty & Dl_WordIdState & Dl_RxErrState &
                   Dl_LinkResetState;
 
-    i_core_stat : entity olo.olo_base_cc_status
+    i_core_stat : entity olo.olo_ft_cc_status
         generic map (
             Width_g => CoreStatW_c
         )
@@ -816,7 +816,7 @@ begin
             Out_Data => LaneCfgOut
         );
 
-    i_lane_stat : entity olo.olo_base_cc_status
+    i_lane_stat : entity olo.olo_ft_cc_status
         generic map (
             Width_g => LaneStatIn'length
         )
