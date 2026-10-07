@@ -270,9 +270,10 @@ architecture rtl of ofb_mib is
     signal QosValid   : std_logic;
     signal UserEv     : std_logic_vector(NumVc_g-1 downto 0);
 
-    function sat16 (cnt : unsigned(15 downto 0)) return unsigned is
+    -- Saturating increment, shared by all counters
+    function satInc (cnt : unsigned) return unsigned is
     begin
-        if cnt = x"FFFF" then
+        if cnt = (cnt'range => '1') then
             return cnt;
         end if;
         return cnt + 1;
@@ -353,29 +354,29 @@ begin
                 StatSettle <= StatSettle + 1;
             end if;
             if CoreEv(0) = '1' then
-                Crc16Cnt <= sat16(Crc16Cnt);
+                Crc16Cnt <= satInc(Crc16Cnt);
             end if;
             if CoreEv(1) = '1' then
-                Crc8Cnt <= sat16(Crc8Cnt);
+                Crc8Cnt <= satInc(Crc8Cnt);
             end if;
             if CoreEv(2) = '1' then
-                FrameCnt <= sat16(FrameCnt);
+                FrameCnt <= satInc(FrameCnt);
             end if;
             if CoreEv(3) = '1' then
-                SeqCnt <= sat16(SeqCnt);
+                SeqCnt <= satInc(SeqCnt);
             end if;
-            if CoreEv(4) = '1' and Retries /= x"FFFFFFFF" then
-                Retries <= Retries + 1;
+            if CoreEv(4) = '1' then
+                Retries <= satInc(Retries);
             end if;
 
             for i in 0 to NumLanes_g-1 loop
                 if LaneEv(4*i+1) = '1' then
-                    TimeoutCnt(i) <= sat16(TimeoutCnt(i));
+                    TimeoutCnt(i) <= satInc(TimeoutCnt(i));
                 end if;
             end loop;
 
             if LaneEv(4*NumLanes_g) = '1' then
-                MisalignCnt <= sat16(MisalignCnt);
+                MisalignCnt <= satInc(MisalignCnt);
             end if;
 
             -- Writes
@@ -659,7 +660,8 @@ begin
                             Data_v(8 downto 0) := PrbsCtrl(Lane_v);
                         elsif Reg_v = RegLanePrbsErrorsOfs_c then
                             Data_v := LaneStat(Base_v + 71 downto Base_v + 40);
-                        elsif Reg_v = RegLanePrbsWordsOfs_c then
+                        else
+                            -- LANE_PRBS_WORDS: every word of the lane stride is a register
                             Data_v := LaneStat(Base_v + 103 downto Base_v + 72);
                         end if;
                     end if;
@@ -846,11 +848,9 @@ begin
                     PrbsErrCnt(i)  <= (others => '0');
                     PrbsWordCnt(i) <= (others => '0');
                 elsif On_v then
-                    if PrbsWordCnt(i) /= (PrbsWordCnt(i)'range => '1') then
-                        PrbsWordCnt(i) <= PrbsWordCnt(i) + 1;
-                    end if;
-                    if Phy_PrbsErr(i) = '1' and PrbsErrCnt(i) /= x"FFFFFFFF" then
-                        PrbsErrCnt(i) <= PrbsErrCnt(i) + 1;
+                    PrbsWordCnt(i) <= satInc(PrbsWordCnt(i));
+                    if Phy_PrbsErr(i) = '1' then
+                        PrbsErrCnt(i) <= satInc(PrbsErrCnt(i));
                     end if;
                 end if;
             end loop;
