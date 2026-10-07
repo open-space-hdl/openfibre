@@ -6,8 +6,9 @@ It implements a SpaceFibre port according to
 [ECSS-E-ST-50-11C](https://ecss.nl/standard/ecss-e-st-50-11c-spacefibre-very-high-speed-serial-link/) (15 May 2019):
 Physical layer adaptation, Lane layer, Multi-Lane layer (1 to 4 lanes), Data Link layer with up to 32 virtual
 channels, quality of service, broadcast, scrambling and error recovery, the Network layer service interface and the
-Management Information Base. All RAMs and clock domain crossings use the fault-tolerant entities of
-[Open Logic](https://github.com/open-logic/open-logic) (SECDED ECC, TMR synchronisers).
+Management Information Base. All RAMs and the data, control and event crossings between the clock domains use the
+fault-tolerant entities of [Open Logic](https://github.com/open-logic/open-logic) (SECDED ECC, TMR synchronisers);
+the exceptions that remain are listed in the [roadmap](docs/roadmap.md).
 
 ## Status
 
