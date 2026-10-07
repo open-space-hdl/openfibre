@@ -54,7 +54,7 @@ short project directory (for example `C:/ofb`); the paths below are then relativ
 | Methodology and DRC | `report_methodology`, `report_drc` on the implemented design | No critical item about clock domain crossings or the transceivers |
 
 A timing violation in a crossing between `clk_pl_0`, `clk_pl_1` and the lane clock points to a missing clock pair
-constraint (section 3 of [architecture.md](architecture.md)). Expected warnings are listed in the verification
+constraint (section 4 of [architecture.md](architecture.md)). Expected warnings are listed in the verification
 report, section 3.
 
 ## 5. Board set-up
@@ -75,7 +75,31 @@ report, section 3.
 | Link start | The far end starts its lanes (LaneStart); the design starts with AutoStart |
 | Broadcast messages | Allowed on any channel |
 
-## 7. Tests
+## 7. Register access
+
+The MIB registers are reachable over JTAG through the master port M_AXI_FPD of the CIPS at 0xA400_0000 (register
+offset = address - 0xA400_0000, [register map](../../ofb_mib/docs/register_map.md)), without software on the
+board. The script `hdl/ofb_vck190/tcl/xsdb_mib.tcl` provides the access and the bit error rate test in XSDB (Vivado
+2025.2):
+
+```tcl
+xsdb% source hdl/ofb_vck190/tcl/xsdb_mib.tcl
+xsdb% mib_connect
+xsdb% mib_rd 0x000
+0x0FB10006
+xsdb% mib_rd 0x010
+xsdb% prbs_ber 0 31 480
+xsdb% prbs_off 0
+```
+
+`mib_connect` connects to the hardware server and selects the Versal device; the device image is programmed before
+(Vivado Hardware Manager or `device program <image>.pdi` in XSDB). `mib_rd <offset>` and `mib_wr <offset> <value>`
+read and write one register. `prbs_ber <lane> <pattern> <seconds>` runs the PRBS test of the user guide (section 6)
+on one lane: pattern sent and checked, count reset, lock, measurement, bit error rate (upper bound at 95 %
+confidence without error), then one forced error, which must be counted once. `prbs_off <lane>` ends the test; the
+link of the lane is down while the test runs.
+
+## 8. Tests
 
 | Test | Steps | Pass criterion |
 | --- | --- | --- |
@@ -86,12 +110,11 @@ report, section 3.
 | TC-VCK-HW-05 Link reset | Link reset at the far end, then traffic as in TC-VCK-HW-02 | LED 3 goes off and on again; traffic afterwards correct |
 | TC-VCK-HW-06 Lane failure | If the far end can disable a lane: disable lane 3 during traffic, enable it again | Traffic continues on three lanes without loss, the lane joins again |
 | TC-VCK-HW-07 Error recovery | If the far end can inject errors: bit errors or corrupted frames during traffic | Every packet comes back unchanged; the far end counts the retries |
-| TC-VCK-HW-08 Bit error rate | PRBS test of every lane (user guide, section 6): PRBS-31 and PRBS-7 sent and checked, with a QSFP loopback module, with the far end (same pattern) or in the near-end serial loopback; count reset, at least 8 minutes per lane, then one forced error | Checkers locked; no error (BER below 1e-12 at 95 % confidence); the forced error counted once |
+| TC-VCK-HW-08 Bit error rate | PRBS test of every lane with `prbs_ber` (section 7): PRBS-31 and PRBS-7 sent and checked, with a QSFP loopback module, with the far end (same pattern) or in the near-end serial loopback (LANE_CTRL bit 16); 480 s per lane and pattern | Checkers locked; no error (BER below 1e-12 at 95 % confidence); the forced error counted once |
+| TC-VCK-HW-09 Register access | After TC-VCK-HW-01: `mib_rd 0x000`, `mib_rd 0x010`, `mib_rd 0x040`; `mib_wr 0x044 0x1`, `mib_rd 0x044` | ID 0x0FB10006; DL_STATUS bits 1:0 = 11 (link initialised); ML_STATUS shows four data-sending and data-receiving lanes; IRQ_MASK reads back 0x1 |
 
-## 8. Limits of the reference design
+## 9. Limits of the reference design
 
-- The MIB is read only by the LED poller: status registers and counters are not visible on the board. Diagnosis uses
-  the LEDs and the statistics of the far end. TC-VCK-HW-08 needs write and read access to the MIB registers, which
-  the reference design does not provide yet.
+- Register access needs the JTAG cable and XSDB; the design has no software and no other host interface.
 - The design echoes what it receives. A far end that sends faster than it reads back sees back-pressure through the
   flow control of the link, not data loss.

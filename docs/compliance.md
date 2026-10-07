@@ -100,6 +100,6 @@ reference included).
 | `ofb_ni` | 7 | 7 | - |
 | `ofb_pa_gty` | 12 | 12 | - |
 | `ofb_pkg` | 11 | 11 | - |
-| `ofb_vck190` | 7 | 7 | - |
+| `ofb_vck190` | 8 | 8 | - |
 
-Requirements: 245; without a test case: 0; test cases of the plans not run by a testbench: 0.
+Requirements: 246; without a test case: 0; test cases of the plans not run by a testbench: 0.

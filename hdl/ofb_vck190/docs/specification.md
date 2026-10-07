@@ -17,6 +17,7 @@ four lanes and eight virtual channels on the QSFP1 cage. Received packets and br
 | VCK-LD-01 | The LEDs 0 to 3 shall show transmitter ready, receiver ready, all lanes aligned and link initialised (Data Link link reset state machine in its final state, read from the MIB). | none |
 | VCK-BD-01 | A Vivado script shall create the project with the transceiver wizard instance, the sources and the constraints, and run synthesis, implementation and the device image. | none |
 | VCK-BD-02 | The design shall contain the control, interfaces and processing system (CIPS) of the Versal device, whose platform management controller configures the device (JTAG boot) and whose clock generator drives the clocks of the programmable logic; simulations run with clock models instead. | none (device boot) |
+| VCK-MG-01 | The registers of the MIB shall be readable and writable from the master port M_AXI_FPD of the CIPS at 0xA400_0000 to 0xA400_0FFF (access over JTAG with XSDB, no software on the board), next to the LED poller. | none (test access, bit error rate test) |
 
 ## 3. Configuration parameters
 
