@@ -32,7 +32,7 @@ Closure rules:
 
 ## 2. Result
 
-Run on 2026-10-07: 205 tests, all passed, 51 minutes with one simulator licence. Numbers are covered/total bins per
+Run on 2026-10-07: 209 tests, all passed, 51 minutes with one simulator licence. Numbers are covered/total bins per
 file; bold marks a metric with misses.
 
 | File | Statements | Branches | FSM States | FSM Transitions | Conditions | Expressions |
@@ -59,7 +59,7 @@ file; bold marks a metric with misses.
 | `ofb_lane/src/ofb_lane_loopback.vhd` | 17/17 | 6/6 |  |  |  |  |
 | `ofb_lane/src/ofb_lane_rx.vhd` | 186/186 | 73/73 |  |  | **16/18** | 6/6 |
 | `ofb_lane/src/ofb_lane_tx.vhd` | 56/56 | 24/24 |  |  | 2/2 |  |
-| `ofb_mib/src/ofb_mib.vhd` | 242/242 | 123/123 |  |  | **27/32** | **5/10** |
+| `ofb_mib/src/ofb_mib.vhd` | 268/268 | 134/134 |  |  | **26/30** | **7/12** |
 | `ofb_multilane/src/ofb_ml_align.vhd` | 181/181 | **111/112** | 3/3 | 6/6 | **39/42** | 2/2 |
 | `ofb_multilane/src/ofb_ml_col_dec.vhd` | 45/45 | 19/19 |  |  | 3/3 |  |
 | `ofb_multilane/src/ofb_ml_col_enc.vhd` | 55/55 | 23/23 |  |  | 4/4 | **4/5** |
@@ -72,7 +72,7 @@ file; bold marks a metric with misses.
 | `ofb_ni/src/ofb_ni_vc.vhd` | 55/55 | 31/31 |  |  | **16/20** | 2/2 |
 | `ofb_pkg/src/ofb_cc_pulse.vhd` | 19/19 | 8/8 |  |  |  |  |
 | `ofb_pkg/src/ofb_pkg.vhd` | 55/55 | 10/10 |  |  | **1/2** |  |
-| Total | 2511/2513 (99.9 %) | 1268/1275 (99.5 %) | 29/29 (100.0 %) | 62/62 (100.0 %) | 400/454 (88.1 %) | 156/215 (72.6 %) |
+| Total | 2537/2539 (99.9 %) | 1279/1286 (99.5 %) | 29/29 (100.0 %) | 62/62 (100.0 %) | 399/452 (88.3 %) | 158/217 (72.8 %) |
 
 ## 3. Gaps found and closed
 
@@ -102,6 +102,15 @@ had reached only by their timing were no longer covered. Deterministic tests rep
 | --- | --- |
 | Broadcast message that waits while no lane is active, sent with the LATE flag (DL-BO-03) | TC-DL-06 (extended: messages submitted while the lanes of both ends are not active) |
 | Input VC buffer: DED in a beat that ends its packet (nothing to discard), and a rest of several beats discarded after a DED | TC-CORE-14 (extended: two errors injected with no traffic in flight, into an early word of a 1024-byte packet and into a packet of one word) |
+
+The PRBS test registers of the MIB (MG-5) added two branches that no test can reach: the saturation of the 48-bit
+word counter (2^48 words) and the read of an undefined lane register (every word of the lane stride is now a
+register). The design closes both:
+
+| Gap | Change |
+| --- | --- |
+| Saturation of the PRBS counters (32 and 48 bits) | One saturating increment for all counters of the MIB (`satInc`), covered by TC-MG-09 |
+| Read decode of the lane registers: no undefined offset left | Last branch of the decode is the PRBS word counter (as in the VC decode); TC-MG-08 reads and writes the registers of a lane beyond `NumLanes_g` instead |
 
 ## 4. Remaining misses
 

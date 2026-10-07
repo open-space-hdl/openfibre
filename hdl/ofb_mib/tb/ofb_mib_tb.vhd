@@ -491,7 +491,7 @@ begin
             -- TC-MG-08: the remaining counters and flags: CRC-8, frame and sequence counters, credit
             -- overflow, bandwidth and lane event flags; a write clears a counter, W1C clears only the
             -- written bits; idle limit and time-slots 32 to 63 written, read back and forwarded;
-            -- undefined lane registers read as zero; interrupt of the SEC flag
+            -- registers of a lane beyond NumLanes_g read as zero and ignore writes; interrupt of the SEC flag
             elsif run("test_register_access") then
                 coreEvent(1);
                 coreEvent(2);
@@ -526,8 +526,10 @@ begin
                 chk(16#108#, x"0000000D", "Lane events");
                 wr(16#104#, x"FFFFFFFF");
                 chk(16#104#, x"00000000", "LANE_STATUS is read only");
-                chk(16#114#, x"00000000", "Undefined lane register");
-                chk(16#11C#, x"00000000", "Undefined lane register");
+                wr(16#120#, x"00000063");
+                wr(16#134#, x"00000055");
+                chk(16#120#, x"00000000", "LANE_CTRL of a lane beyond NumLanes_g");
+                chk(16#134#, x"00000000", "LANE_PRBS_CTRL of a lane beyond NumLanes_g");
                 -- A write clears a counter
                 wr(16#018#, x"00000000");
                 wr(16#01C#, x"00000000");
