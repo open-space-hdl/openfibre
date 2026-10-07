@@ -25,6 +25,7 @@ UVVM in xsim is limited; the runner evaluates the log.
 | --- | --- | --- |
 | TC-PA-01 (`ofb_pa_gty_tb`) | Reset sequence: transmitter and receiver ready, `LaneClk` running; every lane aligned; 300 data words per lane received in order with K flags clear, IDLE and SKIP words with the K flag of symbol 0, no code or disparity error, no other lane's words | PA-IF-01, PA-SE-01, PA-SE-02, PA-SY-01, PA-CK-01, PA-RS-01, PA-ST-01 |
 | TC-PA-04 (`ofb_pa_gty_tb`) | After TC-PA-01: external loopback removed (static lines), near-end serial loopback on every lane: 300 more data words per lane received in order without error | PA-LB-01 |
+| TC-PA-06 (`ofb_pa_gty_tb`) | After TC-PA-04, external loopback again: PRBS-31 generator and checker of every channel: all checkers locked after the checker reset, no error during 5 us; the line of one lane inverted for 1 ns (about six bits): errors on that lane only, checker still locked, no error afterwards; a PRBS-7 checker on the PRBS-31 pattern detects errors | PA-PR-01 |
 | TC-PA-05 (`ofb_pa_gty_cc_tb`, run `far`) | Both reference clocks at 156.25 MHz: words in order at both ends, then far-end serial loopback on every lane of B: A receives its own words, 3000 data words per lane in order without error | PA-LB-01 |
 | TC-PA-03 (`ofb_pa_gty_cc_tb`, run `cc`) | At least 4 clock corrections at each end (SKIP words inserted at A, removed at B), no receive buffer error, 3000 data words per lane and end received in order without loss or repetition | PA-CC-01, PA-ST-01 |
 | TC-PA-02 (`ofb_pa_gty_core_tb`) | LaneStart at A, AutoStart at B: lane initialisation through the transceivers (ClearLine with electrical idle and CDR hold, polarity control), alignment of the four lanes, link initialised at both ends; a first burst of 12 packets per VC (1 to 40 words) and 4 broadcast messages in both directions; clock corrections at both ends (SKIP words inserted at one end, removed at the other); a second burst of 12 packets per VC; all delivered in order, no error flag in DL_ERRORS, no retry | PA-IF-01 to 03, PA-CC-01, PA-SE-01, PA-SE-02, PA-SY-01, CORE-SY-01, CORE-SY-02 |
@@ -34,3 +35,8 @@ UVVM in xsim is limited; the runner evaluates the log.
 PA-IF-02 and PA-IF-03 are exercised by the lane initialisation of TC-PA-02 (the Lane layer drives line driver, line
 receiver and CDR enable in ClearLine and uses NoSignal in Wait). A lane failure over the transceiver model is not
 simulated: the behavioural model covers it in the core testbench (TC-CORE-07).
+
+The transceiver model does not insert the forced error of the PRBS generator (`TXPRBSFORCEERR`): TC-PA-06 tests the
+error detection of the checker with bit errors on the line instead. The path of the forced error from the register to
+the adapter port is tested in the core testbench (TC-CORE-18) and the forced error itself on the hardware
+(TC-VCK-HW-08).

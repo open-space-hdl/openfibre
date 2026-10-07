@@ -19,7 +19,8 @@ earlier run hung with a PLL divider error of the far-end transceiver model at ti
 (model not deterministic, see the report of `ofb_pa_gty`). Rerun with the clock models of the CIPS (100 MHz
 management clock, 150 MHz user clock): transceivers ready after 64.9 us, link initialised after 94.8 us, 6 packets on
 each VC and 4 broadcast messages back, no error, LEDs 0 to 3 on (pass, after the reset fix of the register stages,
-Data Link report).
+Data Link report). Rerun with the PRBS test ports of the core connected to the transceivers: transceivers ready after
+64.9 us, link initialised after 94.8 us, all packets and broadcast messages back, no error, LEDs 0 to 3 on (pass).
 
 TC-VCK-02: `vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl -tclargs project`, then `synth_design -rtl`:
 the design elaborates without errors. The remaining warnings are unconnected ports of generic entities (unused bits
@@ -57,6 +58,7 @@ Procedure: [hardware_test.md](hardware_test.md).
 | --- | --- | --- |
 | Build of d8d08ab (timing, resources) | Fail (timing) | Device image generated; WNS -2.673 ns (6130 endpoints, lane clock), WHS +0.009 ns; findings fixed (section 2), rebuild open |
 | TC-VCK-HW-01 to 07 | Open | |
+| TC-VCK-HW-08 | Open | Needs register access to the MIB on the board (section 8 of the procedure) |
 
 Resources of the build of d8d08ab (XCVC1902, whole design, eight VCs, four lanes): 43852 LUT (3505 as memory),
 32239 registers, 37 RAMB36 and 10 RAMB18 (42 block RAM tiles), 8 DSP, no URAM.

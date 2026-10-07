@@ -97,6 +97,13 @@ entity ofb_mib is
         Lane_StandbyReason     : out   std_logic_vector(8*NumLanes_g-1 downto 0);
         Phy_SerialNearLoopback : out   std_logic_vector(NumLanes_g-1 downto 0);
         Phy_SerialFarLoopback  : out   std_logic_vector(NumLanes_g-1 downto 0);
+        -- PRBS test of the Physical adapters: patterns (0: off), single-cycle commands, checker status
+        Phy_PrbsTxSel          : out   std_logic_vector(4*NumLanes_g-1 downto 0);
+        Phy_PrbsRxSel          : out   std_logic_vector(4*NumLanes_g-1 downto 0);
+        Phy_PrbsForceErr       : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_PrbsCntReset       : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_PrbsErr            : in    std_logic_vector(NumLanes_g-1 downto 0)      := (others => '0');
+        Phy_PrbsLocked         : in    std_logic_vector(NumLanes_g-1 downto 0)      := (others => '0');
         Lane_State             : in    std_logic_vector(4*NumLanes_g-1 downto 0);
         Lane_RxPolarity        : in    std_logic_vector(NumLanes_g-1 downto 0);
         Lane_NoSignal          : in    std_logic_vector(NumLanes_g-1 downto 0);
@@ -144,16 +151,22 @@ architecture rtl of ofb_mib is
     constant Ch_c : positive := EccChannels_c;
 
     -- Widths of the crossing vectors
-    constant CoreCfgW_c  : positive := 20;
-    constant CoreStatW_c : positive := 8 + 3 * NumVc_g + 6;
-    constant CoreEvW_c   : positive := 8 + 2 * NumVc_g;
-    constant LaneCfgW_c  : positive := 17;
-    constant LaneStatW_c : positive := 39;
+    constant CoreCfgW_c   : positive := 20;
+    constant CoreStatW_c  : positive := 8 + 3 * NumVc_g + 6;
+    constant CoreEvW_c    : positive := 8 + 2 * NumVc_g;
+    constant LaneCfgW_c   : positive := 26;
+    constant LaneStatW_c  : positive := 104;
+    -- PRBS test: configuration bits of a lane (TX pattern, RX pattern, hold) and word counter width
+    constant PrbsCfgW_c   : positive := 9;
+    constant PrbsWordsW_c : positive := 48;
 
     type Cnt16Array_t is array (0 to NumLanes_g-1) of unsigned(15 downto 0);
     type Slv32Array_t is array (0 to NumVc_g-1) of std_logic_vector(31 downto 0);
     type Slv16Array_t is array (0 to NumVc_g-1) of std_logic_vector(15 downto 0);
-    type LaneCtrlArray_t is array (0 to NumLanes_g-1) of std_logic_vector(LaneCfgW_c-1 downto 0);
+    type LaneCtrlArray_t is array (0 to NumLanes_g-1) of std_logic_vector(LaneCfgW_c-PrbsCfgW_c-1 downto 0);
+    type PrbsCtrlArray_t is array (0 to NumLanes_g-1) of std_logic_vector(PrbsCfgW_c-1 downto 0);
+    type PrbsErrArray_t is array (0 to NumLanes_g-1) of unsigned(31 downto 0);
+    type PrbsWordsArray_t is array (0 to NumLanes_g-1) of unsigned(PrbsWordsW_c-1 downto 0);
 
     -- Register bus
     signal RbAddr    : std_logic_vector(11 downto 0);
@@ -167,6 +180,8 @@ architecture rtl of ofb_mib is
     signal DataScrambled : std_logic;
     signal BcInterval    : std_logic_vector(15 downto 0);
     signal LaneCtrl      : LaneCtrlArray_t;
+    signal PrbsCtrl      : PrbsCtrlArray_t;
+    signal PrbsCmd       : std_logic_vector(2*NumLanes_g-1 downto 0); -- Count reset, force error per lane
     signal MlMax         : std_logic_vector(2 downto 0);
     signal MlBypass      : std_logic;
     signal IrqMask       : std_logic_vector(31 downto 0);
@@ -214,6 +229,11 @@ architecture rtl of ofb_mib is
     signal LaneEv     : std_logic_vector(4*NumLanes_g+1 downto 0);
     signal MlCfgIn    : std_logic_vector(3 downto 0);
     signal MlCfgOut   : std_logic_vector(3 downto 0);
+    signal PrbsCmdOut : std_logic_vector(2*NumLanes_g-1 downto 0);
+
+    -- PRBS test counters (lane clock domain)
+    signal PrbsErrCnt  : PrbsErrArray_t   := (others => (others => '0'));
+    signal PrbsWordCnt : PrbsWordsArray_t := (others => (others => '0'));
 
     -- EDAC monitor
     type ChDomain_t is (DomUser, DomCore, DomLane, DomMgmt);
@@ -309,6 +329,7 @@ begin
         if rising_edge(Clk) then
             CmdLinkReset <= '0';
             CmdIfReset   <= '0';
+            PrbsCmd      <= (others => '0');
             Addr_v       := to_integer(unsigned(RbAddr));
             Lane_v       := (Addr_v / RegLaneStride_c) - (RegLaneBase_c / RegLaneStride_c);
             Reg_v        := Addr_v mod RegLaneStride_c;
@@ -429,6 +450,10 @@ begin
                                                                           not RbWrData(3 downto 0);
                             elsif Reg_v = RegLaneTimeoutCountOfs_c then
                                 TimeoutCnt(Lane_v) <= (others => '0');
+                            elsif Reg_v = RegLanePrbsCtrlOfs_c then
+                                PrbsCtrl(Lane_v)      <= RbWrData(8 downto 0);
+                                PrbsCmd(2*Lane_v)     <= RbWrData(LanePrbsCtrlCountReset_c);
+                                PrbsCmd(2*Lane_v + 1) <= RbWrData(LanePrbsCtrlForceError_c);
                             end if;
                         end if;
                 end case;
@@ -477,6 +502,7 @@ begin
                 end loop;
 
                 LaneCtrl <= (others => (others => '0'));
+                PrbsCtrl <= (others => (others => '0'));
                 MlMax    <= std_logic_vector(to_unsigned(NumLanes_g, 3));
                 MlBypass <= '0';
 
@@ -491,6 +517,7 @@ begin
             if Rst = '1' then
                 CmdLinkReset <= '0';
                 CmdIfReset   <= '0';
+                PrbsCmd      <= (others => '0');
                 IrqMask      <= (others => '0');
                 DlErrors     <= (others => '0');
                 VcInOvf      <= (others => '0');
@@ -619,6 +646,7 @@ begin
                         elsif Reg_v = RegLaneStatusOfs_c then
                             Data_v(5 downto 0)   := LaneStat(Base_v + 5 downto Base_v);
                             Data_v(6)            := LaneStat(Base_v + 38);
+                            Data_v(7)            := LaneStat(Base_v + 39);
                             Data_v(15 downto 8)  := LaneStat(Base_v + 13 downto Base_v + 6);
                             Data_v(23 downto 16) := LaneStat(Base_v + 21 downto Base_v + 14);
                         elsif Reg_v = RegLaneEventsOfs_c then
@@ -627,6 +655,12 @@ begin
                             Data_v(15 downto 0) := LaneStat(Base_v + 37 downto Base_v + 22);
                         elsif Reg_v = RegLaneTimeoutCountOfs_c then
                             Data_v(15 downto 0) := std_logic_vector(TimeoutCnt(Lane_v));
+                        elsif Reg_v = RegLanePrbsCtrlOfs_c then
+                            Data_v(8 downto 0) := PrbsCtrl(Lane_v);
+                        elsif Reg_v = RegLanePrbsErrorsOfs_c then
+                            Data_v := LaneStat(Base_v + 71 downto Base_v + 40);
+                        elsif Reg_v = RegLanePrbsWordsOfs_c then
+                            Data_v := LaneStat(Base_v + 103 downto Base_v + 72);
                         end if;
                     end if;
             end case;
@@ -767,7 +801,7 @@ begin
     -- Lane clock domain
     -----------------------------------------------------------------------------------------------
     g_lane_cfg : for i in 0 to NumLanes_g-1 generate
-        LaneCfgIn(LaneCfgW_c*i+LaneCfgW_c-1 downto LaneCfgW_c*i) <= LaneCtrl(i);
+        LaneCfgIn(LaneCfgW_c*i+LaneCfgW_c-1 downto LaneCfgW_c*i) <= PrbsCtrl(i) & LaneCtrl(i);
         Lane_Start(i)                                            <= LaneCfgOut(LaneCfgW_c*i);
         Lane_AutoStart(i)                                        <= LaneCfgOut(LaneCfgW_c*i+1);
         Lane_Reset(i)                                            <= LaneCfgOut(LaneCfgW_c*i+2);
@@ -778,8 +812,57 @@ begin
         Ml_RxEn(i)                                               <= LaneCfgOut(LaneCfgW_c*i+14);
         Phy_SerialNearLoopback(i)                                <= LaneCfgOut(LaneCfgW_c*i+15);
         Phy_SerialFarLoopback(i)                                 <= LaneCfgOut(LaneCfgW_c*i+16);
+        Phy_PrbsTxSel(4*i+3 downto 4*i)                          <= LaneCfgOut(LaneCfgW_c*i+20 downto LaneCfgW_c*i+17);
+        Phy_PrbsRxSel(4*i+3 downto 4*i)                          <= LaneCfgOut(LaneCfgW_c*i+24 downto LaneCfgW_c*i+21);
 
     end generate;
+
+    -- PRBS test commands: count reset and force error per lane
+    i_prbs_cmd : entity work.ofb_cc_pulse
+        generic map (
+            NumPulses_g => 2 * NumLanes_g
+        )
+        port map (
+            In_Clk    => Clk,
+            In_Rst    => Rst,
+            In_Pulse  => PrbsCmd,
+            Out_Clk   => LaneClk,
+            Out_Rst   => LaneRst,
+            Out_Pulse => PrbsCmdOut
+        );
+
+    -- PRBS test counters: checked words and words with errors while the checker is on and not held
+    p_prbs : process (LaneClk) is
+        variable On_v : boolean;
+    begin
+        if rising_edge(LaneClk) then
+
+            for i in 0 to NumLanes_g-1 loop
+                On_v                := LaneCfgOut(LaneCfgW_c*i+24 downto LaneCfgW_c*i+21) /= "0000" and
+                                       LaneCfgOut(LaneCfgW_c*i+25) = '0';
+                Phy_PrbsCntReset(i) <= PrbsCmdOut(2*i);
+                Phy_PrbsForceErr(i) <= PrbsCmdOut(2*i+1);
+                if PrbsCmdOut(2*i) = '1' then
+                    PrbsErrCnt(i)  <= (others => '0');
+                    PrbsWordCnt(i) <= (others => '0');
+                elsif On_v then
+                    if PrbsWordCnt(i) /= (PrbsWordCnt(i)'range => '1') then
+                        PrbsWordCnt(i) <= PrbsWordCnt(i) + 1;
+                    end if;
+                    if Phy_PrbsErr(i) = '1' and PrbsErrCnt(i) /= x"FFFFFFFF" then
+                        PrbsErrCnt(i) <= PrbsErrCnt(i) + 1;
+                    end if;
+                end if;
+            end loop;
+
+            if LaneRst = '1' then
+                PrbsErrCnt       <= (others => (others => '0'));
+                PrbsWordCnt      <= (others => (others => '0'));
+                Phy_PrbsCntReset <= (others => '0');
+                Phy_PrbsForceErr <= (others => '0');
+            end if;
+        end if;
+    end process;
 
     p_lane_vec : process (all) is
         variable Stat_v : std_logic_vector(LaneStatW_c-1 downto 0);
@@ -787,7 +870,9 @@ begin
     begin
 
         for i in 0 to NumLanes_g-1 loop
-            Stat_v := Phy_BitSync(i) & Lane_FarLostReason(8*i+7 downto 8*i) & Lane_FarStandbyReason(8*i+7 downto 8*i) &
+            Stat_v := std_logic_vector(PrbsWordCnt(i)(PrbsWordsW_c-1 downto 16)) & std_logic_vector(PrbsErrCnt(i)) &
+                      Phy_PrbsLocked(i) &
+                      Phy_BitSync(i) & Lane_FarLostReason(8*i+7 downto 8*i) & Lane_FarStandbyReason(8*i+7 downto 8*i) &
                       Lane_FarCapability(8*i+7 downto 8*i) & Lane_RxErrCount(8*i+7 downto 8*i) &
                       Lane_NoSignal(i) & Lane_RxPolarity(i) & Lane_State(4*i+3 downto 4*i);
 

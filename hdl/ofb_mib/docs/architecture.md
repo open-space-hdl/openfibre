@@ -37,7 +37,17 @@ fixed reset value of the description back from the register file.
 Unused addresses read as zero. Writes to VC_IDLE_LIMIT and to the VC block are forwarded to the Data Link layer through
 an `olo_ft_fifo_async` (address and data); the MIB keeps a copy for reading.
 
-## 4. EDAC monitor (MG-3)
+## 4. PRBS test (MG-5)
+
+LANE_PRBS_CTRL holds the patterns and the hold bit of a lane (configuration, crossing with the lane configuration in
+`olo_ft_cc_bits`); its count reset and force error bits are commands (`ofb_cc_pulse` to the lane clock, one pulse to
+the Physical adapter each). In the lane clock domain a 48-bit counter counts the cycles while the checker is on and
+not held, a 32-bit counter the cycles with a checker error; both saturate and are cleared by the count reset. The
+error counter, bits 47:16 of the word counter and the lock status cross with the lane status (`olo_ft_cc_status`, a
+consistent snapshot); with the hold bit set the two counters can be read without a change in between. The Link Reset
+command does not clear the PRBS counters (they belong to a test, not to the link status).
+
+## 5. EDAC monitor (MG-3)
 
 The EDAC channels are defined in `ofb_pkg` (`EccCh*_c`, 9 channels). Every module with fault-tolerant buffers reports
 for each channel a SEC and a DED pulse per word read with an error, in the clock domain of the read side, and takes

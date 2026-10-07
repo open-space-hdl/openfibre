@@ -73,23 +73,30 @@ architecture struct of ofb_vck190_top is
     signal CoreRst     : std_logic := '1';
 
     -- Physical adapter interface
-    signal PhyTxData : std_logic_vector(32*Lanes_c-1 downto 0);
-    signal PhyTxK    : std_logic_vector(4*Lanes_c-1 downto 0);
-    signal PhyRxData : std_logic_vector(32*Lanes_c-1 downto 0);
-    signal PhyRxK    : std_logic_vector(4*Lanes_c-1 downto 0);
-    signal PhyRxCode : std_logic_vector(4*Lanes_c-1 downto 0);
-    signal PhyRxDisp : std_logic_vector(4*Lanes_c-1 downto 0);
-    signal PhyRxVld  : std_logic_vector(Lanes_c-1 downto 0);
-    signal TxEnable  : std_logic_vector(Lanes_c-1 downto 0);
-    signal RxEnable  : std_logic_vector(Lanes_c-1 downto 0);
-    signal CdrEnable : std_logic_vector(Lanes_c-1 downto 0);
-    signal RxInvert  : std_logic_vector(Lanes_c-1 downto 0);
-    signal NoSignal  : std_logic_vector(Lanes_c-1 downto 0);
-    signal SerNearLb : std_logic_vector(Lanes_c-1 downto 0);
-    signal SerFarLb  : std_logic_vector(Lanes_c-1 downto 0);
-    signal TxReady   : std_logic;
-    signal RxReady   : std_logic;
-    signal Aligned   : std_logic_vector(Lanes_c-1 downto 0);
+    signal PhyTxData  : std_logic_vector(32*Lanes_c-1 downto 0);
+    signal PhyTxK     : std_logic_vector(4*Lanes_c-1 downto 0);
+    signal PhyRxData  : std_logic_vector(32*Lanes_c-1 downto 0);
+    signal PhyRxK     : std_logic_vector(4*Lanes_c-1 downto 0);
+    signal PhyRxCode  : std_logic_vector(4*Lanes_c-1 downto 0);
+    signal PhyRxDisp  : std_logic_vector(4*Lanes_c-1 downto 0);
+    signal PhyRxVld   : std_logic_vector(Lanes_c-1 downto 0);
+    signal TxEnable   : std_logic_vector(Lanes_c-1 downto 0);
+    signal RxEnable   : std_logic_vector(Lanes_c-1 downto 0);
+    signal CdrEnable  : std_logic_vector(Lanes_c-1 downto 0);
+    signal RxInvert   : std_logic_vector(Lanes_c-1 downto 0);
+    signal NoSignal   : std_logic_vector(Lanes_c-1 downto 0);
+    signal SerNearLb  : std_logic_vector(Lanes_c-1 downto 0);
+    signal SerFarLb   : std_logic_vector(Lanes_c-1 downto 0);
+    -- PRBS test of the transceivers (MIB registers LANE_PRBS_*)
+    signal PrbsTxSel  : std_logic_vector(4*Lanes_c-1 downto 0);
+    signal PrbsRxSel  : std_logic_vector(4*Lanes_c-1 downto 0);
+    signal PrbsForce  : std_logic_vector(Lanes_c-1 downto 0);
+    signal PrbsCntRst : std_logic_vector(Lanes_c-1 downto 0);
+    signal PrbsErr    : std_logic_vector(Lanes_c-1 downto 0);
+    signal PrbsLocked : std_logic_vector(Lanes_c-1 downto 0);
+    signal TxReady    : std_logic;
+    signal RxReady    : std_logic;
+    signal Aligned    : std_logic_vector(Lanes_c-1 downto 0);
 
     -- Echo of the virtual channels and broadcast messages
     signal VcData  : std_logic_vector(32*Lanes_c*NumVc_g-1 downto 0);
@@ -209,7 +216,13 @@ begin
             Stat_RxBufErr          => open,
             Stat_ClkCor            => open,
             Phy_SerialNearLoopback => SerNearLb,
-            Phy_SerialFarLoopback  => SerFarLb
+            Phy_SerialFarLoopback  => SerFarLb,
+            Phy_PrbsTxSel          => PrbsTxSel,
+            Phy_PrbsRxSel          => PrbsRxSel,
+            Phy_PrbsForceErr       => PrbsForce,
+            Phy_PrbsCntReset       => PrbsCntRst,
+            Phy_PrbsErr            => PrbsErr,
+            Phy_PrbsLocked         => PrbsLocked
         );
 
     -- Reset of the core: power-on reset or transceivers not ready, from a register (no logic in front of the
@@ -290,6 +303,12 @@ begin
             Phy_NoSignal           => NoSignal,
             Phy_SerialNearLoopback => SerNearLb,
             Phy_SerialFarLoopback  => SerFarLb,
+            Phy_PrbsTxSel          => PrbsTxSel,
+            Phy_PrbsRxSel          => PrbsRxSel,
+            Phy_PrbsForceErr       => PrbsForce,
+            Phy_PrbsCntReset       => PrbsCntRst,
+            Phy_PrbsErr            => PrbsErr,
+            Phy_PrbsLocked         => PrbsLocked,
             Phy_BitSync            => Aligned
         );
 

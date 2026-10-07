@@ -49,12 +49,13 @@ proc ofb_gtw_lr0 {refclk_mhz} {
 }
 
 # Optional ports of every channel: 8B/10B control and status, polarity, CDR hold, electrical idle,
-# alignment and buffer status
+# alignment and buffer status, PRBS generator and checker (bit error rate test)
 proc ofb_gtw_ports {} {
     return {ch_txctrl0 ch_txctrl1 ch_txctrl2 ch_rxctrl0 ch_rxctrl1 ch_rxctrl2 ch_rxctrl3
             ch_txpolarity ch_rxpolarity ch_rxcdrhold ch_txelecidle ch_rxelecidle
             ch_rxbyteisaligned ch_rxbyterealign ch_rxbufstatus ch_txbufstatus ch_rxclkcorcnt
-            ch_rxresetdone ch_txresetdone}
+            ch_rxresetdone ch_txresetdone
+            ch_txprbssel ch_txprbsforceerr ch_rxprbssel ch_rxprbscntreset ch_rxprbserr ch_rxprbslocked}
 }
 
 proc ofb_gtw_create {name refclk_mhz} {

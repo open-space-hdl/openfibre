@@ -31,6 +31,7 @@ target-specific part of OpenFibre; it is not part of the GHDL regression (sectio
 | PA-CK-01 | `LaneClk` shall be the transmit user clock of the quad (156.25 MHz from a 156.25 MHz reference clock), common to all lanes; all transmitters and receivers use it. | 5.6.2 (note), 5.4.2.3a |
 | PA-RS-01 | The asynchronous reset shall start the reset sequence of the transceiver; `LaneRst` shall be high until the transmitters are ready, the received words invalid until the receivers are ready. | none (implementation) |
 | PA-ST-01 | The adapter shall report transmitter ready, receiver ready, comma alignment per lane, receive buffer errors per lane and a pulse per clock correction of a receive elastic buffer. | 5.4.2e |
+| PA-PR-01 | For the bit error rate test of the electrical link, the PRBS generator and the PRBS checker of every transceiver channel shall be selectable per lane (`LaneClk`, 4 bits, transceiver encoding: 0 off, 1 PRBS-7, 2 PRBS-9, 3 PRBS-15, 4 PRBS-23, 5 PRBS-31); they bypass the 8B/10B codec. A single-cycle pulse shall insert one error into the transmitted pattern, another one reset the checker; the checker shall report per `LaneClk` cycle whether the received word contains a bit error, and its lock to the pattern. | none (test function) |
 
 ## 3. Configuration parameters
 

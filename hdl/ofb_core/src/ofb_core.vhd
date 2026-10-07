@@ -103,7 +103,15 @@ entity ofb_core is
         Phy_BitSync            : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
         -- Serial loopbacks of the Physical layer (MIB, LaneClk)
         Phy_SerialNearLoopback : out   std_logic_vector(NumLanes_g-1 downto 0);
-        Phy_SerialFarLoopback  : out   std_logic_vector(NumLanes_g-1 downto 0)
+        Phy_SerialFarLoopback  : out   std_logic_vector(NumLanes_g-1 downto 0);
+        -- PRBS test of the Physical adapters (MIB, LaneClk): transmitted and checked pattern per lane
+        -- (4 bits, 0: off), single-cycle force error and checker reset, checker error per word and lock
+        Phy_PrbsTxSel          : out   std_logic_vector(4*NumLanes_g-1 downto 0);
+        Phy_PrbsRxSel          : out   std_logic_vector(4*NumLanes_g-1 downto 0);
+        Phy_PrbsForceErr       : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_PrbsCntReset       : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_PrbsErr            : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+        Phy_PrbsLocked         : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0')
     );
 end entity;
 
@@ -690,6 +698,12 @@ begin
             Lane_StandbyReason     => CfgReason,
             Phy_SerialNearLoopback => Phy_SerialNearLoopback,
             Phy_SerialFarLoopback  => Phy_SerialFarLoopback,
+            Phy_PrbsTxSel          => Phy_PrbsTxSel,
+            Phy_PrbsRxSel          => Phy_PrbsRxSel,
+            Phy_PrbsForceErr       => Phy_PrbsForceErr,
+            Phy_PrbsCntReset       => Phy_PrbsCntReset,
+            Phy_PrbsErr            => Phy_PrbsErr,
+            Phy_PrbsLocked         => Phy_PrbsLocked,
             Lane_State             => StLaneState,
             Lane_RxPolarity        => StRxPolarity,
             Lane_NoSignal          => Phy_NoSignal,

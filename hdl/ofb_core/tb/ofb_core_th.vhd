@@ -123,6 +123,12 @@ architecture sim of ofb_core_th is
     signal SerNearLb  : LaneArray_t;
     signal SerFarLb   : LaneArray_t;
     signal BitSync    : LaneArray_t;
+    signal PrbsTxSel  : KArray_t;
+    signal PrbsRxSel  : KArray_t;
+    signal PrbsForce  : LaneArray_t;
+    signal PrbsCntRst : LaneArray_t;
+    signal PrbsErr    : LaneArray_t;
+    signal PrbsLocked : LaneArray_t;
 
 begin
 
@@ -236,7 +242,13 @@ begin
                 Phy_NoSignal           => NoSignal(i),
                 Phy_SerialNearLoopback => SerNearLb(i),
                 Phy_SerialFarLoopback  => SerFarLb(i),
-                Phy_BitSync            => BitSync(i)
+                Phy_BitSync            => BitSync(i),
+                Phy_PrbsTxSel          => PrbsTxSel(i),
+                Phy_PrbsRxSel          => PrbsRxSel(i),
+                Phy_PrbsForceErr       => PrbsForce(i),
+                Phy_PrbsCntReset       => PrbsCntRst(i),
+                Phy_PrbsErr            => PrbsErr(i),
+                Phy_PrbsLocked         => PrbsLocked(i)
             );
 
         -------------------------------------------------------------------------------------------
@@ -597,6 +609,12 @@ begin
                 A_NoSignal   => NoSignal(0)(l),
                 A_NearSerLb  => SerNearLb(0)(l),
                 A_FarSerLb   => SerFarLb(0)(l),
+                A_PrbsTxSel  => PrbsTxSel(0)(4*l+3 downto 4*l),
+                A_PrbsRxSel  => PrbsRxSel(0)(4*l+3 downto 4*l),
+                A_PrbsForce  => PrbsForce(0)(l),
+                A_PrbsCntRst => PrbsCntRst(0)(l),
+                A_PrbsErr    => PrbsErr(0)(l),
+                A_PrbsLocked => PrbsLocked(0)(l),
                 B_Tx_Data    => PhyTxData(1)(32*l+31 downto 32*l),
                 B_Tx_K       => PhyTxK(1)(4*l+3 downto 4*l),
                 B_TxEnable   => TxEnable(1)(l),
@@ -610,7 +628,13 @@ begin
                 B_Rx_Valid   => PhyRxValid(1)(l),
                 B_NoSignal   => NoSignal(1)(l),
                 B_NearSerLb  => SerNearLb(1)(l),
-                B_FarSerLb   => SerFarLb(1)(l)
+                B_FarSerLb   => SerFarLb(1)(l),
+                B_PrbsTxSel  => PrbsTxSel(1)(4*l+3 downto 4*l),
+                B_PrbsRxSel  => PrbsRxSel(1)(4*l+3 downto 4*l),
+                B_PrbsForce  => PrbsForce(1)(l),
+                B_PrbsCntRst => PrbsCntRst(1)(l),
+                B_PrbsErr    => PrbsErr(1)(l),
+                B_PrbsLocked => PrbsLocked(1)(l)
             );
 
     end generate;

@@ -2,14 +2,14 @@
 
 ## 1. Test results
 
-Run on 2026-10-06 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_mib*"`.
+Run on 2026-10-07 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_mib*"`.
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_mib_tb` | 9 | 9 |
+| `ofb_mib_tb` | 10 | 10 |
 
-Full regression of the repository: 205 of 205 tests pass (with the latch-free `ofb_cc_pulse` for commands and
-events). VSG reports no errors and no warnings.
+Full regression of the repository: 209 of 209 tests pass (with the PRBS test registers of MG-5). VSG reports no
+errors and no warnings.
 
 ## 2. Summary
 
@@ -22,6 +22,9 @@ TC-MG-09 cover them and passed without a design change; every statement and bran
 
 Register map: TC-MG-01 reads every fixed reset value of the register description (`regs/ofb_regs.yml`) back through
 the generated package `ofb_regs_pkg`; a reset value changed in the description fails TC-MG-01 (mutation check).
+
+PRBS test registers (TC-MG-10): an error counter that ignores the hold bit fails the test (mutation check: 15 instead
+of 10 counted words).
 
 Defects found during verification:
 

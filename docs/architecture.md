@@ -305,7 +305,7 @@ interfaces (D6).
 
 | ID | Block | Responsibility | Open Logic | ECSS |
 | --- | --- | --- | --- | --- |
-| PA-1 | SerDes wrapper (vendor specific) | AMD Versal GTY of the VCK190 first (`ofb_pa_gty`, Versal Transceivers Wizard); other SerDes later: serialisation, near-end and far-end serial loopback (PMA loopbacks of the transceiver, enabled through the MIB), data signalling rate, loss of signal (receiver electrical idle, synchronised), bit synchronisation status (comma alignment), polarity control; PHYSICAL_CONTROL and PHYSICAL_STATUS service | `olo_ft_sync` | 5.4.1, 5.4.2, 5.4.2.1 to 5.4.2.4, 6.4 |
+| PA-1 | SerDes wrapper (vendor specific) | AMD Versal GTY of the VCK190 first (`ofb_pa_gty`, Versal Transceivers Wizard); other SerDes later: serialisation, near-end and far-end serial loopback (PMA loopbacks of the transceiver, enabled through the MIB), data signalling rate, loss of signal (receiver electrical idle, synchronised), bit synchronisation status (comma alignment), polarity control; PHYSICAL_CONTROL and PHYSICAL_STATUS service; PRBS generator and checker of the transceiver for the bit error rate test (MG-5) | `olo_ft_sync` | 5.4.1, 5.4.2, 5.4.2.1 to 5.4.2.4, 6.4 |
 | PA-2 | 8B/10B codec | Transceiver hardware codec when present, otherwise a soft codec; code and disparity errors to LN-3 | none (no Open Logic codec; custom block) | 5.3.2 |
 | PA-3 | Receive elastic buffer | Transceiver clock correction on SKIP (Versal GTY), or a soft buffer from `RxClk(i)` to `LaneClk` with SKIP deletion for SerDes without clock correction | `olo_ft_fifo_async` (soft buffer) | none owned (SKIP removal of 5.5.3 for LN-2) |
 
@@ -320,7 +320,7 @@ needs a new PA-1 and nothing else.
 | MG-2 | Event counters | One counter per event type and direction (frames, FCT, ACK, NACK, FULL, RETRY, RXERR, errors), sticky error flags, interrupt | `ofb_cc_pulse` | none owned (status counters of 5.9.4 for MG-1) |
 | MG-3 | EDAC monitor | Collects the SEC / DED flags of every FT RAM and FIFO, counts them, raises an interrupt, drives error injection for tests | `olo_ft_ecc_monitor_axi` | none (fault tolerance, P5) |
 | MG-4 | Clock and reset | Power-on reset, reset synchronisation per domain, Interface Reset as configuration reset | `olo_ft_reset_gen` | none owned (configuration reset of 5.7.9.2 for DC-1) |
-| TA-1 | Lane test access (injector and spy) | Per lane, replaces the Multi-Lane layer as source and sink of lane words | `olo_base_pl_stage` | none (test function) |
+| MG-5 | PRBS test | Per lane: pattern selection of the PRBS generator and checker of the Physical adapter (PA-1), lock status, counters of checked words and of words with errors (bit error rate measurement on the electrical link, bypassing 8B/10B) | `olo_ft_cc_bits`, `ofb_cc_pulse`, `olo_ft_cc_status` | none (test function) |
 
 ## 8 Open Logic usage
 
