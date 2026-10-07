@@ -6,7 +6,7 @@ Run on 2026-10-05 with Vivado 2025.2 (transceiver wizard gtwiz_versal 1.0, xsim)
 
 | Testbench | Test | Result | Simulated time |
 | --- | --- | --- | --- |
-| `ofb_pa_gty_tb` | TC-PA-01, TC-PA-04 | Pass | 94 us |
+| `ofb_pa_gty_tb` | TC-PA-01, TC-PA-04, TC-PA-06 | Pass | 132 us |
 | `ofb_pa_gty_cc_tb`, run `cc` | TC-PA-03 | Pass | 94 us |
 | `ofb_pa_gty_cc_tb`, run `far` | TC-PA-05 | Pass | 144 us |
 | `ofb_pa_gty_core_tb` | TC-PA-02 | Pass | 199 us |
@@ -16,6 +16,11 @@ error, all lanes aligned, NoSignal low.
 
 TC-PA-04: with the external loopback removed and the near-end serial loopback enabled, 409 data words per lane
 received in order without error.
+
+TC-PA-06: PRBS-31 sent and checked on every channel with the external loopback; the checkers locked 14.3 us after the
+patterns were selected, no error in 5 us; the line of each lane inverted for 1 ns gave 2 or 3 words with errors on that
+lane only, the checker stayed locked, no error afterwards; the PRBS-7 checker of lane 0 on the PRBS-31 pattern counted
+769 words with errors in 5 us (nearly every word).
 
 TC-PA-05: same reference clock frequency at both ends; about 3210 data words per lane and end before, then with the
 far-end serial loopback at B 3006 data words per lane of A received in order without error.
@@ -37,6 +42,9 @@ well.
 Rerun with the fault-tolerant status crossings, reset synchronisers and transceiver status synchronisers (Open
 Logic backlog on the 4.7.0 development state): all runs pass; `ofb_pa_gty_core_tb` needed a second run (PLL divider
 error of the model at time 0 in the first one).
+
+Rerun with the PRBS test ports (TC-PA-06 added): all runs pass with the results above, `ofb_pa_gty_core_tb` at the
+first attempt.
 
 Rerun after the findings of the first VCK190 build (lane reset and far-end loopback enables from registers,
 register stages of the input VC buffers, latch-free pulse crossing): `ofb_pa_gty_tb` and both runs of
@@ -63,4 +71,5 @@ Findings during verification:
 | With an inherited stdin, `export_simulation` writes the file list `vlog.prj` to stdout | The runner starts Vivado with stdin closed |
 | xsim does not order the files of a module | The runner orders the files by the units they define and use |
 | TC-PA-03 after the generic `RefPpmB_g` was introduced: no clock correction (the offset of B was computed wrongly) | Offset in whole picoseconds: `RefPpmB_g * 3200 ps / 1000000` |
+| TC-PA-06: the forced error of the PRBS generator (`TXPRBSFORCEERR`, held for 1 to 64 cycles, near-end and external loopback) gave no error at the checker, although the port reaches the channel of the quad; the checker detects other errors | The transceiver model does not insert the forced error: TC-PA-06 inverts the line for 1 ns instead; the forced error is tested in the core testbench (TC-CORE-18, register to adapter port) and on the hardware (TC-VCK-HW-08) |
 | The transceiver model is not deterministic under heavy CPU load: next to six GHDL simulations `ofb_pa_gty_tb` reached TX ready 14 ns early, two lanes never aligned and two slipped; idle CPU: nominal times and pass. `ofb_vck190_tb` and `ofb_pa_gty_core_tb` runs hang now and then with a PLL divider error of the model of one end at time 0 (`div_val has to be >= 9`), also with an idle CPU (the model writes its firmware files with random names per run); reruns pass | Simulations with the transceiver model run without other simulations (`docs/conventions.md`); a run with the PLL divider error is repeated |
