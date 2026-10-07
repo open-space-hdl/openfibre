@@ -16,13 +16,13 @@ the standard" of the module specifications.
 | 5.3.2 | 8B/10B encode / decode | PA-2 | PA-SE-02 | TC-PA-01, TC-PA-02 | Verified |
 | 5.3.3 | Lane control words | LN-2 (send), LN-3 (detect) | LN-INIT-08, LN-INIT-11, LN-RX-04, LN-TX-04, LN-TX-05, ML-LM-03, ML-LM-07, ML-LM-08, PKG-02, PKG-03, PKG-04, PKG-05 | TC-LN-01, TC-LN-04, TC-LN-09, TC-LN-10, TC-LN-11, TC-LN-28, TC-LN-29, TC-LN-30, TC-LN-44, TC-LN-53, TC-ML-22, TC-ML-25, TC-ML-36, TC-PKG-02, TC-PKG-03 | Verified |
 | 5.3.4 | Multi-Lane control words | ML-2 (send) | ML-DS-09, PKG-03, PKG-04 | TC-ML-31, TC-ML-33, TC-ML-35, TC-PKG-02, TC-PKG-03 | Verified |
-| 5.3.5.1 | Framing control words | DT-6 (send) | DL-BO-03, DL-FA-01, DL-FA-02, DL-FA-03, DL-SQ-01, DL-SR-01, PKG-04, PKG-05 | TC-DL-02, TC-DL-03, TC-DL-05, TC-DL-10, TC-DL-12, TC-DL-15, TC-PKG-02, TC-PKG-03 | Verified |
+| 5.3.5.1 | Framing control words | DT-6 (send) | DL-BO-03, DL-FA-01, DL-FA-02, DL-FA-03, DL-SQ-01, DL-SR-01, PKG-04, PKG-05 | TC-DL-02, TC-DL-03, TC-DL-05, TC-DL-06, TC-DL-10, TC-DL-12, TC-DL-15, TC-PKG-02, TC-PKG-03 | Verified |
 | 5.3.5.1.2 | Sequence number | DT-8 | DL-SQ-01, DL-SR-01, PKG-05 | TC-DL-02, TC-DL-05, TC-DL-10, TC-DL-12, TC-PKG-02 | Verified |
 | 5.3.5.2 | Flow control word (FCT) | DT-6 | DL-FA-04, PKG-04 | TC-DL-10, TC-PKG-02, TC-PKG-03 | Verified |
 | 5.3.5.3 | Error recovery control words | DT-6 | DL-FA-04, PKG-03, PKG-04 | TC-DL-10, TC-PKG-02, TC-PKG-03 | Verified |
 | 5.3.6 | RXERR | LN-3 | LN-RX-06, PKG-03 | TC-LN-04, TC-LN-11, TC-LN-44, TC-LN-46, TC-PKG-02 | Verified |
 | 5.3.7, 5.3.9 | Characters, packets | NI-1 | DL-VI-01, NI-FR-01, NI-FR-02, NI-FR-03, PKG-01 | TC-CORE-02, TC-CORE-05, TC-DL-02, TC-NI-02, TC-NI-03, TC-NI-04, TC-PKG-01 | Verified |
-| 5.3.8 | Frames | DT-6 | DL-BO-03, DL-FA-01, DL-FA-02, DL-FA-03, DL-IF-02, DL-RW-03, DL-TS-03, DL-VO-04 | TC-CORE-02, TC-CORE-08, TC-DL-02, TC-DL-03, TC-DL-10, TC-DL-15, TC-DL-17, TC-DL-19 | Verified |
+| 5.3.8 | Frames | DT-6 | DL-BO-03, DL-FA-01, DL-FA-02, DL-FA-03, DL-IF-02, DL-RW-03, DL-TS-03, DL-VO-04 | TC-CORE-02, TC-CORE-08, TC-DL-02, TC-DL-03, TC-DL-06, TC-DL-10, TC-DL-15, TC-DL-17, TC-DL-19 | Verified |
 | 5.3.10a, b, c1 to c3, c16, d to f, p | Precedence, Lane layer part | LN-2 | DL-TS-01, DL-TS-02, DL-TS-03, DL-TS-04, LN-TX-03 | TC-DL-02, TC-DL-03, TC-DL-05, TC-DL-10, TC-DL-15, TC-LN-05, TC-LN-52 | Verified |
 | 5.3.10c4, c5, g, h | Precedence, Multi-Lane part | ML-2 | DL-TS-01, DL-TS-02, DL-TS-03, DL-TS-04, LN-TX-03 | TC-DL-02, TC-DL-03, TC-DL-05, TC-DL-10, TC-DL-15, TC-LN-05, TC-LN-52 | Verified |
 | 5.3.10c6 to c15, i to o, q to s | Precedence, Data Link part | DT-5 | DL-TS-01, DL-TS-02, DL-TS-03, DL-TS-04, LN-TX-03 | TC-DL-02, TC-DL-03, TC-DL-05, TC-DL-10, TC-DL-15, TC-LN-05, TC-LN-52 | Verified |

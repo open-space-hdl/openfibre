@@ -35,7 +35,7 @@ Simulator: GHDL.
 | `test_broadcast` (TC-DL-03) | Broadcast messages with VC traffic in both directions, no LATE flag; a slow broadcast credit (2000 words) delays the messages | DL-IF-02, DL-BO-01, 02, DL-FA-02, DL-WI-03, DL-BI-01, DL-TS-02 |
 | `test_flow_control` (TC-DL-04) | A receiver that does not read blocks its VC only: no credit left, other VCs continue, no overflow; all delivered after the receiver reads again | DL-CR-01, DL-VO-03, DL-VI-02, DL-VI-03, DL-MAC-01 |
 | `test_error_recovery` (TC-DL-05) | 30 bit errors per direction during packet and broadcast traffic: NACK, RETRY and resend at both ends, every packet and message delivered once and in order, no protocol error, no link reset | DL-ER-01 to 03, DL-RE-01, 03, DL-TS-01, 02, 04, DL-SQ-01, 02 |
-| `test_lane_loss` (TC-DL-06) | Cut of one direction for 5 us during traffic: the lanes initialise again, error recovery completes the transfer without link reset | DL-ER-03, DL-ER-06, DL-LR-03 |
+| `test_lane_loss` (TC-DL-06) | Cut of one direction for 5 us during traffic: the lanes initialise again, error recovery completes the transfer without link reset; two broadcast messages per end submitted while the lanes of both ends are not active are delivered with the LATE flag | DL-ER-03, DL-ER-06, DL-LR-03, DL-BO-03 |
 | `test_link_reset` (TC-DL-07) | Link Reset at A: both ends reset (Far-End Link Reset at B only), initialise and transfer packets again | DL-LR-01 to 04, DL-ER-06, DL-IF-05, DL-ST-01 |
 
 ### 3.2 Row-level testbench (`ofb_dl_row_tb`)

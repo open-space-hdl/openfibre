@@ -259,6 +259,46 @@ begin
 
         end procedure;
 
+        -- DED into the input VC buffers of A (TC-CORE-14): injected with no traffic in flight, it goes into the
+        -- next word written into bank 0 of every input VC buffer, a word of the packets that B sends afterwards
+        -- (packets of minLen to maxLen bytes per VC; the caller restores the lengths after the delivery)
+        procedure dedVcIn (
+            minLen  : positive;
+            maxLen  : positive;
+            packets : positive) is
+            variable Status_v : std_logic_vector(31 downto 0);
+        begin
+            waitDelivered(2 ms);
+            wr(0, RegEccInject_c, std_logic_vector(to_unsigned(16#100# + EccChVcIn_c, 32)));
+
+            for vc in 0 to CoreNumVc_c-1 loop
+                CoreCfg(1).Vc(vc).MinLen  <= minLen;
+                CoreCfg(1).Vc(vc).MaxLen  <= maxLen;
+                CoreCfg(1).Vc(vc).Packets <= CoreCfg(1).Vc(vc).Packets + packets;
+            end loop;
+
+            cycles(1);
+
+            for k in 0 to 1000 loop
+                rd(0, RegEccStatus_c, Status_v);
+                exit when Status_v(EccChVcIn_c) = '1';
+                cycles(100);
+            end loop;
+
+            check_value(Status_v(EccChVcIn_c), '1', error, "DED read in the input VC buffers");
+        end procedure;
+
+        procedure defaultLengths is
+        begin
+
+            for vc in 0 to CoreNumVc_c-1 loop
+                CoreCfg(1).Vc(vc).MinLen <= CoreVcCfgDefault_c.MinLen;
+                CoreCfg(1).Vc(vc).MaxLen <= CoreVcCfgDefault_c.MaxLen;
+            end loop;
+
+            cycles(1);
+        end procedure;
+
     -- Test cases
     begin
         test_runner_setup(runner, runner_cfg);
@@ -815,11 +855,17 @@ begin
                     CoreCfg(0).BcSend <= CoreCfg(0).BcSend + 3;
                     CoreCfg(1).BcSend <= CoreCfg(1).BcSend + 3;
                     cycles(300);
-                    wr(0, RegEccInject_c, std_logic_vector(to_unsigned(16#100# + ch, 32)));
-                    -- The error goes into the next word written into the channel: more traffic
-                    sendAll(5);
-                    CoreCfg(0).BcSend <= CoreCfg(0).BcSend + 2;
-                    CoreCfg(1).BcSend <= CoreCfg(1).BcSend + 2;
+                    if ch = EccChVcIn_c then
+                        -- One packet of 1024 bytes per VC: the rest of the packet after the error spans several
+                        -- beats (discarded up to its end)
+                        dedVcIn(1024, 1024, 1);
+                    else
+                        wr(0, RegEccInject_c, std_logic_vector(to_unsigned(16#100# + ch, 32)));
+                        -- The error goes into the next word written into the channel: more traffic
+                        sendAll(5);
+                        CoreCfg(0).BcSend <= CoreCfg(0).BcSend + 2;
+                        CoreCfg(1).BcSend <= CoreCfg(1).BcSend + 2;
+                    end if;
 
                     -- The word with the error is read (DED flag of the channel at A)
                     for k in 0 to 1000 loop
@@ -858,15 +904,25 @@ begin
                     wr(0, RegDlErrors_c, x"FFFFFFFF");
                     wr(1, RegDlErrors_c, x"FFFFFFFF");
                     wr(0, RegEccStatus_c, x"00000000");
+                    if ch = EccChVcIn_c then
+                        defaultLengths;
+                        -- Second error: four packets of one word (1 to 3 bytes and the EOP) per VC, so that the
+                        -- beat with the error ends its packet (nothing to discard)
+                        dedVcIn(1, 3, 4);
+                        sendAll(2);
+                        waitDelivered(2 ms);
+                        defaultLengths;
+                        rd(1, RegDlErrors_c, Data_v);
+                        check_value(Data_v(5), '0', error, "No link reset for the second error in the input VC buffers");
+                        wr(0, RegEccStatus_c, x"00000000");
+                    end if;
                 end loop;
-
-                N_v := 0;
 
                 for vc in 0 to CoreNumVc_c-1 loop
-                    N_v := N_v + CoreRxEep(0, vc);
+                    check_value(CoreRxEep(0, vc) >= 2, error, "Packets with a DED in the input VC buffer of A ended " &
+                                "with EEP, VC " & to_string(vc));
                 end loop;
 
-                check_value(N_v > 0, error, "Packet with a DED in the input VC buffer of A ended with EEP");
                 check_value(CoreBcLost(0) > 0, error, "Message with a DED in the broadcast input buffer discarded");
 
             end if;

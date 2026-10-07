@@ -59,6 +59,11 @@ Error Positive to Error Negative, the data item limit of the error recovery buff
 the copy of a segment. TC-DL-27 to TC-DL-30 and the extensions of TC-DL-12 and TC-DL-17 cover them and passed without a
 design change (TC-DL-28 mutation checked); DL-WI-02 now states that a data frame for a VC that the core does not
 implement is discarded. Three branches and the body of one function remain, each justified in the coverage report.
+The measurement after the register stages of the input VC buffers and the latch-free pulse crossing showed two
+branches that the tests had reached only by their timing: a broadcast message waiting while no lane is active (LATE
+flag, DL-BO-03) and a DED in a beat that ends its packet. TC-DL-06 now submits broadcast messages while the lanes of
+both ends are down (both delivered with LATE at each end), TC-CORE-14 injects the errors of the input VC buffers with
+no traffic in flight into a long and into a one-word packet; both passed without a design change.
 
 Observations:
 
