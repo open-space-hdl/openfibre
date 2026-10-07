@@ -315,7 +315,7 @@ begin
                             Cls_v  := Sent_v mod 4;
                             Left_v := randInt(LenMin_c(Cls_v), LenMax_c(Cls_v));
                         else
-                            Left_v := randInt(1, CoreCfg(i).Vc(v).MaxLen);
+                            Left_v := randInt(CoreCfg(i).Vc(v).MinLen, CoreCfg(i).Vc(v).MaxLen);
                         end if;
                         Term_v := false;
 

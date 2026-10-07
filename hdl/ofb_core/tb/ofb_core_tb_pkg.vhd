@@ -32,6 +32,7 @@ package ofb_core_tb_pkg is
     -- Packet generator and receiver of one VC
     type CoreVcCfg_t is record
         Packets    : natural;  -- Packets requested (the sequencer increments it)
+        MinLen     : positive; -- Minimum packet length in bytes
         MaxLen     : positive; -- Maximum packet length in bytes
         ReadyPct   : natural;  -- Ready of the receiver, percent
         LenClasses : boolean;  -- Packet lengths cycle through the length classes of CovPkt_v
@@ -49,7 +50,11 @@ package ofb_core_tb_pkg is
         Lossy    : boolean;
     end record;
 
-    constant CoreVcCfgDefault_c : CoreVcCfg_t := (Packets => 0, MaxLen => 64, ReadyPct => 100, LenClasses => false);
+    constant CoreVcCfgDefault_c : CoreVcCfg_t := (Packets    => 0,
+                                                  MinLen     => 1,
+                                                  MaxLen     => 64,
+                                                  ReadyPct   => 100,
+                                                  LenClasses => false);
 
     constant CoreCfgDefault_c : CoreCfg_t := (Vc       => (others => CoreVcCfgDefault_c),
                                              BcSend   => 0,

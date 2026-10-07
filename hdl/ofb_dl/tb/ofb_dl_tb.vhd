@@ -349,11 +349,27 @@ begin
 
                 cycles(1000);
                 PaCtrl(0).AtoB.Cut <= true;
-                wait for 5 us;
+                Start_v            := now;
+
+                -- Broadcast messages submitted while the lane of the sending end is not active wait and are sent
+                -- with the LATE flag (DL-BO-03)
+                for k in 0 to 4000 loop
+                    exit when DlStat(0).LaneActive = '0' and DlStat(1).LaneActive = '0';
+                    cycles(1);
+                end loop;
+
+                check_value(DlStat(0).LaneActive = '0' and DlStat(1).LaneActive = '0', error, "Lanes not active during the cut");
+                DlCfg(0).BcSend    <= 2;
+                DlCfg(1).BcSend    <= 2;
+                wait for 5 us - (now - Start_v);
                 PaCtrl(0).AtoB.Cut <= false;
                 waitDelivered(5 ms);
                 waitErbEmpty(200 us);
                 logStat("Lane loss");
+                check_value(DlStat(0).BcRx, 2, error, "Broadcasts received at A");
+                check_value(DlStat(1).BcRx, 2, error, "Broadcasts received at B");
+                check_value(DlStat(0).BcRxLate, 2, error, "Broadcasts received at A with LATE");
+                check_value(DlStat(1).BcRxLate, 2, error, "Broadcasts received at B with LATE");
                 check_value(DlStat(0).Retries + DlStat(1).Retries > 0, error, "Error recovery after the loss");
                 check_value(DlStat(0).ProtErrs + DlStat(1).ProtErrs, 0, error, "No protocol error");
                 check_value(DlStat(0).FarEndResets + DlStat(1).FarEndResets, 0, error, "No link reset");
