@@ -151,7 +151,7 @@ begin
 
     PorIn <= not PlRstN;
 
-    i_por : entity olo.olo_base_reset_gen
+    i_por : entity olo.olo_ft_reset_gen
         generic map (
             RstPulseCycles_g => 1000
         )
@@ -214,7 +214,7 @@ begin
 
     -- Reset of the core: power-on reset or transceivers not ready, from a register (no logic in front of the
     -- reset synchronisers of the core)
-    i_lanerst_sync : entity olo.olo_intf_sync
+    i_lanerst_sync : entity olo.olo_ft_sync
         port map (
             Clk          => MgmtClk,
             DataAsync(0) => LaneRst,

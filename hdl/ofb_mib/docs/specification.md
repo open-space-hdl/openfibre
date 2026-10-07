@@ -33,7 +33,7 @@ an interrupt. It contains the crossings between the management clock and the clo
 | MG-ED-01 | The SEC and DED events of every fault-tolerant buffer of the core shall be counted per channel (output VC buffers, error recovery buffer, frame buffer, input VC buffers, broadcast output and input buffers, transmit and receive row crossings, control crossings) in saturating 16-bit counters; a DED shall set a sticky flag of its channel, a SEC a common sticky flag. | none (fault tolerance, architecture P5) |
 | MG-ED-02 | The counters of a selected channel shall be readable and clearable; the flags and all counters shall be clearable at once; the DED flags and the SEC flag shall be interrupt sources. | none |
 | MG-ED-03 | A single or double bit error shall be injectable into the next word written into the buffers of a selected channel. | none (verification of the EDAC paths) |
-| MG-CC-01 | Configuration levels shall cross to the core and lane clock domains with `olo_ft_cc_bits`, commands and events with `ofb_cc_pulse`, multi-bit status values with `olo_base_cc_status`. | none (architecture section 6) |
+| MG-CC-01 | Configuration levels shall cross to the core and lane clock domains with `olo_ft_cc_bits`, commands and events with `ofb_cc_pulse`, multi-bit status values with `olo_ft_cc_status`. | none (architecture section 6) |
 
 ## 3. Register map
 

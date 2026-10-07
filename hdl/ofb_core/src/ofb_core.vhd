@@ -273,28 +273,28 @@ begin
     -----------------------------------------------------------------------------------------------
     -- Resets per clock domain (MG-4)
     -----------------------------------------------------------------------------------------------
-    i_rst_user : entity olo.olo_base_reset_gen
+    i_rst_user : entity olo.olo_ft_reset_gen
         port map (
             Clk    => UserClk,
             RstOut => UserRst,
             RstIn  => Rst
         );
 
-    i_rst_core : entity olo.olo_base_reset_gen
+    i_rst_core : entity olo.olo_ft_reset_gen
         port map (
             Clk    => CoreClk,
             RstOut => CoreRst,
             RstIn  => Rst
         );
 
-    i_rst_lane : entity olo.olo_base_reset_gen
+    i_rst_lane : entity olo.olo_ft_reset_gen
         port map (
             Clk    => LaneClk,
             RstOut => LaneRst,
             RstIn  => Rst
         );
 
-    i_rst_mgmt : entity olo.olo_base_reset_gen
+    i_rst_mgmt : entity olo.olo_ft_reset_gen
         port map (
             Clk    => MgmtClk,
             RstOut => MgmtRst,

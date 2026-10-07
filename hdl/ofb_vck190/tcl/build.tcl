@@ -103,7 +103,8 @@ close_bd_design [current_bd_design]
 set_property generic {IncludeCips_g=true} [current_fileset]
 
 # Constraints: board, Open Logic crossings (implementation only). The scoped constraints of olo_intf_sync are not
-# loaded: they constrain device pins, and the design uses olo_intf_sync for internal asynchronous signals only (their
+# loaded for olo_ft_sync: they constrain device pins, and the design uses olo_ft_sync for internal asynchronous
+# signals only (their
 # crossings are constrained in ofb_vck190.xdc).
 add_files -fileset constrs_1 -norecurse [file join $root hdl ofb_vck190 constr ofb_vck190.xdc]
 source [file join $root open-logic src base tcl olo_base_constraints_amd.tcl]
