@@ -25,6 +25,9 @@ open. See [docs/roadmap.md](docs/roadmap.md) for the state of every module.
 
 ## Documentation
 
+The documents are also published as a website: [openspacehdl.org/openfibre](https://openspacehdl.org/openfibre/) (built
+from this repository by `tools/docs/`).
+
 | Document | Content |
 | --- | --- |
 | [docs/architecture.md](docs/architecture.md) | Architecture: layers, building blocks, owned ECSS clauses, Open Logic usage, verification |
@@ -45,6 +48,7 @@ openfibre/
 |-- tb/               Verification components shared by the testbenches
 |-- lint/             VSG configuration (Open Logic rules), synthesizability check
 |-- tools/            Compliance matrix and register map generators, simulations with the transceiver model (xsim)
+|   `-- docs/         Documentation website (MkDocs)
 |-- sw/               C header of the register map (generated)
 |-- open-logic/       Git submodule: Open Logic (fault-tolerant entities branch)
 |-- uvvm/             Git submodule: UVVM verification framework
@@ -84,6 +88,7 @@ python lint/lint.py                 # VSG, no errors and no warnings
 python lint/synth_check.py          # GHDL synthesis of ofb_core for 1, 2 and 4 lanes (after python run.py --compile)
 python tools/compliance.py --check  # every ECSS clause and requirement traced to a test case
 python tools/regmap.py --check      # generated register map files match hdl/ofb_mib/regs/ofb_regs.yml
+python -m mkdocs build -f tools/docs/mkdocs.yml  # documentation website, fails on broken links
 ```
 
 ## Licence
