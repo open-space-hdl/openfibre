@@ -46,6 +46,12 @@ error of the model at time 0 in the first one).
 Rerun with the PRBS test ports (TC-PA-06 added): all runs pass with the results above, `ofb_pa_gty_core_tb` at the
 first attempt.
 
+Rerun after the timing changes of the second build (end flags in the input VC buffers, input stage of the column
+encoder): `ofb_pa_gty_cc_tb` (both runs), `ofb_pa_gty_core_tb` (link initialised after 94.2 us, first burst after
+98.3 us, all packets delivered, no error, no retry) and `ofb_vck190_tb` pass. `ofb_pa_gty_tb`, the first run after the
+runner had generated the wizard instance again, reached TX ready 14 ns early and two lanes never aligned (the
+non-deterministic behaviour of the transceiver model, section 2); its rerun passes with the results above.
+
 Rerun after the findings of the first VCK190 build (lane reset and far-end loopback enables from registers,
 register stages of the input VC buffers, latch-free pulse crossing): `ofb_pa_gty_tb` and both runs of
 `ofb_pa_gty_cc_tb` pass with the results above. `ofb_pa_gty_core_tb` first failed: the transceiver model of end B
@@ -73,3 +79,4 @@ Findings during verification:
 | TC-PA-03 after the generic `RefPpmB_g` was introduced: no clock correction (the offset of B was computed wrongly) | Offset in whole picoseconds: `RefPpmB_g * 3200 ps / 1000000` |
 | TC-PA-06: the forced error of the PRBS generator (`TXPRBSFORCEERR`, held for 1 to 64 cycles, near-end and external loopback) gave no error at the checker, although the port reaches the channel of the quad; the checker detects other errors | The transceiver model does not insert the forced error: TC-PA-06 inverts the line for 1 ns instead; the forced error is tested in the core testbench (TC-CORE-18, register to adapter port) and on the hardware (TC-VCK-HW-08) |
 | The transceiver model is not deterministic under heavy CPU load: next to six GHDL simulations `ofb_pa_gty_tb` reached TX ready 14 ns early, two lanes never aligned and two slipped; idle CPU: nominal times and pass. `ofb_vck190_tb` and `ofb_pa_gty_core_tb` runs hang now and then with a PLL divider error of the model of one end at time 0 (`div_val has to be >= 9`), also with an idle CPU (the model writes its firmware files with random names per run); reruns pass | Simulations with the transceiver model run without other simulations (`docs/conventions.md`); a run with the PLL divider error is repeated |
+| The runner reused an exported wizard instance generated before the PRBS ports were added to `tcl/ofb_gtw.tcl` (elaboration error: formal port `INTF0_TX1_ch_txprbssel` does not exist) | The runner keeps a hash of `tcl/ofb_gtw.tcl` and generates, exports and compiles the wizard instance again when it changes |

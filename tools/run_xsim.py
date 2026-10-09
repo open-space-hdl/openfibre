@@ -61,11 +61,22 @@ def run(cmd, cwd, log):
         raise SystemExit(f"{' '.join(cmd[:2])} failed, see {cwd / log}")
 
 
+def gtw_stamp():
+    """Hash of the wizard configuration script (changes when ports or settings of the wizard change)."""
+    return hashlib.sha1((MODULE / "tcl" / "ofb_gtw.tcl").read_bytes()).hexdigest()
+
+
 def generate_ip():
     export = OUT / "export" / "ofb_gtw" / "xsim"
     prj = export / "vlog.prj"
-    if prj.exists() and prj.stat().st_size > 0:
+    stamp = OUT / ".gtw_generated"
+    if prj.exists() and prj.stat().st_size > 0 and stamp.exists() and stamp.read_text() == gtw_stamp():
         return export
+    # New or changed wizard configuration: generate and export again, compile the exported sources again
+    if export.exists():
+        for name in (".ip_compiled", ".olo_compiled"):
+            (export / name).unlink(missing_ok=True)
+        prj.unlink(missing_ok=True)
     OUT.mkdir(parents=True, exist_ok=True)
     script = OUT / "generate.tcl"
     script.write_text(
@@ -86,6 +97,7 @@ def generate_ip():
         if start is None or end is None:
             raise SystemExit(f"{prj} is empty and the file list is not in the log")
         prj.write_text("\n".join(lines[start:end + 1]) + "\n", encoding="utf-8")
+    stamp.write_text(gtw_stamp())
     return export
 
 

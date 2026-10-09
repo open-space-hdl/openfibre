@@ -76,7 +76,10 @@ SDF, the EDF and the broadcast frame delimiters, and the frame state of every la
 
 ### 2.3 ofb_ml_col_enc (ML-3)
 
-One pipeline stage with valid / ready handshake:
+An input register stage (`olo_base_pl_stage`: word, K flags, poison flag; reset with `Rst` or `Ctrl_Flush`, so that
+the flush discards a word held in it) decouples the combinational word assembly of the Multi-Lane transmitter from the
+scrambler and the CRC (timing of the lane clock). It is followed by one pipeline stage with valid / ready handshake,
+whose input is the word of the input stage:
 
 | Register | Function |
 | --- | --- |
@@ -86,7 +89,8 @@ One pipeline stage with valid / ready handshake:
 | `Poison` | A word marked as corrupted (`In_Poison`) was taken since the last EDF that ended a data frame |
 | `OutInv` | The CRC of the EDF in the output register is inverted (`Poison` or `In_Poison` at the EDF, ML-ENC-08) |
 
-`In_Ready = (not OutValid or Out_Ready) and not Ctrl_Flush`. A word is taken when `In_Valid` and `In_Ready`.
+The input stage is read when `(not OutValid or Out_Ready) and not Ctrl_Flush`. A word is taken when the input
+stage holds one and it is read; the encoder adds two cycles of latency, the same on every lane.
 
 - Scrambler: `olo_base_prbs` (32 bits per word, ECSS settings of `ofb_pkg`). `Out_Data` is the sequence for the
   current word; it advances (`Out_Ready`) with every data word of a data frame and is re-seeded (`State_Set`,
@@ -342,8 +346,8 @@ See the specification, section 4.
 
 ## 5. Timing and behaviour
 
-- Transmit latency: one cycle from `TxRow_*` to `LaneTx_*` (column encoder) with one lane; one more cycle in the
-  gearbox with several lanes.
+- Transmit latency: two cycles from `TxRow_*` to `LaneTx_*` (input stage and output register of the column
+  encoder) with one lane; one more cycle in the gearbox with several lanes.
 - Receive latency: one cycle from `LaneRx_*` to `RxRow_*` (column decoder) with one lane; with several lanes the
   alignment FIFO (at least one cycle, plus the skew between the lanes), the row classification (one cycle) and the
   output queue of ML-6 (one cycle).

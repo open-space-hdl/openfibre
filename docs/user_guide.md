@@ -215,6 +215,6 @@ block design that every Versal design needs; on Windows the project path must be
 procedure `hdl/ofb_vck190/docs/hardware_test.md`). Its MIB is reachable over JTAG through the master port M_AXI_FPD
 of the CIPS at 0xA400_0000; `hdl/ofb_vck190/tcl/xsdb_mib.tcl` reads and writes the registers in XSDB and runs the
 bit error rate test of section 6. Resources of the whole reference design on the XCVC1902 (eight
-VCs, four lanes, first build): 43852 LUT (3505 as memory), 32239 registers, 37 RAMB36 and 10 RAMB18, 8 DSP. The
-timing results follow with the rebuild; the first build did not meet timing in the user side of the input VC
-buffers, which now have a register stage per bank.
+VCs, four lanes, second build): 46507 LUT (881 as memory), 44618 registers, 50 RAMB36 and 9 RAMB18, 8 DSP. The second
+build missed timing by 0.055 ns in the user side of the input VC buffers; the beat logic now works on end flags
+decoded before the bank stages, and the column encoders have an input register stage.

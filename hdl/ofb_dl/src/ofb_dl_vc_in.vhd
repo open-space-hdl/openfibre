@@ -76,7 +76,7 @@ architecture rtl of ofb_dl_vc_in is
     subtype Bank_t is natural range 0 to 3;
 
     type BankData_t is array (0 to N_c-1) of std_logic_vector(35 downto 0);
-    type BankStage_t is array (0 to N_c-1) of std_logic_vector(36 downto 0);
+    type BankStage_t is array (0 to N_c-1) of std_logic_vector(38 downto 0);
     type Words_t is array (0 to N_c-1) of Word_t;
     type Ks_t is array (0 to N_c-1) of WordK_t;
 
@@ -96,6 +96,10 @@ architecture rtl of ofb_dl_vc_in is
     signal BankRdy   : std_logic_vector(N_c-1 downto 0);
     signal UsrRstIn  : std_logic_vector(N_c-1 downto 0);
     signal BankDed   : std_logic_vector(N_c-1 downto 0);
+    signal BankEnd   : std_logic_vector(N_c-1 downto 0); -- The word holds an EOP or EEP
+    signal BankLEnd  : std_logic_vector(N_c-1 downto 0); -- Character 3 is an EOP, EEP or Fill
+    signal FifoEnd   : std_logic_vector(N_c-1 downto 0);
+    signal FifoLEnd  : std_logic_vector(N_c-1 downto 0);
     signal StageRst  : std_logic_vector(N_c-1 downto 0);
     signal BankInj   : std_logic_vector(N_c-1 downto 0);
 
@@ -115,6 +119,7 @@ architecture rtl of ofb_dl_vc_in is
     signal BeatK     : std_logic_vector(4*N_c-1 downto 0);
     signal BeatValid : std_logic;
     signal BeatCnt   : natural range 0 to N_c;
+    signal BeatSel   : std_logic_vector(N_c-1 downto 0); -- Banks whose word belongs to the beat
     signal BeatLast  : std_logic;
     signal BeatEnd   : std_logic; -- The beat ends with an EOP or EEP
     signal BeatDed   : std_logic; -- A word of the beat has an uncorrectable error
@@ -214,14 +219,17 @@ begin
             );
 
         -- Register stage after the bank: the beat logic below works on registers, and the read of the
-        -- bank RAM does not depend on the words of the other banks (timing). Reset with the buffer and with the
-        -- user reset, which is asserted from the start (the buffer reset needs clock edges)
-        StageIn(b)  <= FifoDed(b) & FifoOut(b);
+        -- bank RAM does not depend on the words of the other banks (timing). The end flags of the word are
+        -- decoded before the stage, so that the beat logic works on single bits (timing). Reset with the buffer
+        -- and with the user reset, which is asserted from the start (the buffer reset needs clock edges)
+        FifoEnd(b)  <= '1' when wordHasEnd(FifoOut(b)(31 downto 0), FifoOut(b)(35 downto 32)) else '0';
+        FifoLEnd(b) <= '1' when wordLastIsEnd(FifoOut(b)(31 downto 0), FifoOut(b)(35 downto 32)) else '0';
+        StageIn(b)  <= FifoLEnd(b) & FifoEnd(b) & FifoDed(b) & FifoOut(b);
         StageRst(b) <= UsrRstIn(b) or UserRst;
 
         i_stage : entity olo.olo_base_pl_stage
             generic map (
-                Width_g => 37
+                Width_g => 39
             )
             port map (
                 Clk       => UserClk,
@@ -234,8 +242,10 @@ begin
                 Out_Data  => StageOut(b)
             );
 
-        BankOut(b) <= StageOut(b)(35 downto 0);
-        BankDed(b) <= StageOut(b)(36);
+        BankOut(b)  <= StageOut(b)(35 downto 0);
+        BankDed(b)  <= StageOut(b)(36);
+        BankEnd(b)  <= StageOut(b)(37);
+        BankLEnd(b) <= StageOut(b)(38);
 
     end generate;
 
@@ -248,9 +258,8 @@ begin
         variable Ended_v : boolean;
         variable Cnt_v   : natural range 0 to N_c;
         variable Bank_v  : Bank_t;
-        variable Word_v  : Word_t;
-        variable K_v     : WordK_t;
         variable Ded_v   : boolean;
+        variable Sel_v   : std_logic_vector(N_c-1 downto 0);
     begin
         BeatData <= (others => '1');
         BeatK    <= (others => '1');
@@ -258,6 +267,7 @@ begin
         Ended_v  := false;
         Ded_v    := false;
         Cnt_v    := 0;
+        Sel_v    := (others => '0');
 
         for i in 0 to N_c-1 loop
             BeatData(32*i+31 downto 32*i) <= WordFill_c;
@@ -267,21 +277,21 @@ begin
                 Avail_v := false;
             end if;
             if Avail_v and not Ended_v then
-                Word_v                        := BankOut(Bank_v)(31 downto 0);
-                K_v                           := BankOut(Bank_v)(35 downto 32);
-                BeatData(32*i+31 downto 32*i) <= Word_v;
-                BeatK(4*i+3 downto 4*i)       <= K_v;
+                BeatData(32*i+31 downto 32*i) <= BankOut(Bank_v)(31 downto 0);
+                BeatK(4*i+3 downto 4*i)       <= BankOut(Bank_v)(35 downto 32);
                 Cnt_v                         := i + 1;
+                Sel_v(Bank_v)                 := '1';
                 if BankDed(Bank_v) = '1' then
                     Ded_v := true;
                 end if;
-                if wordHasEnd(Word_v, K_v) then
+                if BankEnd(Bank_v) = '1' then
                     Ended_v := true;
                 end if;
             end if;
         end loop;
 
         BeatCnt <= Cnt_v;
+        BeatSel <= Sel_v;
         BeatEnd <= '0';
         BeatDed <= '0';
         if Ended_v then
@@ -298,7 +308,7 @@ begin
         BeatLast <= '0';
         if Cnt_v > 0 then
             Bank_v := (RdBank + Cnt_v - 1) mod N_c;
-            if wordLastIsEnd(BankOut(Bank_v)(31 downto 0), BankOut(Bank_v)(35 downto 32)) then
+            if BankLEnd(Bank_v) = '1' then
                 BeatLast <= '1';
             end if;
         end if;
@@ -306,13 +316,11 @@ begin
 
     -- Banks read with the beat
     p_rd : process (all) is
-        variable Idx_v : natural;
     begin
 
         for b in 0 to N_c-1 loop
-            Idx_v      := (b + N_c - RdBank) mod N_c;
             BankRdy(b) <= '0';
-            if (Out_Ready = '1' or Discard = '1') and Inject = '0' and BeatValid = '1' and Idx_v < BeatCnt then
+            if (Out_Ready = '1' or Discard = '1') and Inject = '0' and BeatValid = '1' and BeatSel(b) = '1' then
                 BankRdy(b) <= '1';
             end if;
         end loop;

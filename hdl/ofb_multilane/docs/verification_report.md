@@ -47,6 +47,7 @@ Defects found during verification:
 | TC-ML-40: a gap in an early lane does not slip the lanes (the FIFO absorbs it) | Slip modelled as an additional word on one lane (testbench) |
 | TC-CORE-13 (fault injection campaign of the core): after a lane slip at one end, words of the frames sent by that end were missing at the far end without any error: the distributor discarded its held words when Not Ready was entered, the far end only received ACTIVE words (Both-Ends Ready to Near-End Ready, no RXERR) and kept the frame, and the CRC-16 computed after the distributor did not reveal the missing words | Held words are kept in Not Ready and sent after the realignment (ML-DS-12, TC-ML-44); only a link reset discards them |
 | TC-CORE-13: a double error in the transmit row crossing of the core corrupted a word before the CRC-16 was computed, the far end accepted the frame | Poison mark of the row through the distributor to the column encoders, which invert the CRC-16 of the frame (ML-DS-13, ML-ENC-08, TC-ML-45, TC-ML-46) |
+| Second build of the VCK190 design: the lane clock met timing with 0.280 ns of slack; the tightest paths (14 and 15 logic levels) ran from the word counter of the transmitter through the combinational word assembly, the scrambler and the word classification into the CRC of the column encoder | Input register stage in the column encoder (`olo_base_pl_stage`, reset with the flush); transmit latency two cycles instead of one, the same on every lane |
 
 Observations:
 

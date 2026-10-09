@@ -357,10 +357,12 @@ begin
                     check_value(Data_v, x"00000000", error, "No retry at core " & to_string(c));
                 end loop;
 
-            -- TC-CORE-03: error recovery after bit errors, counted in the MIB
+            -- TC-CORE-03: error recovery after bit errors, counted in the MIB. The traffic lasts at least as
+            -- long as most of the bit errors, so that they hit data frames (with several lanes, a bit error in
+            -- an idle word is a lane slip and causes a realignment, no retry)
             elsif run("test_error_recovery") then
                 linkUp(500 us);
-                sendAll(20);
+                sendAll(200);
 
                 for i in 1 to 20 loop
                     cycles(100);

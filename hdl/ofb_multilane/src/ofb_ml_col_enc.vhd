@@ -8,7 +8,8 @@
 ---------------------------------------------------------------------------------------------------
 -- Column encoder of one lane (ML-3): scrambles the data words of data frames and places the
 -- CRC-16 of the lane column (SDF, scrambled data words, EDF code and sequence number) into the
--- EDF. All other words pass unchanged.
+-- EDF. All other words pass unchanged. An input register stage decouples the word assembly of the
+-- Multi-Lane transmitter from the scrambler and the CRC (timing).
 --
 -- Documentation: hdl/ofb_multilane/docs/architecture.md (section 2.3)
 
@@ -75,8 +76,41 @@ architecture rtl of ofb_ml_col_enc is
     signal CrcLast     : std_logic;
     signal CrcBe       : WordK_t;
     signal CrcOut      : std_logic_vector(15 downto 0);
+    signal StgIn       : std_logic_vector(36 downto 0);
+    signal StgOut      : std_logic_vector(36 downto 0);
+    signal StgRst      : std_logic;
+    signal StgValid    : std_logic;
+    signal StgReady    : std_logic;
+    signal StgData     : Word_t;
+    signal StgK        : WordK_t;
+    signal StgPoison   : std_logic;
 
 begin
+
+    -----------------------------------------------------------------------------------------------
+    -- Input register stage; the flush discards a word held in it
+    -----------------------------------------------------------------------------------------------
+    StgIn  <= In_Poison & In_K & In_Data;
+    StgRst <= Rst or Ctrl_Flush;
+
+    i_stage : entity olo.olo_base_pl_stage
+        generic map (
+            Width_g => 37
+        )
+        port map (
+            Clk       => Clk,
+            Rst       => StgRst,
+            In_Valid  => In_Valid,
+            In_Ready  => In_Ready,
+            In_Data   => StgIn,
+            Out_Valid => StgValid,
+            Out_Ready => StgReady,
+            Out_Data  => StgOut
+        );
+
+    StgData   <= StgOut(31 downto 0);
+    StgK      <= StgOut(35 downto 32);
+    StgPoison <= StgOut(36);
 
     -----------------------------------------------------------------------------------------------
     -- Combinational Process
@@ -103,8 +137,8 @@ begin
         First_v   := '0';
         Last_v    := '0';
         Be_v      := "1111";
-        Kind_v    := wordKind(In_Data, In_K);
-        Word_v    := In_Data;
+        Kind_v    := wordKind(StgData, StgK);
+        Word_v    := StgData;
 
         -- Output register
         if r.OutValid = '1' and Out_Ready = '1' then
@@ -115,9 +149,9 @@ begin
         Ready_v := (not r.OutValid or Out_Ready) and not Ctrl_Flush;
 
         -- Word taken
-        if In_Valid = '1' and Ready_v = '1' then
+        if StgValid = '1' and Ready_v = '1' then
             -- A corrupted word poisons the column up to the next EDF
-            if In_Poison = '1' then
+            if StgPoison = '1' then
                 v.Poison := '1';
             end if;
 
@@ -130,7 +164,7 @@ begin
                 when KindData =>
                     if r.State = Data_s then
                         if Cfg_Scramble = '1' then
-                            Word_v := scrambleWord(In_Data, In_K, PrbsData);
+                            Word_v := scrambleWord(StgData, StgK, PrbsData);
                         end if;
                         Advance_v := '1';
                         CrcVld_v  := '1';
@@ -142,7 +176,7 @@ begin
                         Last_v   := '1';
                         Be_v     := "0011";
                         v.OutCrc := '1';
-                        v.OutInv := r.Poison or In_Poison;
+                        v.OutInv := r.Poison or StgPoison;
                         v.Poison := '0';
                     end if;
                 when others =>
@@ -151,7 +185,7 @@ begin
 
             v.State    := frameNext(r.State, Kind_v);
             v.OutData  := Word_v;
-            v.OutK     := In_K;
+            v.OutK     := StgK;
             v.OutValid := '1';
         end if;
 
@@ -165,7 +199,7 @@ begin
         end if;
 
         -- Outputs
-        In_Ready    <= Ready_v;
+        StgReady    <= Ready_v;
         PrbsAdvance <= Advance_v;
         PrbsSet     <= Set_v;
         CrcData     <= Word_v;
