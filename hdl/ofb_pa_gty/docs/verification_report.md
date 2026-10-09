@@ -51,6 +51,8 @@ encoder): `ofb_pa_gty_cc_tb` (both runs), `ofb_pa_gty_core_tb` (link initialised
 98.3 us, all packets delivered, no error, no retry) and `ofb_vck190_tb` pass. `ofb_pa_gty_tb`, the first run after the
 runner had generated the wizard instance again, reached TX ready 14 ns early and two lanes never aligned (the
 non-deterministic behaviour of the transceiver model, section 2); its rerun passes with the results above.
+Rerun of `ofb_pa_gty_core_tb` with the output register of the receive frame buffer: link initialised after 94.2 us,
+all packets and broadcast messages delivered, no error, no retry (pass).
 
 Rerun after the findings of the first VCK190 build (lane reset and far-end loopback enables from registers,
 register stages of the input VC buffers, latch-free pulse crossing): `ofb_pa_gty_tb` and both runs of
