@@ -136,6 +136,9 @@ source [file join $root open-logic src base tcl olo_base_constraints_amd.tcl]
 set_property top ofb_vck190_top [current_fileset]
 update_compile_order -fileset sources_1
 
+# Implementation: placement and routing explore several directives, physical optimization also after routing
+set_property strategy Performance_ExplorePostRoutePhysOpt [get_runs impl_1]
+
 if {$step eq "project"} { return }
 
 launch_runs synth_1 -jobs 8

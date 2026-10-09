@@ -23,7 +23,9 @@ Data Link report). Rerun with the PRBS test ports of the core connected to the t
 64.9 us, link initialised after 94.8 us, all packets and broadcast messages back, no error, LEDs 0 to 3 on (pass).
 Rerun with the MIB port of the top level shared by the CIPS and the LED poller (in simulation the poller alone):
 transceivers ready after 64.9 us, link initialised after 94.8 us, all packets and broadcast messages back, no
-error, LEDs 0 to 3 on (pass).
+error, LEDs 0 to 3 on (pass). Rerun after the timing changes of the second build (end flags in the input VC
+buffers, input stage of the column encoders): transceivers ready after 64.9 us, link initialised after 94.8 us,
+6 packets on each VC and 4 broadcast messages back, no error, LEDs 0 to 3 on (pass).
 
 TC-VCK-02: `vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl -tclargs project`, then `synth_design -rtl`:
 the design elaborates without errors. The remaining warnings are unconnected ports of generic entities (unused bits
@@ -63,6 +65,8 @@ Findings:
 | First build: ERROR 18-513 / WARNING 18-402 from the scoped constraints of `olo_intf_sync` (they constrain device pins; the design uses the entity for internal signals) | Scoped constraints of `olo_intf` not loaded; the clock pair constraints cover the crossings |
 | First build: critical warning 12-3645 (files added one at a time) | One `add_files` call per library |
 | First build on a long Windows path: `write_device_image` failed while compiling the platform loader firmware (path length limit) | Environment variable `OFB_VIVADO_OUT` for a short project directory, warning in `build.tcl`, note in the hardware test procedure |
+| Second build (4731e6e): setup violations of up to 0.055 ns in `clk_pl_1` (1538 endpoints), all in the beat formation of the input VC buffers (15 to 18 logic levels); lane clock and `clk_pl_0` met | End flags of the words decoded before the bank stages, banks of the beat marked in `BeatSel` (Data Link report) |
+| Second build: the lane clock met timing with only 0.280 ns of slack (word assembly of the Multi-Lane transmitter, scrambler and CRC of the column encoder; copy from the output VC buffers into the error recovery buffer; write into the input VC buffers) | Input register stage in the column encoder (Multi-Lane report); implementation strategy `Performance_ExplorePostRoutePhysOpt` in `build.tcl` |
 
 ## 3. Hardware test
 
@@ -70,13 +74,16 @@ Procedure: [hardware_test.md](hardware_test.md).
 
 | Test | Result | Notes |
 | --- | --- | --- |
-| Build of d8d08ab (timing, resources) | Fail (timing) | Device image generated; WNS -2.673 ns (6130 endpoints, lane clock), WHS +0.009 ns; findings fixed (section 2), rebuild open |
+| Build of d8d08ab (timing, resources) | Fail (timing) | Device image generated; WNS -2.673 ns (6130 endpoints, lane clock), WHS +0.009 ns; findings fixed (section 2) |
+| Build of 4731e6e (timing, resources) | Fail (timing) | Device image generated; WNS -0.055 ns (1538 endpoints, `clk_pl_1`), WHS +0.001 ns; lane clock +0.280 ns, `clk_pl_0` +2.206 ns; findings fixed (section 2), rebuild open |
 | TC-VCK-HW-01 to 07 | Open | |
 | TC-VCK-HW-08 | Open | Register access over JTAG with `tcl/xsdb_mib.tcl` (procedure section 7) |
 | TC-VCK-HW-09 | Open | |
 
 Resources of the build of d8d08ab (XCVC1902, whole design, eight VCs, four lanes): 43852 LUT (3505 as memory),
-32239 registers, 37 RAMB36 and 10 RAMB18 (42 block RAM tiles), 8 DSP, no URAM.
+32239 registers, 37 RAMB36 and 10 RAMB18 (42 block RAM tiles), 8 DSP, no URAM. Build of 4731e6e (register stages
+of the input VC buffers, CIPS block design with SmartConnect, PRBS test): 46507 LUT (881 as memory), 44618
+registers, 50 RAMB36 and 9 RAMB18 (54.5 block RAM tiles), 8 DSP, no URAM.
 
 Messages of the build of d8d08ab that need no change:
 

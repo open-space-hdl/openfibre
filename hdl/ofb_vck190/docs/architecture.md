@@ -82,4 +82,6 @@ project in `vivado_out/ofb_vck190` or in the directory of the environment variab
 most about 40 characters, see the hardware test procedure) (Open Logic in the library `olo`, OpenFibre in the default
 library, VHDL-2008, all files of one library with one `add_files` call),
 creates the transceiver wizard instance with `hdl/ofb_pa_gty/tcl/ofb_gtw.tcl`, adds the constraints and runs the
-requested steps up to the device image.
+requested steps up to the device image. The implementation run uses the strategy
+`Performance_ExplorePostRoutePhysOpt` (several placement and routing directives, physical optimization also after
+routing).

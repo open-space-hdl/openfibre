@@ -178,12 +178,14 @@ a row for a full input VC buffer is an overflow (`Ev_Overflow` per VC).
   resets them from the write side. The words of a received row (1 to N words, mask) are written to the banks in turn,
   starting at the bank `WrBank` that follows the last word written, so that the buffer holds the words without gaps:
   an FCT of M x 64 words is exactly M x 64 words of space, however the far end packed its rows.
-- Read side: every bank is followed by a register stage (`olo_base_pl_stage`, word and DED flag), and the beat is
-  formed from these registers, so that the read of a bank RAM does not depend on the words of the other banks (timing
-  of the user clock). Beats of N words from the banks in turn, starting at `RdBank`. A beat is offered when N words are
-  available or a word with an EOP or EEP is among the available words; it then ends with that word and the rest of the
-  beat is Fill words (DL-RW-06). All banks have the same crossing latency, so the available words are contiguous from
-  `RdBank`.
+- Read side: every bank is followed by a register stage (`olo_base_pl_stage`, word, DED flag and two end flags of
+  the word: EOP or EEP in the word, EOP, EEP or Fill in character 3), and the beat is formed from these registers, so
+  that the read of a bank RAM does not depend on the words of the other banks and the beat logic decides on single
+  flag bits instead of decoding the words (timing of the user clock). The banks that belong to the beat are marked in
+  `BeatSel`, from which the reads of the banks follow directly. Beats of N words from the banks in turn, starting at
+  `RdBank`. A beat is offered when N words are available or a word with an EOP or EEP is among the available words; it
+  then ends with that word and the rest of the beat is Fill words (DL-RW-06). All banks have the same crossing latency,
+  so the available words are contiguous from `RdBank`.
 - FCT requests: a counter of free blocks of 64 words, set to `VcInDepth_g / 64` on link reset, + 1 for every 64 words
   read by the Network layer (pulse through `ofb_cc_pulse`), - M for every FCT admitted; an FCT is requested while at
   least M blocks are free (M = `Cfg_FctMult` + 1).
