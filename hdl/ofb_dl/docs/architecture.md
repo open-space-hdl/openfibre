@@ -169,8 +169,11 @@ passed to `ofb_dl_tx_frame`, which keeps one pending request (the newer replaces
 The last data row of the current frame is held in a register, so that it can be written with `Last` once the frame
 ends: on the next data row it is written as a normal row, on commit with `Last`, on drop with `Last` and `In_Drop`.
 The frame buffer is an `olo_ft_fifo_packet` (37 x N + 5 bits: data, K, word mask, VC; `FrameBufDepth_g` rows): only
-committed frames reach its output. The output is distributed to the input VC buffer of the VC stored with every row;
-a row for a full input VC buffer is an overflow (`Ev_Overflow` per VC).
+committed frames reach its output. The output passes a register (rows with an uncorrectable error and rows for a VC
+the core does not implement are not taken into it; cleared by reset and link reset), so that the ECC decoder of the
+frame buffer and the bank distribution of the input VC buffers lie in different cycles (timing of the lane clock),
+and is distributed from there to the input VC buffer of the VC stored with every row; a row for a full input VC buffer
+is an overflow (`Ev_Overflow` per VC).
 
 ### 3.9 ofb_dl_vc_in (DR-6), one per VC
 

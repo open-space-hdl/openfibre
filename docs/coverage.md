@@ -47,7 +47,7 @@ file; bold marks a metric with misses.
 | `ofb_dl/src/ofb_dl_mac.vhd` | 60/60 | 34/34 |  |  | **13/16** | 2/2 |
 | `ofb_dl/src/ofb_dl_pkg.vhd` | **40/41** | 21/21 |  |  | **8/9** |  |
 | `ofb_dl/src/ofb_dl_qos_regs.vhd` | 19/19 | 15/15 |  |  | **3/4** |  |
-| `ofb_dl/src/ofb_dl_rx_buf.vhd` | 22/22 | 12/12 |  |  | 6/6 | **13/14** |
+| `ofb_dl/src/ofb_dl_rx_buf.vhd` | 27/27 | 15/15 |  |  | 9/9 | **13/14** |
 | `ofb_dl/src/ofb_dl_rx_check.vhd` | 168/168 | 88/88 |  |  | 16/16 | 7/7 |
 | `ofb_dl/src/ofb_dl_rx_err.vhd` | 9/9 | 23/23 | 4/4 | 8/8 | 4/4 |  |
 | `ofb_dl/src/ofb_dl_tx_admit.vhd` | 71/71 | **31/32** |  |  | **17/19** | **3/4** |
@@ -72,7 +72,7 @@ file; bold marks a metric with misses.
 | `ofb_ni/src/ofb_ni_vc.vhd` | 55/55 | 31/31 |  |  | **16/20** | 2/2 |
 | `ofb_pkg/src/ofb_cc_pulse.vhd` | 19/19 | 8/8 |  |  |  |  |
 | `ofb_pkg/src/ofb_pkg.vhd` | 55/55 | 10/10 |  |  | **1/2** |  |
-| Total | 2546/2548 (99.9 %) | 1283/1290 (99.5 %) | 29/29 (100.0 %) | 62/62 (100.0 %) | 399/452 (88.3 %) | 160/219 (73.1 %) |
+| Total | 2551/2553 (99.9 %) | 1286/1293 (99.5 %) | 29/29 (100.0 %) | 62/62 (100.0 %) | 402/455 (88.4 %) | 160/219 (73.1 %) |
 
 ## 3. Gaps found and closed
 

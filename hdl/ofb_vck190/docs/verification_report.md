@@ -25,7 +25,8 @@ Rerun with the MIB port of the top level shared by the CIPS and the LED poller (
 transceivers ready after 64.9 us, link initialised after 94.8 us, all packets and broadcast messages back, no
 error, LEDs 0 to 3 on (pass). Rerun after the timing changes of the second build (end flags in the input VC
 buffers, input stage of the column encoders): transceivers ready after 64.9 us, link initialised after 94.8 us,
-6 packets on each VC and 4 broadcast messages back, no error, LEDs 0 to 3 on (pass).
+6 packets on each VC and 4 broadcast messages back, no error, LEDs 0 to 3 on (pass); with the output register of the
+receive frame buffer as well (pass, same results).
 
 TC-VCK-02: `vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl -tclargs project`, then `synth_design -rtl`:
 the design elaborates without errors. The remaining warnings are unconnected ports of generic entities (unused bits
@@ -66,7 +67,7 @@ Findings:
 | First build: critical warning 12-3645 (files added one at a time) | One `add_files` call per library |
 | First build on a long Windows path: `write_device_image` failed while compiling the platform loader firmware (path length limit) | Environment variable `OFB_VIVADO_OUT` for a short project directory, warning in `build.tcl`, note in the hardware test procedure |
 | Second build (4731e6e): setup violations of up to 0.055 ns in `clk_pl_1` (1538 endpoints), all in the beat formation of the input VC buffers (15 to 18 logic levels); lane clock and `clk_pl_0` met | End flags of the words decoded before the bank stages, banks of the beat marked in `BeatSel` (Data Link report) |
-| Second build: the lane clock met timing with only 0.280 ns of slack (word assembly of the Multi-Lane transmitter, scrambler and CRC of the column encoder; copy from the output VC buffers into the error recovery buffer; write into the input VC buffers) | Input register stage in the column encoder (Multi-Lane report); implementation strategy `Performance_ExplorePostRoutePhysOpt` in `build.tcl` |
+| Second build: the lane clock met timing with only 0.280 ns of slack (word assembly of the Multi-Lane transmitter, scrambler and CRC of the column encoder; copy from the output VC buffers into the error recovery buffer; write into the input VC buffers) | Input register stage in the column encoder (Multi-Lane report); output register of the receive frame buffer (Data Link report); implementation strategy `Performance_ExplorePostRoutePhysOpt` in `build.tcl` |
 
 ## 3. Hardware test
 

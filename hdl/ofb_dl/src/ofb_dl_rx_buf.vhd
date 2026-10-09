@@ -7,7 +7,9 @@
 -- Description
 ---------------------------------------------------------------------------------------------------
 -- Receive frame buffer of the Data Link layer (DR-5): stores the data words of the current frame,
--- passes accepted frames to the input VC buffers and discards the others (ECSS 5.7.6.7a, b).
+-- passes accepted frames to the input VC buffers and discards the others (ECSS 5.7.6.7a, b). The rows
+-- to the input VC buffers leave from a register (timing: ECC decoder and bank distribution of the
+-- input VC buffers in different cycles).
 --
 -- Documentation: hdl/ofb_dl/docs/architecture.md (section 3.8)
 
@@ -86,6 +88,10 @@ architecture rtl of ofb_dl_rx_buf is
     signal OutVc    : natural range 0 to 31;
     signal FifoSec  : std_logic;
     signal FifoDed  : std_logic;
+    -- Output register
+    signal RegData  : std_logic_vector(Width_c-1 downto 0);
+    signal RegValid : std_logic;
+    signal RegVc    : natural range 0 to 31;
 
 begin
 
@@ -146,24 +152,38 @@ begin
     Ev_EccDed <= FifoDed and OutValid;
 
     -----------------------------------------------------------------------------------------------
-    -- Distribution to the input VC buffers
+    -- Distribution to the input VC buffers, from the output register
     -----------------------------------------------------------------------------------------------
-    OutVc   <= to_integer(unsigned(OutData(Width_c-1 downto Width_c-5)));
-    Vc_Data <= OutData(32*N_c-1 downto 0);
-    Vc_K    <= OutData(36*N_c-1 downto 32*N_c);
-    Vc_Mask <= OutData(37*N_c-1 downto 36*N_c);
+    OutVc <= to_integer(unsigned(OutData(Width_c-1 downto Width_c-5)));
+
+    p_reg : process (Clk) is
+    begin
+        if rising_edge(Clk) then
+            RegData  <= OutData;
+            RegVc    <= OutVc;
+            RegValid <= '0';
+            -- A row with an uncorrectable error is not passed on (the link is reset, DL-ED-01)
+            if OutValid = '1' and FifoDed = '0' and OutVc < NumVc_g then
+                RegValid <= '1';
+            end if;
+            if Rst = '1' or Ctrl_LinkReset = '1' then
+                RegValid <= '0';
+            end if;
+        end if;
+    end process;
+
+    Vc_Data <= RegData(32*N_c-1 downto 0);
+    Vc_K    <= RegData(36*N_c-1 downto 32*N_c);
+    Vc_Mask <= RegData(37*N_c-1 downto 36*N_c);
 
     p_demux : process (all) is
     begin
         Vc_Valid      <= (others => '0');
         Ev_VcOverflow <= (others => '0');
-        -- A row with an uncorrectable error is not passed on (the link is reset, DL-ED-01)
-        if OutValid = '1' and FifoDed = '0' then
-            if OutVc < NumVc_g then
-                Vc_Valid(OutVc) <= '1';
-                if Vc_Ready(OutVc) = '0' then
-                    Ev_VcOverflow(OutVc) <= '1';
-                end if;
+        if RegValid = '1' then
+            Vc_Valid(RegVc) <= '1';
+            if Vc_Ready(RegVc) = '0' then
+                Ev_VcOverflow(RegVc) <= '1';
             end if;
         end if;
     end process;
