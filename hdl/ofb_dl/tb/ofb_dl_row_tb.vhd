@@ -438,6 +438,12 @@ begin
                 cycles(50);
                 check_value(RowStat.SeqErrs, 2, error, "Second sequence error");
                 check_value(RowStat.RxErrState, "11", error, "Error Negative after a sequence error in Error Positive");
+                -- Sequence error with the expected polarity in Error Negative: Error Positive
+                rxFrame(0, 1, 13, '1');
+                waitRxIdle;
+                cycles(50);
+                check_value(RowStat.SeqErrs, 3, error, "Third sequence error");
+                check_value(RowStat.RxErrState, "10", error, "Error Positive after a sequence error in Error Negative");
 
             -- TC-DL-26: two out-of-sequence words in consecutive cycles with positive polarity (frame 2
             -- lost, EDF of frame 3 and its SIF back to back): one error recovery only, Error Negative,
