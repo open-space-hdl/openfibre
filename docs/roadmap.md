@@ -3,6 +3,16 @@
 The development follows the migration path of the [architecture](architecture.md) (section 11). This page tracks
 the state of every module; a module is done when its verification report is written and its regression is green.
 
+## Technology readiness
+
+The core is at **TRL 3**: fully verified by simulation, not yet tested on hardware, no flight heritage. The
+[TRL page](https://openspacehdl.org/trl/) explains what the levels mean for an IP core.
+
+| Next level | What is needed | State |
+| --- | --- | --- |
+| TRL 4 | Timing closure on a representative FPGA; hardware test in the laboratory against the functional and performance requirements, ideally against independent SpaceFibre equipment; hardware test plan and test report | Timing closure on the XCVC1902 met (third build, see the hardening items); hardware test on the VCK190 with STAR-Dundee equipment open |
+| TRL 5 | Radiation-tolerant target FPGA with transceivers for SpaceFibre; single-event effects test (beam test) with the core in operation that confirms the single-event mitigation and quantifies the error rates; operation over the temperature range | Open |
+
 ## Phases
 
 | Phase | Content | Exit criterion |

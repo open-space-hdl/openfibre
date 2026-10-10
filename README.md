@@ -1,5 +1,7 @@
 # OpenFibre
 
+[![TRL 3](docs/img/trl-3.svg)](https://openspacehdl.org/trl/)
+
 OpenFibre is an open SpaceFibre implementation that is based on the Open Logic VHDL Library.
 
 It implements a SpaceFibre port according to
@@ -10,6 +12,10 @@ Management Information Base. All RAMs, clock domain crossings and reset synchron
 entities of [Open Logic](https://github.com/open-logic/open-logic) (SECDED ECC, TMR synchronisers).
 
 ## Status
+
+**Technology readiness level: TRL 3** (fully verified by simulation). The core has not been tested on
+hardware yet and has no flight heritage; see [what the levels mean](https://openspacehdl.org/trl/) and the next
+steps in the [roadmap](docs/roadmap.md#technology-readiness).
 
 The core (1 to 4 lanes, 1 to 32 virtual channels, broadcast messages, quality of service, EDAC) is complete and
 verified in simulation; the [compliance matrix](docs/compliance.md) traces every ECSS clause in scope to its tests.
