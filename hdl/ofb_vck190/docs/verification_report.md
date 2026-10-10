@@ -76,7 +76,8 @@ Procedure: [hardware_test.md](hardware_test.md).
 | Test | Result | Notes |
 | --- | --- | --- |
 | Build of d8d08ab (timing, resources) | Fail (timing) | Device image generated; WNS -2.673 ns (6130 endpoints, lane clock), WHS +0.009 ns; findings fixed (section 2) |
-| Build of 4731e6e (timing, resources) | Fail (timing) | Device image generated; WNS -0.055 ns (1538 endpoints, `clk_pl_1`), WHS +0.001 ns; lane clock +0.280 ns, `clk_pl_0` +2.206 ns; findings fixed (section 2), rebuild open |
+| Build of 4731e6e (timing, resources) | Fail (timing) | Device image generated; WNS -0.055 ns (1538 endpoints, `clk_pl_1`), WHS +0.001 ns; lane clock +0.280 ns, `clk_pl_0` +2.206 ns; findings fixed (section 2) |
+| Build of c1533de (timing, resources) | Pass | Device image generated; all timing constraints met: WNS +0.030 ns (`clk_pl_1`, beat formation of the input VC buffers, 16 logic levels), lane clock +0.157 ns (output VC buffer to error recovery buffer), `clk_pl_0` +2.697 ns, WHS +0.012 ns; implementation strategy `Performance_ExplorePostRoutePhysOpt` |
 | TC-VCK-HW-01 to 07 | Open | |
 | TC-VCK-HW-08 | Open | Register access over JTAG with `tcl/xsdb_mib.tcl` (procedure section 7) |
 | TC-VCK-HW-09 | Open | |
@@ -84,7 +85,9 @@ Procedure: [hardware_test.md](hardware_test.md).
 Resources of the build of d8d08ab (XCVC1902, whole design, eight VCs, four lanes): 43852 LUT (3505 as memory),
 32239 registers, 37 RAMB36 and 10 RAMB18 (42 block RAM tiles), 8 DSP, no URAM. Build of 4731e6e (register stages
 of the input VC buffers, CIPS block design with SmartConnect, PRBS test): 46507 LUT (881 as memory), 44618
-registers, 50 RAMB36 and 9 RAMB18 (54.5 block RAM tiles), 8 DSP, no URAM.
+registers, 50 RAMB36 and 9 RAMB18 (54.5 block RAM tiles), 8 DSP, no URAM. Build of c1533de: 47992 LUT (3325 as
+memory: the output VC buffers are distributed RAM in this build), 47212 registers, 36 RAMB36 and 2 RAMB18 (37 block
+RAM tiles), 8 DSP, no URAM.
 
 Messages of the build of d8d08ab that need no change:
 
@@ -105,3 +108,5 @@ Messages of the build of d8d08ab that need no change:
 | Synth 8-4767 (RAM in registers) | `olo_ft_fifo_packet`: small RAM in registers by default (`SmallRamStyle_g`) |
 | Synth 8-689, 8-7023, 8-7071 | Unused ports of the CIPS |
 | TIMING-10 (one synchroniser without `ASYNC_REG`) | No object named; the CDC report lists every synchroniser with `ASYNC_REG` (CDC-3, CDC-9). To be checked again in the rebuild |
+| Build of c1533de: 8 x Vivado 12-4739 (`set_max_delay` without object) from `olo_base_ram_sdp.tcl`, TIMING-9 (one crossing without synchroniser) | The output VC buffers became distributed RAM; synthesis retimed the first read register of their RAM (`g_async.RdPipe_reg[1]*_bret`), so the scoped Open Logic constraint for the distributed RAM read-write collision path and its CDC waiver find no cells. The path is bounded by the clock pair constraints of `ofb_vck190.xdc` (`clk_pl_1` to lane clock: +5.382 ns); the async FIFO never reads an address while writing it. To be fixed in the Open Logic constraint (cell pattern) |
+| Build of c1533de: LUTAR-1 at `i_por` | The majority voter of `olo_ft_reset_gen` drives the asynchronous reset of the reset synchroniser of the transceiver wizard. Its three inputs are registers of one clock; a change of one input does not change the output, and the release passes the voter once |
