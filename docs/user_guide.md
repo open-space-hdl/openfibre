@@ -207,7 +207,9 @@ forward), so the latency grows with the frame length (up to 64 words per lane).
 - Every state machine has a recovery branch (`when others`) to its reset state. Synthesis tools that re-encode state
   machines remove this branch unless a safe implementation is requested. With AMD Vivado set the property
   `FSM_SAFE_STATE` to `default_state` on the state registers (in the XDC, see UG901); with Synplify set the attribute
-  `syn_encoding` to `safe`. The core does not set vendor attributes itself.
+  `syn_encoding` to `safe`. The core does not set these attributes itself. Its only synthesis attributes are in the
+  pulse crossing `ofb_cc_pulse` (the triplicated registers are preserved and not merged, no vendor TMR) and in the
+  input VC buffer `ofb_dl_vc_in` (`keep` and `syn_keep` on the nets of the beat decision).
 - Clock crossings: constraints of section 4.
 
 The VCK190 reference design is built with `vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl` (with the CIPS

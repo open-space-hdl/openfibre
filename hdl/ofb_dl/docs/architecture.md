@@ -184,11 +184,18 @@ is an overflow (`Ev_Overflow` per VC).
 - Read side: every bank is followed by a register stage (`olo_base_pl_stage`, word, DED flag and two end flags of
   the word: EOP or EEP in the word, EOP, EEP or Fill in character 3), and the beat is formed from these registers, so
   that the read of a bank RAM does not depend on the words of the other banks and the beat logic decides on single
-  flag bits instead of decoding the words (timing of the user clock). The banks that belong to the beat are marked in
-  `BeatSel`, from which the reads of the banks follow directly. Beats of N words from the banks in turn, starting at
-  `RdBank`. A beat is offered when N words are available or a word with an EOP or EEP is among the available words; it
-  then ends with that word and the rest of the beat is Fill words (DL-RW-06). All banks have the same crossing latency,
-  so the available words are contiguous from `RdBank`.
+  flag bits instead of decoding the words (timing of the user clock). Beats of N words from the banks in turn,
+  starting at the bank marked in the one-hot read position `RdSel`: position i of the beat holds the word of the bank
+  i places after it. A beat is offered when N words are available or a word with an EOP or EEP is among the available
+  words; it then ends with that word and the rest of the beat is Fill words (DL-RW-06). All banks have the same
+  crossing latency, so the available words are contiguous from `RdSel`.
+- Beat logic without arithmetic (timing of the user clock): the flags of the bank stages are rotated to the beat
+  positions by AND-OR terms of `RdSel`; position i belongs to the beat (`Take`) when the words of positions 0 to i are
+  available and none of positions 0 to i-1 ends a packet; the beat is complete with position N-1 or with a taken
+  end; bank b is read when the beat is read and `Take` marks the position of b. The next read position (the bank
+  after the last taken position), the word count and the discard state are computed from `Take` as separate logic;
+  `Take`, `BeatValid` and `BankRdy` carry `keep` attributes, so that the synthesis does not merge the read decision
+  with this next-state logic.
 - FCT requests: a counter of free blocks of 64 words, set to `VcInDepth_g / 64` on link reset, + 1 for every 64 words
   read by the Network layer (pulse through `ofb_cc_pulse`), - M for every FCT admitted; an FCT is requested while at
   least M blocks are free (M = `Cfg_FctMult` + 1).
