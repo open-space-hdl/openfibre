@@ -22,6 +22,7 @@ library ieee;
     use ieee.numeric_std.all;
 
 library olo;
+    use olo.olo_base_pkg_attribute.all;
     use olo.olo_ft_pkg_ecc.all;
 
 library work;
@@ -110,20 +111,37 @@ architecture rtl of ofb_dl_vc_in is
     signal BlkCore : std_logic;
 
     -- User side
-    signal RdBank    : Bank_t;
+    signal RdSel     : std_logic_vector(N_c-1 downto 0); -- One-hot: bank of the first word of the next beat
     signal LastEnd   : std_logic;
     signal Inject    : std_logic;
     signal RdCnt     : natural range 0 to MaxFrameWords_c-1;
     signal BlkUser   : std_logic;
+    signal BankAvl   : std_logic_vector(N_c-1 downto 0); -- The stage of the bank holds a word
+    signal PosVld    : std_logic_vector(N_c-1 downto 0); -- Per beat position: a word is available
+    signal PosEnd    : std_logic_vector(N_c-1 downto 0); -- Per beat position: the word holds an EOP or EEP
+    signal PosLEnd   : std_logic_vector(N_c-1 downto 0); -- Per beat position: character 3 is an EOP, EEP or Fill
+    signal PosDed    : std_logic_vector(N_c-1 downto 0); -- Per beat position: uncorrectable error
+    signal PosData   : std_logic_vector(32*N_c-1 downto 0);
+    signal PosK      : std_logic_vector(4*N_c-1 downto 0);
+    signal Take      : std_logic_vector(N_c-1 downto 0); -- Beat positions whose word belongs to the beat
+    signal TakeLast  : std_logic_vector(N_c-1 downto 0); -- One-hot: last position of the beat
+    signal TakeCnt   : natural range 0 to N_c; -- Number of words of the beat
+    signal Go        : std_logic; -- The beat is read (to the Network layer or discarded)
     signal BeatData  : std_logic_vector(32*N_c-1 downto 0);
     signal BeatK     : std_logic_vector(4*N_c-1 downto 0);
     signal BeatValid : std_logic;
-    signal BeatCnt   : natural range 0 to N_c;
-    signal BeatSel   : std_logic_vector(N_c-1 downto 0); -- Banks whose word belongs to the beat
     signal BeatLast  : std_logic;
     signal BeatEnd   : std_logic; -- The beat ends with an EOP or EEP
     signal BeatDed   : std_logic; -- A word of the beat has an uncorrectable error
     signal Discard   : std_logic; -- Rest of a packet after a DED: words read and discarded
+
+    -- The beat decision stays separate from the next-state logic of the read position and the counters (timing)
+    attribute keep of Take          : signal is Keep_SuppressChanges_c;
+    attribute keep of BeatValid     : signal is Keep_SuppressChanges_c;
+    attribute keep of BankRdy       : signal is Keep_SuppressChanges_c;
+    attribute syn_keep of Take      : signal is SynKeep_SuppressChanges_c;
+    attribute syn_keep of BeatValid : signal is SynKeep_SuppressChanges_c;
+    attribute syn_keep of BankRdy   : signal is SynKeep_SuppressChanges_c;
 
 begin
 
@@ -246,89 +264,148 @@ begin
         BankDed(b)  <= StageOut(b)(36);
         BankEnd(b)  <= StageOut(b)(37);
         BankLEnd(b) <= StageOut(b)(38);
+        -- Not '1' instead of '0': a stage without its first reset (simulation) holds no word
+        BankAvl(b) <= '1' when BankVld(b) = '1' else '0';
 
     end generate;
 
     -----------------------------------------------------------------------------------------------
     -- User side: beats of N words from the banks; a beat ends after an EOP or EEP (Fill words up to
-    -- N words); EEP after link reset; count of the words read
+    -- N words); EEP after link reset; count of the words read. Beat position i holds the word of the
+    -- bank i places after RdSel. The read position is one-hot and all decisions are AND-OR terms of
+    -- flag bits without arithmetic, so that the beat logic is flat (timing of the user clock)
     -----------------------------------------------------------------------------------------------
-    p_beat : process (all) is
-        variable Avail_v : boolean;
-        variable Ended_v : boolean;
-        variable Cnt_v   : natural range 0 to N_c;
-        variable Bank_v  : Bank_t;
-        variable Ded_v   : boolean;
-        variable Sel_v   : std_logic_vector(N_c-1 downto 0);
+    p_pos : process (all) is
+        variable Vld_v  : std_logic_vector(N_c-1 downto 0);
+        variable End_v  : std_logic_vector(N_c-1 downto 0);
+        variable LEnd_v : std_logic_vector(N_c-1 downto 0);
+        variable Ded_v  : std_logic_vector(N_c-1 downto 0);
+        variable Data_v : std_logic_vector(32*N_c-1 downto 0);
+        variable K_v    : std_logic_vector(4*N_c-1 downto 0);
+        variable Bank_v : Bank_t;
     begin
-        BeatData <= (others => '1');
-        BeatK    <= (others => '1');
-        Avail_v  := true;
-        Ended_v  := false;
-        Ded_v    := false;
-        Cnt_v    := 0;
-        Sel_v    := (others => '0');
+        Vld_v  := (others => '0');
+        End_v  := (others => '0');
+        LEnd_v := (others => '0');
+        Ded_v  := (others => '0');
+        Data_v := (others => '0');
+        K_v    := (others => '0');
 
         for i in 0 to N_c-1 loop
-            BeatData(32*i+31 downto 32*i) <= WordFill_c;
-            Bank_v                        := (RdBank + i) mod N_c;
-            -- Not '1' instead of '0': a stage without its first reset (simulation) is not taken
-            if BankVld(Bank_v) /= '1' then
-                Avail_v := false;
-            end if;
-            if Avail_v and not Ended_v then
-                BeatData(32*i+31 downto 32*i) <= BankOut(Bank_v)(31 downto 0);
-                BeatK(4*i+3 downto 4*i)       <= BankOut(Bank_v)(35 downto 32);
-                Cnt_v                         := i + 1;
-                Sel_v(Bank_v)                 := '1';
-                if BankDed(Bank_v) = '1' then
-                    Ded_v := true;
-                end if;
-                if BankEnd(Bank_v) = '1' then
-                    Ended_v := true;
-                end if;
-            end if;
+
+            for s in 0 to N_c-1 loop
+                -- Bank at position i when the beat starts at bank s (constant)
+                Bank_v                      := (s + i) mod N_c;
+                Vld_v(i)                    := Vld_v(i) or (RdSel(s) and BankAvl(Bank_v));
+                End_v(i)                    := End_v(i) or (RdSel(s) and BankEnd(Bank_v));
+                LEnd_v(i)                   := LEnd_v(i) or (RdSel(s) and BankLEnd(Bank_v));
+                Ded_v(i)                    := Ded_v(i) or (RdSel(s) and BankDed(Bank_v));
+                Data_v(32*i+31 downto 32*i) := Data_v(32*i+31 downto 32*i) or
+                                               (BankOut(Bank_v)(31 downto 0) and (31 downto 0 => RdSel(s)));
+                K_v(4*i+3 downto 4*i)       := K_v(4*i+3 downto 4*i) or
+                                               (BankOut(Bank_v)(35 downto 32) and (3 downto 0 => RdSel(s)));
+            end loop;
+
         end loop;
 
-        BeatCnt <= Cnt_v;
-        BeatSel <= Sel_v;
-        BeatEnd <= '0';
-        BeatDed <= '0';
-        if Ended_v then
-            BeatEnd <= '1';
-        end if;
-        if Ded_v then
-            BeatDed <= '1';
-        end if;
-        BeatValid <= '0';
-        if Ended_v or Cnt_v = N_c then
-            BeatValid <= '1';
-        end if;
-        -- Last character read: of the last word of the beat taken from the banks
-        BeatLast <= '0';
-        if Cnt_v > 0 then
-            Bank_v := (RdBank + Cnt_v - 1) mod N_c;
-            if BankLEnd(Bank_v) = '1' then
-                BeatLast <= '1';
-            end if;
-        end if;
+        PosVld  <= Vld_v;
+        PosEnd  <= End_v;
+        PosLEnd <= LEnd_v;
+        PosDed  <= Ded_v;
+        PosData <= Data_v;
+        PosK    <= K_v;
     end process;
 
-    -- Banks read with the beat
+    -- Position i belongs to the beat when the words of positions 0 to i are available and none of
+    -- positions 0 to i-1 ends a packet
+    p_take : process (all) is
+        variable Take_v : std_logic;
+    begin
+
+        for i in 0 to N_c-1 loop
+            Take_v := '1';
+
+            for j in 0 to i loop
+                Take_v := Take_v and PosVld(j);
+            end loop;
+
+            for j in 0 to i-1 loop
+                Take_v := Take_v and not PosEnd(j);
+            end loop;
+
+            Take(i) <= Take_v;
+        end loop;
+
+    end process;
+
+    p_beat : process (all) is
+        variable TakeX_v : std_logic_vector(N_c downto 0);
+        variable End_v   : std_logic;
+        variable Ded_v   : std_logic;
+        variable Last_v  : std_logic;
+    begin
+        -- One position more: the position after the last one is not taken
+        TakeX_v := '0' & Take;
+        End_v   := '0';
+        Ded_v   := '0';
+        Last_v  := '0';
+
+        for i in 0 to N_c-1 loop
+            End_v := End_v or (Take(i) and PosEnd(i));
+            Ded_v := Ded_v or (Take(i) and PosDed(i));
+            -- Last character read: of the last word of the beat
+            Last_v      := Last_v or (Take(i) and not TakeX_v(i+1) and PosLEnd(i));
+            TakeLast(i) <= Take(i) and not TakeX_v(i+1);
+            -- Positions without a word of the beat are Fill words
+            BeatData(32*i+31 downto 32*i) <= (PosData(32*i+31 downto 32*i) and (31 downto 0 => Take(i))) or
+                                             (WordFill_c and (31 downto 0 => not Take(i)));
+            BeatK(4*i+3 downto 4*i)       <= PosK(4*i+3 downto 4*i) or (3 downto 0 => not Take(i));
+        end loop;
+
+        BeatEnd   <= End_v;
+        BeatDed   <= Ded_v;
+        BeatLast  <= Last_v;
+        BeatValid <= Take(N_c-1) or End_v;
+    end process;
+
+    -- The beat is read: to the Network layer or discarded
+    Go <= BeatValid and (Out_Ready or Discard) and not Inject;
+
+    -- Banks read with the beat: bank b is at position i when RdSel marks the bank i places before b
     p_rd : process (all) is
+        variable Sel_v : std_logic;
     begin
 
         for b in 0 to N_c-1 loop
-            BankRdy(b) <= '0';
-            if (Out_Ready = '1' or Discard = '1') and Inject = '0' and BeatValid = '1' and BeatSel(b) = '1' then
-                BankRdy(b) <= '1';
+            Sel_v := '0';
+
+            for i in 0 to N_c-1 loop
+                Sel_v := Sel_v or (RdSel((b - i + N_c) mod N_c) and Take(i));
+            end loop;
+
+            BankRdy(b) <= Go and Sel_v;
+        end loop;
+
+    end process;
+
+    -- Number of words of the beat (the positions taken are a prefix)
+    p_cnt : process (all) is
+        variable Cnt_v : natural range 0 to N_c;
+    begin
+        Cnt_v := 0;
+
+        for i in 0 to N_c-1 loop
+            if Take(i) = '1' then
+                Cnt_v := i + 1;
             end if;
         end loop;
 
+        TakeCnt <= Cnt_v;
     end process;
 
     p_user : process (UserClk) is
         variable Cnt_v : natural;
+        variable Sel_v : std_logic_vector(N_c-1 downto 0);
     begin
         if rising_edge(UserClk) then
             BlkUser <= '0';
@@ -337,7 +414,7 @@ begin
                     Inject  <= '0';
                     LastEnd <= '1';
                 end if;
-            elsif BeatValid = '1' and (Out_Ready = '1' or Discard = '1') then
+            elsif Go = '1' then
                 LastEnd <= BeatLast;
                 if Discard = '1' then
                     -- Rest of a packet with an uncorrectable error: discarded up to its end
@@ -352,8 +429,19 @@ begin
                         Discard <= '1';
                     end if;
                 end if;
-                RdBank <= (RdBank + BeatCnt) mod N_c;
-                Cnt_v  := RdCnt + BeatCnt;
+                -- Next beat from the bank after the last word of this beat
+                Sel_v := (others => '0');
+
+                for b in 0 to N_c-1 loop
+
+                    for i in 0 to N_c-1 loop
+                        Sel_v(b) := Sel_v(b) or (TakeLast(i) and RdSel((b - i - 1 + N_c) mod N_c));
+                    end loop;
+
+                end loop;
+
+                RdSel <= Sel_v;
+                Cnt_v := RdCnt + TakeCnt;
                 if Cnt_v >= MaxFrameWords_c then
                     RdCnt   <= Cnt_v - MaxFrameWords_c;
                     BlkUser <= '1';
@@ -364,7 +452,7 @@ begin
             -- Link reset (buffer reset seen on the user side)
             if UsrRstIn(0) = '1' then
                 RdCnt   <= 0;
-                RdBank  <= 0;
+                RdSel   <= (0 => '1', others => '0');
                 Discard <= '0';
                 if LastEnd = '0' then
                     -- One EEP, also when the reset lasts several cycles
@@ -377,7 +465,7 @@ begin
                 LastEnd <= '1';
                 Inject  <= '0';
                 RdCnt   <= 0;
-                RdBank  <= 0;
+                RdSel   <= (0 => '1', others => '0');
                 BlkUser <= '0';
             end if;
         end if;

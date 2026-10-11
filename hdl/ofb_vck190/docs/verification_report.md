@@ -68,6 +68,7 @@ Findings:
 | First build on a long Windows path: `write_device_image` failed while compiling the platform loader firmware (path length limit) | Environment variable `OFB_VIVADO_OUT` for a short project directory, warning in `build.tcl`, note in the hardware test procedure |
 | Second build (4731e6e): setup violations of up to 0.055 ns in `clk_pl_1` (1538 endpoints), all in the beat formation of the input VC buffers (15 to 18 logic levels); lane clock and `clk_pl_0` met | End flags of the words decoded before the bank stages, banks of the beat marked in `BeatSel` (Data Link report) |
 | Second build: the lane clock met timing with only 0.280 ns of slack (word assembly of the Multi-Lane transmitter, scrambler and CRC of the column encoder; copy from the output VC buffers into the error recovery buffer; write into the input VC buffers) | Input register stage in the column encoder (Multi-Lane report); output register of the receive frame buffer (Data Link report); implementation strategy `Performance_ExplorePostRoutePhysOpt` in `build.tcl` |
+| Third build (c1533de): timing met, but with only 0.030 ns of slack in `clk_pl_1` (beat formation of the input VC buffers, 16 to 17 logic levels) | Beat logic of the input VC buffers without arithmetic, one-hot read position (Data Link report) |
 
 ## 3. Hardware test
 
