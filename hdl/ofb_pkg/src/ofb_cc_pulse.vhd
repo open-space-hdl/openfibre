@@ -11,8 +11,8 @@
 -- emits one pulse per toggle and returns the level as acknowledge. A pulse that arrives while a
 -- transfer is in progress is stored and sent after the acknowledge; further pulses during the
 -- same transfer are merged with the stored one. Request, pending and output state registers are
--- triplicated with majority voters, the level crossings use olo_ft_cc_bits, the resets of both
--- sides are coupled by olo_ft_cc_reset.
+-- triplicated with majority voters, the level crossings use olo_base_cc_bits with triplicated
+-- synchronisers (SyncTmr_g), the resets of both sides are coupled by olo_base_cc_reset.
 --
 -- Documentation: hdl/ofb_pkg/docs/specification.md
 
@@ -24,7 +24,6 @@ library ieee;
 
 library olo;
     use olo.olo_base_pkg_attribute.all;
-    use olo.olo_ft_pkg_attribute.all;
 
 ---------------------------------------------------------------------------------------------------
 -- Entity
@@ -102,7 +101,10 @@ architecture rtl of ofb_cc_pulse is
 
 begin
 
-    i_rst : entity olo.olo_ft_cc_reset
+    i_rst : entity olo.olo_base_cc_reset
+        generic map (
+            SyncTmr_g => true
+        )
         port map (
             A_Clk    => In_Clk,
             A_RstIn  => In_Rst,
@@ -137,9 +139,10 @@ begin
         end if;
     end process;
 
-    i_req_cc : entity olo.olo_ft_cc_bits
+    i_req_cc : entity olo.olo_base_cc_bits
         generic map (
-            Width_g => NumPulses_g
+            Width_g   => NumPulses_g,
+            SyncTmr_g => true
         )
         port map (
             In_Clk   => In_Clk,
@@ -171,9 +174,10 @@ begin
 
     Out_Pulse <= (ReqOut xor LastV) when RstOut = '0' else (others => '0');
 
-    i_ack_cc : entity olo.olo_ft_cc_bits
+    i_ack_cc : entity olo.olo_base_cc_bits
         generic map (
-            Width_g => NumPulses_g
+            Width_g   => NumPulses_g,
+            SyncTmr_g => true
         )
         port map (
             In_Clk   => Out_Clk,

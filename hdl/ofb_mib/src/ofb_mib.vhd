@@ -696,9 +696,10 @@ begin
     -----------------------------------------------------------------------------------------------
     CoreCfgIn <= MlMax & DataScrambled & BcInterval;
 
-    i_core_cfg : entity olo.olo_ft_cc_bits
+    i_core_cfg : entity olo.olo_base_cc_bits
         generic map (
-            Width_g => CoreCfgW_c
+            Width_g   => CoreCfgW_c,
+            SyncTmr_g => true
         )
         port map (
             In_Clk   => Clk,
@@ -743,8 +744,9 @@ begin
 
     i_qos_wr : entity olo.olo_ft_fifo_async
         generic map (
-            Width_g => 44,
-            Depth_g => 16
+            Width_g   => 44,
+            Depth_g   => 16,
+            SyncTmr_g => true
         )
         port map (
             In_Clk            => Clk,
@@ -770,9 +772,10 @@ begin
     CoreStatIn <= Dl_TimeSlot & Dl_BwUnder & Dl_BwOver & Dl_HasCredit & Dl_ErbEmpty & Dl_WordIdState & Dl_RxErrState &
                   Dl_LinkResetState;
 
-    i_core_stat : entity olo.olo_ft_cc_status
+    i_core_stat : entity olo.olo_base_cc_status
         generic map (
-            Width_g => CoreStatW_c
+            Width_g   => CoreStatW_c,
+            SyncTmr_g => true
         )
         port map (
             In_Clk    => CoreClk,
@@ -888,9 +891,10 @@ begin
         LaneEvIn(4*NumLanes_g+1)                                  <= Ml_EvRxOverflow;
     end process;
 
-    i_lane_cfg : entity olo.olo_ft_cc_bits
+    i_lane_cfg : entity olo.olo_base_cc_bits
         generic map (
-            Width_g => LaneCfgW_c * NumLanes_g
+            Width_g   => LaneCfgW_c * NumLanes_g,
+            SyncTmr_g => true
         )
         port map (
             In_Clk   => Clk,
@@ -901,9 +905,10 @@ begin
             Out_Data => LaneCfgOut
         );
 
-    i_lane_stat : entity olo.olo_ft_cc_status
+    i_lane_stat : entity olo.olo_base_cc_status
         generic map (
-            Width_g => LaneStatIn'length
+            Width_g   => LaneStatIn'length,
+            SyncTmr_g => true
         )
         port map (
             In_Clk    => LaneClk,
@@ -930,9 +935,10 @@ begin
     -- Multi-Lane configuration: maximum number of data-sending lanes, bypass
     MlCfgIn <= MlBypass & MlMax;
 
-    i_ml_cfg : entity olo.olo_ft_cc_bits
+    i_ml_cfg : entity olo.olo_base_cc_bits
         generic map (
-            Width_g => 4
+            Width_g   => 4,
+            SyncTmr_g => true
         )
         port map (
             In_Clk   => Clk,

@@ -57,25 +57,24 @@ The functions are pure and synthesisable; `crc8Word3` and the word functions unr
 
 Per pulse bit a two-phase handshake (no latch, every path between the clock domains starts at a register):
 
-![Pulse crossing ofb_cc_pulse: request logic, request and acknowledge crossings (olo_ft_cc_bits), output logic and reset
-coupling (olo_ft_cc_reset)](img/ofb_pkg_cc_pulse.drawio.svg)
+![Pulse crossing ofb_cc_pulse: request logic, request and acknowledge crossings (olo_base_cc_bits), output logic and
+reset coupling (olo_base_cc_reset)](img/ofb_pkg_cc_pulse.drawio.svg)
 
 - A pulse toggles the request level when no transfer is in progress (request equal to acknowledge), otherwise it is
   stored as pending (`Pend`) and toggles the request once the acknowledge returns. Further pulses during the same
   transfer merge with the pending one.
 - The output side emits one pulse per change of the synchronised request level and returns the level as acknowledge.
 - Round trip: at most 5 input and 4 output clock cycles (request register and the input register of
-  `olo_ft_cc_bits`, two synchronising stages per direction, alignment to the other clock), so pulses 5 input plus
+  `olo_base_cc_bits`, two synchronising stages per direction, alignment to the other clock), so pulses 5 input plus
   5 output clock cycles apart are never pending. Latency of an output pulse: at most 3 input plus 4 output clock
   cycles.
 - `Req`, `Pend` and `Last` are triplicated; every copy loads the voted value, so a flipped copy is corrected in the
   next cycle. Synthesis attributes of the Open Logic attribute packages (`dont_touch`, `dont_merge`, `preserve`,
   `syn_preserve`, `syn_keep`) prevent merging of the copies, `syn_radhardlevel` = none prevents vendor TMR insertion.
-- `olo_ft_cc_reset` couples the resets: a reset of either side resets both; request, acknowledge and `Last` restart
+- `olo_base_cc_reset` couples the resets: a reset of either side resets both; request, acknowledge and `Last` restart
   from 0, so a reset creates no output pulse.
 
-`ofb_cc_pulse` differs from `olo_ft_cc_pulse` of Open Logic (a toggle crossing with the semantics of
-`olo_base_cc_pulse`) in the pending pulse: a second pulse during a transfer is kept and sent afterwards, where
-`olo_ft_cc_pulse` merges pulses closer than its minimum spacing. Earlier versions of `olo_ft_cc_pulse` were built
-from a set/reset latch per copy, which the FPGA tools map to a transparent latch whose gate and data both follow the
-input pulse.
+Both level crossings and the reset crossing are instantiated with `SyncTmr_g` = true (three synchroniser chains and
+a majority voter per bit, the latency of a single chain). `ofb_cc_pulse` differs from `olo_base_cc_pulse` of Open
+Logic (a toggle crossing) in the pending pulse: a second pulse during a transfer is kept and sent afterwards, where
+`olo_base_cc_pulse` requires the pulses of one bit to be at least two cycles of the slower clock apart.

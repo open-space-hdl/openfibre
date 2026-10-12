@@ -19,7 +19,7 @@ more than the 18.7 Gbit/s that four lanes deliver (94 % of the payload capacity,
 simulation (`IncludeCips_g` = false) clock models of the same frequencies replace the CIPS.
 
 The core reset is a register of `MgmtClk`: the power-on reset or `LaneRst` (transmitters not ready, a register of
-the lane clock, synchronised with `olo_ft_sync`), so that no logic sits in front of the reset synchronisers of the
+the lane clock, synchronised with `olo_intf_sync`), so that no logic sits in front of the reset synchronisers of the
 core. The echo needs no buffering: the output
 port of every VC (`M_Vc`) feeds the input port of the same VC (`S_Vc`), back-pressure included. The serial loopback
 enables of the core drive the adapter, and the comma alignment of the adapter (`Stat_Aligned`) is the bit
@@ -50,10 +50,10 @@ simulation (`IncludeCips_g` = false) the poller drives the MIB port directly.
 - LEDs on H34, J33, K36, L35 (LVCMOS18), false path.
 - Crossings between `clk_pl_0`, `clk_pl_1` and the lane clock: `set_max_delay -datapath_only` with the period of
   the faster clock of each pair, as required by Open Logic; the scoped constraints of the Open Logic base entities are
-  added for implementation. The scoped constraint of `olo_intf_sync` is not loaded for `olo_ft_sync`: it constrains
-  device pins, and the design uses `olo_ft_sync` only for internal asynchronous signals (transceiver status, far-end
-  loopback, lane
-  reset), whose crossings the clock pair constraints cover.
+  added for implementation (their cell patterns also match the three chains of `SyncTmr_g` = true). The scoped
+  constraint of `olo_intf_sync` is not loaded: it constrains device pins, and the design uses `olo_intf_sync` only
+  for internal asynchronous signals (transceiver status, far-end loopback, lane reset), whose crossings the clock
+  pair constraints cover.
 
 ## 5. Build (`tcl/build.tcl`)
 

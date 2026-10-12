@@ -62,6 +62,14 @@ and the input VC buffers of end A delivered one beat of undefined words before t
 report); the rerun with the fix passes with the results above (link initialised after 94.2 us, all packets and
 broadcast messages delivered, no error, no retry).
 
+Rerun on 2026-10-12 with Open Logic 4.7.0-ft.2 (status crossings, reset generators and transceiver status
+synchronisers as base entities with `SyncTmr_g` = true): `ofb_pa_gty_tb`, `ofb_pa_gty_cc_tb.cc` and `ofb_vck190_tb`
+pass at the first attempt. `ofb_pa_gty_cc_tb.far` and `ofb_pa_gty_core_tb` first failed with the PLL divider error
+of the transceiver model of end B at time 0 (the receivers never became ready); after a new elaboration both pass
+with the results above (far end: receivers ready after 68.2 us, every lane checked without error;
+`ofb_pa_gty_core_tb`: all packets and broadcast messages delivered, no error, no retry, simulation done at
+198.6 us).
+
 ## 2. Summary
 
 All test cases pass. VSG reports no errors and no warnings (the port names of the transceiver wizard and of

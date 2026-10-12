@@ -40,7 +40,8 @@ Channels without a lane (`NumLanes_g` < 4) send electrical idle; their receive o
 ## 4. Status crossing
 
 `rst_tx_done` and `rst_rx_done` (free-running clock domain), `ch_rxelecidle` and `ch_rxbyteisaligned` (asynchronous)
-cross to `LaneClk` in one `olo_ft_sync` (two stages, three synchroniser chains with a majority voter). `LaneRst` is
+cross to `LaneClk` in one `olo_intf_sync` with `SyncTmr_g` = true (two stages, three synchroniser chains with a
+majority voter). `LaneRst` is
 the inverted transmitter ready.
 
 ## 5. Transceiver configuration

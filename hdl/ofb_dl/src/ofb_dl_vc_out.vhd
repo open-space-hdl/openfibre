@@ -260,10 +260,11 @@ begin
 
     EopWrGry <= binaryToGray(std_logic_vector(EopWr));
 
-    i_eop_cc : entity olo.olo_ft_cc_bits
+    i_eop_cc : entity olo.olo_base_cc_bits
         generic map (
             Width_g      => EopWidth_c,
-            SyncStages_g => 4
+            SyncStages_g => 4,
+            SyncTmr_g    => true
         )
         port map (
             In_Clk   => UserClk,
@@ -283,7 +284,8 @@ begin
         generic map (
             Width_g         => Width_c,
             Depth_g         => Depth_g,
-            ReadyRstState_g => '0'
+            ReadyRstState_g => '0',
+            SyncTmr_g       => true
         )
         port map (
             In_Clk            => UserClk,

@@ -215,8 +215,9 @@ begin
 
         i_fifo : entity olo.olo_ft_fifo_async
             generic map (
-                Width_g => 36,
-                Depth_g => Depth_g / N_c
+                Width_g   => 36,
+                Depth_g   => Depth_g / N_c,
+                SyncTmr_g => true
             )
             port map (
                 In_Clk            => Clk,

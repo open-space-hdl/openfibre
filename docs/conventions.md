@@ -14,7 +14,7 @@ document. This page lists the rules and the few OpenFibre-specific additions.
 - Entities with non-trivial state use the two-process pattern of Open Logic: all registers in one `TwoProcess_r`
   record, signals `r` and `r_next`, a combinational process starting with `v := r;` and ending with
   `r_next <= v;`, a sequential process with `r <= r_next;` and the reset override at its end.
-- Resets are synchronous and high-active. Only state registers are reset. `olo_ft_cc_reset` brings a reset into
+- Resets are synchronous and high-active. Only state registers are reset. `olo_base_reset_gen` brings a reset into
   each clock domain.
 - Every data path between blocks is a valid / ready stream (AXI4-Stream handshake semantics).
 - Standard functions (FIFOs, RAMs, crossings, CRC, PRBS, arbiters, width converters, pipeline stages) are

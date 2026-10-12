@@ -485,9 +485,10 @@ begin
         );
 
     -- Continuous mode and lane state for the user side of the output VC buffers
-    i_contin_cc : entity olo.olo_ft_cc_bits
+    i_contin_cc : entity olo.olo_base_cc_bits
         generic map (
-            Width_g => NumVc_g
+            Width_g   => NumVc_g,
+            SyncTmr_g => true
         )
         port map (
             In_Clk   => Clk,
@@ -500,9 +501,10 @@ begin
 
     ActiveIn(0) <= Ml_LaneActive;
 
-    i_active_cc : entity olo.olo_ft_cc_bits
+    i_active_cc : entity olo.olo_base_cc_bits
         generic map (
-            Width_g => 1
+            Width_g   => 1,
+            SyncTmr_g => true
         )
         port map (
             In_Clk   => Clk,
@@ -516,8 +518,9 @@ begin
     -- SCHEDULE.request from the Network layer
     i_sched_cc : entity olo.olo_ft_fifo_async
         generic map (
-            Width_g => 6,
-            Depth_g => 4
+            Width_g   => 6,
+            Depth_g   => 4,
+            SyncTmr_g => true
         )
         port map (
             In_Clk     => UserClk,
