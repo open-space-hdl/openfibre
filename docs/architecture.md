@@ -166,11 +166,12 @@ is always present (a bypass for one lane), one Lane layer and one Physical adapt
 Information Base that reaches every layer. Data moves between layers as valid / ready streams; the Data Link layer works
 on rows of words, so its protocol logic does not depend on the number of lanes.
 
-![OpenFibre architecture overview: 5 layers, 4 clock domains, 38 of 39 blocks (DC-2 statistics feed MG-2)](img/architecture_overview.svg)
+![OpenFibre architecture overview: the five layers and the MIB with their 39 building blocks; the transmit path runs
+down the left column, the receive path up the right column](img/ofb_core_overview.drawio.svg)
 
-The transmit path runs down the left two columns from the VC ports to the SerDes, the receive path up the right two
-columns; the two tinted bands are the only data crossings between clock domains, and the MIB bus on the right reaches
-every layer.
+The transmit path runs down the left column from the VC ports to the SerDes, the receive path up the right column.
+The VC and broadcast buffers of the Data Link layer and `ofb_core_cc` are the only data crossings between clock
+domains, and the MIB reaches every layer.
 
 ### Architecture decisions
 
@@ -243,35 +244,37 @@ implementation adds, per block, the port list, the register reset values and the
 | --- | --- | --- | --- | --- |
 | NI-1 | VC port (x `NumVc_g`, 1 to 32) | AXI4-Stream N-Char port per VC, NumLanes_g x 32 bit wide (D8), packet framing check (EOP / EEP), optional continuous mode (flush and EEP on overflow) | `olo_base_pl_stage` | 6.2.2, 6.3.2, 5.3.7, 5.3.9, 5.8.5 to 5.8.7, 5.8.13 |
 | NI-2 | Virtual network number | Virtual network number of every VC (one end-point per VC, VN0 on VC0) as a MIB register; no data path in a node with one port | none (MIB register) | 5.8.3 |
-| NI-3 | Broadcast port | Broadcast message service per channel: 8-byte message, B_TYPE, DELAYED and LATE flags | `olo_base_pl_stage` | 6.2.3, 6.3.3, 5.8.12 |
+| NI-3 | Broadcast port | Broadcast message service per channel: 8-byte message, B_TYPE, DELAYED and LATE flags | none (field mapping) | 6.2.3, 6.3.3, 5.8.12 |
 | NI-4 | Schedule port | SCHEDULE.request: time-slot start from the user or from a broadcast of the schedule type | none (custom) | 6.3.4 |
 
 ### 7.2 Data Link layer, transmit path (`CoreClk`)
 
 | ID | Block | Responsibility | Open Logic | ECSS |
 | --- | --- | --- | --- | --- |
-| DT-1 | Output VC buffer (x `NumVc_g`) | ECSS output VC buffer and `UserClk` to `CoreClk` crossing in one FIFO, packing of user words into rows of the data-sending lanes, flush on link reset | `olo_ft_fifo_async`, `olo_base_wconv_n2xn` | 5.7.2.1, 5.7.2.2, 5.7.10a.1 to a.3 |
+| DT-1 | Output VC buffer (x `NumVc_g`) | ECSS output VC buffer and `UserClk` to `CoreClk` crossing in one FIFO, packing of user words into rows of the data-sending lanes, flush on link reset | `olo_ft_fifo_async`, `olo_ft_cc_bits` | 5.7.2.1, 5.7.2.2, 5.7.10a.1 to a.3 |
 | DT-2 | Output credit counter (x `NumVc_g`) | Credit from received FCTs and multipliers, credit overflow error, one eligible flag per VC | none (counter) | 5.7.3.1 |
 | DT-3 | Broadcast output buffer | Broadcast messages, broadcast flow control | `olo_ft_fifo_async` | 5.7.5 |
-| DT-4 | QoS scheduler | Chooses the next VC: scheduled QoS on 64 time-slots, precedence from priority and bandwidth credit, integrated QoS; generics switch each mechanism off | `olo_base_arb_prio`, `olo_base_arb_rr`, `olo_ft_ram_sp` (time-slot table) | 5.7.4.1 to 5.7.4.7 |
-| DT-5 | Transmit scheduler | Applies the Data Link part of the precedence list (RETRY down to idle frame), inserts broadcast frames, ACK / NACK and FCTs inside data frames, stops new frames on received FULL | `olo_base_arb_prio` | 5.3.10c items 6 to 15, 5.3.10i to o, 5.3.10q to s |
+| DT-4 | QoS scheduler | Chooses the next VC: scheduled QoS on 64 time-slots, precedence from priority and bandwidth credit, integrated QoS; generics switch each mechanism off | `olo_base_arb_rr` (FCT requests), `olo_ft_fifo_async` (SCHEDULE.request crossing) | 5.7.4.1 to 5.7.4.7 |
+| DT-5 | Transmit scheduler | Applies the Data Link part of the precedence list (RETRY down to idle frame), inserts broadcast frames, ACK / NACK and FCTs inside data frames, stops new frames on received FULL | none | 5.3.10c items 6 to 15, 5.3.10i to o, 5.3.10q to s |
 | DT-6 | Frame assembler | SDF / EDF, SBF / EBF, SIF and idle words; data frames of at most `MaxDataLanes_g` x 64 words; idle frame PRBS | `olo_base_prbs` | 5.7.6.1, 5.7.6.2.3, 5.7.6.6, 5.3.5.1 to 5.3.5.3, 5.3.8, 5.6.4.2i |
-| DT-7 | Error recovery buffer | Stores data frames, broadcast frames and FCTs until acknowledged; ACK deletes, NACK starts RETRY and resend in sequence order; FULL when no room for a full frame; protocol error on an ACK / NACK outside the buffer | `olo_ft_ram_sdp_scrub` (words), `olo_ft_ram_sdp` (item list) | 5.7.7.1, 5.7.7.2.3, 5.7.7.2.4 |
-| DT-8 | Sequence and CRC-8 stamper | Transmit sequence counter and polarity, CRC-8 of broadcast frames, FCT, ACK, NACK, FULL, SIF | `olo_base_crc` | 5.7.6.3.1, 5.7.6.5, 5.3.5.1.2 |
+| DT-7 | Error recovery buffer | Stores data frames, broadcast frames and FCTs until acknowledged; ACK deletes, NACK starts RETRY and resend in sequence order; FULL when no room for a full frame; protocol error on an ACK / NACK outside the buffer | `olo_ft_ram_sdp_scrub` (words), `olo_ft_fifo_sync` (ACK / NACK events, read-ahead) | 5.7.7.1, 5.7.7.2.3, 5.7.7.2.4 |
+| DT-8 | Sequence and CRC-8 stamper | Transmit sequence counter and polarity, CRC-8 of broadcast frames, FCT, ACK, NACK, FULL, SIF | none (CRC-8 functions of `ofb_pkg`) | 5.7.6.3.1, 5.7.6.5, 5.3.5.1.2 |
 
-The transmit order is DT-5, DT-6, DT-7, DT-8: resent frames pass the stamper again and get new sequence numbers and the
-inverted polarity (D4). The data frame CRC-16 is added later, per lane, in the Multi-Lane layer (D3).
+The transmit order is DT-4, DT-7, then DT-5, DT-6 and DT-8: the error recovery buffer holds the items (data segments,
+broadcast messages, FCTs) before framing, so that resent items pass the frame assembler and the stamper again and get
+new sequence numbers and the inverted polarity (D4). The data frame CRC-16 is added later, per lane, in the Multi-Lane
+layer (D3).
 
 ### 7.3 Data Link layer, receive path and control (`CoreClk`)
 
 | ID | Block | Responsibility | Open Logic | ECSS |
 | --- | --- | --- | --- | --- |
 | DR-1 | Word identification | Data word identification state machine on rows, frame length limits, control word decoding into one-cycle events | none (state machine) | 5.7.8 (decodes the words of 5.3.5) |
-| DR-2 | Frame checker | CRC-8 check, receive sequence counter and polarity, combines the per-lane CRC-16 results of the EDF row | `olo_base_crc` | 5.7.6.3.2, 5.7.6.4 (result), 5.7.6.5 |
+| DR-2 | Frame checker | CRC-8 check, receive sequence counter and polarity, combines the per-lane CRC-16 results of the EDF row | none (CRC-8 functions of `ofb_pkg`) | 5.7.6.3.2, 5.7.6.4 (result), 5.7.6.5 |
 | DR-3 | Receive error handler | Receive error state machine, ACK and NACK requests to DT-5 | none (state machine) | 5.7.7.3, 5.7.7.2.1, 5.7.7.2.2 |
 | DR-4 | Control word dispatcher | Received FCT to DT-2, ACK / NACK to DT-7, FULL to DT-5; each as an event with its sequence number | none | none owned (feeds 5.7.3.1, 5.7.7.2.3, 5.7.7.2.4) |
 | DR-5 | Frame buffer | Stores the words of the current frame, commits it on a valid end, drops it on an error, RETRY or link reset | `olo_ft_fifo_packet` (write-side drop) | 5.7.6.7 |
-| DR-6 | Input VC buffer (x `NumVc_g`) | Frame to VC demultiplexing, rows to user words, `CoreClk` to `UserClk` crossing, FCT requests, overflow detection, EEP after link reset only for a packet read in part | `olo_ft_fifo_async`, `olo_base_wconv_xn2n` | 5.7.2.3, 5.7.3.2, 5.7.10a.4 to a.7 |
+| DR-6 | Input VC buffer (x `NumVc_g`) | Frame to VC demultiplexing, rows to user words, `CoreClk` to `UserClk` crossing, FCT requests, overflow detection, EEP after link reset only for a packet read in part | `olo_ft_fifo_async`, `olo_base_pl_stage`, `ofb_cc_pulse` | 5.7.2.3, 5.7.3.2, 5.7.10a.4 to a.7 |
 | DR-7 | Broadcast input buffer | Received broadcast messages to NI-3 | `olo_ft_fifo_async` | none owned (receive side of 5.7.5 and 5.8.12) |
 | DC-1 | Link reset controller | Link reset state machine; capability events from the Multi-Lane layer, not stored levels; drives link reset of all Data Link blocks | none (state machine) | 5.7.9, 5.7.10b |
 | DC-2 | Data Link statistics | Counts frames, control words, errors and retries per type as events for the MIB | none (counters) | 5.9.4 (Data Link status) |
@@ -282,9 +285,9 @@ inverted polarity (D4). The data frame CRC-16 is added later, per lane, in the M
 | --- | --- | --- | --- | --- |
 | ML-1 | Lane manager | TxEn / RxEn per lane, TxOnly, RxOnly, FarEndActive and LaneReset per lane, data-sending, data-receiving and hot redundant lanes, capability exchange with the Data Link layer, status for the MIB | none (per-lane state) | 5.6.1, 5.6.2, 5.6.8, 5.6.9 except 5.6.9.1a and b, 5.6.10 except 5.6.10c and g |
 | ML-2 | Row distributor | Splits a row over the data-sending lanes; replicates control words (the EDF carries its own CRC per lane); PAD before the EDF; replicates broadcast and idle words; SKIP on all lanes at once; IDLE rows when the Data Link layer has no row; inserts ALIGN and ACTIVE; PRBS on hot redundant lanes; bypass with one lane | `olo_base_prbs` | 5.6.3, 5.6.4, 5.6.6.3, 5.6.9.1a, 5.6.9.1b, 5.6.10c, 5.6.10g, 5.3.4, 5.3.10g, 5.3.10h |
-| ML-3 | Column encoder (x lane) | Data scrambling of one lane, CRC-16 of the data words of one lane, CRC-16 placed in that lane's EDF; PAD words excluded | `olo_base_prbs`, `olo_base_crc` | 5.7.6.2.1, 5.7.6.4, 5.6.4.2c to g |
+| ML-3 | Column encoder (x lane) | Data scrambling of one lane, CRC-16 of the data words of one lane, CRC-16 placed in that lane's EDF; PAD words excluded | `olo_base_pl_stage`, `olo_base_prbs`, `olo_base_crc` | 5.7.6.2.1, 5.7.6.4, 5.6.4.2c to g |
 | ML-4 | Column decoder (x lane) | Unscrambling and CRC-16 check of one lane, result attached to the EDF | `olo_base_prbs`, `olo_base_crc` | 5.7.6.2.2, 5.7.6.4, 5.6.4.2h |
-| ML-5 | Lane alignment | One alignment FIFO per lane, ALIGN detection, alignment state machine (Not Ready, Near-End Ready, Both-Ends Ready), FIFO overflow handling | `olo_ft_fifo_sync` (x lane) | 5.6.5a, 5.6.5b, 5.6.6.1, 5.6.6.3, 5.6.6.4, 5.6.7 |
+| ML-5 | Lane alignment | One alignment FIFO per lane, ALIGN detection, alignment state machine (Not Ready, Near-End Ready, Both-Ends Ready), FIFO overflow handling | none (register FIFOs, see `ofb_multilane`) | 5.6.5a, 5.6.5b, 5.6.6.1, 5.6.6.3, 5.6.6.4, 5.6.7 |
 | ML-6 | Row concentrator | Reads aligned rows, removes PAD, checks valid and invalid rows, passes one control word per row, replaces an invalid row by one RXERR | none | 5.6.5c to f, 5.6.6.2, 5.6.4.1e |
 
 The column blocks (ML-3, ML-4) are the only place that sees individual lanes inside a frame, so adding or removing lanes
@@ -295,7 +298,7 @@ The column blocks (ML-3, ML-4) are the only place that sees individual lanes ins
 | ID | Block | Responsibility | Open Logic | ECSS |
 | --- | --- | --- | --- | --- |
 | LN-1 | Lane initialisation and standby | Lane initialisation state machine with all states, receive polarity inversion, LaneStart / AutoStart, TxOnly / RxOnly behaviour; the far-end capability is reported as an event when three identical INIT3 are received | none (state machine) | 5.5.2.1, 5.5.2.3 to 5.5.2.13 |
-| LN-2 | Lane transmitter | INIT1 / INIT2 / INIT3 with their PRBS data words, STANDBY, LOST_SIGNAL, IDLE and SKIP; SKIP insertion for rate compensation; Lane layer part of the precedence list | `olo_base_prbs`, `olo_base_pl_stage` | 5.3.3, 5.5.3, 5.5.4, 5.3.10a, 5.3.10b, 5.3.10c items 1 to 3 and 16, 5.3.10d to f, 5.3.10p |
+| LN-2 | Lane transmitter | INIT1 / INIT2 / INIT3 with their PRBS data words, STANDBY, LOST_SIGNAL, IDLE and SKIP; SKIP insertion for rate compensation; Lane layer part of the precedence list | `olo_base_prbs` | 5.3.3, 5.5.3, 5.5.4, 5.3.10a, 5.3.10b, 5.3.10c items 1 to 3 and 16, 5.3.10d to f, 5.3.10p |
 | LN-3 | Lane receiver | Word synchronisation, receive synchronisation state machine, lane control word detection, RXERR generation and the RXERR word counter, SKIP removal | none | 5.5.6 (when not in the transceiver), 5.5.7, 5.5.8, 5.3.6, 5.5.2.2 |
 | LN-4 | Parallel loopback | Loops the transmit words back to the receiver inside the Lane layer | none | 5.5.5 |
 
@@ -319,7 +322,7 @@ needs a new PA-1 and nothing else.
 | --- | --- | --- | --- | --- |
 | MG-1 | Register file | All configuration and status parameters, generated from one register description (`hdl/ofb_mib/regs/ofb_regs.yml`, `tools/regmap.py`); configuration crosses to the other domains as quasi-static levels | `olo_axi_lite_slave`, `olo_ft_cc_bits` | 5.9.1 to 5.9.4, 6.5 |
 | MG-2 | Event counters | One counter per event type and direction (frames, FCT, ACK, NACK, FULL, RETRY, RXERR, errors), sticky error flags, interrupt | `ofb_cc_pulse` | none owned (status counters of 5.9.4 for MG-1) |
-| MG-3 | EDAC monitor | Collects the SEC / DED flags of every FT RAM and FIFO, counts them, raises an interrupt, drives error injection for tests | `olo_ft_ecc_monitor_axi` | none (fault tolerance, P5) |
+| MG-3 | EDAC monitor | Collects the SEC / DED flags of every FT RAM and FIFO, counts them, raises an interrupt, drives error injection for tests | `olo_ft_ecc_monitor` | none (fault tolerance, P5) |
 | MG-4 | Clock and reset | Power-on reset, reset synchronisation per domain, Interface Reset as configuration reset | `olo_ft_reset_gen` | none owned (configuration reset of 5.7.9.2 for DC-1) |
 | MG-5 | PRBS test | Per lane: pattern selection of the PRBS generator and checker of the Physical adapter (PA-1), lock status, counters of checked words and of words with errors (bit error rate measurement on the electrical link, bypassing 8B/10B) | `olo_ft_cc_bits`, `ofb_cc_pulse`, `olo_ft_cc_status` | none (test function) |
 
@@ -332,23 +335,20 @@ controller.
 
 | Open Logic entity | Used in | Purpose |
 | --- | --- | --- |
-| `olo_ft_fifo_async` | DT-1, DT-3, DR-6, DR-7, Data Link to Multi-Lane crossing, PA-3, MIB control crossings | ECSS VC buffers and every data crossing; ECC on the buffer RAM, TMR on the pointer and reset crossings |
-| `olo_ft_fifo_sync` | ML-5 | Alignment FIFO per lane (all lanes share `LaneClk`) |
+| `olo_ft_fifo_async` | DT-1, DT-3, DR-6, DR-7, SCHEDULE.request crossing, Data Link to Multi-Lane crossing, PA-3, MIB QoS writes | ECSS VC buffers and every data crossing; ECC on the buffer RAM, TMR on the pointer and reset crossings |
+| `olo_ft_fifo_sync` | DT-7 | ACK / NACK event FIFO and payload read-ahead of the error recovery buffer |
 | `olo_ft_fifo_packet` | DR-5 | Receive frame buffer: write-side drop of a frame that fails a check (`In_Drop`), store and forward |
 | `olo_ft_ram_sdp_scrub` | DT-7 | Error recovery buffer words: frames may wait long for an ACK, the scrubber removes accumulated single errors |
-| `olo_ft_ram_sdp` | DT-7 | Item list of the error recovery buffer |
-| `olo_ft_ram_sp`, `olo_ft_ram_sp_scrub` | NI-2, DT-4 | Virtual network table, time-slot table (long-lived: scrubbing variant) |
-| `olo_ft_cc_bits` | MG-1, PA-1, Data Link to Multi-Lane control | Quasi-static configuration, loss of signal, lane and link status levels |
-| `olo_ft_cc_bits`, `olo_ft_cc_reset` in `ofb_cc_pulse` | MG-2, Data Link to Multi-Lane control | Events: capability received, link reset request, counter increments across domains (handshake per event that keeps one pending event, see `ofb_pkg`) |
+| `olo_ft_cc_bits` | MG-1, DT-1, Data Link to Multi-Lane control | Quasi-static configuration, end-of-packet count of the output VC buffers, lane and link status levels |
+| `olo_ft_cc_bits`, `olo_ft_cc_reset` in `ofb_cc_pulse` | MG-2, DR-6, Data Link to Multi-Lane control | Events: capability received, link reset request, counter increments across domains (handshake per event that keeps one pending event, see `ofb_pkg`) |
 | `olo_ft_cc_status` | MG-1 | Status snapshots of the core and lane domains (consistent multi-bit values) |
 | `olo_ft_reset_gen` | MG-4, reference design | Reset synchronisation per domain, power-on reset |
 | `olo_ft_sync` | PA-1, reference design | Asynchronous status signals of the transceivers |
-| `olo_ft_ecc_monitor_axi` | MG-3 | Collection of all SEC / DED events, error injection |
-| `olo_base_crc` | DT-8, DR-2, ML-3, ML-4 | CRC-8 (Data Link) and CRC-16 (per lane): polynomial, initial value, bit order and output XOR as generics |
+| `olo_ft_ecc_monitor` | MG-3 | Collection and counting of all SEC / DED events |
+| `olo_base_crc` | ML-3, ML-4 | CRC-16 per lane: polynomial, initial value, bit order and output XOR as generics; the CRC-8 of the Data Link layer uses the functions of `ofb_pkg` |
 | `olo_base_prbs` | DT-6, ML-2, ML-3, ML-4, LN-2 | Idle frame PRBS, data scrambling (G(x) = x^16 + x^5 + x^4 + x^3 + 1), initialisation data words, hot redundant lane PRBS |
-| `olo_base_arb_prio`, `olo_base_arb_rr` | DT-4, DT-5 | Precedence and round-robin selection among eligible VCs and frame sources |
-| `olo_base_wconv_n2xn`, `olo_base_wconv_xn2n` | DT-1, DR-6 | User words to rows and back; the packing for fewer data-sending lanes than NumLanes_g is specified with DT-1 and DR-6 (D8) |
-| `olo_base_pl_stage` | NI-1, NI-3, LN-2, DR-6 | Register slices with back-pressure at block boundaries |
+| `olo_base_arb_rr` | DT-4 | Round-robin selection among the FCT requests of the input VC buffers |
+| `olo_base_pl_stage` | NI-1, DR-6, ML-3 | Register slices with back-pressure at block boundaries |
 | `olo_axi_lite_slave` | MG-1 | AXI4-Lite access to the register file |
 
 ### Gaps in Open Logic

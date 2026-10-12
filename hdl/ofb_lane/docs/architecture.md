@@ -2,29 +2,8 @@
 
 ## 1. Block diagram
 
-```text
-                 Multi-Lane layer (words, lane control)                 MIB (cfg / status)
-          TxWord_*  |  ^ RxWord_*          Ctrl_*  |  ^                    |  ^
-                    v  |                           v  |                    v  |
-   +----------------------------------------------------------------------------------+
-   | ofb_lane                                                                         |
-   |   +-------------+   Tx mode, capability,  +------------------+                   |
-   |   | ofb_lane_tx |<------------------------| ofb_lane_init    |<-- Cfg_*, Ctrl_*  |
-   |   |   (LN-2)    |----- sent events ------>|   (LN-1)         |--> Stat_*, Ctrl_* |
-   |   +-------------+                          +------------------+                  |
-   |          |                     rx events ^   | active, clear, sync reset         |
-   |          |   +--------------------+       |   v                                  |
-   |          |   | ofb_lane_rx (LN-3) |-------+   RXERR counter                      |
-   |          |   +--------------------+-------------------------------> RxWord_*      |
-   |          v              ^                                                        |
-   |   +---------------------------------+                                            |
-   |   | ofb_lane_loopback (LN-4)        |  near-end: RX := TX, far-end: TX := RX      |
-   |   +---------------------------------+                                            |
-   +----------------------------------------------------------------------------------+
-                    |  ^            ^ Phy_NoSignal    | Phy_TxEnable, RxEnable, CdrEnable, RxInvert
-          PhyTx_*   v  | PhyRx_*    |                 v
-                 Physical adapter (symbol stream: 4 characters + K + code / disparity error flags)
-```
+![Block diagram of ofb_lane: lane initialisation (LN-1), transmitter (LN-2), receiver (LN-3) and parallel loopback
+(LN-4)](img/ofb_lane_arch.drawio.svg)
 
 All blocks run on `Clk` (lane clock) with one word per clock cycle and the synchronous high-active `Rst`.
 

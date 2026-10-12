@@ -2,20 +2,8 @@
 
 ## 1. Block diagram
 
-```text
-              FreeRunClk, Rst                RefClk (IBUFDS_GTE5 outside)
-                    |                              |
-                    v                              v
- PhyTx_* ---> +----------------------------------------------+ ---> Gt_TxP / Gt_TxN
- (LaneClk)    | ofb_gtw (Versal Transceivers Wizard, 1 quad) |
- PhyRx_* <--- |  reset controller, 4 channels: 8B/10B, comma | <--- Gt_RxP / Gt_RxN
-              |  alignment, RX elastic buffer, clock corr.   |
-              +----------------------------------------------+
-                    | QUAD0_TX0_outclk          | rst_tx_done, rst_rx_done, rxelecidle, rxbyteisaligned
-                    v                           v
-                 BUFG_GT ---> LaneClk ---> olo_ft_sync -----> LaneRst, PhyRx_Valid, Phy_NoSignal, status
-                 (CLR = TX_clr_out)
-```
+![Block diagram of ofb_pa_gty: lane mapping, transceiver wizard ofb_gtw with BUFG_GT, status crossing and far-end
+loopback reset](img/ofb_pa_gty_arch.drawio.svg)
 
 ## 2. Clocking
 

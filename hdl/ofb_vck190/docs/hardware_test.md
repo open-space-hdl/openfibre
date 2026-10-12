@@ -3,8 +3,8 @@
 ## 1. Purpose
 
 This procedure tests the reference design `ofb_vck190_top` on the AMD VCK190 evaluation board against SpaceFibre
-test equipment (exit criterion of phase 2 in the [roadmap](../../../docs/roadmap.md)). It needs a host with Vivado
-2025.2 and a synthesis licence for the XCVC1902; it does not need network access. The results go into
+test equipment (exit criterion of phase 2 in the [roadmap](../../../docs/roadmap.md)). It needs AMD Vivado
+2025.2 with device support for the XCVC1902. The results go into
 [verification_report.md](verification_report.md), section 3.
 
 ## 2. Material
@@ -14,13 +14,13 @@ test equipment (exit criterion of phase 2 in the [roadmap](../../../docs/roadmap
 | VCK190 evaluation board (production silicon), power supply, USB cable to the JTAG and UART port | Device under test |
 | SpaceFibre test equipment with four lanes at 6.25 Gbit/s and a QSFP interface (for example STAR-Dundee) | Far end |
 | QSFP cable (four lanes) | QSFP1 of the VCK190 to the far end |
-| Vivado 2025.2 with a licence for the XCVC1902 | Build and programming |
+| AMD Vivado 2025.2 with device support for the XCVC1902 | Build and programming |
 | Repository bundle (section 3) | Sources |
 
-## 3. Repository on a host without network access
+## 3. Repository as Git bundles
 
-The repository and its two submodules travel as Git bundles (`openfibre.bundle`, `open-logic.bundle`,
-`uvvm.bundle`). On the build host:
+Where the build computer has no network access, the repository and its two submodules travel as Git bundles
+(`openfibre.bundle`, `open-logic.bundle`, `uvvm.bundle`):
 
 ```shell
 git clone openfibre.bundle openfibre
