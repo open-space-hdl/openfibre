@@ -4,7 +4,8 @@
 
 Run on 2026-10-05 with Vivado 2025.2 (xsim): `python tools/run_xsim.py ofb_vck190_tb`; rerun on 2026-10-07 after
 the findings of the first build (clocks of the CIPS, register stages of the input VC buffers, latch-free pulse
-crossing).
+crossing) and on 2026-10-12 with Open Logic 4.7.0-ft.2 (power-on reset and lane reset synchroniser as base entities
+with `SyncTmr_g` = true; all checks pass, simulation done at 102.2 us).
 
 | Test | Result |
 | --- | --- |

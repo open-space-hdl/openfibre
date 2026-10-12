@@ -136,7 +136,8 @@ begin
         generic map (
             Width_g         => RowW_c,
             Depth_g         => 16,
-            ReadyRstState_g => '0'
+            ReadyRstState_g => '0',
+            SyncTmr_g       => true
         )
         port map (
             In_Clk            => CoreClk,
@@ -180,8 +181,9 @@ begin
 
     i_rx_fifo : entity olo.olo_ft_fifo_async
         generic map (
-            Width_g => RowW_c,
-            Depth_g => 16
+            Width_g   => RowW_c,
+            Depth_g   => 16,
+            SyncTmr_g => true
         )
         port map (
             In_Clk            => LaneClk,
@@ -220,9 +222,10 @@ begin
             Out_Pulse(1) => Ml_LaneReset
         );
 
-    i_near_cap : entity olo.olo_ft_cc_bits
+    i_near_cap : entity olo.olo_base_cc_bits
         generic map (
-            Width_g => 8
+            Width_g   => 8,
+            SyncTmr_g => true
         )
         port map (
             In_Clk   => CoreClk,
@@ -235,9 +238,10 @@ begin
 
     ActiveIn(0) <= Ml_LaneActive;
 
-    i_active : entity olo.olo_ft_cc_bits
+    i_active : entity olo.olo_base_cc_bits
         generic map (
-            Width_g => 1
+            Width_g   => 1,
+            SyncTmr_g => true
         )
         port map (
             In_Clk   => LaneClk,
@@ -259,8 +263,9 @@ begin
 
     i_far_cap : entity olo.olo_ft_fifo_async
         generic map (
-            Width_g => 9,
-            Depth_g => 4
+            Width_g   => 9,
+            Depth_g   => 4,
+            SyncTmr_g => true
         )
         port map (
             In_Clk     => LaneClk,

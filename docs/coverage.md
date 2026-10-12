@@ -32,7 +32,7 @@ Closure rules:
 
 ## 2. Result
 
-Run on 2026-10-10: 209 tests, all passed, 54 minutes. Numbers are covered/total bins per file; bold marks a metric
+Run on 2026-10-12: 209 tests, all passed, 68 minutes. Numbers are covered/total bins per file; bold marks a metric
 with misses.
 
 | File | Statements | Branches | FSM States | FSM Transitions | Conditions | Expressions |
@@ -121,9 +121,9 @@ defensive, constant by construction or not executed as a separate statement by t
 | Location | Item not covered | Justification |
 | --- | --- | --- |
 | `ofb_dl/src/ofb_dl_pkg.vhd:235` | Statement: body of `segmentRows` | The call on line 373 of `ofb_dl.vhd` is covered; QuestaSim evaluates the call without executing the body as a statement (also with `vopt -O0`). The result, the segment length of 64 x N words, is checked by TC-CORE-02 and TC-CORE-08. |
-| `ofb_dl/src/ofb_dl_tx_admit.vhd:166` | Branch: segment of zero rows | Defensive. A segment is taken only when the output VC buffer is ready (credit and data of at least one row, `ofb_dl_vc_out.vhd` line 383) and the error recovery buffer has free rows (line 141). |
-| `ofb_dl/src/ofb_dl_vc_in.vhd:541`, statement 542 | Branch: FCT request and FCT sent in the same cycle | Coincidence of two independent events that the testbenches do not force; the update is the sum of the single-event branches on lines 537 and 539, which are covered (TC-DL-20 checks the FCT count). |
-| `ofb_dl/src/ofb_dl_vc_out.vhd:339` | Branch: credit below one row when a row is read | Defensive. A segment never exceeds the credit (ECSS 5.7.3.1f, line 382), checked by TC-DL-19. |
+| `ofb_dl/src/ofb_dl_tx_admit.vhd:166` | Branch: segment of zero rows | Defensive. A segment is taken only when the output VC buffer is ready (credit and data of at least one row, `ofb_dl_vc_out.vhd` line 385) and the error recovery buffer has free rows (line 141). |
+| `ofb_dl/src/ofb_dl_vc_in.vhd:542`, statement 543 | Branch: FCT request and FCT sent in the same cycle | Coincidence of two independent events that the testbenches do not force; the update is the sum of the single-event branches on lines 538 and 540, which are covered (TC-DL-20 checks the FCT count). |
+| `ofb_dl/src/ofb_dl_vc_out.vhd:341` | Branch: credit below one row when a row is read | Defensive. A segment never exceeds the credit (ECSS 5.7.3.1f, line 384), checked by TC-DL-19. |
 | `ofb_multilane/src/ofb_ml_align.vhd:336` | Branch: ALIGN held in a lane while the state machine is in Not Ready after an alignment | The Misaligned condition of this case is covered; the branch only suppresses the output error, and Not Ready passes no words. |
 | `ofb_multilane/src/ofb_ml_pkg.vhd:111` | Branch: K28.7 followed by a K character other than K27.7 | Such words are lane control words, which the Lane layer filters (LN-RX-04, TC-LN-44); they do not reach the Multi-Lane layer. |
 | `ofb_multilane/src/ofb_ml_rx.vhd:112` | Branch: output queue full | Defensive, guarded by an assertion of severity error that the regression never raised. |

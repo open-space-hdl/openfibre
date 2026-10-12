@@ -5,8 +5,9 @@
 ![Block diagram of ofb_mib: AXI4-Lite slave, register file (MG-1), EDAC monitor (MG-3) and the crossings to the core,
 lane and user clock domains](img/ofb_mib_arch.drawio.svg)
 
-One crossing group per clock domain: configuration levels (`olo_ft_cc_bits`), commands (`ofb_cc_pulse`), status
-values (`olo_ft_cc_status`, a consistent snapshot of the whole status vector), events (`ofb_cc_pulse`). An event
+One crossing group per clock domain: configuration levels (`olo_base_cc_bits`), commands (`ofb_cc_pulse`), status
+values (`olo_base_cc_status`, a consistent snapshot of the whole status vector), events (`ofb_cc_pulse`). All of
+them use triplicated synchronisers (`SyncTmr_g` = true). An event
 that occurs more than once while the previous one is crossing may be counted once (see `ofb_cc_pulse` in the
 `ofb_pkg` architecture).
 
@@ -34,10 +35,10 @@ an `olo_ft_fifo_async` (address and data); the MIB keeps a copy for reading.
 ## 4. PRBS test (MG-5)
 
 LANE_PRBS_CTRL holds the patterns and the hold bit of a lane (configuration, crossing with the lane configuration in
-`olo_ft_cc_bits`); its count reset and force error bits are commands (`ofb_cc_pulse` to the lane clock, one pulse to
+`olo_base_cc_bits`); its count reset and force error bits are commands (`ofb_cc_pulse` to the lane clock, one pulse to
 the Physical adapter each). In the lane clock domain a 48-bit counter counts the cycles while the checker is on and
 not held, a 32-bit counter the cycles with a checker error; both saturate and are cleared by the count reset. The
-error counter, bits 47:16 of the word counter and the lock status cross with the lane status (`olo_ft_cc_status`, a
+error counter, bits 47:16 of the word counter and the lock status cross with the lane status (`olo_base_cc_status`, a
 consistent snapshot); with the hold bit set the two counters can be read without a change in between. The Link Reset
 command does not clear the PRBS counters (they belong to a test, not to the link status).
 

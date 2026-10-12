@@ -429,9 +429,10 @@ begin
         end if;
     end process;
 
-    i_farlb_sync : entity olo.olo_ft_sync
+    i_farlb_sync : entity olo.olo_intf_sync
         generic map (
-            Width_g => NumLanes_g
+            Width_g   => NumLanes_g,
+            SyncTmr_g => true
         )
         port map (
             Clk       => FreeRunClk,
@@ -461,9 +462,10 @@ begin
         end if;
     end process;
 
-    i_sync : entity olo.olo_ft_sync
+    i_sync : entity olo.olo_intf_sync
         generic map (
-            Width_g => 2*NumLanes_g+2
+            Width_g   => 2*NumLanes_g+2,
+            SyncTmr_g => true
         )
         port map (
             Clk       => UsrClk,

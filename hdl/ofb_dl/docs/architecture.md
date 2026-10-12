@@ -35,8 +35,8 @@ All blocks except the user side of the four buffer kinds run on `Clk` with the s
   Fill: the words up to and including the next word with an EOP or EEP are replaced by Fill words, and a beat of such
   words only is accepted and discarded.
 - End-of-packet count: the user side counts beats with an EOP or EEP in a Gray-coded counter, which crosses with
-  `olo_ft_cc_bits`; the read side counts the beats it reads. A difference not equal to zero means that the buffer holds
-  an EOP or EEP. The crossed value lags, so the read side never sees an EOP that is not yet in the buffer.
+  `olo_base_cc_bits`; the read side counts the beats it reads. A difference not equal to zero means that the buffer
+  holds an EOP or EEP. The crossed value lags, so the read side never sees an EOP that is not yet in the buffer.
 - Credit in words: `Credit` (`CreditWidth_g` bits) + (M x 64) per received FCT (`Fct_Valid`), - N per row read;
   overflow sets the counter to its maximum and pulses `Ev_CreditOverflow`; cleared on link reset.
 - Segment in rows: `Seg_Ready = Credit >= N and Level > 0 and (Level >= Cfg_SegRows or Eop or Full)`,
