@@ -2,14 +2,8 @@
 
 ## 1. Block diagram
 
-```text
- AXI4-Lite --> olo_axi_lite_slave --> register file (Clk = management clock)
-                                        |  ^            |  ^             |  ^
-                    configuration, cmd  v  | status,    v  |             |  | events
-                    olo_ft_cc_bits /    CoreClk:      LaneClk:          UserClk:
-                    ofb_cc_pulse        Data Link     Multi-Lane, Lane  Network interface
-                    olo_ft_cc_status    (cc_status, cc_pulse back)
-```
+![Block diagram of ofb_mib: AXI4-Lite slave, register file (MG-1), EDAC monitor (MG-3) and the crossings to the core,
+lane and user clock domains](img/ofb_mib_arch.drawio.svg)
 
 One crossing group per clock domain: configuration levels (`olo_ft_cc_bits`), commands (`ofb_cc_pulse`), status
 values (`olo_ft_cc_status`, a consistent snapshot of the whole status vector), events (`ofb_cc_pulse`). An event

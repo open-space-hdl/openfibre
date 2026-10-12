@@ -2,13 +2,8 @@
 
 ## 1. Block diagram
 
-```text
-            User (UserClk, AXI4-Stream)                          Data Link layer (UserClk side of the buffers)
-  S_Vc_* (x NumVc) --> ofb_ni_vc: framing check, register -->   TxVc_*
-  M_Vc_* (x NumVc) <------------------------------------------- RxVc_*
-  S_Bc_*           --> field mapping ------------------------->  TxBc_*
-  M_Bc_*           <-- field mapping --------------------------  RxBc_*
-```
+![Block diagram of ofb_ni: VC ports (NI-1), broadcast port (NI-3), schedule port (NI-4) and the direct receive
+connection of the VC ports](img/ofb_ni_arch.drawio.svg)
 
 ## 2. ofb_ni_vc (NI-1)
 

@@ -2,21 +2,8 @@
 
 ## 1. Block diagram
 
-```text
- ofb_cips_wrapper (block design ofb_cips: versal_cips, SmartConnect mib_axi)
-   pl0_clk (100 MHz) --> MgmtClk --> olo_ft_reset_gen (pl0_resetn) ---> PorRst
-   pl1_clk (150 MHz) --> UserClk
-   M_AXI_FPD (0xA400_0000) --+
-   S_AXI_POLL <-- p_poll ----+--> mib_axi --> M_AXI_MIB --> AXI4-Lite of ofb_core
-                                      |
- GtRefClk_P/N --> IBUFDS_GTE5 --> ofb_pa_gty (quad 200) <--> Qsfp_Tx/Rx (lanes 0..3)
-                                      | LaneClk, LaneRst
-                                      v
-                                   ofb_core (8 VCs, 4 lanes)   CoreClk = LaneClk = 156.25 MHz,
-                                   M_Vc --> S_Vc (echo)        UserClk = 150 MHz, MgmtClk = 100 MHz
-                                   M_Bc --> S_Bc (echo)
-                                   p_poll (DL_STATUS) --> Led(3)
-```
+![Block diagram of the VCK190 top level: CIPS block design, ofb_core with VC and broadcast echo, ofb_pa_gty, resets and
+LED poller](img/ofb_vck190_arch.drawio.svg)
 
 ## 2. Clocks and resets
 

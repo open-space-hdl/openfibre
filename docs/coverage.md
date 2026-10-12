@@ -32,8 +32,8 @@ Closure rules:
 
 ## 2. Result
 
-Run on 2026-10-10: 209 tests, all passed, 54 minutes with one simulator licence. Numbers are covered/total bins per
-file; bold marks a metric with misses.
+Run on 2026-10-10: 209 tests, all passed, 54 minutes. Numbers are covered/total bins per file; bold marks a metric
+with misses.
 
 | File | Statements | Branches | FSM States | FSM Transitions | Conditions | Expressions |
 | --- | --- | --- | --- | --- | --- | --- |

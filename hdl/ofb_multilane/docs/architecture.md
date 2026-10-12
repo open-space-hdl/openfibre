@@ -2,34 +2,8 @@
 
 ## 1. Block diagram
 
-```text
-        Data Link layer (rows of N words)                  Data Link control            MIB
-   TxRow_*  |                     ^ RxRow_*      Dl_LaneReset, Dl_NearCapability |  ^ Dl_Far*  | Cfg_* ^ Stat_*
-            v                     |                                              v  |          v       |
-  +----------------------------------------------------------------------------------------------------------+
-  | ofb_multilane                                                                                            |
-  |  +----------------------+  +----------------------+     +---------------------------------------------+  |
-  |  | ofb_ml_tx (ML-2)     |  | ofb_ml_rx (ML-6)     |<----| ofb_ml_lane_mgr (ML-1)                      |  |
-  |  | gearbox N -> L words |  | frame state, packing |     | TxOnly, RxOnly, FarEndActive, LaneReset,    |  |
-  |  | PAD, IDLE, ACTIVE,   |  | into rows of N words |     | data-sending / hot redundant lanes, bypass, |  |
-  |  | ALIGN, PRBS, SKIP    |  +----------------------+     | capabilities, scramble enables              |  |
-  |  +----------------------+            ^ receiving rows   +---------------------------------------------+  |
-  |       | one word per lane            |                         ^ FarAct (valid ACTIVE)      |            |
-  |       v                  +----------------------------------+  |                            |            |
-  |  +----------------+      | ofb_ml_align (ML-5)              |--+  alignment state           |            |
-  |  | ofb_ml_col_enc |      | ACTIVE / ALIGN reception,        |---------------------------->--+            |
-  |  | x N (ML-3)     |      | alignment FIFOs, row reading,    |                                            |
-  |  +----------------+      | row classification, state machine|                                            |
-  |       |                  +----------------------------------+                                            |
-  |       |                              ^ one word per lane                                                  |
-  |       |                      +----------------+                                                           |
-  |       |                      | ofb_ml_col_dec |                                                           |
-  |       |                      | x N (ML-4)     |                                                           |
-  |       |                      +----------------+                                                           |
-  +-------|------------------------------^--------------------------------------------------------------------+
-          v LaneTx_*, Lane_SkipReq       | LaneRx_*                    Lane_* control / state
-                                Lane layers (one per lane)
-```
+![Block diagram of ofb_multilane: row distributor (ML-2), column encoders (ML-3), lane manager (ML-1), column decoders
+(ML-4), lane alignment (ML-5) and row concentrator (ML-6)](img/ofb_multilane_arch.drawio.svg)
 
 All blocks run on `Clk` (lane clock) with the synchronous high-active `Rst`. `N` is `NumLanes_g`.
 
@@ -314,6 +288,7 @@ Vectors of lanes or row words hold lane / word `i` at bits `(i+1)*w-1 downto i*w
 | `TxRow_Data`, `TxRow_K` | in | 32N, 4N | Transmit row; word 0 is sent first (lowest lane) |
 | `TxRow_Mask` | in | N | Valid words of a data frame row (word 0 upwards) |
 | `TxRow_Replicate` | in | 1 | Word 0 is replicated over all data-sending lanes (control words, broadcast and idle frame words) |
+| `TxRow_Poison` | in | 1 | The row was read with an uncorrectable error before the Multi-Lane layer; its words keep the mark up to the column encoders (ML-DS-13) |
 | `TxRow_Valid` / `TxRow_Ready` | in / out | 1 | Handshake |
 | `RxRow_Data`, `RxRow_K`, `RxRow_Mask` | out | 32N, 4N, N | Received row |
 | `RxRow_CrcErr` | out | 1 | With an EDF: the CRC-16 of at least one lane failed |

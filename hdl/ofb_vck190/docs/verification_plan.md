@@ -4,8 +4,8 @@
 
 The reference design is verified at top level with the transceiver model in the AMD simulator (`python
 tools/run_xsim.py ofb_vck190_tb`), connected to a far end made of an OpenFibre core with its own Physical adapter.
-The build script is checked with the RTL elaboration of Vivado (`synth_design -rtl`), which needs no synthesis
-licence; synthesis, implementation and the hardware test follow on a host with a licence for the XCVC1902.
+The build script is checked with the RTL elaboration of Vivado (`synth_design -rtl`); synthesis, implementation and
+the hardware test follow the [hardware test procedure](hardware_test.md).
 
 ## 2. Test configuration
 
@@ -21,6 +21,6 @@ licence; synthesis, implementation and the hardware test follow on a host with a
 | TC-VCK-02 (RTL elaboration) | `build.tcl project`, then `synth_design -rtl`: the block design `ofb_cips` validates without errors with the address map M_AXI_FPD 0xA400_0000 (4 KB) and poller 0x000 (4 KB) to the MIB port; the design elaborates with the transceiver wizard instance and the CIPS block design (CIPS, SmartConnect `mib_axi`, all ports of `M_AXI_MIB` and `S_AXI_POLL` connected) without errors | VCK-BD-01, VCK-BD-02, VCK-MG-01 |
 
 The hardware tests TC-VCK-HW-01 to 09 on the board with SpaceFibre test equipment are described in
-[hardware_test.md](hardware_test.md); they run on a host with a licence for the XCVC1902. The register access over
-JTAG (VCK-MG-01) is tested on the board by TC-VCK-HW-09 and used by TC-VCK-HW-08; the XSDB script
-`tcl/xsdb_mib.tcl` is checked offline (sourced in XSDB, address and pattern helpers).
+[hardware_test.md](hardware_test.md). The register access over JTAG (VCK-MG-01) is tested on the board by
+TC-VCK-HW-09 and used by TC-VCK-HW-08; the XSDB script `tcl/xsdb_mib.tcl` is checked without the board (sourced in
+XSDB, address and pattern helpers).

@@ -57,15 +57,8 @@ The functions are pure and synthesisable; `crc8Word3` and the word functions unr
 
 Per pulse bit a two-phase handshake (no latch, every path between the clock domains starts at a register):
 
-```text
-            In_Clk                          |              Out_Clk
-                                            |
- In_Pulse -> Want = In_Pulse or Pend        |
-             Fire = Want and (Req = Ack)    |
-             Req  <= Req xor Fire  (TMR) ---+-> olo_ft_cc_bits -> ReqOut -+-> Out_Pulse = ReqOut xor Last
-             Pend <= Want and not Fire (TMR)|                            |   Last <= ReqOut (TMR)
-             Ack  <- olo_ft_cc_bits <-------+----------------------------+
-```
+![Pulse crossing ofb_cc_pulse: request logic, request and acknowledge crossings (olo_ft_cc_bits), output logic and reset
+coupling (olo_ft_cc_reset)](img/ofb_pkg_cc_pulse.drawio.svg)
 
 - A pulse toggles the request level when no transfer is in progress (request equal to acknowledge), otherwise it is
   stored as pending (`Pend`) and toggles the request once the acknowledge returns. Further pulses during the same

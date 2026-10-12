@@ -2,19 +2,9 @@
 
 ## 1. Block diagram
 
-```text
- UserClk                     Clk (core clock)
- Network layer               |
-  TxVc_* (x NumVc) --> ofb_dl_vc_out (DT-1/2) --+                                +--> TxRow_* (Multi-Lane)
-  TxBc_*           --> ofb_dl_bc_out (DT-3) ----+--> ofb_dl_tx_admit --> ofb_dl_erb --> ofb_dl_tx_frame
-                                                |     (DT-4, admission)  (DT-7)        (DT-5/6/8)
-                         FCT requests ----------+                ^  ACK / NACK   ^ ACK / NACK requests, RxSeq
-                                                                 |               |
-  RxVc_* (x NumVc) <-- ofb_dl_vc_in (DR-6) <-- ofb_dl_rx_buf (DR-5) <-- ofb_dl_rx_check (DR-1/2/4) <-- RxRow_*
-  RxBc_*           <-- ofb_dl_bc_in (DR-7) <------------------------------+        |
-                                                                 ofb_dl_rx_err (DR-3)
-                                       ofb_dl_link_reset (DC-1): link reset, LaneReset, capability
-```
+![Block diagram of ofb_dl: transmit path from the VC and broadcast output buffers through admission, error recovery
+buffer and frame transmitter, receive path from the receive checks through the frame buffer to the input buffers,
+receive error handler and link reset controller](img/ofb_dl_arch.drawio.svg)
 
 The transmit path is store and forward: a new item (data segment, broadcast message, FCT) is first admitted into the
 error recovery buffer and then sent from there. New items and items to be resent therefore take the same path, and an
@@ -290,6 +280,7 @@ of rows and stay correct for every number of data-sending lanes.
 | Configuration | `Cfg_DataScrambled`, `Cfg_LinkReset`, `Cfg_InterfaceReset`, `Cfg_BcInterval`, `Cfg_MaxDataLanes`; QoS register writes `Reg_Wr`, `Reg_Addr`, `Reg_Data` (core clock) |
 | Schedule (`UserClk`) | `Sched_TimeSlot`, `Sched_Valid` (SCHEDULE.request) |
 | Status | `Stat_*` levels and `Ev_*` events of DL-ST-01; `Stat_BwOver`, `Stat_BwUnder` per VC, `Stat_TimeSlot` |
+| Control | `Ctrl_ConfigReset`: configuration reset of DC-1 (Interface Reset) |
 
 ## 5. Open points
 

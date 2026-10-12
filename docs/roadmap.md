@@ -52,5 +52,4 @@ The core is at **TRL 3**: fully verified by simulation, not yet tested on hardwa
 | Item | State |
 | --- | --- |
 | `olo_ft_cc_status`, `olo_ft_reset_gen`, `olo_ft_sync`, latch-free `olo_ft_cc_pulse` (Open Logic fault-tolerant backlog) | Done: on the backlog branch of the submodule; used for the status snapshots of the MIB, the reset synchronisation per domain and the asynchronous transceiver status |
-| Synthesis licence for the XCVC1902 | Open |
 | Lab set-up with STAR-Dundee equipment for the phase 2 exit criterion | Open |
