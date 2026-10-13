@@ -15,14 +15,14 @@
 #   RC   read only, any write to the register clears it (counters)
 # A reset value written as text depends on generics or on the instance (lane, VC); status fields have none.
 
-id: 0x0FB10006
+id: 0x0FB10007
 
 registers:
   - name: ID
     offset: 0x000
     description: Identification of the core and version of the register map
     fields:
-      - {name: ID, bits: "31:0", access: RO, reset: 0x0FB10006, description: "0x0FB1 (OpenFibre) and register map version 6"}
+      - {name: ID, bits: "31:0", access: RO, reset: 0x0FB10007, description: "0x0FB1 (OpenFibre) and register map version 7"}
 
   - name: GENERICS
     offset: 0x004
@@ -67,8 +67,9 @@ registers:
       - {name: BC_DISCARD, bits: "6", access: W1C, reset: 0, description: Broadcast message discarded}
       - {name: INPUT_OVERFLOW, bits: "7", access: W1C, reset: 0, description: Input buffer overflow (any VC)}
       - {name: CREDIT_OVERFLOW, bits: "8", access: W1C, reset: 0, description: FCT credit overflow (any VC)}
-      - {name: FRAMING_ERROR, bits: "9", access: W1C, reset: 0, description: Framing error of the Network interface (any VC)}
+      - {name: FRAMING_ERROR, bits: "9", access: W1C, reset: 0, description: "Framing error of a packet to send: invalid TKEEP (any VC)"}
       - {name: RX_ROW_OVERFLOW, bits: "10", access: W1C, reset: 0, description: Receive row lost in the crossing to the core clock}
+      - {name: RX_FRAMING_ERROR, bits: "11", access: W1C, reset: 0, description: "Character rule violation in a received packet (any VC)"}
 
   - name: DL_RETRIES
     offset: 0x018
@@ -120,7 +121,7 @@ registers:
 
   - name: VC_FRAMING_ERROR
     offset: 0x03C
-    description: Framing error of the Network interface per VC
+    description: "Framing error of a packet to send per VC: invalid TKEEP"
     fields:
       - {name: VC, bits: "NumVc-1:0", access: W1C, reset: 0, description: Framing error of VC v in bit v}
 
@@ -137,7 +138,7 @@ registers:
     offset: 0x044
     description: Interrupt enables
     fields:
-      - {name: DL_ERRORS, bits: "10:0", access: RW, reset: 0, description: Interrupt enable of the DL_ERRORS bits}
+      - {name: DL_ERRORS, bits: "11:0", access: RW, reset: 0, description: Interrupt enable of the DL_ERRORS bits}
       - {name: LANE_EVENTS, bits: "19:16", access: RW, reset: 0, description: Interrupt enable of the LANE_EVENTS bits of any lane}
       - {name: ECC_DED, bits: "24", access: RW, reset: 0, description: Interrupt enable of the ECC DED flags}
       - {name: ECC_SEC, bits: "25", access: RW, reset: 0, description: Interrupt enable of the ECC SEC flag}
@@ -205,6 +206,18 @@ registers:
     fields:
       - {name: CHANNEL, bits: "3:0", access: WO, reset: 0, description: EDAC channel}
       - {name: DOUBLE, bits: "8", access: WO, reset: 0, description: "Double error (uncorrectable) instead of a single error"}
+
+  - name: VC_RX_FRAMING_ERROR
+    offset: 0x070
+    description: Character rule violation in a received packet per VC
+    fields:
+      - {name: VC, bits: "NumVc-1:0", access: W1C, reset: 0, description: "Receive framing error of VC v in bit v: Fill or other K-code inside a packet, data or a second end marker after an EOP or EEP in the same word"}
+
+  - name: NI_RX_EMPTY_COUNT
+    offset: 0x074
+    description: Received packets of zero length, discarded by the Network interface
+    fields:
+      - {name: COUNT, bits: "15:0", access: RC, reset: 0, description: "Packets of zero length of all VCs (saturating); the clear takes effect a few UserClk cycles after the write"}
 
 arrays:
   - name: LANE

@@ -10,36 +10,38 @@
 #define OFB_REGS_H
 
 /* Identification */
-#define OFB_REGMAP_ID 0x0FB10006u
+#define OFB_REGMAP_ID 0x0FB10007u
 
 /* Register addresses */
-#define OFB_ID                 0x000u
-#define OFB_GENERICS           0x004u
-#define OFB_DL_CTRL            0x008u
-#define OFB_DL_BC_INTERVAL     0x00Cu
-#define OFB_DL_STATUS          0x010u
-#define OFB_DL_ERRORS          0x014u
-#define OFB_DL_RETRIES         0x018u
-#define OFB_DL_CRC16_COUNT     0x01Cu
-#define OFB_DL_CRC8_COUNT      0x020u
-#define OFB_DL_FRAME_COUNT     0x024u
-#define OFB_DL_SEQ_COUNT       0x028u
-#define OFB_VC_HAS_CREDIT      0x030u
-#define OFB_VC_INPUT_OVERFLOW  0x034u
-#define OFB_VC_CREDIT_OVERFLOW 0x038u
-#define OFB_VC_FRAMING_ERROR   0x03Cu
-#define OFB_ML_STATUS          0x040u
-#define OFB_IRQ_MASK           0x044u
-#define OFB_VC_BW_OVER         0x048u
-#define OFB_VC_BW_UNDER        0x04Cu
-#define OFB_VC_IDLE_LIMIT      0x050u
-#define OFB_SCHED_STATUS       0x054u
-#define OFB_ML_CTRL            0x058u
-#define OFB_ML_MISALIGNED      0x05Cu
-#define OFB_ECC_STATUS         0x060u
-#define OFB_ECC_SELECT         0x064u
-#define OFB_ECC_COUNT          0x068u
-#define OFB_ECC_INJECT         0x06Cu
+#define OFB_ID                  0x000u
+#define OFB_GENERICS            0x004u
+#define OFB_DL_CTRL             0x008u
+#define OFB_DL_BC_INTERVAL      0x00Cu
+#define OFB_DL_STATUS           0x010u
+#define OFB_DL_ERRORS           0x014u
+#define OFB_DL_RETRIES          0x018u
+#define OFB_DL_CRC16_COUNT      0x01Cu
+#define OFB_DL_CRC8_COUNT       0x020u
+#define OFB_DL_FRAME_COUNT      0x024u
+#define OFB_DL_SEQ_COUNT        0x028u
+#define OFB_VC_HAS_CREDIT       0x030u
+#define OFB_VC_INPUT_OVERFLOW   0x034u
+#define OFB_VC_CREDIT_OVERFLOW  0x038u
+#define OFB_VC_FRAMING_ERROR    0x03Cu
+#define OFB_ML_STATUS           0x040u
+#define OFB_IRQ_MASK            0x044u
+#define OFB_VC_BW_OVER          0x048u
+#define OFB_VC_BW_UNDER         0x04Cu
+#define OFB_VC_IDLE_LIMIT       0x050u
+#define OFB_SCHED_STATUS        0x054u
+#define OFB_ML_CTRL             0x058u
+#define OFB_ML_MISALIGNED       0x05Cu
+#define OFB_ECC_STATUS          0x060u
+#define OFB_ECC_SELECT          0x064u
+#define OFB_ECC_COUNT           0x068u
+#define OFB_ECC_INJECT          0x06Cu
+#define OFB_VC_RX_FRAMING_ERROR 0x070u
+#define OFB_NI_RX_EMPTY_COUNT   0x074u
 
 /* Registers of lane i at address + i x 0x20 */
 #define OFB_LANE_STRIDE           0x020u
@@ -110,6 +112,8 @@
 #define OFB_DL_ERRORS_FRAMING_ERROR_MASK       0x1u
 #define OFB_DL_ERRORS_RX_ROW_OVERFLOW_SHIFT    10u
 #define OFB_DL_ERRORS_RX_ROW_OVERFLOW_MASK     0x1u
+#define OFB_DL_ERRORS_RX_FRAMING_ERROR_SHIFT   11u
+#define OFB_DL_ERRORS_RX_FRAMING_ERROR_MASK    0x1u
 
 #define OFB_DL_RETRIES_COUNT_SHIFT 0u
 #define OFB_DL_RETRIES_COUNT_MASK  0xFFFFFFFFu
@@ -144,7 +148,7 @@
 #define OFB_ML_STATUS_BYPASS_MASK          0x1u
 
 #define OFB_IRQ_MASK_DL_ERRORS_SHIFT   0u
-#define OFB_IRQ_MASK_DL_ERRORS_MASK    0x7FFu
+#define OFB_IRQ_MASK_DL_ERRORS_MASK    0xFFFu
 #define OFB_IRQ_MASK_LANE_EVENTS_SHIFT 16u
 #define OFB_IRQ_MASK_LANE_EVENTS_MASK  0xFu
 #define OFB_IRQ_MASK_ECC_DED_SHIFT     24u
@@ -187,6 +191,11 @@
 #define OFB_ECC_INJECT_CHANNEL_MASK  0xFu
 #define OFB_ECC_INJECT_DOUBLE_SHIFT  8u
 #define OFB_ECC_INJECT_DOUBLE_MASK   0x1u
+
+#define OFB_VC_RX_FRAMING_ERROR_VC_SHIFT 0u
+
+#define OFB_NI_RX_EMPTY_COUNT_COUNT_SHIFT 0u
+#define OFB_NI_RX_EMPTY_COUNT_COUNT_MASK  0xFFFFu
 
 #define OFB_LANE_CTRL_LANE_START_SHIFT           0u
 #define OFB_LANE_CTRL_LANE_START_MASK            0x1u
@@ -290,6 +299,7 @@
 #define OFB_ECC_SELECT_RESET         0x00000000u
 #define OFB_ECC_COUNT_RESET          0x00000000u
 #define OFB_ECC_INJECT_RESET         0x00000000u
+#define OFB_NI_RX_EMPTY_COUNT_RESET  0x00000000u
 #define OFB_LANE_CTRL_RESET          0x00000062u
 #define OFB_LANE_EVENTS_RESET        0x00000000u
 #define OFB_LANE_TIMEOUT_COUNT_RESET 0x00000000u

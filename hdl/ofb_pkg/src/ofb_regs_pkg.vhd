@@ -25,7 +25,7 @@ package ofb_regs_pkg is
     -----------------------------------------------------------------------------------------------
     -- Identification
     -----------------------------------------------------------------------------------------------
-    constant RegMapId_c : std_logic_vector(31 downto 0) := x"0FB10006";
+    constant RegMapId_c : std_logic_vector(31 downto 0) := x"0FB10007";
 
     -----------------------------------------------------------------------------------------------
     -- Register addresses (byte addresses)
@@ -57,6 +57,8 @@ package ofb_regs_pkg is
     constant RegEccSelect_c        : natural := 16#064#;
     constant RegEccCount_c         : natural := 16#068#;
     constant RegEccInject_c        : natural := 16#06C#;
+    constant RegVcRxFramingError_c : natural := 16#070#;
+    constant RegNiRxEmptyCount_c   : natural := 16#074#;
 
     -----------------------------------------------------------------------------------------------
     -- LANE registers: address of instance n = Reg<Name>_c + n * RegLaneStride_c
@@ -132,6 +134,7 @@ package ofb_regs_pkg is
     constant DlErrorsCreditOverflow_c  : natural := 8;
     constant DlErrorsFramingError_c    : natural := 9;
     constant DlErrorsRxRowOverflow_c   : natural := 10;
+    constant DlErrorsRxFramingError_c  : natural := 11;
 
     constant DlRetriesCountLo_c : natural := 0;
     constant DlRetriesCountHi_c : natural := 31;
@@ -165,7 +168,7 @@ package ofb_regs_pkg is
     constant MlStatusBypass_c          : natural := 10;
 
     constant IrqMaskDlErrorsLo_c   : natural := 0;
-    constant IrqMaskDlErrorsHi_c   : natural := 10;
+    constant IrqMaskDlErrorsHi_c   : natural := 11;
     constant IrqMaskLaneEventsLo_c : natural := 16;
     constant IrqMaskLaneEventsHi_c : natural := 19;
     constant IrqMaskEccDed_c       : natural := 24;
@@ -203,6 +206,11 @@ package ofb_regs_pkg is
     constant EccInjectChannelLo_c : natural := 0;
     constant EccInjectChannelHi_c : natural := 3;
     constant EccInjectDouble_c    : natural := 8;
+
+    constant VcRxFramingErrorVcLo_c : natural := 0;
+
+    constant NiRxEmptyCountCountLo_c : natural := 0;
+    constant NiRxEmptyCountCountHi_c : natural := 15;
 
     constant LaneCtrlLaneStart_c          : natural := 0;
     constant LaneCtrlAutoStart_c          : natural := 1;
@@ -287,6 +295,7 @@ package ofb_regs_pkg is
     constant RegEccSelectReset_c        : std_logic_vector(31 downto 0) := x"00000000";
     constant RegEccCountReset_c         : std_logic_vector(31 downto 0) := x"00000000";
     constant RegEccInjectReset_c        : std_logic_vector(31 downto 0) := x"00000000";
+    constant RegNiRxEmptyCountReset_c   : std_logic_vector(31 downto 0) := x"00000000";
     constant RegLaneCtrlReset_c         : std_logic_vector(31 downto 0) := x"00000062";
     constant RegLaneEventsReset_c       : std_logic_vector(31 downto 0) := x"00000000";
     constant RegLaneTimeoutCountReset_c : std_logic_vector(31 downto 0) := x"00000000";

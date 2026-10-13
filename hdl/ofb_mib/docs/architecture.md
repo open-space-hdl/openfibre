@@ -42,7 +42,17 @@ error counter, bits 47:16 of the word counter and the lock status cross with the
 consistent snapshot); with the hold bit set the two counters can be read without a change in between. The Link Reset
 command does not clear the PRBS counters (they belong to a test, not to the link status).
 
-## 5. EDAC monitor (MG-3)
+## 5. Events of the Network interface
+
+The framing errors of the VC ports (transmit: invalid `TKEEP`; receive: character rule violations) cross with one
+`ofb_cc_pulse` of 2 x `NumVc_g` pulses and set VC_FRAMING_ERROR, VC_RX_FRAMING_ERROR and DL_ERRORS bits 9 and 11.
+The packets of zero length can arrive in consecutive cycles and on several VCs in the same cycle, which a pulse
+crossing would merge: they are counted in the user clock domain (a 16-bit saturating counter that adds the events of
+all VCs of a cycle), and the counter value crosses to the management clock with `olo_base_cc_status`. A write to
+NI_RX_EMPTY_COUNT and the Link Reset command clear it through an `ofb_cc_pulse` to the user clock, so the clear takes
+effect a few cycles after the write.
+
+## 6. EDAC monitor (MG-3)
 
 The EDAC channels are defined in `ofb_pkg` (`EccCh*_c`, 9 channels). Every module with fault-tolerant buffers reports
 for each channel a SEC and a DED pulse per word read with an error, in the clock domain of the read side, and takes
