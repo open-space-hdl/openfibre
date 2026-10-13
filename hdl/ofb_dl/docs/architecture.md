@@ -43,11 +43,18 @@ All blocks except the user side of the four buffer kinds run on `Clk` with the s
   `Seg_Rows = min(Level, Cfg_SegRows, Credit / N)` (`Level` is the read-side level of the FIFO, which never exceeds the
   true level; `Cfg_SegRows` = 64 x P / N).
 - Continuous mode (user side, `Cfg_Continuous`): when a word arrives while the buffer has at most one free entry, or no
-  lane is active (`Ctrl_LaneActive`, crossed to the user clock) while the buffer holds words other than its own EEP,
-  the buffer is reset from the user side, an EEP word (EEP, Fill, Fill, Fill) is written after the reset, and when the
-  last word written did not end a packet the spill state discards the rest of that packet. Words that arrive during the
-  flush are accepted and discarded. The read side reports the reset (`Rd_Flushed`), so that the admission ends a
-  segment that was being copied.
+  lane is active (`Ctrl_LaneActive`, crossed to the user clock) while the buffer is not empty, the buffer is reset from
+  the user side. When the last word written, including a word written in the cycle of the flush, did not end a packet,
+  the spill state discards the rest of that packet. Words that arrive during the flush are accepted and discarded; when
+  such a word does not end its packet, the spill state discards the rest of it as well, so that no packet is sent
+  without its start (DL-CM-02). The read side reports the reset (`Rd_Flushed`), so that the admission ends a segment
+  that was being copied.
+- EEP after a flush (read side): `RdInPkt` is set while the last row read does not end its packet. When the reset of
+  the buffer reaches the read side with `RdInPkt` set, `RdEep` presents a row EEP, Fill, ... (counted as a row with
+  an end of packet for the segment, read with the credit of one row) before the rows written after the flush. Without
+  `RdInPkt` no EEP is sent: the flushed data were complete packets or a packet of which nothing was read, and an EEP
+  would form a packet of zero length (5.3.9h). No segment starts while the reset is in progress. A link reset clears
+  `RdInPkt` and `RdEep` (the far end ends the packet, 5.7.10a.4 to 7).
 
 ### 3.2 ofb_dl_bc_out (DT-3)
 

@@ -446,7 +446,7 @@ specifications and the verification plans, lists the requirements and test cases
 | 5.3.5.2 | Flow control word (FCT) | DT-6 | DR-1, DR-4 | Unit |
 | 5.3.5.3 | Error recovery control words | DT-6 | DT-7, DR-1 | Unit |
 | 5.3.6 | RXERR | LN-3 | ML-6, DR-1 | Unit |
-| 5.3.7, 5.3.9 | Characters, packets | NI-1 | DR-6 | Unit |
+| 5.3.7, 5.3.9 | Characters, packets | NI-1 | DR-6, DT-1 | Unit |
 | 5.3.8 | Frames | DT-6 | DR-1 | Layer |
 | 5.3.10a, b, c1 to c3, c16, d to f, p | Precedence, Lane layer part | LN-2 |  | Unit |
 | 5.3.10c4, c5, g, h | Precedence, Multi-Lane part | ML-2 |  | Unit |

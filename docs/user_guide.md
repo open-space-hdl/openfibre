@@ -96,8 +96,9 @@ ended with an EEP (ECSS 5.7.10).
 
 Back-pressure: `S_Vc_TReady` is low when the output VC buffer is full; the Data Link layer sends data only when the far
 end has announced buffer space (flow control credit). With the continuous mode of a VC (VC_CFG bit 8) the output
-buffer accepts data also without credit: when the buffer is full, the current packet is ended with an EEP and the rest
-of the packet is discarded. `M_Vc_TReady` may be low at any time; the far end is stopped through flow control. Both
+buffer accepts data also without credit: when the buffer is full or no lane is active, the buffer is flushed and the
+rest of the packet being written is discarded; a packet of which bytes were already sent is ended with an EEP (no
+packet of zero length is sent). `M_Vc_TReady` may be low at any time; the far end is stopped through flow control. Both
 directions carry one beat per cycle inside a packet; a packet costs at most one additional cycle (end marker row after
 a full last beat, last beat of a received packet whose bytes need one more beat).
 

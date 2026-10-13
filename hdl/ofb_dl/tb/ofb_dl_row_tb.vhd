@@ -662,6 +662,118 @@ begin
                 check_value(Pos_v >= 0, error, "Packet after the flushes sent");
                 check_value(txPayload, 5, error, "Complete packet after the flushes");
 
+            -- TC-DL-31: continuous mode flush and the EEP: an EEP only after data of a packet that was read
+            -- before the flush, never alone (no packet of zero length); a packet whose start is flushed or
+            -- discarded during the flush is discarded up to its end, never sent without its start
+            elsif run("test_continuous_eep") then
+                waitLinkInit(10 us);
+                regWrite(16#400#, x"00000103");
+                cycles(50);
+
+                for s in 0 to 3 loop
+                    -- Each scenario starts after a link reset: empty buffer, no credit
+                    RowCfg.LinkReset <= '1';
+                    cycles(1);
+                    RowCfg.LinkReset <= '0';
+                    waitLinkInit(20 us);
+                    cycles(50);
+                    TxLog_v.clear;
+
+                    case s is
+
+                        when 0 =>
+                            -- Packet partly read: 64 words of a packet of 100 words copied with the credit of one
+                            -- FCT, then the flush (no lane active): the EEP ends the packet
+                            rxFct(0, 1);
+                            userPacket(0, 100, 1000);
+                            waitRxIdle;
+                            cycles(400);
+                            RowCfg.LaneActive <= '0';
+                            cycles(100);
+                            RowCfg.LaneActive <= '1';
+                            rxFct(0, 2);
+                            waitRxIdle;
+                            cycles(400);
+                            check_value(txPayload, 65, error, "64 words of the packet and the EEP");
+                            N_v               := 0;
+
+                            for i in 0 to TxLog_v.count - 1 loop
+                                if TxLog_v.get(i) = "1111" & CharFill_c & CharFill_c & CharFill_c & CharEep_c then
+                                    N_v := N_v + 1;
+                                end if;
+                            end loop;
+
+                            check_value(N_v, 1, error, "One EEP after the words read before the flush");
+
+                        when 1 =>
+                            -- Packet in progress, nothing read (no credit): no EEP, the rest is discarded; complete
+                            -- packets in the buffer, nothing read: no EEP
+                            userPacket(0, 20, 2000);
+                            cycles(100);
+                            RowCfg.LaneActive <= '0';
+                            cycles(10);
+                            userPacket(0, 10, 3000);
+                            cycles(200);
+                            RowCfg.LaneActive <= '1';
+                            cycles(50);
+                            userPacket(0, 5, 4000);
+                            cycles(100);
+                            rxFct(0, 1);
+                            waitRxIdle;
+                            cycles(400);
+                            check_value(txPayload, 5, error, "Only the packet after the flush");
+                            Pos_v             := txFind(KindSdf, 0);
+                            check_value(txWord(Pos_v + 1), x"00000FA0", error, "First word after the flush");
+
+                        when 2 =>
+
+                            -- Flush by the first word of a packet (127 words of complete packets in the buffer of
+                            -- 128), the rest of that packet after the flush: it is discarded
+                            for p in 0 to 5 loop
+                                userPacket(0, 20, 5000 + 100 * p);
+                            end loop;
+
+                            userPacket(0, 7, 6000);
+                            VcTxQueue0_v.push('0' & KData_c & x"00001B58");
+                            cycles(400);
+                            userPacket(0, 9, 7001);
+                            cycles(400);
+                            userPacket(0, 5, 8000);
+                            cycles(100);
+                            rxFct(0, 1);
+                            waitRxIdle;
+                            cycles(400);
+                            check_value(txPayload, 5, error, "Only the packet after the flush, no rest");
+                            Pos_v := txFind(KindSdf, 0);
+                            check_value(txWord(Pos_v + 1), x"00001F40", error, "First word after the flush");
+
+                        when others =>
+
+                            -- Flush by the last word of a packet; the next packet starts during the flush: its
+                            -- words written during the flush are discarded and its rest as well
+                            for p in 0 to 5 loop
+                                userPacket(0, 20, 5000 + 100 * p);
+                            end loop;
+
+                            userPacket(0, 6, 6000);
+                            userPacket(0, 2, 6500);
+                            userPacket(0, 10, 7000);
+                            cycles(400);
+                            userPacket(0, 5, 8000);
+                            cycles(100);
+                            rxFct(0, 1);
+                            waitRxIdle;
+                            cycles(400);
+                            check_value(txPayload, 5, error, "Only the packet after the flush, no truncated one");
+                            Pos_v := txFind(KindSdf, 0);
+                            check_value(txWord(Pos_v + 1), x"00001F40", error, "First word after the flush");
+
+                    end case;
+
+                end loop;
+
+                check_value(RowStat.ProtErrs, 0, error, "No protocol error");
+
             -- TC-DL-13: data word identification
             elsif run("test_word_id") then
                 waitLinkInit(10 us);
@@ -1001,10 +1113,8 @@ begin
                 rxFct(0, 2);
                 waitRxIdle;
                 cycles(300);
-                check_value(txPayload, 1, error, "Only the EEP after the flush");
-                Pos_v := txFind(KindSdf, 0);
-                check_value(TxLog_v.get(Pos_v + 1), "1111" & CharFill_c & CharFill_c & CharFill_c & CharEep_c, error,
-                            "EEP word");
+                -- Nothing of the packets was read before the flush: no EEP (no packet of zero length)
+                check_value(txPayload, 0, error, "Nothing sent after the flush");
                 -- No lane active: the first word of a packet causes a flush, the packet is discarded
                 RowCfg.LaneActive <= '0';
                 cycles(10);
@@ -1012,7 +1122,12 @@ begin
                 cycles(200);
                 RowCfg.LaneActive <= '1';
                 cycles(300);
-                check_value(txPayload, 2, error, "Second EEP after the flush without active lane");
+                check_value(txPayload, 0, error, "Nothing sent after the flush without active lane");
+                -- A packet after the flushes is sent complete
+                userPacket(0, 4, 700);
+                waitRxIdle;
+                cycles(300);
+                check_value(txPayload, 4, error, "Packet after the flushes");
 
             -- TC-DL-23: FULL after an RXERR when nothing else is to be sent but items wait for
             -- acknowledgement (ECSS 5.7.7.1r); no FULL with an empty error recovery buffer

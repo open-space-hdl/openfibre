@@ -7,8 +7,9 @@
 -- Description
 ---------------------------------------------------------------------------------------------------
 -- Output VC buffer of the Data Link layer (DT-1, DT-2): buffer of beats (rows of NumLanes_g words)
--- from the user clock to the core clock with the link reset rules of ECSS 5.7.2.2g, FCT credit
--- counter in words (ECSS 5.7.3.1) and the data segment ready indication.
+-- from the user clock to the core clock with the link reset rules of ECSS 5.7.2.2g, the continuous
+-- mode of ECSS 5.7.2.2i, FCT credit counter in words (ECSS 5.7.3.1) and the data segment ready
+-- indication.
 --
 -- Documentation: hdl/ofb_dl/docs/architecture.md (section 3.1)
 
@@ -102,13 +103,10 @@ architecture rtl of ofb_dl_vc_out is
     signal FifoDed    : std_logic;
 
     -- User side
-    signal LastEnd  : std_logic;
-    signal Spill    : std_logic;
-    signal CmFlush  : std_logic;
-    signal CmWait   : std_logic;
-    signal EepPend  : std_logic;
-    signal EepOnly  : std_logic;
-    signal EepWrite : std_logic;
+    signal LastEnd : std_logic;
+    signal Spill   : std_logic;
+    signal CmFlush : std_logic;
+    signal CmWait  : std_logic;
 
     -- Beat after the spill: words of the discarded packet replaced by Fill words
     signal SpData   : std_logic_vector(32*N_c-1 downto 0);
@@ -117,9 +115,6 @@ architecture rtl of ofb_dl_vc_out is
     signal SpEnd    : std_logic; -- The discarded packet ends in this beat
     signal BeatEnd  : std_logic; -- The beat contains an EOP or EEP
     signal BeatLast : std_logic; -- The last character of the beat is an EOP, EEP or Fill
-
-    -- EEP followed by Fills
-    signal BeatEep : std_logic_vector(Width_c-1 downto 0);
 
     signal EopWr    : unsigned(EopWidth_c-1 downto 0);
     signal EopWrGry : std_logic_vector(EopWidth_c-1 downto 0);
@@ -132,6 +127,10 @@ architecture rtl of ofb_dl_vc_out is
     signal EopDly  : EopDelay_t;
     signal EopRd   : unsigned(EopWidth_c-1 downto 0);
     signal Credit  : unsigned(CreditWidth_g-1 downto 0);
+    signal RdInPkt : std_logic; -- The last beat read did not end its packet
+    signal RdEep   : std_logic; -- EEP to be read after a flush (continuous mode)
+    signal FifoRd  : std_logic;
+    signal BeatEep : std_logic_vector(Width_c-1 downto 0); -- EEP followed by Fills
 
 begin
 
@@ -150,7 +149,6 @@ begin
         BeatEnd <= '0';
         SpData  <= In_Data;
         SpK     <= In_K;
-        BeatEep <= (others => '1');
 
         for i in 0 to N_c-1 loop
             Data_v := rowWord(In_Data, i);
@@ -170,11 +168,6 @@ begin
             else
                 SpAll <= '0';
             end if;
-            if i = 0 then
-                BeatEep(31 downto 0) <= WordFill_c(31 downto 8) & CharEep_c;
-            else
-                BeatEep(32*i+31 downto 32*i) <= WordFill_c;
-            end if;
         end loop;
 
         if wordLastIsEnd(rowWord(In_Data, N_c-1), rowKflags(In_K, N_c-1)) then
@@ -184,9 +177,8 @@ begin
         end if;
     end process;
 
-    EepWrite  <= EepPend and not CmWait and FifoInRdy;
-    FifoIn    <= BeatEep when EepWrite = '1' else SpK & SpData;
-    FifoInVld <= EepWrite or (In_Valid and not SpAll and not CmWait and not EepPend);
+    FifoIn    <= SpK & SpData;
+    FifoInVld <= In_Valid and not SpAll and not CmWait;
     FifoInRst <= UserRst or CmFlush;
 
     p_ready : process (all) is
@@ -194,50 +186,58 @@ begin
         if CmWait = '1' or (Spill = '1' and SpAll = '1') then
             -- Beats of a discarded packet, beats during a flush in continuous mode
             In_Ready <= '1';
-        elsif EepPend = '1' then
-            In_Ready <= '0';
         else
             In_Ready <= FifoInRdy;
         end if;
     end process;
 
     p_user : process (UserClk) is
-        variable Full_v   : boolean;
-        variable NoLane_v : boolean;
+        variable Full_v    : boolean;
+        variable NoLane_v  : boolean;
+        variable Spill_v   : std_logic;
+        variable LastEnd_v : std_logic;
     begin
         if rising_edge(UserClk) then
             CmFlush <= '0';
-            -- Continuous mode: flush when the buffer is about to be full or no lane is active
-            Full_v   := In_Valid = '1' and unsigned(InLevel) >= Depth_g - 1;
-            NoLane_v := Ctrl_LaneActive = '0' and InEmpty = '0' and EepOnly = '0';
-            if Cfg_Continuous = '1' and CmWait = '0' and EepPend = '0' and (Full_v or NoLane_v) then
-                CmFlush <= '1';
-                CmWait  <= '1';
-                EepPend <= '1';
-                Spill   <= not LastEnd;
-                LastEnd <= '1';
-            elsif In_Valid = '1' and Spill = '1' and SpAll = '1' then
+            -- The beat of this cycle
+            Spill_v   := Spill;
+            LastEnd_v := LastEnd;
+            if In_Valid = '1' and Spill = '1' and SpAll = '1' then
                 -- The whole beat belongs to the discarded packet
                 if SpEnd = '1' then
-                    Spill   <= '0';
-                    LastEnd <= '1';
+                    Spill_v   := '0';
+                    LastEnd_v := '1';
                 end if;
-            elsif In_Valid = '1' and FifoInRdy = '1' and CmWait = '0' and EepPend = '0' then
-                Spill   <= '0';
-                EepOnly <= '0';
-                LastEnd <= BeatLast;
+            elsif In_Valid = '1' and CmWait = '1' then
+                -- Beat during a flush: discarded; a packet that it does not end is discarded up to its end,
+                -- so that no packet without its start is sent
+                Spill_v   := not BeatLast;
+                LastEnd_v := '1';
+            elsif In_Valid = '1' and FifoInRdy = '1' then
+                Spill_v   := '0';
+                LastEnd_v := BeatLast;
                 if BeatEnd = '1' then
                     EopWr <= EopWr + 1;
                 end if;
             end if;
-            -- End of the flush: buffer ready again, then the EEP
+            -- Continuous mode: flush when the buffer is about to be full or no lane is active (ECSS 5.7.2.2i);
+            -- a beat written in this cycle is flushed as well. When the last character written does not end
+            -- a packet, the rest of the packet is discarded (5.7.2.2i.3). The EEP is placed at the read side
+            -- (RdEep), only after data of a packet that it ends
+            Full_v   := In_Valid = '1' and unsigned(InLevel) >= Depth_g - 1;
+            NoLane_v := Ctrl_LaneActive = '0' and InEmpty = '0';
+            if Cfg_Continuous = '1' and CmWait = '0' and (Full_v or NoLane_v) then
+                CmFlush <= '1';
+                CmWait  <= '1';
+                Spill   <= Spill_v or not LastEnd_v;
+                LastEnd <= '1';
+            else
+                Spill   <= Spill_v;
+                LastEnd <= LastEnd_v;
+            end if;
+            -- End of the flush: buffer ready again
             if CmWait = '1' and CmFlush = '0' and UsrRstOut = '0' and FifoInRdy = '1' then
                 CmWait <= '0';
-            end if;
-            if EepWrite = '1' then
-                EepPend <= '0';
-                EepOnly <= '1';
-                EopWr   <= EopWr + 1;
             end if;
             -- Buffer reset seen on the user side (link reset or flush)
             if UsrRstOut = '1' then
@@ -252,8 +252,6 @@ begin
                 EopWr   <= (others => '0');
                 CmFlush <= '0';
                 CmWait  <= '0';
-                EepPend <= '0';
-                EepOnly <= '0';
             end if;
         end if;
     end process;
@@ -301,7 +299,7 @@ begin
             Out_RstOut        => OutRstOut,
             Out_Data          => FifoOut,
             Out_Valid         => OutValid,
-            Out_Ready         => Rd_Ready,
+            Out_Ready         => FifoRd,
             Out_Full          => OutFull,
             Out_Level         => OutLevel,
             Out_EccSec        => FifoSec,
@@ -310,13 +308,30 @@ begin
             In_ErrInj_Valid   => EccInj_Valid
         );
 
-    -- ECC events of the beats read (MG-3)
-    Ev_EccSec <= FifoSec and OutValid and Rd_Ready;
-    Ev_EccDed <= FifoDed and OutValid and Rd_Ready;
+    -- The EEP after a flush is read before the beats of the buffer
+    FifoRd <= Rd_Ready and not RdEep;
 
-    Rd_Data    <= FifoOut(32*N_c-1 downto 0);
-    Rd_K       <= FifoOut(36*N_c-1 downto 32*N_c);
-    Rd_Valid   <= OutValid;
+    p_eep : process (all) is
+    begin
+
+        for i in 0 to N_c-1 loop
+            if i = 0 then
+                BeatEep(31 downto 0) <= WordFill_c(31 downto 8) & CharEep_c;
+            else
+                BeatEep(32*i+31 downto 32*i) <= WordFill_c;
+            end if;
+        end loop;
+
+        BeatEep(Width_c-1 downto 32*N_c) <= (others => '1');
+    end process;
+
+    -- ECC events of the beats read (MG-3)
+    Ev_EccSec <= FifoSec and OutValid and FifoRd;
+    Ev_EccDed <= FifoDed and OutValid and FifoRd;
+
+    Rd_Data    <= BeatEep(32*N_c-1 downto 0) when RdEep = '1' else FifoOut(32*N_c-1 downto 0);
+    Rd_K       <= BeatEep(36*N_c-1 downto 32*N_c) when RdEep = '1' else FifoOut(36*N_c-1 downto 32*N_c);
+    Rd_Valid   <= OutValid or RdEep;
     Rd_Flushed <= OutRstOut;
 
     -----------------------------------------------------------------------------------------------
@@ -336,11 +351,16 @@ begin
                     Ev_CreditOverflow <= '1';
                 end if;
             end if;
-            if OutValid = '1' and Rd_Ready = '1' then
+            if (OutValid = '1' or RdEep = '1') and Rd_Ready = '1' then
                 -- One row of N words (ECSS 5.7.3.1f); the segment never exceeds the credit
                 if Sum_v >= N_c then
                     Sum_v := Sum_v - N_c;
                 end if;
+            end if;
+            if RdEep = '1' and Rd_Ready = '1' then
+                RdEep   <= '0';
+                RdInPkt <= '0';
+            elsif OutValid = '1' and Rd_Ready = '1' then
                 End_v := false;
 
                 for i in 0 to N_c-1 loop
@@ -352,19 +372,32 @@ begin
                 if End_v then
                     EopRd <= EopRd + 1;
                 end if;
+                -- A packet is open on the read side while the last character read is not an EOP, EEP or Fill
+                if wordLastIsEnd(rowWord(FifoOut, N_c-1), rowKflags(FifoOut(36*N_c-1 downto 32*N_c), N_c-1)) then
+                    RdInPkt <= '0';
+                else
+                    RdInPkt <= '1';
+                end if;
             end if;
             Credit <= resize(Sum_v, CreditWidth_g);
             EopDly <= EopSync & EopDly(0 to EopDly'high-1);
-            -- Buffer reset seen on the read side (link reset or continuous mode flush)
+            -- Buffer reset seen on the read side (link reset or continuous mode flush): an EEP ends a packet
+            -- whose data were read before the flush (ECSS 5.7.2.2i.2); without such data no EEP is sent, as it
+            -- would form a packet of zero length (5.3.9h)
             if OutRstOut = '1' then
-                EopRd  <= (others => '0');
-                EopDly <= (others => (others => '0'));
+                EopRd   <= (others => '0');
+                EopDly  <= (others => (others => '0'));
+                RdEep   <= RdEep or RdInPkt;
+                RdInPkt <= '0';
             end if;
+            -- Link reset: no EEP, the far end ends the packet (ECSS 5.7.10a.4 to 7)
             if Rst = '1' or Ctrl_LinkReset = '1' then
                 Credit            <= (others => '0');
                 EopRd             <= (others => '0');
                 EopDly            <= (others => (others => '0'));
                 Ev_CreditOverflow <= '0';
+                RdInPkt           <= '0';
+                RdEep             <= '0';
             end if;
         end if;
     end process;
@@ -376,13 +409,19 @@ begin
         variable Credit_v : natural;
         variable Eop_v    : boolean;
     begin
-        Level_v  := to_integer(unsigned(OutLevel));
+        -- The EEP after a flush counts as a row with an end of packet
+        Level_v := to_integer(unsigned(OutLevel));
+        Eop_v   := unsigned(grayToBinary(EopDly(EopDly'high))) /= EopRd;
+        if RdEep = '1' then
+            Level_v := Level_v + 1;
+            Eop_v   := true;
+        end if;
         Max_v    := to_integer(unsigned(Cfg_SegRows));
         Credit_v := to_integer(Credit) / N_c;
-        Eop_v    := unsigned(grayToBinary(EopDly(EopDly'high))) /= EopRd;
         Rows_v   := minimum(Level_v, Max_v);
         Rows_v   := minimum(Rows_v, Credit_v);
-        if Credit_v > 0 and Level_v > 0 and (Level_v >= Max_v or Eop_v or OutFull = '1') then
+        -- No segment while the buffer is in reset
+        if Credit_v > 0 and Level_v > 0 and (Level_v >= Max_v or Eop_v or OutFull = '1') and OutRstOut = '0' then
             Seg_Ready <= '1';
         else
             Seg_Ready <= '0';
@@ -391,6 +430,6 @@ begin
     end process;
 
     Stat_HasCredit <= '1' when Credit >= N_c else '0';
-    Stat_Empty     <= '1' when unsigned(OutLevel) = 0 else '0';
+    Stat_Empty     <= '1' when unsigned(OutLevel) = 0 and RdEep = '0' else '0';
 
 end architecture;
