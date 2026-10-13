@@ -86,7 +86,7 @@ board. The script `hdl/ofb_vck190/tcl/xsdb_mib.tcl` provides the access and the 
 xsdb% source hdl/ofb_vck190/tcl/xsdb_mib.tcl
 xsdb% mib_connect
 xsdb% mib_rd 0x000
-0x0FB10006
+0x0FB10007
 xsdb% mib_rd 0x010
 xsdb% prbs_ber 0 31 480
 xsdb% prbs_off 0
@@ -111,7 +111,7 @@ link of the lane is down while the test runs.
 | TC-VCK-HW-06 Lane failure | If the far end can disable a lane: disable lane 3 during traffic, enable it again | Traffic continues on three lanes without loss, the lane joins again |
 | TC-VCK-HW-07 Error recovery | If the far end can inject errors: bit errors or corrupted frames during traffic | Every packet comes back unchanged; the far end counts the retries |
 | TC-VCK-HW-08 Bit error rate | PRBS test of every lane with `prbs_ber` (section 7): PRBS-31 and PRBS-7 sent and checked, with a QSFP loopback module, with the far end (same pattern) or in the near-end serial loopback (LANE_CTRL bit 16); 480 s per lane and pattern | Checkers locked; no error (BER below 1e-12 at 95 % confidence); the forced error counted once |
-| TC-VCK-HW-09 Register access | After TC-VCK-HW-01: `mib_rd 0x000`, `mib_rd 0x010`, `mib_rd 0x040`; `mib_wr 0x044 0x1`, `mib_rd 0x044` | ID 0x0FB10006; DL_STATUS bits 1:0 = 11 (link initialised); ML_STATUS shows four data-sending and data-receiving lanes; IRQ_MASK reads back 0x1 |
+| TC-VCK-HW-09 Register access | After TC-VCK-HW-01: `mib_rd 0x000`, `mib_rd 0x010`, `mib_rd 0x040`; `mib_wr 0x044 0x1`, `mib_rd 0x044` | ID 0x0FB10007; DL_STATUS bits 1:0 = 11 (link initialised); ML_STATUS shows four data-sending and data-receiving lanes; IRQ_MASK reads back 0x1 |
 
 ## 9. Limits of the reference design
 

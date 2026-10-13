@@ -15,11 +15,15 @@
 ---------------------------------------------------------------------------------------------------
 -- Libraries
 ---------------------------------------------------------------------------------------------------
+library ieee;
+    use ieee.std_logic_1164.all;
+
 library uvvm_util;
     context uvvm_util.uvvm_util_context;
 
 library work;
     use work.ofb_tb_pkg.all;
+    use work.ofb_tb_queue_pkg.all;
     use work.ofb_tb_kword_sb_pkg.all;
 
 ---------------------------------------------------------------------------------------------------
@@ -71,17 +75,23 @@ package ofb_core_tb_pkg is
 
     signal CoreRxEep   : CoreVcCount_t := (others => (others => 0));
     signal CoreRxLost  : CoreVcCount_t := (others => (others => 0));
-    -- Words received with at least one N-Char, per core and VC (throughput measurement)
+    -- Words of the received packets (four bytes, or the last bytes with the end marker), per core and
+    -- VC (throughput measurement)
     signal CoreRxWords : CoreVcCount_t := (others => (others => 0));
     type CoreCount_t is array (0 to 1) of natural;
 
     signal CoreBcLost : CoreCount_t := (others => 0);
 
-    -- Raw words for VC 0 of core A (sent before the generated packets of VC 0)
-    shared variable RawQueue_v : WordQueue_t;
+    -- Raw beats for VC 0 of core A in queue 0 (sent before the generated packets of VC 0): bytes 127:0
+    -- (byte 0 in bits 7:0), TKEEP 143:128, TLAST 144, TUSER 145
+    subtype RawBeat_t is BeatEntry_t;
 
-    -- Scoreboard: words for core d and VC v in instance 1 + d * CoreNumVc_c + v, broadcast messages
-    -- for core d in instance 1 + 2 * CoreNumVc_c + d (three elements per message)
+    shared variable RawQueue_v : BeatQueues_t;
+
+    -- Scoreboard: the words of the received packets for core d and VC v in instance 1 + d * CoreNumVc_c
+    -- + v (a packet as data words of four bytes and a last word with the remaining bytes, EOP or EEP and
+    -- Fills: the N-Char representation of ECSS 5.3.7 from byte 0), broadcast messages for core d in
+    -- instance 1 + 2 * CoreNumVc_c + d (three elements per message)
     shared variable CoreSb_v : t_generic_sb;
 
     -- AXI4-Lite VVC instances of core A and B

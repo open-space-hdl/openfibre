@@ -218,4 +218,4 @@ level.
 | Frame error | Not a NACK condition by itself (5.7.7.2.2a); the missing frame is detected by the sequence number of the next frame, SIF or FULL |
 | NACK polarity | NACKs carry the inverse of the Receive Polarity Flag (notes of 5.7.7.3.2c to 5.7.7.3.5b) |
 | FCT multiplier and data segment multiplier (Table 5-36) | Both equal the maximum number of data-sending lanes P, taken over at link reset; both ends of a link use the same P (the frame length check of 5.7.8 uses the own parameter) |
-| Beats of the VC ports with several lanes | A beat is a row of the data frame; the user fills a beat after the end of a packet with Fill words (note of 5.7.2.2d: more Fills can be needed to keep the packet cargo word alignment with a wider port). Received beats end at the end of a packet |
+| Beats of the Network layer with several lanes | A beat is a row of the data frame; the Network interface fills a beat after the end of a packet with Fill words (note of 5.7.2.2d: more Fills can be needed to keep the packet cargo word alignment with a wider port). Received beats end at the end of a packet |

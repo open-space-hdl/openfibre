@@ -246,7 +246,7 @@ set the reset values of DL-QS-07.
 | `ofb_dl_tx_frame` | A payload row is sent as a data row (`TxRow_Mask` all ones, `TxRow_Replicate` 0); every other word (SDF, EDF, control words, broadcast and idle words) is word 0 of a replicated row (`TxRow_Mask` = 0..01) |
 | `ofb_dl_rx_check` | Word 0 identifies the row. A data row in RxDataFrame adds the words of its mask to the frame length, which may not exceed `FrameWords`; the row goes with its mask to the frame buffer. In a broadcast frame word 0 is the broadcast word |
 | `ofb_dl_rx_buf` | Rows with mask (section 3.8) |
-| `ofb_dl_vc_in` | Banked word buffer, beats to the user (section 3.9) |
+| `ofb_dl_vc_in` | Banked word buffer, beats to the Network interface (section 3.9) |
 
 ### 3.14 EDAC (MG-3)
 

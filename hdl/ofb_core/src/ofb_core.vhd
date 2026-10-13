@@ -6,9 +6,9 @@
 ---------------------------------------------------------------------------------------------------
 -- Description
 ---------------------------------------------------------------------------------------------------
--- OpenFibre core: SpaceFibre node interface (ECSS-E-ST-50-11C) from the AXI4-Stream ports of the
--- virtual channels and broadcast messages down to the symbol stream of the Physical adapters, with
--- the Management Information Base on AXI4-Lite. This issue implements one lane.
+-- OpenFibre core: SpaceFibre node interface (ECSS-E-ST-50-11C) from the AXI4-Stream packet ports of
+-- the virtual channels and the broadcast ports down to the symbol streams of the Physical adapters
+-- of 1 to 4 lanes, with the Management Information Base on AXI4-Lite.
 --
 -- Documentation: hdl/ofb_core/docs/architecture.md
 
@@ -46,13 +46,18 @@ entity ofb_core is
         CoreClk                : in    std_logic;
         LaneClk                : in    std_logic;
         MgmtClk                : in    std_logic;
-        -- Virtual channels (UserClk): beats of NumLanes_g words, TUSER: K flag per character
+        -- Virtual channels (UserClk): packets, 4 x NumLanes_g bytes per beat (byte 0 in bits 7:0), TUSER
+        -- with TLAST: packet ended with an EEP
         S_Vc_TData             : in    std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
-        S_Vc_TUser             : in    std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
+        S_Vc_TKeep             : in    std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
+        S_Vc_TLast             : in    std_logic_vector(NumVc_g-1 downto 0);
+        S_Vc_TUser             : in    std_logic_vector(NumVc_g-1 downto 0)    := (others => '0');
         S_Vc_TValid            : in    std_logic_vector(NumVc_g-1 downto 0);
         S_Vc_TReady            : out   std_logic_vector(NumVc_g-1 downto 0);
         M_Vc_TData             : out   std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
-        M_Vc_TUser             : out   std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
+        M_Vc_TKeep             : out   std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
+        M_Vc_TLast             : out   std_logic_vector(NumVc_g-1 downto 0);
+        M_Vc_TUser             : out   std_logic_vector(NumVc_g-1 downto 0);
         M_Vc_TValid            : out   std_logic_vector(NumVc_g-1 downto 0);
         M_Vc_TReady            : in    std_logic_vector(NumVc_g-1 downto 0);
         -- Broadcast messages (UserClk, TUSER: channel 7:0, B_TYPE 15:8, DELAYED 16, LATE 17)
@@ -149,6 +154,8 @@ architecture rtl of ofb_core is
     signal RxBcValid  : std_logic;
     signal RxBcReady  : std_logic;
     signal NiFrameErr : std_logic_vector(NumVc_g-1 downto 0);
+    signal NiRxFrErr  : std_logic_vector(NumVc_g-1 downto 0);
+    signal NiRxEmpty  : std_logic_vector(NumVc_g-1 downto 0);
     signal SchedSlot  : std_logic_vector(5 downto 0);
     signal SchedValid : std_logic;
     signal RegWr      : std_logic;
@@ -333,10 +340,14 @@ begin
             Clk           => UserClk,
             Rst           => UserRst,
             S_Vc_TData    => S_Vc_TData,
+            S_Vc_TKeep    => S_Vc_TKeep,
+            S_Vc_TLast    => S_Vc_TLast,
             S_Vc_TUser    => S_Vc_TUser,
             S_Vc_TValid   => S_Vc_TValid,
             S_Vc_TReady   => S_Vc_TReady,
             M_Vc_TData    => M_Vc_TData,
+            M_Vc_TKeep    => M_Vc_TKeep,
+            M_Vc_TLast    => M_Vc_TLast,
             M_Vc_TUser    => M_Vc_TUser,
             M_Vc_TValid   => M_Vc_TValid,
             M_Vc_TReady   => M_Vc_TReady,
@@ -373,7 +384,9 @@ begin
             RxBc_Ready    => RxBcReady,
             TxSched_Slot  => SchedSlot,
             TxSched_Valid => SchedValid,
-            Ev_FrameErr   => NiFrameErr
+            Ev_FrameErr   => NiFrameErr,
+            Ev_RxFrameErr => NiRxFrErr,
+            Ev_RxEmpty    => NiRxEmpty
         );
 
     -----------------------------------------------------------------------------------------------
@@ -741,6 +754,8 @@ begin
             UserClk                => UserClk,
             UserRst                => UserRst,
             Ni_EvFrameErr          => NiFrameErr,
+            Ni_EvRxFrameErr        => NiRxFrErr,
+            Ni_EvRxEmpty           => NiRxEmpty,
             Ecc_Core               => EccDlCore or EccCcCore,
             Ecc_User               => EccDlUser,
             Ecc_Lane               => EccCcLane,

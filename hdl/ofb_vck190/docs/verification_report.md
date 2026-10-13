@@ -4,8 +4,10 @@
 
 Run on 2026-10-05 with Vivado 2025.2 (xsim): `python tools/run_xsim.py ofb_vck190_tb`; rerun on 2026-10-07 after
 the findings of the first build (clocks of the CIPS, register stages of the input VC buffers, latch-free pulse
-crossing) and on 2026-10-12 with Open Logic 4.7.0-ft.2 (power-on reset and lane reset synchroniser as base entities
-with `SyncTmr_g` = true; all checks pass, simulation done at 102.2 us).
+crossing), on 2026-10-12 with Open Logic 4.7.0-ft.2 (power-on reset and lane reset synchroniser as base entities
+with `SyncTmr_g` = true; all checks pass, simulation done at 102.2 us) and on 2026-10-13 with the packet ports of the
+VCs (the echo connects the received packets to the send ports with `TKEEP`, `TLAST` and the EEP flag; the far end
+sends packets of whole words with `TLAST`; all checks pass, simulation done at 102.2 us).
 
 | Test | Result |
 | --- | --- |

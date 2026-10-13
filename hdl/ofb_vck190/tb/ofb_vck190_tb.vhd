@@ -40,9 +40,6 @@ architecture sim of ofb_vck190_tb is
     constant Bcs_c     : positive := 4;   -- broadcast messages
     constant Timeout_c : time     := 1 ms;
 
-    constant Fill_c : std_logic_vector(7 downto 0) := x"FB";
-    constant Eop_c  : std_logic_vector(7 downto 0) := x"FD";
-
     constant RegDlStatus_c : natural := 16#010#;
     constant RegDlErrors_c : natural := 16#014#;
     constant RegRetries_c  : natural := 16#018#;
@@ -81,11 +78,14 @@ architecture sim of ofb_vck190_tb is
     signal RxInvert   : std_logic_vector(Lanes_c-1 downto 0);
     signal NoSignal   : std_logic_vector(Lanes_c-1 downto 0);
     signal SVcData    : std_logic_vector(32*Lanes_c*Vcs_c-1 downto 0) := (others => '0');
-    signal SVcUser    : std_logic_vector(4*Lanes_c*Vcs_c-1 downto 0)  := (others => '0');
+    signal SVcKeep    : std_logic_vector(4*Lanes_c*Vcs_c-1 downto 0)  := (others => '0');
+    signal SVcLast    : std_logic_vector(Vcs_c-1 downto 0)            := (others => '0');
     signal SVcValid   : std_logic_vector(Vcs_c-1 downto 0)            := (others => '0');
     signal SVcReady   : std_logic_vector(Vcs_c-1 downto 0);
     signal MVcData    : std_logic_vector(32*Lanes_c*Vcs_c-1 downto 0);
-    signal MVcUser    : std_logic_vector(4*Lanes_c*Vcs_c-1 downto 0);
+    signal MVcKeep    : std_logic_vector(4*Lanes_c*Vcs_c-1 downto 0);
+    signal MVcLast    : std_logic_vector(Vcs_c-1 downto 0);
+    signal MVcUser    : std_logic_vector(Vcs_c-1 downto 0);
     signal MVcValid   : std_logic_vector(Vcs_c-1 downto 0);
     signal SBcData    : std_logic_vector(63 downto 0)                 := (others => '0');
     signal SBcUser    : std_logic_vector(16 downto 0)                 := (others => '0');
@@ -363,10 +363,14 @@ begin
             LaneClk           => LaneClk,
             MgmtClk           => FreeRunClk,
             S_Vc_TData        => SVcData,
-            S_Vc_TUser        => SVcUser,
+            S_Vc_TKeep        => SVcKeep,
+            S_Vc_TLast        => SVcLast,
+            S_Vc_TUser        => (others => '0'),
             S_Vc_TValid       => SVcValid,
             S_Vc_TReady       => SVcReady,
             M_Vc_TData        => MVcData,
+            M_Vc_TKeep        => MVcKeep,
+            M_Vc_TLast        => MVcLast,
             M_Vc_TUser        => MVcUser,
             M_Vc_TValid       => MVcValid,
             M_Vc_TReady       => (others => '1'),
@@ -417,7 +421,7 @@ begin
 
         p_gen : process is
             variable Beat_v : std_logic_vector(32*Lanes_c-1 downto 0);
-            variable K_v    : std_logic_vector(4*Lanes_c-1 downto 0);
+            variable Keep_v : std_logic_vector(4*Lanes_c-1 downto 0);
             variable Pos_v  : natural;
             variable Len_v  : natural;
         begin
@@ -427,36 +431,36 @@ begin
                 Len_v := packetLen(v, p);
                 Pos_v := 0;
 
-                for w in 0 to Len_v loop
-                    if w < Len_v then
-                        Beat_v(32*Pos_v+31 downto 32*Pos_v) := packetWord(v, p, w);
-                        K_v(4*Pos_v+3 downto 4*Pos_v)       := "0000";
+                -- Packets of whole words, beats of Lanes_c words, TLAST on the last beat
+                while Pos_v < Len_v loop
+
+                    for l in 0 to Lanes_c-1 loop
+                        if Pos_v + l < Len_v then
+                            Beat_v(32*l+31 downto 32*l) := packetWord(v, p, Pos_v + l);
+                            Keep_v(4*l+3 downto 4*l)    := "1111";
+                        else
+                            Beat_v(32*l+31 downto 32*l) := (others => '0');
+                            Keep_v(4*l+3 downto 4*l)    := "0000";
+                        end if;
+                    end loop;
+
+                    wait until rising_edge(LaneClk);
+                    SVcData(32*Lanes_c*(v+1)-1 downto 32*Lanes_c*v) <= Beat_v;
+                    SVcKeep(4*Lanes_c*(v+1)-1 downto 4*Lanes_c*v)   <= Keep_v;
+                    if Pos_v + Lanes_c >= Len_v then
+                        SVcLast(v) <= '1';
                     else
-                        Beat_v(32*Pos_v+31 downto 32*Pos_v) := Fill_c & Fill_c & Fill_c & Eop_c;
-                        K_v(4*Pos_v+3 downto 4*Pos_v)       := "1111";
+                        SVcLast(v) <= '0';
                     end if;
-                    Pos_v := Pos_v + 1;
-                    if Pos_v = Lanes_c or w = Len_v then
+                    SVcValid(v) <= '1';
 
-                        while Pos_v < Lanes_c loop
-                            Beat_v(32*Pos_v+31 downto 32*Pos_v) := Fill_c & Fill_c & Fill_c & Fill_c;
-                            K_v(4*Pos_v+3 downto 4*Pos_v)       := "1111";
-                            Pos_v                               := Pos_v + 1;
-                        end loop;
-
+                    loop
                         wait until rising_edge(LaneClk);
-                        SVcData(32*Lanes_c*(v+1)-1 downto 32*Lanes_c*v) <= Beat_v;
-                        SVcUser(4*Lanes_c*(v+1)-1 downto 4*Lanes_c*v)   <= K_v;
-                        SVcValid(v)                                     <= '1';
+                        exit when SVcReady(v) = '1';
+                    end loop;
 
-                        loop
-                            wait until rising_edge(LaneClk);
-                            exit when SVcReady(v) = '1';
-                        end loop;
-
-                        SVcValid(v) <= '0';
-                        Pos_v       := 0;
-                    end if;
+                    SVcValid(v) <= '0';
+                    Pos_v       := Pos_v + Lanes_c;
                 end loop;
 
             end loop;
@@ -468,7 +472,7 @@ begin
             variable P_v    : natural := 0;
             variable W_v    : natural := 0;
             variable Word_v : std_logic_vector(31 downto 0);
-            variable K_v    : std_logic_vector(3 downto 0);
+            variable Keep_v : std_logic_vector(3 downto 0);
             variable Base_v : natural;
         begin
             if rising_edge(LaneClk) then
@@ -477,30 +481,31 @@ begin
                     for w in 0 to Lanes_c-1 loop
                         Base_v := 32*Lanes_c*v + 32*w;
                         Word_v := MVcData(Base_v+31 downto Base_v);
-                        K_v    := MVcUser(4*Lanes_c*v+4*w+3 downto 4*Lanes_c*v+4*w);
-                        if K_v = "0000" then
+                        Keep_v := MVcKeep(4*Lanes_c*v+4*w+3 downto 4*Lanes_c*v+4*w);
+                        if Keep_v = "1111" then
                             if Word_v /= packetWord(v, P_v, W_v) then
                                 report "VC " & integer'image(v) & ": word " & to_hstring(Word_v) & ", expected " &
                                        to_hstring(packetWord(v, P_v, W_v)) severity error;
                                 Errors(v) <= Errors(v) + 1;
                             end if;
                             W_v := W_v + 1;
-                        elsif K_v = "1111" and Word_v(7 downto 0) = Eop_c then
-                            if W_v /= packetLen(v, P_v) then
-                                report "VC " & integer'image(v) & ": EOP after " & integer'image(W_v) & " words"
-                                    severity error;
-                                Errors(v) <= Errors(v) + 1;
-                            end if;
-                            P_v         := P_v + 1;
-                            W_v         := 0;
-                            Received(v) <= P_v;
-                        elsif not (K_v = "1111" and Word_v = Fill_c & Fill_c & Fill_c & Fill_c) then
-                            report "VC " & integer'image(v) & ": word " & to_hstring(Word_v) & " K " & to_hstring(K_v)
-                                severity error;
+                        elsif Keep_v /= "0000" or MVcLast(v) = '0' then
+                            report "VC " & integer'image(v) & ": TKEEP " & to_hstring(Keep_v) & " of word " &
+                                   integer'image(w) severity error;
                             Errors(v) <= Errors(v) + 1;
                         end if;
                     end loop;
 
+                    if MVcLast(v) = '1' then
+                        if W_v /= packetLen(v, P_v) or MVcUser(v) = '1' then
+                            report "VC " & integer'image(v) & ": end of the packet after " & integer'image(W_v) &
+                                   " words, EEP " & std_logic'image(MVcUser(v)) severity error;
+                            Errors(v) <= Errors(v) + 1;
+                        end if;
+                        P_v         := P_v + 1;
+                        W_v         := 0;
+                        Received(v) <= P_v;
+                    end if;
                 end if;
             end if;
         end process;

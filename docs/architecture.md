@@ -184,9 +184,10 @@ domains, and the MIB reaches every layer.
 | D5 | Four clock domains: user, core, lane, management | Few crossings; every crossing at a layer or buffer boundary |
 | D6 | One Lane layer with 1 or 2 words per lane clock cycle | One implementation for transceivers with 32-bit and 64-bit interfaces |
 | D7 | Precedence of control words and frames (ECSS 5.3.10c) is decided in two places only: the Data Link transmit scheduler (RETRY to idle frame) and the Lane layer (SKIP, LOST_SIGNAL, STANDBY) with the Multi-Lane layer (ALIGN, ACTIVE) | Each insertion point owns a contiguous part of the precedence list |
-| D8 | The user width of a VC port is NumLanes_g x 32 bit (32, 64 or 128 bit) and `MaxDataLanes_g` equals NumLanes_g; rows of fewer data-sending lanes are packed in DT-1 and DR-6 | A 32-bit port would limit one VC to the bandwidth of one lane |
+| D8 | The user width of a VC port is NumLanes_g x 32 bit (4, 8 or 16 bytes per beat) and `MaxDataLanes_g` equals NumLanes_g; rows of fewer data-sending lanes are packed in DT-1 and DR-6 | A 32-bit port would limit one VC to the bandwidth of one lane |
 | D9 | The protocol state machines use safe encoding with a defined recovery state, without TMR; the `olo_ft_*` crossings keep their TMR synchronisers | TMR stays where Open Logic provides it (P5); a state machine recovers from an upset through its recovery state and the protocol (link reset, error recovery) |
 | D10 | SCHEDULE.request (ECSS 6.3.4) comes from the NI-4 user port; a generic adds the time-slot start by a received broadcast message of a configurable type (off by default) | The source of the time-slot start depends on the network |
+| D11 | The VC ports carry packets of bytes with `TKEEP`, `TLAST` and an EEP flag (Packet Transfer service, ECSS 6.2.2); NI-1 converts them to and from the N-Chars and Fills of the Virtual Channel service (6.3.2): end markers and Fills on transmission, Fill removal and alignment of the first byte to byte 0 on reception | The user of a node sends and reads packets; EOP, EEP and Fill are characters of the link. The packet format is the link format of OpenSPP, so the cores connect without an adapter |
 
 ### Clock domains
 
@@ -218,7 +219,8 @@ stages.
 
 | Interface | Between | Payload per beat | Protocol |
 | --- | --- | --- | --- |
-| VC stream (one per VC) | User and Network interface | NumLanes_g x 32-bit N-Chars (32 to 128 bit, D8), one K flag per byte in `TUSER` (EOP, EEP, Fill) | AXI4-Stream |
+| VC stream (one per VC) | User and Network interface | Packet bytes, 4 x NumLanes_g per beat (D8), byte 0 in bits 7:0; `TKEEP`, `TLAST`, EEP flag in `TUSER` (D11) | AXI4-Stream |
+| VC beat stream (one per VC) | Network interface and VC buffers | NumLanes_g words of N-Chars and Fills, one K flag per character | Valid / ready |
 | Broadcast stream | User and Network interface | One broadcast message (8 bytes); broadcast channel, B_TYPE, DELAYED and LATE flags in `TUSER` | AXI4-Stream |
 | Frame source stream (one per source) | VC / broadcast buffers and transmit scheduler | Row of N-Chars with valid mask, `Last` = end of packet or 64-word frame limit | Valid / ready |
 | Transmit row stream | Data Link and Multi-Lane layers | One row: up to `MaxDataLanes_g` x (32 bit + 4 K flags) with a word mask, or one control word; replicate flag (word 0 goes to every data-sending lane: control words, broadcast and idle frame words) | Valid / ready through `olo_ft_fifo_async` |
@@ -247,7 +249,7 @@ implementation adds, per block, the port list, the register reset values and the
 
 | ID | Block | Responsibility | Open Logic | ECSS |
 | --- | --- | --- | --- | --- |
-| NI-1 | VC port (x `NumVc_g`, 1 to 32) | AXI4-Stream N-Char port per VC, NumLanes_g x 32 bit wide (D8), packet framing check (EOP / EEP), optional continuous mode (flush and EEP on overflow) | `olo_base_pl_stage` | 6.2.2, 6.3.2, 5.3.7, 5.3.9, 5.8.5 to 5.8.7, 5.8.13 |
+| NI-1 | VC port (x `NumVc_g`, 1 to 32) | AXI4-Stream packet port per VC, NumLanes_g x 32 bit wide (D8, D11): end markers and Fills on transmission with a check of `TKEEP`; Fill removal, alignment, discard of packets of zero length and a check of the character rules on reception | `olo_base_pl_stage` | 6.2.2, 6.3.2, 5.3.7, 5.3.9, 5.8.5 to 5.8.7, 5.8.13 |
 | NI-2 | Virtual network number | Virtual network number of every VC (one end-point per VC, VN0 on VC0) as a MIB register; no data path in a node with one port | none (MIB register) | 5.8.3 |
 | NI-3 | Broadcast port | Broadcast message service per channel: 8-byte message, B_TYPE, DELAYED and LATE flags | none (field mapping) | 6.2.3, 6.3.3, 5.8.12 |
 | NI-4 | Schedule port | SCHEDULE.request: time-slot start from the user or from a broadcast of the schedule type | none (custom) | 6.3.4 |

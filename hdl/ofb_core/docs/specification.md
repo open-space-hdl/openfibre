@@ -16,7 +16,7 @@ Information Base on AXI4-Lite. The Physical adapter (SerDes, 8B/10B codec, recei
 | `ofb_lane` | Lane layer, one per lane (LaneClk) |
 | `ofb_mib` | Management Information Base (MgmtClk) |
 
-This issue covers phases 2 to 4: 1 to 4 lanes (`NumLanes_g`). The VC ports carry beats of `NumLanes_g` words.
+The core supports 1 to 4 lanes (`NumLanes_g`). The VC ports carry packets of 4 x `NumLanes_g` bytes per beat (`ofb_ni`).
 
 ## 2. Requirements
 
@@ -43,7 +43,7 @@ This issue covers phases 2 to 4: 1 to 4 lanes (`NumLanes_g`). The VC ports carry
 | Generic | Default | Description |
 | --- | --- | --- |
 | `NumVc_g` | 8 | Number of virtual channels (1 to 32) |
-| `NumLanes_g` | 1 | Number of lanes (1 to 4); words per beat of the VC ports |
+| `NumLanes_g` | 1 | Number of lanes (1 to 4); 4 x `NumLanes_g` bytes per beat of the VC ports |
 | `LaneClkFreq_g` | 156.25e6 | Lane clock frequency in Hz |
 | `CoreClkFreq_g` | 200.0e6 | Core clock frequency in Hz (scrubber of the error recovery buffer) |
 | `VcOutDepth_g`, `VcInDepth_g` | 128, 256 | VC buffers: output in beats, input in words (multiple of 64 x `NumLanes_g`) |

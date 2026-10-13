@@ -1,9 +1,9 @@
 # ofb_core
 
-OpenFibre core: a SpaceFibre node interface (ECSS-E-ST-50-11C) from the AXI4-Stream ports of the virtual channels and
-broadcast messages down to the symbol stream of the Physical adapters, with the Management Information Base on
-AXI4-Lite. It connects `ofb_ni`, `ofb_dl`, `ofb_multilane`, `ofb_lane` and `ofb_mib` and contains the crossing between
-the core and the lane clock (`ofb_core_cc`) and the reset generators. This issue implements one lane.
+OpenFibre core: a SpaceFibre node interface (ECSS-E-ST-50-11C) from the AXI4-Stream packet ports of the virtual
+channels and the broadcast ports down to the symbol streams of the Physical adapters of 1 to 4 lanes, with the
+Management Information Base on AXI4-Lite. It connects `ofb_ni`, `ofb_dl`, `ofb_multilane`, `ofb_lane` and `ofb_mib` and
+contains the crossing between the core and the lane clock (`ofb_core_cc`) and the reset generators.
 
 | Document | Content |
 | --- | --- |
