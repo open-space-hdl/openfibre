@@ -46,6 +46,10 @@ Defects found and fixed during verification:
 | Second build of the VCK190 design: the path from the frame buffer (RAM, SECDED decoder) through the distribution to the input VC buffers and their bank selection into the input register of a bank met the lane clock with only 0.359 ns of slack (12 logic levels) | Output register in `ofb_dl_rx_buf` (one cycle more from the frame buffer to the input VC buffers) |
 | ECSS review of the continuous mode against 5.3.9h: the output VC buffer wrote an EEP after every flush, also when no packet was in progress or nothing of it had been read, which formed a packet of zero length at the far end. Further: a word written in the cycle of the flush and words written during the flush were lost without the spill state, so the rest of such a packet was sent without its start | The EEP is placed at the read side, only when the last row read did not end its packet (DL-CM-02); the spill state also covers the word written in the cycle of the flush and the words discarded during the flush (DL-CM-01, DL-CM-02); TC-DL-22 adapted, TC-DL-31 added |
 
+Continuous mode change (DL-CM-02, 2026-10-14): GHDL 228 of 228 and QuestaSim 228 of 228 tests pass; the output VC
+buffer covers 112 of 112 statements and 64 of 65 branches (the defensive credit branch, justified in
+[docs/coverage.md](../../../docs/coverage.md)).
+
 Phase 3 (quality of service, continuous mode): the MAC unit tests and TC-DL-21 / TC-DL-22 passed on the first run;
 mutation check: with equal priorities the first frame of TC-DL-21 comes from VC 0 and the test fails as expected.
 

@@ -11,6 +11,10 @@ Run on 2026-10-13 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 Throughput (TC-NI-07, all configurations): transmit 100 rows of 20 packets in 100 cycles; receive 100 beats of 20
 packets with a tail beat each in 119 cycles (the limit is 6 cycles per packet).
 
+QuestaSim (coverage run of the full regression on 2026-10-14, 228 of 228 tests pass): `ofb_ni_vc_tx` 59 of 59
+statements and 31 of 31 branches, `ofb_ni_vc_rx` 176 of 176 statements and 66 of 66 branches, `ofb_ni` 12 of 12
+statements ([docs/coverage.md](../../../docs/coverage.md)).
+
 ## 2. Summary
 
 All test cases pass. VSG reports no errors and no warnings. NI-IF-02, NI-RX-04 and NI-SC-01 are verified with the

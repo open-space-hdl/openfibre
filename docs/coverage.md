@@ -32,7 +32,7 @@ Closure rules:
 
 ## 2. Result
 
-Run on 2026-10-12: 209 tests, all passed, 68 minutes. Numbers are covered/total bins per file; bold marks a metric
+Run on 2026-10-14: 228 tests, all passed, 90 minutes. Numbers are covered/total bins per file; bold marks a metric
 with misses.
 
 | File | Statements | Branches | FSM States | FSM Transitions | Conditions | Expressions |
@@ -53,13 +53,13 @@ with misses.
 | `ofb_dl/src/ofb_dl_tx_admit.vhd` | 71/71 | **31/32** |  |  | **17/19** | **3/4** |
 | `ofb_dl/src/ofb_dl_tx_frame.vhd` | 123/123 | 39/39 |  |  | **18/19** | **5/6** |
 | `ofb_dl/src/ofb_dl_vc_in.vhd` | **170/171** | **63/64** |  |  | **6/11** | **45/50** |
-| `ofb_dl/src/ofb_dl_vc_out.vhd` | 100/100 | **56/57** |  |  | **26/30** | **16/23** |
+| `ofb_dl/src/ofb_dl_vc_out.vhd` | 112/112 | **64/65** |  |  | **35/37** | **20/25** |
 | `ofb_lane/src/ofb_lane.vhd` | 9/9 |  |  |  |  | 2/2 |
 | `ofb_lane/src/ofb_lane_init.vhd` | 179/179 | 124/124 | 10/10 | 20/20 | **52/60** | 10/10 |
 | `ofb_lane/src/ofb_lane_loopback.vhd` | 17/17 | 6/6 |  |  |  |  |
 | `ofb_lane/src/ofb_lane_rx.vhd` | 186/186 | 73/73 |  |  | **16/18** | 6/6 |
 | `ofb_lane/src/ofb_lane_tx.vhd` | 56/56 | 24/24 |  |  | 2/2 |  |
-| `ofb_mib/src/ofb_mib.vhd` | 268/268 | 134/134 |  |  | **26/30** | **7/12** |
+| `ofb_mib/src/ofb_mib.vhd` | 288/288 | 145/145 |  |  | **28/32** | **7/12** |
 | `ofb_multilane/src/ofb_ml_align.vhd` | 181/181 | **111/112** | 3/3 | 6/6 | **39/42** | 2/2 |
 | `ofb_multilane/src/ofb_ml_col_dec.vhd` | 45/45 | 19/19 |  |  | 3/3 |  |
 | `ofb_multilane/src/ofb_ml_col_enc.vhd` | 60/60 | 23/23 |  |  | 4/4 | **6/7** |
@@ -68,11 +68,12 @@ with misses.
 | `ofb_multilane/src/ofb_ml_rx.vhd` | 79/79 | **39/41** | 5/5 | 16/16 | 5/5 |  |
 | `ofb_multilane/src/ofb_ml_tx.vhd` | 102/102 | 48/48 |  |  | 17/17 | 5/5 |
 | `ofb_multilane/src/ofb_multilane.vhd` | 36/36 | 10/10 |  |  | 2/2 | 3/3 |
-| `ofb_ni/src/ofb_ni.vhd` | 16/16 |  |  |  |  |  |
-| `ofb_ni/src/ofb_ni_vc.vhd` | 55/55 | 31/31 |  |  | **16/20** | 2/2 |
+| `ofb_ni/src/ofb_ni.vhd` | 12/12 |  |  |  |  |  |
+| `ofb_ni/src/ofb_ni_vc_rx.vhd` | 176/176 | 66/66 |  |  | **21/22** | 13/13 |
+| `ofb_ni/src/ofb_ni_vc_tx.vhd` | 59/59 | 31/31 |  |  | 11/11 | **5/6** |
 | `ofb_pkg/src/ofb_cc_pulse.vhd` | 19/19 | 8/8 |  |  |  |  |
 | `ofb_pkg/src/ofb_pkg.vhd` | 55/55 | 10/10 |  |  | **1/2** |  |
-| Total | 2599/2601 (99.9 %) | 1270/1277 (99.5 %) | 29/29 (100.0 %) | 62/62 (100.0 %) | 392/443 (88.5 %) | 201/261 (77.0 %) |
+| Total | 2807/2809 (99.9 %) | 1355/1362 (99.5 %) | 29/29 (100.0 %) | 62/62 (100.0 %) | 419/465 (90.1 %) | 221/280 (78.9 %) |
 
 ## 3. Gaps found and closed
 
@@ -121,9 +122,9 @@ defensive, constant by construction or not executed as a separate statement by t
 | Location | Item not covered | Justification |
 | --- | --- | --- |
 | `ofb_dl/src/ofb_dl_pkg.vhd:235` | Statement: body of `segmentRows` | The call on line 373 of `ofb_dl.vhd` is covered; QuestaSim evaluates the call without executing the body as a statement (also with `vopt -O0`). The result, the segment length of 64 x N words, is checked by TC-CORE-02 and TC-CORE-08. |
-| `ofb_dl/src/ofb_dl_tx_admit.vhd:166` | Branch: segment of zero rows | Defensive. A segment is taken only when the output VC buffer is ready (credit and data of at least one row, `ofb_dl_vc_out.vhd` line 385) and the error recovery buffer has free rows (line 141). |
+| `ofb_dl/src/ofb_dl_tx_admit.vhd:166` | Branch: segment of zero rows | Defensive. A segment is taken only when the output VC buffer is ready (credit and data of at least one row, `ofb_dl_vc_out.vhd` line 424) and the error recovery buffer has free rows (line 141). |
 | `ofb_dl/src/ofb_dl_vc_in.vhd:542`, statement 543 | Branch: FCT request and FCT sent in the same cycle | Coincidence of two independent events that the testbenches do not force; the update is the sum of the single-event branches on lines 538 and 540, which are covered (TC-DL-20 checks the FCT count). |
-| `ofb_dl/src/ofb_dl_vc_out.vhd:341` | Branch: credit below one row when a row is read | Defensive. A segment never exceeds the credit (ECSS 5.7.3.1f, line 384), checked by TC-DL-19. |
+| `ofb_dl/src/ofb_dl_vc_out.vhd:356` | Branch: credit below one row when a row is read | Defensive. A segment never exceeds the credit (ECSS 5.7.3.1f, line 422), checked by TC-DL-19. |
 | `ofb_multilane/src/ofb_ml_align.vhd:336` | Branch: ALIGN held in a lane while the state machine is in Not Ready after an alignment | The Misaligned condition of this case is covered; the branch only suppresses the output error, and Not Ready passes no words. |
 | `ofb_multilane/src/ofb_ml_pkg.vhd:111` | Branch: K28.7 followed by a K character other than K27.7 | Such words are lane control words, which the Lane layer filters (LN-RX-04, TC-LN-44); they do not reach the Multi-Lane layer. |
 | `ofb_multilane/src/ofb_ml_rx.vhd:112` | Branch: output queue full | Defensive, guarded by an assertion of severity error that the regression never raised. |
