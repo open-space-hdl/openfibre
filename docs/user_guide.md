@@ -213,8 +213,39 @@ with traffic in both directions 90 % per direction. The latency of a short packe
 without the serialisation delay of the transceivers; the receiver forwards a data frame after its EDF (store and
 forward), so the latency grows with the frame length (up to 64 words per lane).
 
-## 8. Synthesis
+## 8. Protection scope
 
+The core is designed for radiation environments together with the triple modular redundancy (TMR) of the synthesis
+tool, like the Open Logic ft entities it is built on. It protects the parts in the first rows itself and relies on
+TMR for all other logic:
+
+| Part | Protection | Indication and test |
+| --- | --- | --- |
+| Buffers of the nine EDAC channels: output and input VC buffers, error recovery buffer (RAM with scrubber, ACK / NACK FIFO, read-ahead FIFO), receive frame buffer, broadcast output and input buffers, transmit and receive row crossings, control crossings (SCHEDULE.request, far-end capability, QoS write FIFO of the MIB) | SECDED ECC of the Open Logic ft entities: a single error is corrected, a double error is detected and contained (section 6): a frame is sent again (row crossings), the link is reset (output VC buffers, error recovery buffer, frame buffer, broadcast output buffer), the packet ends with an EEP (input VC buffers), the message is discarded (broadcast input buffer); a double error in the control crossings is reported only | ECC_STATUS (DED flag per channel, SEC flag, interrupt), ECC_SELECT and ECC_COUNT (SEC and DED counters per channel); error injection through the ECC_INJECT register |
+| Clock domain crossings and reset synchronisers | Triplicated synchronisers (`SyncTmr_g` = true): three synchroniser chains and a majority voter. Their registers carry the Synplify attribute `syn_radhardlevel` = `none`, so the TMR of the synthesis tool adds no voters between the stages. The pulse crossing `ofb_cc_pulse` also triplicates its request, pending and last registers itself (section 9) | none |
+| State machines | Recovery state through the `when others` branch and the reset | none |
+| All other logic: registers of the control and data paths, counters, pointers, pipeline registers | TMR of the synthesis tool (for example `syn_radhardlevel` = `tmr` with Synplify, or the equivalent setting of the tool chain). The core adds no protection of its own for this logic; without TMR, an upset in it is not covered | synthesis report |
+
+The integrator:
+
+- enables the TMR of the synthesis tool for the core and the logic around it,
+- checks in the synthesis report that TMR was applied, that the synchroniser chains of the crossings were not
+  triplicated a second time, and that no register-based storage meant to be protected by TMR was inferred as a RAM
+  primitive,
+- requests safe state machines, so that synthesis keeps the `when others` branches (AMD Vivado: property
+  `FSM_SAFE_STATE` = `default_state` on the state registers; Synplify: attribute `syn_encoding` = `safe`),
+- protects the configuration memory of SRAM-based FPGAs by scrubbing; this is part of the FPGA design, not of the
+  core.
+
+The ECC paths are verified in simulation by error injection. Whether the protection as a whole meets the
+requirements of a mission is shown by a radiation test with the core in operation (TRL 5). The Physical adapter
+`ofb_pa_gty` with the transceivers and the VCK190 reference design are vendor-specific and not covered by this
+section.
+
+## 9. Synthesis
+
+- TMR of the synthesis tool enabled for the core: the core protects its buffers and synchronisers itself and relies
+  on TMR for all other logic (section 8).
 - The core is technology independent: `python lint/synth_check.py` synthesises `ofb_core` for 1, 2 and 4 lanes with
   GHDL and fails on errors and inferred latches. RAMs are inferred by the Open Logic RAM entities.
 - Every state machine has a recovery branch (`when others`) to its reset state. Synthesis tools that re-encode state
