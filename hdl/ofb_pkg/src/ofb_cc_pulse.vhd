@@ -76,8 +76,9 @@ architecture rtl of ofb_cc_pulse is
     signal LastR  : Tmr_t := (others => (others => '0'));
     signal LastV  : std_logic_vector(NumPulses_g-1 downto 0);
 
-    -- Manual TMR: no vendor TMR insertion, no merging of the copies
-    attribute syn_radhardlevel of rtl : architecture is SynRadhardlevel_None_c;
+    -- Manual TMR: no vendor TMR insertion, no merging of the copies. The attribute of an architecture needs a locally
+    -- static value, so it is the literal of SynRadhardlevel_None_c (olo_base_pkg_attribute).
+    attribute syn_radhardlevel of rtl : architecture is "none";
 
     attribute dont_merge of ReqR  : signal is DontMerge_SuppressChanges_c;
     attribute dont_merge of PendR : signal is DontMerge_SuppressChanges_c;

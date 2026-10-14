@@ -92,6 +92,7 @@ Checks besides the regression:
 
 ```shell
 python lint/lint.py                 # VSG, no errors and no warnings
+python run.py --compile-order       # compile_order.txt: synthesis sources of the core in compile order
 python lint/synth_check.py          # GHDL synthesis of ofb_core for 1, 2 and 4 lanes (after python run.py --compile)
 python tools/compliance.py --check  # every ECSS clause and requirement traced to a test case
 python tools/regmap.py --check      # generated register map files match hdl/ofb_mib/regs/ofb_regs.yml
