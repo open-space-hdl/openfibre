@@ -34,14 +34,18 @@ corrections at A and 1 at B by 194.3 us; all 24 packets per VC and direction and
 delivered in order, DL_ERRORS zero and no retry at either end.
 
 A simulation of the transceiver model takes about 10 minutes of elaboration and 2 to 25 minutes of simulation.
+A line `model error <run> (attempt 1 of 3: transceiver model power-up error DIV_VAL_CHK, ...), elaborating again` in
+the output of `tools/run_xsim.py` is expected now and then: it is the power-up error of the simulation model
+(section 2), and the runner repeats the run with a new elaboration. A run fails only when the last of three attempts
+fails.
 
 Rerun on the merged tree (serial loopbacks, bit synchronisation, fault injection campaign, DED containment) with
 the CPU otherwise idle: all runs pass, `ofb_pa_gty_core_tb` with the changed Multi-Lane and Data Link layers as
 well.
 
 Rerun with the fault-tolerant status crossings, reset synchronisers and transceiver status synchronisers (Open
-Logic backlog on the 4.7.0 development state): all runs pass; `ofb_pa_gty_core_tb` needed a second run (PLL divider
-error of the model at time 0 in the first one).
+Logic backlog on the 4.7.0 development state): all runs pass; `ofb_pa_gty_core_tb` needed a second run (power-up
+error of the model in the first one, section 2).
 
 Rerun with the PRBS test ports (TC-PA-06 added): all runs pass with the results above, `ofb_pa_gty_core_tb` at the
 first attempt.
@@ -57,15 +61,15 @@ all packets and broadcast messages delivered, no error, no retry (pass).
 Rerun after the findings of the first VCK190 build (lane reset and far-end loopback enables from registers,
 register stages of the input VC buffers, latch-free pulse crossing): `ofb_pa_gty_tb` and both runs of
 `ofb_pa_gty_cc_tb` pass with the results above. `ofb_pa_gty_core_tb` first failed: the transceiver model of end B
-reported a PLL divider error at time 0 under CPU load (the link never came up)
+reported the power-up error of the model (section 2; the link never came up)
 and the input VC buffers of end A delivered one beat of undefined words before their reset (see the Data Link
 report); the rerun with the fix passes with the results above (link initialised after 94.2 us, all packets and
 broadcast messages delivered, no error, no retry).
 
 Rerun on 2026-10-12 with Open Logic 4.7.0-ft.2 (status crossings, reset generators and transceiver status
 synchronisers as base entities with `SyncTmr_g` = true): `ofb_pa_gty_tb`, `ofb_pa_gty_cc_tb.cc` and `ofb_vck190_tb`
-pass at the first attempt. `ofb_pa_gty_cc_tb.far` and `ofb_pa_gty_core_tb` first failed with the PLL divider error
-of the transceiver model of end B at time 0 (the receivers never became ready); after a new elaboration both pass
+pass at the first attempt. `ofb_pa_gty_cc_tb.far` and `ofb_pa_gty_core_tb` first failed with the power-up error
+of the transceiver model of end B (section 2; the receivers never became ready); after a new elaboration both pass
 with the results above (far end: receivers ready after 68.2 us, every lane checked without error;
 `ofb_pa_gty_core_tb`: all packets and broadcast messages delivered, no error, no retry, simulation done at
 198.6 us).
@@ -76,6 +80,10 @@ Rerun on 2026-10-13 with the packet ports of the VCs (the generator sends packet
 messages without error, simulation done at 198.6 us), and again on 2026-10-14 after the change of the continuous mode
 of the output VC buffers (same results). `ofb_pa_gty_tb` and `ofb_pa_gty_cc_tb` do not contain the core and were not
 run again.
+
+Rerun on 2026-10-14 with the detection of the model power-up error in `tools/run_xsim.py` (section 2), next to other
+simulations on the host: all five runs pass at the first attempt with the results above (`ofb_pa_gty_cc_tb.far`:
+receivers ready after 68.2 us, every lane checked without error; `ofb_pa_gty_core_tb`: simulation done at 198.6 us).
 
 ## 2. Summary
 
@@ -95,5 +103,5 @@ Findings during verification:
 | xsim does not order the files of a module | The runner orders the files by the units they define and use |
 | TC-PA-03 after the generic `RefPpmB_g` was introduced: no clock correction (the offset of B was computed wrongly) | Offset in whole picoseconds: `RefPpmB_g * 3200 ps / 1000000` |
 | TC-PA-06: the forced error of the PRBS generator (`TXPRBSFORCEERR`, held for 1 to 64 cycles, near-end and external loopback) gave no error at the checker, although the port reaches the channel of the quad; the checker detects other errors | The transceiver model does not insert the forced error: TC-PA-06 inverts the line for 1 ns instead; the forced error is tested in the core testbench (TC-CORE-18, register to adapter port) and on the hardware (TC-VCK-HW-08) |
-| The transceiver model is not deterministic under heavy CPU load: next to six GHDL simulations `ofb_pa_gty_tb` reached TX ready 14 ns early, two lanes never aligned and two slipped; idle CPU: nominal times and pass. `ofb_vck190_tb` and `ofb_pa_gty_core_tb` runs hang now and then with a PLL divider error of the model of one end at time 0 (`div_val has to be >= 9`), also with an idle CPU (the model writes its firmware files with random names per run); reruns pass | Simulations with the transceiver model run without other simulations (`docs/conventions.md`); a run with the PLL divider error is repeated |
+| The transceiver model gives different results for the same sources: one `ofb_pa_gty_tb` run reached TX ready 14 ns early and two lanes never aligned; runs of `ofb_pa_gty_cc_tb.far`, `ofb_pa_gty_core_tb` and `ofb_vck190_tb` failed with a power-up error of the model of one quad (`DIV_VAL_CHK`: `div_val has to be >= 9 and <= 163 : 0`, about 38 us after the start, when the model programs the LCPLL; that quad never becomes ready). Analysis with `ofb_pa_gty_cc_tb.far` on 2026-10-14: the elaborator builds a different snapshot from the same sources every time (the snapshot files differ, with and without multithreaded elaboration); 7 fresh elaborations gave 6 passing and 1 failing snapshot. The failing snapshot fails in every further run with the same error at the same picosecond, with other simulations on the host or without, and also when the reset release of end B or of both ends is delayed by 3.2 us (20 x 160 ns, the least common multiple of the 6.4 ns reference clock and the 10 ns free-running clock periods), when the reference clock of B is shifted by 1.1 ns or its free-running clock by 3.7 ns: the error does not depend on the testbench timing. All 1947 parameters and ports of the quad level of the wizard are equal in failing and passing snapshots and at both ends; the outputs of the model of the failing quad differ from 1 to 2 us on (power-up of the encrypted model). The firmware files of the model have the same names in every run | Cause in the simulation model, not in the design or the testbench; the device image is not affected. `tools/run_xsim.py` detects the error in the log and elaborates the test run again (at most three attempts, every repetition reported) |
 | The runner reused an exported wizard instance generated before the PRBS ports were added to `tcl/ofb_gtw.tcl` (elaboration error: formal port `INTF0_TX1_ch_txprbssel` does not exist) | The runner keeps a hash of `tcl/ofb_gtw.tcl` and generates, exports and compiles the wizard instance again when it changes |

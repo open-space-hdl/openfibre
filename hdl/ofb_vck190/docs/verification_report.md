@@ -8,7 +8,8 @@ crossing), on 2026-10-12 with Open Logic 4.7.0-ft.2 (power-on reset and lane res
 with `SyncTmr_g` = true; all checks pass, simulation done at 102.2 us) and on 2026-10-13 with the packet ports of the
 VCs (the echo connects the received packets to the send ports with `TKEEP`, `TLAST` and the EEP flag; the far end
 sends packets of whole words with `TLAST`; all checks pass, simulation done at 102.2 us), again on 2026-10-14 after
-the change of the continuous mode of the output VC buffers (pass, same results).
+the change of the continuous mode of the output VC buffers (pass, same results) and with the detection of the
+model power-up error in the runner (pass at the first attempt, same results).
 
 | Test | Result |
 | --- | --- |
@@ -19,8 +20,8 @@ TC-VCK-01: transceivers ready after 64.9 us, link initialised after 94.8 us (the
 started with AutoStart); 6 packets on each of the 8 VCs and 4 broadcast messages came back unchanged and in order;
 DL_ERRORS zero and no retry at the far end; LEDs 0 to 3 on. Rerun on the merged tree (serial loopback outputs of
 the core to the adapter, bit synchronisation from the adapter, fault injection fixes, DED containment): pass. One
-earlier run hung with a PLL divider error of the far-end transceiver model at time 0; it did not occur again
-(model not deterministic, see the report of `ofb_pa_gty`). Rerun with the clock models of the CIPS (100 MHz
+earlier run hung with the power-up error of the far-end transceiver model; it did not occur again (property of the
+simulation model, see the report of `ofb_pa_gty`, section 2). Rerun with the clock models of the CIPS (100 MHz
 management clock, 150 MHz user clock): transceivers ready after 64.9 us, link initialised after 94.8 us, 6 packets on
 each VC and 4 broadcast messages back, no error, LEDs 0 to 3 on (pass, after the reset fix of the register stages,
 Data Link report). Rerun with the PRBS test ports of the core connected to the transceivers: transceivers ready after
