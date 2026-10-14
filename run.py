@@ -10,7 +10,8 @@ library `openfibre`, then runs all testbenches.
 
 GHDL is the default simulator. `--questa` selects QuestaSim; `--questa --coverage` collects the code coverage
 (statements, branches, conditions, expressions, state machines) of the OpenFibre sources and merges it into
-coverage/coverage.ucdb with the text report coverage/coverage_report.txt.
+coverage/coverage.ucdb with the text report coverage/coverage_report.txt. `--compile-order` writes
+compile_order.txt (the synthesis sources of the library openfibre in compile order) and does not simulate.
 """
 
 import importlib.util
@@ -28,6 +29,9 @@ QUESTA_DEFAULT_PATH = r"D:\Microchip\Libero_SoC_2025.2\Libero_SoC\QuestaSim_Pro\
 COVERAGE = "--coverage" in sys.argv
 if COVERAGE:
     sys.argv.remove("--coverage")
+COMPILE_ORDER = "--compile-order" in sys.argv
+if COMPILE_ORDER:
+    sys.argv.remove("--compile-order")
 if "--questa" in sys.argv:
     sys.argv.remove("--questa")
     os.environ["VUNIT_SIMULATOR"] = "modelsim"
@@ -85,14 +89,17 @@ def add_openfibre(vu):
     if shared_tb:
         lib.add_source_files(shared_tb)
     modules = read_component_list()
+    synthesis_sources = []
     for module in modules:
         for sub in ("src", "tb"):
             files = sorted((ROOT / module / sub).glob("*.vhd"))
             if files:
                 added = lib.add_source_files(files)
-                if COVERAGE and sub == "src":
-                    added.add_compile_option("modelsim.vcom_flags", ["+cover=sbcef"])
-    return lib, modules
+                if sub == "src":
+                    synthesis_sources.append(added)
+                    if COVERAGE:
+                        added.add_compile_option("modelsim.vcom_flags", ["+cover=sbcef"])
+    return lib, modules, synthesis_sources
 
 
 def apply_module_configs(lib, modules):
@@ -106,9 +113,12 @@ def apply_module_configs(lib, modules):
             mod.configure(lib)
 
 
-def set_simulator_options(vu):
-    # UVVM uses shared variables of non-protected types; GHDL accepts them with -frelaxed
+def set_simulator_options(vu, synthesis_sources):
+    # UVVM uses shared variables of non-protected types; GHDL accepts them with -frelaxed. The synthesis sources of
+    # OpenFibre are analysed as strict VHDL-2008.
     vu.add_compile_option("ghdl.a_flags", ["-frelaxed", "-Wno-hide", "-Wno-shared"])
+    for files in synthesis_sources:
+        files.set_compile_option("ghdl.a_flags", [])
     vu.set_sim_option("ghdl.elab_flags", ["-frelaxed"])
     # Large word arrays in testbench processes exceed the default stack limit of GHDL. Extra simulation flags for
     # debugging, for example a waveform: OFB_GHDL_SIM_FLAGS="--vcd=D:/tmp/wave.vcd --read-wave-opt=D:/tmp/wave.opt"
@@ -134,14 +144,30 @@ def merge_coverage(results):
                    check=False)
 
 
+def write_compile_order(vu):
+    """Writes compile_order.txt: the files of hdl/*/src of the library openfibre in compile order."""
+    src_dirs = {(ROOT / module / "src").resolve() for module in read_component_list()}
+    lines = []
+    for source in vu.get_compile_order():
+        path = Path(source.name).resolve()
+        if source.library.name == "openfibre" and path.parent in src_dirs:
+            lines.append(path.relative_to(ROOT).as_posix())
+    with open(ROOT / "compile_order.txt", "w", encoding="utf-8", newline="\n") as out:
+        out.write("\n".join(lines) + "\n")
+    print(f"compile_order.txt: {len(lines)} files")
+
+
 def main():
     vu = VUnit.from_argv()
     vu.add_vhdl_builtins()
     add_open_logic(vu)
     add_uvvm(vu)
-    lib, modules = add_openfibre(vu)
+    lib, modules, synthesis_sources = add_openfibre(vu)
+    if COMPILE_ORDER:
+        write_compile_order(vu)
+        return
     apply_module_configs(lib, modules)
-    set_simulator_options(vu)
+    set_simulator_options(vu, synthesis_sources)
     if COVERAGE:
         vu.set_sim_option("enable_coverage", True)
     vu.main(post_run=merge_coverage)

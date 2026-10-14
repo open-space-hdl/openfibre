@@ -10,7 +10,14 @@ document. This page lists the rules and the few OpenFibre-specific additions.
   states `_s`, functions in `lowerCamelCase`, four spaces of indentation, no tabs, no trailing whitespace.
 - Entities are named `ofb_<function>` (for example `ofb_lane_tx`). All OpenFibre sources are compiled into the VHDL
   library `openfibre`; Open Logic is compiled into the library `olo`.
-- Language: VHDL-2008.
+- Language: VHDL-2008. `run.py` analyses the synthesis sources (`hdl/*/src`) as strict VHDL-2008, without the
+  `-frelaxed` option of GHDL that Open Logic, UVVM and the testbenches need.
+- An attribute specification of an entity or an architecture uses a literal value (for example
+  `attribute syn_radhardlevel of rtl : architecture is "none";`): VHDL requires a locally static expression there, so
+  a constant of the Open Logic attribute packages is not allowed. Attributes of signals use those constants.
+- `compile_order.txt` lists the synthesis sources of the library `openfibre` (the modules of `component_list.txt`,
+  without testbenches and without the vendor-specific modules `ofb_pa_gty` and `ofb_vck190`) in compile order.
+  `python run.py --compile-order` writes it; the CI fails when it is not up to date.
 - Entities with non-trivial state use the two-process pattern of Open Logic: all registers in one `TwoProcess_r`
   record, signals `r` and `r_next`, a combinational process starting with `v := r;` and ending with
   `r_next <= v;`, a sequential process with `r <= r_next;` and the reset override at its end.
