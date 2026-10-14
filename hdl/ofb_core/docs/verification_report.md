@@ -5,6 +5,14 @@
 Run on 2026-10-14 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_core*"`; all tests
 pass in QuestaSim as well (coverage run of the full regression, 228 of 228).
 
+Generics of the GHDL simulations, checked on 2026-10-14: VUnit 5.0.0.dev7 appends the generics of a test to the list
+of the option `ghdl.sim_flags` in place, and configurations that share that list pass their generics on to later GHDL
+simulations. `run.py` sets the simulation options after the configurations, so every configuration held its own list:
+an elaboration of all 228 tests without the own copy of the list per simulation gave every GHDL command exactly the
+generics of its configuration, and the GHDL results before that copy are valid. With the simulation options set
+before the configurations, the check of `run.py` stops the run (mutation check). QuestaSim and the AMD Vivado
+simulator are not affected.
+
 | Testbench | Tests | Passed |
 | --- | --- | --- |
 | `ofb_core_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 18 x 3 | 54 |
