@@ -52,8 +52,7 @@ See the architecture, section 3.
 
 ## 5. Interpretation of the standard
 
-Bandwidth Credit Limit, FCT multiplier and data segment multiplier are fixed by generics (Table 5-36 allows this). The
-Maximum Number of Data-Sending Lanes, RxEn and TxEn follow with phase 4.
+Bandwidth Credit Limit, FCT multiplier and data segment multiplier are fixed by generics (Table 5-36 allows this).
 
 The Link Reset command clears all status parameters of Table 5-37 held in the MIB (5.9.4e): the Data Link flags
 and counters, the flags of bandwidth use, the lane event flags and the additional counters (lane timeouts, Misaligned
