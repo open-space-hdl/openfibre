@@ -57,8 +57,11 @@ architecture sim of ofb_core_th is
 
     constant N_c : positive := NumLanes_g;
 
+    -- Bytes per beat of the VC ports
+    constant B_c : positive := 4 * N_c;
+
     type VcDataArray_t is array (0 to 1) of std_logic_vector(32*N_c*CoreNumVc_c-1 downto 0);
-    type VcKArray_t is array (0 to 1) of std_logic_vector(4*N_c*CoreNumVc_c-1 downto 0);
+    type VcKeepArray_t is array (0 to 1) of std_logic_vector(B_c*CoreNumVc_c-1 downto 0);
     type VcBitArray_t is array (0 to 1) of std_logic_vector(CoreNumVc_c-1 downto 0);
     type BcDataArray_t is array (0 to 1) of std_logic_vector(63 downto 0);
     type BcUserArray_t is array (0 to 1) of std_logic_vector(17 downto 0);
@@ -73,11 +76,15 @@ architecture sim of ofb_core_th is
     type SlotArray_t is array (0 to 1) of std_logic_vector(5 downto 0);
 
     signal SVcData  : VcDataArray_t;
-    signal SVcUser  : VcKArray_t;
+    signal SVcKeep  : VcKeepArray_t;
+    signal SVcLast  : VcBitArray_t;
+    signal SVcUser  : VcBitArray_t;
     signal SVcValid : VcBitArray_t := (others => (others => '0'));
     signal SVcReady : VcBitArray_t;
     signal MVcData  : VcDataArray_t;
-    signal MVcUser  : VcKArray_t;
+    signal MVcKeep  : VcKeepArray_t;
+    signal MVcLast  : VcBitArray_t;
+    signal MVcUser  : VcBitArray_t;
     signal MVcValid : VcBitArray_t;
     signal MVcReady : VcBitArray_t := (others => (others => '0'));
     signal SBcData  : BcDataArray_t;
@@ -193,10 +200,14 @@ begin
                 LaneClk                => LaneClk,
                 MgmtClk                => MgmtI,
                 S_Vc_TData             => SVcData(i),
+                S_Vc_TKeep             => SVcKeep(i),
+                S_Vc_TLast             => SVcLast(i),
                 S_Vc_TUser             => SVcUser(i),
                 S_Vc_TValid            => SVcValid(i),
                 S_Vc_TReady            => SVcReady(i),
                 M_Vc_TData             => MVcData(i),
+                M_Vc_TKeep             => MVcKeep(i),
+                M_Vc_TLast             => MVcLast(i),
                 M_Vc_TUser             => MVcUser(i),
                 M_Vc_TValid            => MVcValid(i),
                 M_Vc_TReady            => MVcReady(i),
@@ -261,14 +272,13 @@ begin
                 variable Seed2_v : positive := 1000 + 7 * i + 11 * v;
                 variable Rand_v  : real;
                 variable Sent_v  : natural  := 0;
-                variable Left_v  : natural;
-                variable Term_v  : boolean;
-                variable Data_v  : Word_t;
-                variable K_v     : WordK_t;
-                variable Raw_v   : std_logic_vector(36 downto 0);
-                variable Pos_v   : natural  := 0;
+                variable Len_v   : natural;
+                variable Pos_v   : natural;
+                variable Raw_v   : RawBeat_t;
                 variable BeatD_v : std_logic_vector(32*N_c-1 downto 0);
-                variable BeatK_v : std_logic_vector(4*N_c-1 downto 0);
+                variable BeatK_v : std_logic_vector(B_c-1 downto 0);
+                variable Word_v  : Word_t;
+                variable K_v     : WordK_t;
                 variable Cls_v   : natural range 0 to 3;
 
                 impure function randInt (lo : natural; hi : natural) return natural is
@@ -277,80 +287,91 @@ begin
                     return lo + natural(floor(Rand_v * real(hi - lo + 1)));
                 end function;
 
-                -- Word into the beat of N words; the beat is sent when it is full or flushed
-                procedure sendWord (
-                    data  : Word_t;
-                    k     : WordK_t;
-                    flush : boolean := false) is
+                -- One beat to the VC port
+                procedure sendBeat (
+                    data : std_logic_vector;
+                    keep : std_logic_vector;
+                    last : std_logic;
+                    user : std_logic) is
                 begin
-                    BeatD_v(32*Pos_v+31 downto 32*Pos_v) := data;
-                    BeatK_v(4*Pos_v+3 downto 4*Pos_v)    := k;
-                    Pos_v                                := Pos_v + 1;
-                    if flush then
+                    SVcData(i)(32*N_c*(v+1)-1 downto 32*N_c*v) <= data;
+                    SVcKeep(i)(B_c*(v+1)-1 downto B_c*v)       <= keep;
+                    SVcLast(i)(v)                              <= last;
+                    SVcUser(i)(v)                              <= user;
+                    SVcValid(i)(v)                             <= '1';
 
-                        -- Rest of the beat: Fill words
-                        while Pos_v < N_c loop
-                            BeatD_v(32*Pos_v+31 downto 32*Pos_v) := x"FBFBFBFB";
-                            BeatK_v(4*Pos_v+3 downto 4*Pos_v)    := "1111";
-                            Pos_v                                := Pos_v + 1;
-                        end loop;
+                    loop
+                        wait until rising_edge(UserClk);
+                        exit when SVcReady(i)(v) = '1';
+                    end loop;
 
-                    end if;
-                    if Pos_v = N_c then
-                        Pos_v                                      := 0;
-                        SVcData(i)(32*N_c*(v+1)-1 downto 32*N_c*v) <= BeatD_v;
-                        SVcUser(i)(4*N_c*(v+1)-1 downto 4*N_c*v)   <= BeatK_v;
-                        SVcValid(i)(v)                             <= '1';
-
-                        loop
-                            wait until rising_edge(UserClk);
-                            exit when SVcReady(i)(v) = '1';
-                        end loop;
-
-                        SVcValid(i)(v) <= '0';
-                    end if;
+                    SVcValid(i)(v) <= '0';
                 end procedure;
 
             -- Generator
             begin
                 SVcValid(i)(v) <= '0';
+                SVcLast(i)(v)  <= '0';
+                SVcUser(i)(v)  <= '0';
 
                 loop
                     wait until rising_edge(UserClk);
-                    if i = 0 and v = 0 and RawQueue_v.count > 0 then
-                        -- Raw words (expected words are added by the sequencer)
-                        Raw_v := RawQueue_v.pop;
-                        sendWord(Raw_v(31 downto 0), Raw_v(35 downto 32), true);
+                    if i = 0 and v = 0 and RawQueue_v.count(0) > 0 then
+                        -- Raw beats (expected words are added by the sequencer)
+                        Raw_v := RawQueue_v.pop(0);
+                        sendBeat(Raw_v(32*N_c-1 downto 0), Raw_v(128+B_c-1 downto 128), Raw_v(144), Raw_v(145));
                     elsif Sent_v < CoreCfg(i).Vc(v).Packets then
                         if CoreCfg(i).Vc(v).LenClasses then
                             -- The length classes of the functional coverage in turn
-                            Cls_v  := Sent_v mod 4;
-                            Left_v := randInt(LenMin_c(Cls_v), LenMax_c(Cls_v));
+                            Cls_v := Sent_v mod 4;
+                            Len_v := randInt(LenMin_c(Cls_v), LenMax_c(Cls_v));
                         else
-                            Left_v := randInt(CoreCfg(i).Vc(v).MinLen, CoreCfg(i).Vc(v).MaxLen);
+                            Len_v := randInt(CoreCfg(i).Vc(v).MinLen, CoreCfg(i).Vc(v).MaxLen);
                         end if;
-                        Term_v := false;
+                        Pos_v := 0;
 
-                        while not Term_v loop
+                        -- Beats of random bytes; the expected words of the receiver: four bytes per word, the
+                        -- last bytes with the EOP and Fills
+                        while Pos_v <= Len_v loop
 
-                            for c in 0 to 3 loop
-                                if Left_v > 0 then
-                                    Data_v(8*c+7 downto 8*c) := std_logic_vector(to_unsigned(randInt(0, 255), 8));
-                                    K_v(c)                   := '0';
-                                    Left_v                   := Left_v - 1;
-                                elsif not Term_v then
-                                    Data_v(8*c+7 downto 8*c) := CharEop_c;
-                                    K_v(c)                   := '1';
-                                    Term_v                   := true;
+                            for c in 0 to B_c-1 loop
+                                if Pos_v + c < Len_v then
+                                    BeatD_v(8*c+7 downto 8*c) := std_logic_vector(to_unsigned(randInt(0, 255), 8));
+                                    BeatK_v(c)                := '1';
                                 else
-                                    Data_v(8*c+7 downto 8*c) := CharFill_c;
-                                    K_v(c)                   := '1';
+                                    BeatD_v(8*c+7 downto 8*c) := x"00";
+                                    BeatK_v(c)                := '0';
                                 end if;
                             end loop;
 
-                            CoreSb_v.add_expected(1 + (1 - i) * CoreNumVc_c + v, K_v & Data_v);
-                            -- Every packet starts in a new beat
-                            sendWord(Data_v, K_v, Term_v);
+                            for w in 0 to N_c-1 loop
+                                if Pos_v + 4 * w <= Len_v then
+
+                                    for c in 0 to 3 loop
+                                        if Pos_v + 4 * w + c < Len_v then
+                                            Word_v(8*c+7 downto 8*c) := BeatD_v(32*w+8*c+7 downto 32*w+8*c);
+                                            K_v(c)                   := '0';
+                                        elsif Pos_v + 4 * w + c = Len_v then
+                                            Word_v(8*c+7 downto 8*c) := CharEop_c;
+                                            K_v(c)                   := '1';
+                                        else
+                                            Word_v(8*c+7 downto 8*c) := CharFill_c;
+                                            K_v(c)                   := '1';
+                                        end if;
+                                    end loop;
+
+                                    CoreSb_v.add_expected(1 + (1 - i) * CoreNumVc_c + v, K_v & Word_v);
+                                end if;
+                            end loop;
+
+                            if Pos_v < Len_v then
+                                if Pos_v + B_c >= Len_v then
+                                    sendBeat(BeatD_v, BeatK_v, '1', '0');
+                                else
+                                    sendBeat(BeatD_v, BeatK_v, '0', '0');
+                                end if;
+                            end if;
+                            Pos_v := Pos_v + B_c;
                         end loop;
 
                         Sent_v := Sent_v + 1;
@@ -365,7 +386,9 @@ begin
                 variable Seed2_v : positive := 3000 + 3 * i + 19 * v;
                 variable Rand_v  : real;
                 variable Word_v  : std_logic_vector(35 downto 0);
+                variable WordN_v : natural  := 0;
                 variable Exp_v   : std_logic_vector(35 downto 0);
+                variable Keep_v  : std_logic_vector(B_c-1 downto 0);
                 variable InPkt_v : boolean  := false;
                 variable Eeps_v  : natural  := 0;
                 variable Lost_v  : natural  := 0;
@@ -434,41 +457,65 @@ begin
                     CoreRxLost(i, v) <= Lost_v;
                 end procedure;
 
-            -- Receiver
+                -- A word of the received packet to the scoreboard
+                procedure checkWord is
+                begin
+                    Words_v := Words_v + 1;
+                    if CoreCfg(i).Lossy then
+                        checkLossy(Word_v);
+                    else
+                        CoreSb_v.check_received(Inst_c, Word_v);
+                    end if;
+                    WordN_v := 0;
+                end procedure;
+
+            -- Receiver: the bytes of the packets as words of four bytes; the last word of a packet with the
+            -- remaining bytes, the EOP or EEP and Fills
             begin
                 if rising_edge(UserClk) then
                     if MVcValid(i)(v) = '1' and MVcReady(i)(v) = '1' then
+                        Keep_v := MVcKeep(i)(B_c*(v+1)-1 downto B_c*v);
+                        if MVcLast(i)(v) = '0' and Keep_v /= (Keep_v'range => '1') then
+                            alert(error, "Core " & to_string(i) & ", VC " & to_string(v) & ": TKEEP " &
+                                  to_string(Keep_v) & " without TLAST");
+                        end if;
 
-                        -- Words of four Fills carry no N-Char and are not compared
-                        for w in 0 to N_c-1 loop
-                            if MVcUser(i)(4*(N_c*v+w)+3 downto 4*(N_c*v+w)) /= "1111" or
-                               MVcData(i)(32*(N_c*v+w)+31 downto 32*(N_c*v+w)) /= x"FBFBFBFB" then
-                                Word_v  := MVcUser(i)(4*(N_c*v+w)+3 downto 4*(N_c*v+w)) &
-                                           MVcData(i)(32*(N_c*v+w)+31 downto 32*(N_c*v+w));
-                                Words_v := Words_v + 1;
-                                if CoreCfg(i).Lossy then
-                                    checkLossy(Word_v);
-                                else
-                                    CoreSb_v.check_received(Inst_c, Word_v);
+                        for c in 0 to B_c-1 loop
+                            if Keep_v(c) = '1' then
+                                Word_v(8*WordN_v+7 downto 8*WordN_v) := MVcData(i)(32*N_c*v+8*c+7 downto 32*N_c*v+8*c);
+                                Word_v(32 + WordN_v)                 := '0';
+                                WordN_v                              := WordN_v + 1;
+                                Bytes_v                              := Bytes_v + 1;
+                                if WordN_v = 4 then
+                                    checkWord;
                                 end if;
-
-                                -- Functional coverage: length and end of the packets sent by the other core
-                                for c in 0 to 3 loop
-                                    if Word_v(32 + c) = '0' then
-                                        Bytes_v := Bytes_v + 1;
-                                    elsif Word_v(8*c+7 downto 8*c) = CharEop_c then
-                                        CovPkt_v.sample_coverage((1 - i, v, Bytes_v));
-                                        CovEnd_v.sample_coverage((1 - i, 0));
-                                        Bytes_v := 0;
-                                    elsif Word_v(8*c+7 downto 8*c) = CharEep_c then
-                                        CovEnd_v.sample_coverage((1 - i, 1));
-                                        Bytes_v := 0;
-                                    end if;
-                                end loop;
-
+                            elsif c > 0 and Keep_v(c-1) = '1' and Keep_v(B_c-1 downto c) /= (B_c-1 downto c => '0') then
+                                alert(error, "Core " & to_string(i) & ", VC " & to_string(v) & ": TKEEP " &
+                                      to_string(Keep_v) & " not contiguous");
                             end if;
                         end loop;
 
+                        if MVcLast(i)(v) = '1' then
+                            -- End marker and Fills
+                            if MVcUser(i)(v) = '1' then
+                                Word_v(8*WordN_v+7 downto 8*WordN_v) := CharEep_c;
+                                -- Functional coverage: end of the packets sent by the other core
+                                CovEnd_v.sample_coverage((1 - i, 1));
+                            else
+                                Word_v(8*WordN_v+7 downto 8*WordN_v) := CharEop_c;
+                                CovPkt_v.sample_coverage((1 - i, v, Bytes_v));
+                                CovEnd_v.sample_coverage((1 - i, 0));
+                            end if;
+                            Word_v(32 + WordN_v) := '1';
+
+                            for c in WordN_v + 1 to 3 loop
+                                Word_v(8*c+7 downto 8*c) := CharFill_c;
+                                Word_v(32 + c)           := '1';
+                            end loop;
+
+                            checkWord;
+                            Bytes_v := 0;
+                        end if;
                         CoreRxWords(i, v) <= Words_v;
                     end if;
                     uniform(Seed1_v, Seed2_v, Rand_v);

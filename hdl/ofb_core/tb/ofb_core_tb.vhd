@@ -85,6 +85,9 @@ architecture sim of ofb_core_tb is
     constant FaultDed_c       : natural  := 4; -- Double error in a row crossing
     constant FaultCut_c       : natural  := 5; -- Lane cut and reconnected (several lanes), else bit error
 
+    -- TKEEP of a full beat
+    constant AllKeep_c : std_logic_vector(4*NumLanes_g-1 downto 0) := (others => '1');
+
 begin
 
     -----------------------------------------------------------------------------------------------
@@ -289,6 +292,52 @@ begin
             check_value(Status_v(EccChVcIn_c), '1', error, "DED read in the input VC buffers");
         end procedure;
 
+        -- Raw beat for VC 0 of A with the bytes first, first + 1, ... and the given TKEEP, TLAST and TUSER
+        procedure rawBeat (
+            first : natural;
+            keep  : std_logic_vector;
+            last  : std_logic;
+            user  : std_logic := '0') is
+            variable Beat_v : RawBeat_t := (others => '0');
+        begin
+
+            for c in 0 to 4*NumLanes_g-1 loop
+                Beat_v(8*c+7 downto 8*c) := std_logic_vector(to_unsigned((first + c) mod 256, 8));
+            end loop;
+
+            Beat_v(128+4*NumLanes_g-1 downto 128) := keep;
+            Beat_v(144)                           := last;
+            Beat_v(145)                           := user;
+            RawQueue_v.push(0, Beat_v);
+        end procedure;
+
+        -- Expected data words of a full raw beat at the receiver of VC 0 (default: B)
+        procedure expBeatWords (
+            first : natural;
+            inst  : positive := 1 + CoreNumVc_c) is
+            variable Word_v : Word_t;
+        begin
+
+            for w in 0 to NumLanes_g-1 loop
+
+                for c in 0 to 3 loop
+                    Word_v(8*c+7 downto 8*c) := std_logic_vector(to_unsigned((first + 4 * w + c) mod 256, 8));
+                end loop;
+
+                CoreSb_v.add_expected(inst, "0000" & Word_v);
+            end loop;
+
+        end procedure;
+
+        -- TKEEP with a gap: bytes 0 and 2
+        impure function gapKeep return std_logic_vector is
+            variable Keep_v : std_logic_vector(4*NumLanes_g-1 downto 0) := (others => '0');
+        begin
+            Keep_v(0) := '1';
+            Keep_v(2) := '1';
+            return Keep_v;
+        end function;
+
         procedure defaultLengths is
         begin
 
@@ -322,7 +371,7 @@ begin
             -- TC-CORE-01: identification, link start through the MIB
             if run("test_link_up") then
                 rd(0, RegId_c, Data_v);
-                check_value(Data_v, x"0FB10006", error, "ID of A");
+                check_value(Data_v, x"0FB10007", error, "ID of A");
                 linkUp(500 us);
                 rd(1, RegDlErrors_c, Data_v);
                 check_value(Data_v, x"00000000", error, "No error at B");
@@ -522,19 +571,32 @@ begin
                     check_value(Data_v(31 downto 16), x"0000", error, "No DED in channel " & to_string(ch));
                 end loop;
 
-            -- TC-CORE-05: framing error at the Network interface of A
+            -- TC-CORE-05: framing errors at the Network interface of A and the EEP flag of the user
             elsif run("test_framing_error") then
                 linkUp(500 us);
-                -- Word with K28.7 in a packet: EEP, the rest of the packet up to the EOP is discarded
-                RawQueue_v.push('0' & "0010" & x"5A5A" & K28_7_c & x"11");
-                RawQueue_v.push('0' & "0000" & x"22334455");
-                RawQueue_v.push('0' & "1000" & CharEop_c & x"667788");
-                CoreSb_v.add_expected(1 + CoreNumVc_c, "1110" & CharFill_c & CharFill_c & CharEep_c & x"11");
+                -- Gap in TKEEP in the first beat: the packet is discarded up to TLAST, nothing reaches B (no
+                -- packet of zero length)
+                rawBeat(16#10#, gapKeep, '0');
+                rawBeat(16#20#, AllKeep_c, '1');
+                -- Partial TKEEP in the second beat without TLAST: the first beat reaches B, ended with an EEP;
+                -- the rest of the packet is discarded
+                rawBeat(16#30#, AllKeep_c, '0');
+                expBeatWords(16#30#);
+                CoreSb_v.add_expected(1 + CoreNumVc_c, "1111" & CharFill_c & CharFill_c & CharFill_c & CharEep_c);
+                rawBeat(16#40#, '0' & AllKeep_c(NumLanes_g*4-2 downto 0), '0');
+                rawBeat(16#50#, AllKeep_c, '1');
+                -- Packet of three bytes ended with an EEP by the user
+                rawBeat(16#60#, (NumLanes_g*4-1 downto 3 => '0') & "111", '1', '1');
+                CoreSb_v.add_expected(1 + CoreNumVc_c, "1000" & CharEep_c & x"626160");
                 waitDelivered(1 ms);
                 rd(0, RegFrameErr_c, Data_v);
                 check_value(Data_v(0), '1', error, "Framing error of VC 0 at A");
                 rd(0, RegDlErrors_c, Data_v);
                 check_value(Data_v(9), '1', error, "Framing error flag at A");
+                rd(1, RegDlErrors_c, Data_v);
+                check_value(Data_v(11), '0', error, "No receive framing error at B");
+                rd(1, RegNiRxEmptyCount_c, Data_v);
+                check_value(Data_v, x"00000000", error, "No packet of zero length at B");
 
             -- TC-CORE-11, TC-CORE-12: serial loopbacks of the Physical layer (B disabled): near-end at A
             -- (own transmitter to own receiver), far-end at B (B returns the signal of A); the lanes and
@@ -566,11 +628,11 @@ begin
                     check_value(Data_v(3 downto 0) /= x"7", error, "Lane " & to_string(l) & " of B not active");
                 end loop;
 
-                -- A packet on VC 0 of A comes back to VC 0 of A
-                RawQueue_v.push('0' & "0000" & x"A1A2A3A4");
-                RawQueue_v.push('0' & "1000" & CharEop_c & x"B1B2B3");
-                CoreSb_v.add_expected(1, "0000" & x"A1A2A3A4");
-                CoreSb_v.add_expected(1, "1000" & CharEop_c & x"B1B2B3");
+                -- A packet of one beat and three bytes on VC 0 of A comes back to VC 0 of A
+                rawBeat(16#A1#, AllKeep_c, '0');
+                rawBeat(16#B1#, (NumLanes_g*4-1 downto 3 => '0') & "111", '1');
+                expBeatWords(16#A1#, 1);
+                CoreSb_v.add_expected(1, "1000" & CharEop_c & x"B3B2B1");
                 waitDelivered(1 ms);
                 rd(0, RegDlErrors_c, Data_v);
                 check_value(Data_v, x"00000000", error, "No error at A");
@@ -954,10 +1016,16 @@ begin
                     if ch = EccChVcIn_c then
                         defaultLengths;
                         -- Second error: four packets of one word (1 to 3 bytes and the EOP) per VC, so that the
-                        -- beat with the error ends its packet (nothing to discard)
+                        -- beat with the error ends its packet (nothing to discard): the EEP that replaces it is a
+                        -- packet of zero length, discarded and counted by the Network interface
+                        rd(0, RegNiRxEmptyCount_c, Data_v);
+                        N_v := to_integer(unsigned(Data_v(15 downto 0)));
                         dedVcIn(1, 3, 4);
                         sendAll(2);
                         waitDelivered(2 ms);
+                        rd(0, RegNiRxEmptyCount_c, Data_v);
+                        check_value(to_integer(unsigned(Data_v(15 downto 0))) - N_v, CoreNumVc_c, error,
+                                    "Packets of zero length after the second error in the input VC buffers of A");
                         defaultLengths;
                         rd(1, RegDlErrors_c, Data_v);
                         check_value(Data_v(5), '0', error, "No link reset for the second error in the input VC buffers");
@@ -965,10 +1033,17 @@ begin
                     end if;
                 end loop;
 
+                -- Every packet with a DED in the input VC buffer of A ends with an EEP, or is discarded as a
+                -- packet of zero length when the error is in its first beat (two errors per VC)
+                rd(0, RegNiRxEmptyCount_c, Data_v);
+                N_v := to_integer(unsigned(Data_v(15 downto 0)));
+
                 for vc in 0 to CoreNumVc_c-1 loop
-                    check_value(CoreRxEep(0, vc) >= 2, error, "Packets with a DED in the input VC buffer of A ended " &
-                                "with EEP, VC " & to_string(vc));
+                    N_v := N_v + CoreRxEep(0, vc);
                 end loop;
+
+                check_value(N_v >= 2 * CoreNumVc_c, error, "Packets with a DED in the input VC buffers of A ended " &
+                            "with EEP or discarded");
 
                 check_value(CoreBcLost(0) > 0, error, "Message with a DED in the broadcast input buffer discarded");
 

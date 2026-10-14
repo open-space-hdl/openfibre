@@ -132,7 +132,9 @@ architecture sim of ofb_mib_tb is
     signal CntRstCnt  : natural                      := 0;
 
     -- User domain
-    signal NiEv : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
+    signal NiEv      : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
+    signal NiRxEv    : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
+    signal NiEmptyEv : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
 
     -- EDAC monitor: events per domain, injection commands and their counts
     subtype EccVec_t is std_logic_vector(2*EccChannels_c-1 downto 0);
@@ -218,7 +220,7 @@ begin
 
             -- TC-MG-01: identification and reset values
             if run("test_reset_values") then
-                chk(16#000#, x"0FB10006", "ID");
+                chk(16#000#, x"0FB10007", "ID");
                 chk(16#004#, x"00000104", "Generics");
                 chk(16#008#, x"00000100", "DataScrambled set");
                 chk(16#00C#, x"00000028", "Broadcast interval 40");
@@ -250,6 +252,9 @@ begin
                 chk(RegLaneEvents_c, RegLaneEventsReset_c, "LANE_EVENTS of lane 0");
                 chk(RegLaneTimeoutCount_c, RegLaneTimeoutCountReset_c, "LANE_TIMEOUT_COUNT of lane 0");
                 chk(RegLanePrbsCtrl_c, RegLanePrbsCtrlReset_c, "LANE_PRBS_CTRL of lane 0");
+                chk(RegVcFramingError_c, x"00000000", "VC_FRAMING_ERROR");
+                chk(RegVcRxFramingError_c, x"00000000", "VC_RX_FRAMING_ERROR");
+                chk(RegNiRxEmptyCount_c, RegNiRxEmptyCountReset_c, "NI_RX_EMPTY_COUNT");
 
                 for v in 0 to NumVc_c-1 loop
                     chk(RegVcSlotsLo_c + v * RegVcStride_c, RegVcSlotsLoReset_c, "VC_SLOTS_LO of VC " & to_string(v));
@@ -680,6 +685,67 @@ begin
                 cycles(20);
                 check_value(PrbsTxSel, "0000", error, "TX pattern off after Interface Reset");
 
+            -- TC-MG-11: events of the receive side of the Network interface: receive framing errors set the
+            -- flags per VC and DL_ERRORS bit 11 with interrupt; packets of zero length counted without loss
+            -- in consecutive cycles and of several VCs in the same cycle, saturating; a write and the Link
+            -- Reset command clear the counter
+            elsif run("test_ni_events") then
+                wait until rising_edge(UserClk);
+                NiRxEv(1) <= '1';
+                wait until rising_edge(UserClk);
+                NiRxEv(1) <= '0';
+                cycles(20);
+                chk(RegDlErrors_c, x"00000800", "Receive framing error flag");
+                chk(RegVcRxFramingError_c, x"00000002", "Receive framing error of VC 1");
+                chk(RegVcFramingError_c, x"00000000", "No transmit framing error");
+                check_value(Irq, '0', error, "No interrupt without mask");
+                wr(RegIrqMask_c, x"00000800");
+                cycles(3);
+                check_value(Irq, '1', error, "Interrupt for the receive framing error");
+                wr(RegDlErrors_c, x"00000800");
+                wr(RegVcRxFramingError_c, x"00000002");
+                cycles(3);
+                check_value(Irq, '0', error, "Interrupt cleared with the flag");
+                chk(RegVcRxFramingError_c, x"00000000", "Receive framing error flag of VC 1 cleared");
+                -- Packets of zero length: VC 0 in three consecutive cycles, VC 2 in the third one as well
+                wait until rising_edge(UserClk);
+                NiEmptyEv(0) <= '1';
+
+                for i in 1 to 2 loop
+                    wait until rising_edge(UserClk);
+                end loop;
+
+                NiEmptyEv(2) <= '1';
+                wait until rising_edge(UserClk);
+                NiEmptyEv    <= (others => '0');
+                cycles(20);
+                chk(RegNiRxEmptyCount_c, x"00000004", "Packets of zero length");
+                wr(RegNiRxEmptyCount_c, x"00000000");
+                cycles(20);
+                chk(RegNiRxEmptyCount_c, x"00000000", "Counter cleared by a write");
+                -- Saturation: all VCs in 16400 cycles (65600 packets)
+                wait until rising_edge(UserClk);
+                NiEmptyEv <= (others => '1');
+
+                for i in 1 to 16400 loop
+                    wait until rising_edge(UserClk);
+                end loop;
+
+                NiEmptyEv <= (others => '0');
+                cycles(20);
+                chk(RegNiRxEmptyCount_c, x"0000FFFF", "Counter saturated");
+                -- Link Reset command: flags and counter cleared
+                wait until rising_edge(UserClk);
+                NiRxEv(3) <= '1';
+                wait until rising_edge(UserClk);
+                NiRxEv(3) <= '0';
+                cycles(20);
+                wr(RegDlCtrl_c, x"00000101");
+                cycles(20);
+                chk(RegNiRxEmptyCount_c, x"00000000", "Counter cleared by the Link Reset command");
+                chk(RegVcRxFramingError_c, x"00000000", "Receive framing error flags cleared by the Link Reset command");
+                chk(RegDlErrors_c, x"00000000", "Data Link flags cleared by the Link Reset command");
+
             end if;
 
         end loop;
@@ -814,6 +880,8 @@ begin
             UserClk                => UserClk,
             UserRst                => Rst,
             Ni_EvFrameErr          => NiEv,
+            Ni_EvRxFrameErr        => NiRxEv,
+            Ni_EvRxEmpty           => NiEmptyEv,
             Ecc_Core               => EccCore,
             Ecc_User               => EccUser,
             Ecc_Lane               => EccLane,

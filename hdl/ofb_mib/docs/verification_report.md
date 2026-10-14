@@ -2,14 +2,14 @@
 
 ## 1. Test results
 
-Run on 2026-10-07 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_mib*"`.
+Run on 2026-10-13 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_mib*"`.
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_mib_tb` | 10 | 10 |
+| `ofb_mib_tb` | 11 | 11 |
 
-Full regression of the repository: 209 of 209 tests pass (with the PRBS test registers of MG-5). VSG reports no
-errors and no warnings.
+Full regression of the repository: 227 of 227 tests pass (with the packet ports of the VCs and register map version
+7). VSG reports no errors and no warnings.
 
 ## 2. Summary
 
@@ -32,6 +32,11 @@ the generated package `ofb_regs_pkg`; a reset value changed in the description f
 
 PRBS test registers (TC-MG-10): an error counter that ignores the hold bit fails the test (mutation check: 15 instead
 of 10 counted words).
+
+Events of the Network interface (TC-MG-11, register map version 7): the packets of zero length are counted in the
+user clock domain, because a pulse crossing merges events of consecutive cycles; the test drives three events of one
+VC in consecutive cycles and two VCs in the same cycle and reads 4. QuestaSim (coverage run of 2026-10-14, 228 of
+228 tests pass): the MIB covers 288 of 288 statements and 145 of 145 branches.
 
 Defects found during verification:
 

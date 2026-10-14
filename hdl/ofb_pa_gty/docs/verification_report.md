@@ -70,6 +70,13 @@ with the results above (far end: receivers ready after 68.2 us, every lane check
 `ofb_pa_gty_core_tb`: all packets and broadcast messages delivered, no error, no retry, simulation done at
 198.6 us).
 
+Rerun on 2026-10-13 with the packet ports of the VCs (the generator sends packets of whole words in beats with
+`TKEEP` and `TLAST`, the checker compares the words of every beat with `TKEEP` and the end of each packet with
+`TLAST` and no EEP): `ofb_pa_gty_core_tb` passes at the first attempt (first burst delivered after 98.3 us, broadcast
+messages without error, simulation done at 198.6 us), and again on 2026-10-14 after the change of the continuous mode
+of the output VC buffers (same results). `ofb_pa_gty_tb` and `ofb_pa_gty_cc_tb` do not contain the core and were not
+run again.
+
 ## 2. Summary
 
 All test cases pass. VSG reports no errors and no warnings (the port names of the transceiver wizard and of

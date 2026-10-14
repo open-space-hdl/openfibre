@@ -21,7 +21,7 @@ the standard" of the module specifications.
 | 5.3.5.2 | Flow control word (FCT) | DT-6 | DL-FA-04, PKG-04 | TC-DL-10, TC-PKG-02, TC-PKG-03 | Verified |
 | 5.3.5.3 | Error recovery control words | DT-6 | DL-FA-04, PKG-03, PKG-04 | TC-DL-10, TC-PKG-02, TC-PKG-03 | Verified |
 | 5.3.6 | RXERR | LN-3 | LN-RX-06, PKG-03 | TC-LN-04, TC-LN-11, TC-LN-44, TC-LN-46, TC-PKG-02 | Verified |
-| 5.3.7, 5.3.9 | Characters, packets | NI-1 | DL-VI-01, NI-FR-01, NI-FR-02, NI-FR-03, PKG-01 | TC-CORE-02, TC-CORE-05, TC-DL-02, TC-NI-02, TC-NI-03, TC-NI-04, TC-PKG-01 | Verified |
+| 5.3.7, 5.3.9 | Characters, packets | NI-1 | DL-CM-02, DL-VI-01, MG-ST-05, NI-RX-01, NI-RX-02, NI-RX-03, NI-TX-01, NI-TX-02, NI-TX-03, NI-TX-04, PKG-01 | TC-CORE-02, TC-CORE-05, TC-CORE-14, TC-CORE-17, TC-DL-02, TC-DL-22, TC-DL-31, TC-MG-11, TC-NI-01, TC-NI-02, TC-NI-03, TC-NI-04, TC-NI-05, TC-NI-06, TC-PKG-01 | Verified |
 | 5.3.8 | Frames | DT-6 | DL-BO-03, DL-FA-01, DL-FA-02, DL-FA-03, DL-IF-02, DL-RW-03, DL-TS-03, DL-VO-04 | TC-CORE-02, TC-CORE-08, TC-DL-02, TC-DL-03, TC-DL-06, TC-DL-10, TC-DL-15, TC-DL-17, TC-DL-19 | Verified |
 | 5.3.10a, b, c1 to c3, c16, d to f, p | Precedence, Lane layer part | LN-2 | DL-TS-01, DL-TS-02, DL-TS-03, DL-TS-04, LN-TX-03 | TC-DL-02, TC-DL-03, TC-DL-05, TC-DL-10, TC-DL-15, TC-LN-05, TC-LN-52 | Verified |
 | 5.3.10c4, c5, g, h | Precedence, Multi-Lane part | ML-2 | DL-TS-01, DL-TS-02, DL-TS-03, DL-TS-04, LN-TX-03 | TC-DL-02, TC-DL-03, TC-DL-05, TC-DL-10, TC-DL-15, TC-LN-05, TC-LN-52 | Verified |
@@ -47,7 +47,7 @@ the standard" of the module specifications.
 | 5.6.7 | Alignment state machine | ML-5 | ML-AL-08, ML-AL-09, ML-CO-04, ML-DS-06, ML-DS-07, ML-DS-08, ML-DS-12 | TC-ML-30, TC-ML-31, TC-ML-32, TC-ML-34, TC-ML-37, TC-ML-40, TC-ML-41, TC-ML-42, TC-ML-44 | Verified |
 | 5.6.8, 5.6.9 except 5.6.9.1a, b | Asymmetric links, unidirectional lanes | ML-1 | ML-AL-04, ML-DS-09, ML-IF-07, ML-LM-09, ML-LM-10, ML-LM-11, ML-LM-12 | TC-ML-31, TC-ML-33, TC-ML-35, TC-ML-36, TC-ML-42 | Verified |
 | 5.6.10 except 5.6.10c, g | Hot redundant lanes | ML-1 | ML-AL-01, ML-AL-03, ML-DS-09, ML-DS-10, ML-LM-13 | TC-ML-30, TC-ML-31, TC-ML-33, TC-ML-34, TC-ML-35, TC-ML-40, TC-ML-42 | Verified |
-| 5.7.2.1, 5.7.2.2 | Virtual channels, output VC buffer | DT-1 | DL-CM-01, DL-IF-01, DL-RW-06, DL-VO-01, DL-VO-02 | TC-CORE-02, TC-DL-02, TC-DL-18, TC-DL-22, TC-DL-30 | Verified |
+| 5.7.2.1, 5.7.2.2 | Virtual channels, output VC buffer | DT-1 | DL-CM-01, DL-CM-02, DL-IF-01, DL-RW-06, DL-VO-01, DL-VO-02 | TC-CORE-02, TC-DL-02, TC-DL-18, TC-DL-22, TC-DL-30, TC-DL-31 | Verified |
 | 5.7.2.3 | Input VC buffers | DR-6 | DL-RW-06, DL-VI-01, DL-VI-04 | TC-CORE-02, TC-CORE-04, TC-DL-02, TC-DL-18, TC-DL-29 | Verified |
 | 5.7.3.1 | Output VC flow control | DT-2 | DL-CR-01, DL-CR-02, DL-RW-04, DL-VO-03, DL-VO-04 | TC-CORE-02, TC-DL-01, TC-DL-02, TC-DL-04, TC-DL-17, TC-DL-19 | Verified |
 | 5.7.3.2 | Input VC flow control | DR-6 | DL-RW-03, DL-VI-02, DL-VI-03 | TC-CORE-02, TC-CORE-04, TC-CORE-08, TC-DL-01, TC-DL-04, TC-DL-10, TC-DL-20, TC-DL-29 | Verified |
@@ -73,12 +73,12 @@ the standard" of the module specifications.
 | 5.7.10a4 to a7 | Link reset, input VC side (EEP rules) | DR-6 | CORE-CC-01, DL-ED-01, DL-ER-06, DL-FA-05, DL-LR-04, DL-LR-05, DL-VI-04, DL-VO-02, ML-BP-03, ML-DS-11 | TC-CORE-02, TC-CORE-04, TC-CORE-14, TC-CORE-17, TC-DL-06, TC-DL-07, TC-DL-18, TC-DL-25, TC-DL-29, TC-ML-05, TC-ML-24, TC-ML-38 | Verified |
 | 5.7.10b | Link reset, Data Link actions | DC-1 | CORE-CC-01, DL-ED-01, DL-ER-06, DL-FA-05, DL-LR-04, DL-LR-05, DL-VI-04, DL-VO-02, ML-BP-03, ML-DS-11 | TC-CORE-02, TC-CORE-04, TC-CORE-14, TC-CORE-17, TC-DL-06, TC-DL-07, TC-DL-18, TC-DL-25, TC-DL-29, TC-ML-05, TC-ML-24, TC-ML-38 | Verified |
 | 5.8.3 | Virtual networks | NI-2 | MG-VN-01 | TC-MG-05 | Verified |
-| 5.8.5 to 5.8.7, 5.8.13 | Packet format, sending and receiving packets, nodes | NI-1 | NI-IF-01, NI-RX-01 | TC-CORE-02, TC-CORE-17, TC-NI-01, TC-NI-04 | Verified |
-| 5.8.12 | Broadcast messages | NI-3 | NI-IF-02 | TC-CORE-02, TC-CORE-17 | Verified |
+| 5.8.5 to 5.8.7, 5.8.13 | Packet format, sending and receiving packets, nodes | NI-1 | NI-IF-01 | TC-CORE-02, TC-CORE-17, TC-NI-01, TC-NI-03 | Verified |
+| 5.8.12 | Broadcast messages | NI-3 | NI-IF-02, NI-RX-04 | TC-CORE-02, TC-CORE-17 | Verified |
 | 5.8.8 to 5.8.11 | Routing switch, addressing, adaptive routing, multicast | Out of scope | - | - | Out of scope (routing switch) |
-| 5.9.1 to 5.9.4 | Management Information Base | MG-1 | CORE-CC-02, DL-IF-05, MG-CF-01, MG-IF-01, MG-IF-02, MG-ST-01, MG-ST-04 | TC-CORE-15, TC-DL-07, TC-DL-21, TC-MG-01, TC-MG-02, TC-MG-03, TC-MG-04, TC-MG-05, TC-MG-06, TC-MG-08 | Verified |
-| 6.2.2, 6.3.2 | Packet transfer and Virtual Channel services | NI-1 | NI-IF-01, NI-RX-01 | TC-CORE-02, TC-CORE-17, TC-NI-01, TC-NI-04 | Verified |
-| 6.2.3, 6.3.3 | Broadcast message services | NI-3 | NI-IF-02 | TC-CORE-02, TC-CORE-17 | Verified |
+| 5.9.1 to 5.9.4 | Management Information Base | MG-1 | CORE-CC-02, DL-IF-05, MG-CF-01, MG-IF-01, MG-IF-02, MG-ST-01, MG-ST-04, MG-ST-05 | TC-CORE-15, TC-DL-07, TC-DL-21, TC-MG-01, TC-MG-02, TC-MG-03, TC-MG-04, TC-MG-05, TC-MG-06, TC-MG-08, TC-MG-11 | Verified |
+| 6.2.2, 6.3.2 | Packet transfer and Virtual Channel services | NI-1 | NI-IF-01, NI-RX-01 | TC-CORE-02, TC-CORE-05, TC-CORE-17, TC-NI-01, TC-NI-03, TC-NI-06 | Verified |
+| 6.2.3, 6.3.3 | Broadcast message services | NI-3 | NI-IF-02, NI-RX-04 | TC-CORE-02, TC-CORE-17 | Verified |
 | 6.3.4 | Schedule synchronisation service | NI-4 | DL-QS-06, NI-SC-01 | TC-CORE-06, TC-DL-21 | Verified |
 | 6.4 | Physical layer services | PA-1 | PA-IF-01, PA-IF-02 | TC-PA-01, TC-PA-02 | Verified |
 | 6.5 | Management Information Base service | MG-1 | CORE-IF-01, MG-IF-01 | TC-CORE-01, TC-CORE-05, TC-CORE-06, TC-MG-01, TC-MG-02, TC-MG-05, TC-MG-08 | Verified |
@@ -93,13 +93,13 @@ reference included).
 | Module | Requirements | Verified by a test case | Without a test case |
 | --- | --- | --- | --- |
 | `ofb_core` | 15 | 15 | - |
-| `ofb_dl` | 73 | 73 | - |
+| `ofb_dl` | 74 | 74 | - |
 | `ofb_lane` | 32 | 32 | - |
-| `ofb_mib` | 19 | 19 | - |
+| `ofb_mib` | 20 | 20 | - |
 | `ofb_multilane` | 69 | 69 | - |
-| `ofb_ni` | 7 | 7 | - |
+| `ofb_ni` | 12 | 12 | - |
 | `ofb_pa_gty` | 12 | 12 | - |
 | `ofb_pkg` | 11 | 11 | - |
 | `ofb_vck190` | 8 | 8 | - |
 
-Requirements: 246; without a test case: 0; test cases of the plans not run by a testbench: 0.
+Requirements: 253; without a test case: 0; test cases of the plans not run by a testbench: 0.

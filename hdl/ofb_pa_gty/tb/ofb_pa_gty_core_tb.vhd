@@ -51,9 +51,6 @@ architecture sim of ofb_pa_gty_core_tb is
     constant RegLaneStat_c : natural := 16#104#;
     constant RegMlStatus_c : natural := 16#040#;
 
-    constant Fill_c : std_logic_vector(7 downto 0) := x"FB";
-    constant Eop_c  : std_logic_vector(7 downto 0) := x"FD";
-
     subtype Addr_t is std_logic_vector(11 downto 0);
     subtype Data_t is std_logic_vector(31 downto 0);
 
@@ -102,11 +99,14 @@ architecture sim of ofb_pa_gty_core_tb is
 
     -- Virtual channels and broadcast ports
     signal SVcData  : BeatArray_t   := (others => (others => '0'));
-    signal SVcUser  : BeatKArray_t  := (others => (others => '0'));
+    signal SVcKeep  : BeatKArray_t  := (others => (others => '0'));
+    signal SVcLast  : VcVecArray_t  := (others => (others => '0'));
     signal SVcValid : VcVecArray_t  := (others => (others => '0'));
     signal SVcReady : VcVecArray_t;
     signal MVcData  : BeatArray_t;
-    signal MVcUser  : BeatKArray_t;
+    signal MVcKeep  : BeatKArray_t;
+    signal MVcLast  : VcVecArray_t;
+    signal MVcUser  : VcVecArray_t;
     signal MVcValid : VcVecArray_t;
     signal SBcData  : BcDataArray_t := (others => (others => '0'));
     signal SBcUser  : BcUserArray_t := (others => (others => '0'));
@@ -416,10 +416,14 @@ begin
                 LaneClk           => LaneClk(e),
                 MgmtClk           => FreeRunClk,
                 S_Vc_TData        => SVcData(e),
-                S_Vc_TUser        => SVcUser(e),
+                S_Vc_TKeep        => SVcKeep(e),
+                S_Vc_TLast        => SVcLast(e),
+                S_Vc_TUser        => (others => '0'),
                 S_Vc_TValid       => SVcValid(e),
                 S_Vc_TReady       => SVcReady(e),
                 M_Vc_TData        => MVcData(e),
+                M_Vc_TKeep        => MVcKeep(e),
+                M_Vc_TLast        => MVcLast(e),
                 M_Vc_TUser        => MVcUser(e),
                 M_Vc_TValid       => MVcValid(e),
                 M_Vc_TReady       => (others => '1'),
@@ -464,14 +468,14 @@ begin
             );
 
         -------------------------------------------------------------------------------------------
-        -- Packet generator per VC: beats of Lanes_c words, the EOP in its own word, Fill words
-        -- after it
+        -- Packet generator per VC: packets of whole words, beats of Lanes_c words, TLAST on the last
+        -- beat
         -------------------------------------------------------------------------------------------
         g_vc : for v in 0 to Vcs_c-1 generate
 
             p_gen : process is
                 variable Beat_v : std_logic_vector(32*Lanes_c-1 downto 0);
-                variable K_v    : std_logic_vector(4*Lanes_c-1 downto 0);
+                variable Keep_v : std_logic_vector(4*Lanes_c-1 downto 0);
                 variable Pos_v  : natural;
                 variable Len_v  : natural;
             begin
@@ -484,36 +488,35 @@ begin
                     Len_v := packetLen(v, p);
                     Pos_v := 0;
 
-                    for w in 0 to Len_v loop
-                        if w < Len_v then
-                            Beat_v(32*Pos_v+31 downto 32*Pos_v) := packetWord(e, v, p, w);
-                            K_v(4*Pos_v+3 downto 4*Pos_v)       := "0000";
+                    while Pos_v < Len_v loop
+
+                        for l in 0 to Lanes_c-1 loop
+                            if Pos_v + l < Len_v then
+                                Beat_v(32*l+31 downto 32*l) := packetWord(e, v, p, Pos_v + l);
+                                Keep_v(4*l+3 downto 4*l)    := "1111";
+                            else
+                                Beat_v(32*l+31 downto 32*l) := (others => '0');
+                                Keep_v(4*l+3 downto 4*l)    := "0000";
+                            end if;
+                        end loop;
+
+                        wait until rising_edge(LaneClk(e));
+                        SVcData(e)(32*Lanes_c*(v+1)-1 downto 32*Lanes_c*v) <= Beat_v;
+                        SVcKeep(e)(4*Lanes_c*(v+1)-1 downto 4*Lanes_c*v)   <= Keep_v;
+                        if Pos_v + Lanes_c >= Len_v then
+                            SVcLast(e)(v) <= '1';
                         else
-                            Beat_v(32*Pos_v+31 downto 32*Pos_v) := Fill_c & Fill_c & Fill_c & Eop_c;
-                            K_v(4*Pos_v+3 downto 4*Pos_v)       := "1111";
+                            SVcLast(e)(v) <= '0';
                         end if;
-                        Pos_v := Pos_v + 1;
-                        if Pos_v = Lanes_c or w = Len_v then
+                        SVcValid(e)(v) <= '1';
 
-                            while Pos_v < Lanes_c loop
-                                Beat_v(32*Pos_v+31 downto 32*Pos_v) := Fill_c & Fill_c & Fill_c & Fill_c;
-                                K_v(4*Pos_v+3 downto 4*Pos_v)       := "1111";
-                                Pos_v                               := Pos_v + 1;
-                            end loop;
-
+                        loop
                             wait until rising_edge(LaneClk(e));
-                            SVcData(e)(32*Lanes_c*(v+1)-1 downto 32*Lanes_c*v) <= Beat_v;
-                            SVcUser(e)(4*Lanes_c*(v+1)-1 downto 4*Lanes_c*v)   <= K_v;
-                            SVcValid(e)(v)                                     <= '1';
+                            exit when SVcReady(e)(v) = '1';
+                        end loop;
 
-                            loop
-                                wait until rising_edge(LaneClk(e));
-                                exit when SVcReady(e)(v) = '1';
-                            end loop;
-
-                            SVcValid(e)(v) <= '0';
-                            Pos_v          := 0;
-                        end if;
+                        SVcValid(e)(v) <= '0';
+                        Pos_v          := Pos_v + Lanes_c;
                     end loop;
 
                 end loop;
@@ -522,13 +525,14 @@ begin
             end process;
 
             ---------------------------------------------------------------------------------------
-            -- Packet checker per VC: data words in order, EOP after the last word of a packet
+            -- Packet checker per VC: data words in order, TLAST after the last word of a packet,
+            -- no EEP
             ---------------------------------------------------------------------------------------
             p_check : process (LaneClk(e)) is
                 variable P_v    : natural := 0;
                 variable W_v    : natural := 0;
                 variable Word_v : std_logic_vector(31 downto 0);
-                variable K_v    : std_logic_vector(3 downto 0);
+                variable Keep_v : std_logic_vector(3 downto 0);
                 variable Base_v : natural;
             begin
                 if rising_edge(LaneClk(e)) then
@@ -537,8 +541,8 @@ begin
                         for w in 0 to Lanes_c-1 loop
                             Base_v := 32*Lanes_c*v + 32*w;
                             Word_v := MVcData(e)(Base_v+31 downto Base_v);
-                            K_v    := MVcUser(e)(4*Lanes_c*v+4*w+3 downto 4*Lanes_c*v+4*w);
-                            if K_v = "0000" then
+                            Keep_v := MVcKeep(e)(4*Lanes_c*v+4*w+3 downto 4*Lanes_c*v+4*w);
+                            if Keep_v = "1111" then
                                 if Word_v /= packetWord(1 - e, v, P_v, W_v) then
                                     report "End " & integer'image(e) & " VC " & integer'image(v) & ": word " &
                                            to_hstring(Word_v) & ", expected " &
@@ -546,22 +550,23 @@ begin
                                     Errors(e, v) <= Errors(e, v) + 1;
                                 end if;
                                 W_v := W_v + 1;
-                            elsif K_v = "1111" and Word_v(7 downto 0) = Eop_c then
-                                if W_v /= packetLen(v, P_v) then
-                                    report "End " & integer'image(e) & " VC " & integer'image(v) &
-                                           ": EOP after " & integer'image(W_v) & " words" severity error;
-                                    Errors(e, v) <= Errors(e, v) + 1;
-                                end if;
-                                P_v            := P_v + 1;
-                                W_v            := 0;
-                                Received(e, v) <= P_v;
-                            elsif not (K_v = "1111" and Word_v = Fill_c & Fill_c & Fill_c & Fill_c) then
-                                report "End " & integer'image(e) & " VC " & integer'image(v) & ": word " &
-                                       to_hstring(Word_v) & " K " & to_hstring(K_v) severity error;
+                            elsif Keep_v /= "0000" or MVcLast(e)(v) = '0' then
+                                report "End " & integer'image(e) & " VC " & integer'image(v) & ": TKEEP " &
+                                       to_hstring(Keep_v) & " of word " & integer'image(w) severity error;
                                 Errors(e, v) <= Errors(e, v) + 1;
                             end if;
                         end loop;
 
+                        if MVcLast(e)(v) = '1' then
+                            if W_v /= packetLen(v, P_v) or MVcUser(e)(v) = '1' then
+                                report "End " & integer'image(e) & " VC " & integer'image(v) & ": end of the packet after " &
+                                       integer'image(W_v) & " words, EEP " & std_logic'image(MVcUser(e)(v)) severity error;
+                                Errors(e, v) <= Errors(e, v) + 1;
+                            end if;
+                            P_v            := P_v + 1;
+                            W_v            := 0;
+                            Received(e, v) <= P_v;
+                        end if;
                     end if;
                 end if;
             end process;

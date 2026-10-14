@@ -2,12 +2,12 @@
 
 ## 1. Test results
 
-Run on 2026-10-06 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_dl*"`.
+Run on 2026-10-14 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_dl*"`.
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
 | `ofb_dl_tb` (layer, two complete ends) | 7 | 7 |
-| `ofb_dl_row_tb` (row level) | 21 | 21 |
+| `ofb_dl_row_tb` (row level) | 22 | 22 |
 | `ofb_dl_mac_tb` (medium access controller) | 7 | 7 |
 
 Full regression of the repository: 205 of 205 tests pass (after the register stages of the input VC buffers and the
@@ -24,7 +24,7 @@ Error and recovery counters of the layer tests (both ends):
 
 ## 2. Summary
 
-All 34 test cases pass and cover the requirements of the specification (verification plan, section 4).
+All 35 test cases pass and cover the requirements of the specification (verification plan, section 4).
 
 Defects found and fixed during verification:
 
@@ -44,6 +44,11 @@ Defects found and fixed during verification:
 | Second build of the VCK190 design: setup violations of up to 0.055 ns at 150 MHz (1538 endpoints, 15 to 18 logic levels), all in the user side of the input VC buffers, from `RdBank` and the bank stages through the beat formation to the reads of the bank stages and to the pipeline stage of the Network interface: the end of a beat was found by decoding the rotated 36-bit words of the banks | The end flags of every word (EOP or EEP in the word, EOP, EEP or Fill in character 3) are decoded before the bank stage and stored with the word, the beat logic works on these single bits, and the banks of the beat are marked in `BeatSel`, from which the reads of the banks follow without the word count compare (the path from the bank RAM to the stage had 2.27 ns of slack) |
 | Third build of the VCK190 design: timing met with only 0.030 ns of slack at 150 MHz, again in the beat formation of the input VC buffers (16 to 17 logic levels): the synthesis merged the reads of the banks with the next-state logic of the read position and the word count (`RdBank + BeatCnt`, `RdCnt + BeatCnt`) | Beat logic without arithmetic (architecture section 3.9): one-hot read position, explicit `Take` mask, reads of the banks as AND-OR terms, next-state logic separate, `keep` attributes on `Take`, `BeatValid` and `BankRdy`; same behaviour: the regression passes unchanged, the only uncovered branch of the module is still the justified FCT coincidence (coverage.md) |
 | Second build of the VCK190 design: the path from the frame buffer (RAM, SECDED decoder) through the distribution to the input VC buffers and their bank selection into the input register of a bank met the lane clock with only 0.359 ns of slack (12 logic levels) | Output register in `ofb_dl_rx_buf` (one cycle more from the frame buffer to the input VC buffers) |
+| ECSS review of the continuous mode against 5.3.9h: the output VC buffer wrote an EEP after every flush, also when no packet was in progress or nothing of it had been read, which formed a packet of zero length at the far end. Further: a word written in the cycle of the flush and words written during the flush were lost without the spill state, so the rest of such a packet was sent without its start | The EEP is placed at the read side, only when the last row read did not end its packet (DL-CM-02); the spill state also covers the word written in the cycle of the flush and the words discarded during the flush (DL-CM-01, DL-CM-02); TC-DL-22 adapted, TC-DL-31 added |
+
+Continuous mode change (DL-CM-02, 2026-10-14): GHDL 228 of 228 and QuestaSim 228 of 228 tests pass; the output VC
+buffer covers 112 of 112 statements and 64 of 65 branches (the defensive credit branch, justified in
+[docs/coverage.md](../../../docs/coverage.md)).
 
 Phase 3 (quality of service, continuous mode): the MAC unit tests and TC-DL-21 / TC-DL-22 passed on the first run;
 mutation check: with equal priorities the first frame of TC-DL-21 comes from VC 0 and the test fails as expected.

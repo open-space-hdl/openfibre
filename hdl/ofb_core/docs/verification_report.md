@@ -2,7 +2,8 @@
 
 ## 1. Test results
 
-Run on 2026-10-07 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_core*"`.
+Run on 2026-10-14 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_core*"`; all tests
+pass in QuestaSim as well (coverage run of the full regression, 228 of 228).
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
@@ -14,12 +15,15 @@ clock 192.3 MHz; packets of 1 to 1024 bytes on four VCs):
 
 | Configuration | Latency, packet of one byte | A to B only | Both directions, per direction |
 | --- | --- | --- | --- |
-| lanes1 | 339 ns | 4.73 Gbit/s (94.7 %) | 4.53 / 4.52 Gbit/s (90.6 / 90.5 %) |
-| lanes2 | 362 ns | 9.43 Gbit/s (94.3 %) | 9.06 / 9.04 Gbit/s (90.6 / 90.4 %) |
-| lanes4 | 361 ns | 18.72 Gbit/s (93.6 %) | 17.95 / 18.01 Gbit/s (89.7 / 90.0 %) |
+| lanes1 | 365 ns | 4.73 Gbit/s (94.6 %) | 4.53 / 4.53 Gbit/s (90.5 / 90.6 %) |
+| lanes2 | 388 ns | 9.42 Gbit/s (94.2 %) | 9.07 / 9.05 Gbit/s (90.7 / 90.5 %) |
+| lanes4 | 392 ns | 18.73 Gbit/s (93.7 %) | 17.94 / 17.98 Gbit/s (89.7 / 89.9 %) |
 
 The latency includes the behavioural Physical adapter (no serialisation delay) and the store-and-forward frame
-buffer of the receiver. The losses are the framing words (SDF, EDF per data frame of 64 words per lane), the
+buffer of the receiver. Measured on 2026-10-13 with the packet ports of the VCs; the input stage and the output
+register of the receive packet conversion add about 25 ns to the latency of the earlier measurement (339, 362 and
+361 ns), the throughput is unchanged (the payload counts four bytes per word and the word with the end marker, as
+before). The losses are the framing words (SDF, EDF per data frame of 64 words per lane), the
 EOP and Fill characters, SKIP, and in both directions the ACKs and FCTs of the reverse traffic.
 
 Fault injection campaign (TC-CORE-13): the regression runs seed 1; the extended campaign
@@ -83,3 +87,4 @@ Defects found during verification:
 | Functional coverage (testbench): the campaign sent packets of at most 64 bytes, so no fault hit a packet of several data frames | Campaign packets cycle through all length classes up to 1024 bytes at the same load; 15 runs pass |
 | TC-CORE-13 (2 lanes, seed 2): a packet delivered twice after a lane slip: two out-of-sequence words in consecutive cycles were checked against an old Receive Polarity Flag and started a second error recovery | Data Link layer: receive error state machine updated in the cycle of the word (DL-RE-01, TC-DL-26) |
 | TC-CORE-03 (4 lanes) after the input stage of the column encoder: no retry at A. The 20 packets per VC were sent within about 200 cycles, while the bit errors are spread over 2740 cycles; with the one cycle of additional transmit latency the only bit errors of the A to B direction that had hit a data frame hit idle words, which with several lanes are lane slips with a realignment and no retry (Multi-Lane report) | Testbench: 200 packets per VC and end, so that the traffic lasts over most of the bit errors with every lane configuration |
+| TC-CORE-14 with the packet ports of the VCs: a DED in the first beat of a packet in the input VC buffer leaves a packet without data (the EEP that replaces the beat); the Network interface discards it as a packet of zero length, so it no longer arrives as a packet ended with EEP | The test counts the packets ended with EEP and the packets of zero length at A (NI_RX_EMPTY_COUNT); the second error (packets of one word) gives exactly one packet of zero length per VC |

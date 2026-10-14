@@ -101,7 +101,9 @@ architecture struct of ofb_vck190_top is
 
     -- Echo of the virtual channels and broadcast messages
     signal VcData  : std_logic_vector(32*Lanes_c*NumVc_g-1 downto 0);
-    signal VcUser  : std_logic_vector(4*Lanes_c*NumVc_g-1 downto 0);
+    signal VcKeep  : std_logic_vector(4*Lanes_c*NumVc_g-1 downto 0);
+    signal VcLast  : std_logic_vector(NumVc_g-1 downto 0);
+    signal VcUser  : std_logic_vector(NumVc_g-1 downto 0);
     signal VcValid : std_logic_vector(NumVc_g-1 downto 0);
     signal VcReady : std_logic_vector(NumVc_g-1 downto 0);
     signal BcData  : std_logic_vector(63 downto 0);
@@ -369,10 +371,14 @@ begin
             LaneClk                => LaneClk,
             MgmtClk                => MgmtClk,
             S_Vc_TData             => VcData,
+            S_Vc_TKeep             => VcKeep,
+            S_Vc_TLast             => VcLast,
             S_Vc_TUser             => VcUser,
             S_Vc_TValid            => VcValid,
             S_Vc_TReady            => VcReady,
             M_Vc_TData             => VcData,
+            M_Vc_TKeep             => VcKeep,
+            M_Vc_TLast             => VcLast,
             M_Vc_TUser             => VcUser,
             M_Vc_TValid            => VcValid,
             M_Vc_TReady            => VcReady,

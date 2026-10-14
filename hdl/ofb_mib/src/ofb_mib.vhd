@@ -132,6 +132,8 @@ entity ofb_mib is
         UserClk                : in    std_logic;
         UserRst                : in    std_logic;
         Ni_EvFrameErr          : in    std_logic_vector(NumVc_g-1 downto 0);
+        Ni_EvRxFrameErr        : in    std_logic_vector(NumVc_g-1 downto 0)         := (others => '0');
+        Ni_EvRxEmpty           : in    std_logic_vector(NumVc_g-1 downto 0)         := (others => '0');
         -- EDAC monitor (MG-3): SEC events in bits EccChannels_c-1:0, DED events above, in the
         -- domains of the read sides; injection commands (single, double) to the write sides
         Ecc_Core               : in    std_logic_vector(2*EccChannels_c-1 downto 0) := (others => '0');
@@ -200,10 +202,11 @@ architecture rtl of ofb_mib is
     signal CmdIfReset    : std_logic;
 
     -- Sticky flags and counters
-    signal DlErrors    : std_logic_vector(10 downto 0);
+    signal DlErrors    : std_logic_vector(11 downto 0);
     signal VcInOvf     : std_logic_vector(NumVc_g-1 downto 0);
     signal VcCrOvf     : std_logic_vector(NumVc_g-1 downto 0);
     signal VcFrErr     : std_logic_vector(NumVc_g-1 downto 0);
+    signal VcRxFrErr   : std_logic_vector(NumVc_g-1 downto 0);
     signal LaneEvents  : std_logic_vector(4*NumLanes_g-1 downto 0);
     signal Retries     : unsigned(31 downto 0);
     signal Crc16Cnt    : unsigned(15 downto 0);
@@ -268,7 +271,14 @@ architecture rtl of ofb_mib is
     signal QosSec     : std_logic;
     signal QosDed     : std_logic;
     signal QosValid   : std_logic;
-    signal UserEv     : std_logic_vector(NumVc_g-1 downto 0);
+    signal UserEvIn   : std_logic_vector(2*NumVc_g-1 downto 0);
+    signal UserEv     : std_logic_vector(2*NumVc_g-1 downto 0); -- Framing errors: transmit 0 to NumVc_g-1, receive above
+
+    -- Received packets of zero length: counter in the user clock domain, clear command from the register file
+    signal EmptyCnt    : unsigned(15 downto 0);
+    signal EmptyStat   : std_logic_vector(15 downto 0);
+    signal EmptyClr    : std_logic;
+    signal EmptyClrUsr : std_logic;
 
     -- Saturating increment, shared by all counters
     function satInc (cnt : unsigned) return unsigned is
@@ -331,6 +341,7 @@ begin
             CmdLinkReset <= '0';
             CmdIfReset   <= '0';
             PrbsCmd      <= (others => '0');
+            EmptyClr     <= '0';
             Addr_v       := to_integer(unsigned(RbAddr));
             Lane_v       := (Addr_v / RegLaneStride_c) - (RegLaneBase_c / RegLaneStride_c);
             Reg_v        := Addr_v mod RegLaneStride_c;
@@ -340,11 +351,13 @@ begin
             DlErrors(6 downto 4) <= DlErrors(6 downto 4) or CoreEv(7 downto 5);
             DlErrors(7)          <= DlErrors(7) or (or CoreEv(7 + NumVc_g downto 8));
             DlErrors(8)          <= DlErrors(8) or (or CoreEv(7 + 2 * NumVc_g downto 8 + NumVc_g));
-            DlErrors(9)          <= DlErrors(9) or (or UserEv);
+            DlErrors(9)          <= DlErrors(9) or (or UserEv(NumVc_g-1 downto 0));
             DlErrors(10)         <= DlErrors(10) or LaneEv(4*NumLanes_g+1);
+            DlErrors(11)         <= DlErrors(11) or (or UserEv(2*NumVc_g-1 downto NumVc_g));
             VcInOvf              <= VcInOvf or CoreEv(7 + NumVc_g downto 8);
             VcCrOvf              <= VcCrOvf or CoreEv(7 + 2 * NumVc_g downto 8 + NumVc_g);
-            VcFrErr              <= VcFrErr or UserEv;
+            VcFrErr              <= VcFrErr or UserEv(NumVc_g-1 downto 0);
+            VcRxFrErr            <= VcRxFrErr or UserEv(2*NumVc_g-1 downto NumVc_g);
             LaneEvents           <= LaneEvents or LaneEv(4*NumLanes_g-1 downto 0);
             -- Bandwidth flags once the status crossing has transferred a value after reset
             if StatSettle = 31 then
@@ -390,7 +403,7 @@ begin
                     when RegDlBcInterval_c =>
                         BcInterval <= RbWrData(15 downto 0);
                     when RegDlErrors_c =>
-                        DlErrors <= DlErrors and not RbWrData(10 downto 0);
+                        DlErrors <= DlErrors and not RbWrData(11 downto 0);
                     when RegDlRetries_c =>
                         Retries <= (others => '0');
                     when RegDlCrc16Count_c =>
@@ -407,6 +420,10 @@ begin
                         VcCrOvf <= VcCrOvf and not RbWrData(NumVc_g-1 downto 0);
                     when RegVcFramingError_c =>
                         VcFrErr <= VcFrErr and not RbWrData(NumVc_g-1 downto 0);
+                    when RegVcRxFramingError_c =>
+                        VcRxFrErr <= VcRxFrErr and not RbWrData(NumVc_g-1 downto 0);
+                    when RegNiRxEmptyCount_c =>
+                        EmptyClr <= '1';
                     when RegIrqMask_c =>
                         IrqMask <= RbWrData;
                     when RegVcBwOver_c =>
@@ -473,6 +490,8 @@ begin
                 VcInOvf     <= (others => '0');
                 VcCrOvf     <= (others => '0');
                 VcFrErr     <= (others => '0');
+                VcRxFrErr   <= (others => '0');
+                EmptyClr    <= '1';
                 VcBwOver    <= (others => '0');
                 VcBwUnder   <= (others => '0');
                 Retries     <= (others => '0');
@@ -524,6 +543,8 @@ begin
                 VcInOvf      <= (others => '0');
                 VcCrOvf      <= (others => '0');
                 VcFrErr      <= (others => '0');
+                VcRxFrErr    <= (others => '0');
+                EmptyClr     <= '0';
                 LaneEvents   <= (others => '0');
                 Retries      <= (others => '0');
                 Crc16Cnt     <= (others => '0');
@@ -576,7 +597,7 @@ begin
                     Data_v(6 downto 4) := CoreStat(6 downto 4);
                     Data_v(8)          := CoreStat(7);
                 when RegDlErrors_c =>
-                    Data_v(10 downto 0) := DlErrors;
+                    Data_v(11 downto 0) := DlErrors;
                 when RegDlRetries_c =>
                     Data_v := std_logic_vector(Retries);
                 when RegDlCrc16Count_c =>
@@ -595,6 +616,10 @@ begin
                     Data_v(NumVc_g-1 downto 0) := VcCrOvf;
                 when RegVcFramingError_c =>
                     Data_v(NumVc_g-1 downto 0) := VcFrErr;
+                when RegVcRxFramingError_c =>
+                    Data_v(NumVc_g-1 downto 0) := VcRxFrErr;
+                when RegNiRxEmptyCount_c =>
+                    Data_v(15 downto 0) := EmptyStat;
                 when RegMlStatus_c =>
                     Base_v                        := LaneStatW_c * NumLanes_g;
                     Data_v(NumLanes_g-1 downto 0) := LaneStat(Base_v + NumLanes_g - 1 downto Base_v);
@@ -670,7 +695,7 @@ begin
             RbRdData <= Data_v;
 
             -- Interrupt
-            Irq_v := or (DlErrors and IrqMask(10 downto 0));
+            Irq_v := or (DlErrors and IrqMask(11 downto 0));
             -- EDAC: uncorrectable error (bit 24), corrected error (bit 25)
             if (or EccDedStk) = '1' and IrqMask(24) = '1' then
                 Irq_v := '1';
@@ -955,17 +980,68 @@ begin
     -----------------------------------------------------------------------------------------------
     -- User clock domain
     -----------------------------------------------------------------------------------------------
+    UserEvIn <= Ni_EvRxFrameErr & Ni_EvFrameErr;
+
     i_user_ev : entity work.ofb_cc_pulse
         generic map (
-            NumPulses_g => NumVc_g
+            NumPulses_g => 2 * NumVc_g
         )
         port map (
             In_Clk    => UserClk,
             In_Rst    => UserRst,
-            In_Pulse  => Ni_EvFrameErr,
+            In_Pulse  => UserEvIn,
             Out_Clk   => Clk,
             Out_Rst   => Rst,
             Out_Pulse => UserEv
+        );
+
+    -- Received packets of zero length: counted in the user clock domain, so that events in consecutive cycles
+    -- and of several VCs in the same cycle are all counted
+    i_empty_clr : entity work.ofb_cc_pulse
+        port map (
+            In_Clk       => Clk,
+            In_Rst       => Rst,
+            In_Pulse(0)  => EmptyClr,
+            Out_Clk      => UserClk,
+            Out_Rst      => UserRst,
+            Out_Pulse(0) => EmptyClrUsr
+        );
+
+    p_empty : process (UserClk) is
+        variable Sum_v : unsigned(16 downto 0);
+    begin
+        if rising_edge(UserClk) then
+            Sum_v := resize(EmptyCnt, Sum_v'length);
+
+            for v in 0 to NumVc_g-1 loop
+                if Ni_EvRxEmpty(v) = '1' then
+                    Sum_v := Sum_v + 1;
+                end if;
+            end loop;
+
+            if Sum_v(16) = '1' then
+                EmptyCnt <= (others => '1');
+            else
+                EmptyCnt <= Sum_v(15 downto 0);
+            end if;
+            if EmptyClrUsr = '1' or UserRst = '1' then
+                EmptyCnt <= (others => '0');
+            end if;
+        end if;
+    end process;
+
+    i_empty_stat : entity olo.olo_base_cc_status
+        generic map (
+            Width_g   => 16,
+            SyncTmr_g => true
+        )
+        port map (
+            In_Clk    => UserClk,
+            In_RstIn  => UserRst,
+            In_Data   => std_logic_vector(EmptyCnt),
+            Out_Clk   => Clk,
+            Out_RstIn => Rst,
+            Out_Data  => EmptyStat
         );
 
     -----------------------------------------------------------------------------------------------

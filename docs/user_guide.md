@@ -34,7 +34,7 @@ The sources are VHDL-2008 and use no vendor primitives. `run.py` shows the compl
 | Generic | Default | Description |
 | --- | --- | --- |
 | `NumVc_g` | 8 | Number of virtual channels (1 to 32) |
-| `NumLanes_g` | 1 | Number of lanes (1 to 4); also the number of words per beat of the VC ports |
+| `NumLanes_g` | 1 | Number of lanes (1 to 4); the VC ports carry 4 x `NumLanes_g` bytes per beat |
 | `LaneClkFreq_g` | 156.25e6 | Frequency of `LaneClk` in Hz (lane timers, alignment timeout) |
 | `CoreClkFreq_g` | 200.0e6 | Frequency of `CoreClk` in Hz (scrubber of the error recovery buffer) |
 | `VcOutDepth_g` | 128 | Output VC buffer per VC, in beats |
@@ -63,35 +63,44 @@ asynchronously and releases it synchronously; all four clocks must run for the r
 
 ### 5.1 Virtual channels (`UserClk`)
 
-Per VC an AXI4-Stream slave (`S_Vc_*`, data to send) and master (`M_Vc_*`, received data); the vectors hold the VCs in
-ascending order. A beat carries `NumLanes_g` words, word 0 in the lowest bits. A word carries four characters,
-character 0 in bits 7:0; `TUSER` bit 4w+i is the K flag of character i of word w.
+Per VC an AXI4-Stream slave (`S_Vc_*`, packets to send) and master (`M_Vc_*`, received packets); the vectors hold the
+VCs in ascending order. A stream packet is one SpaceFibre packet (ECSS 5.3.9: destination address and cargo) of any
+length from one byte. The ports carry bytes only; the Network interface adds and removes the EOP, EEP and Fill
+characters of the Data Link layer (ECSS 5.3.7).
 
-| Character | K flag | Value |
+| Signal | Width per VC | Content |
 | --- | --- | --- |
-| Data | 0 | 0x00 to 0xFF |
-| EOP (end of packet) | 1 | 0xFD (K29.7) |
-| EEP (error end of packet) | 1 | 0xFE (K30.7) |
-| Fill | 1 | 0xFB (K27.7) |
+| `TDATA` | 32 x `NumLanes_g` | 4 x `NumLanes_g` bytes per beat: byte 0 of the beat in bits 7:0, byte 1 in bits 15:8, and so on; the first byte of a packet is byte 0 of its first beat and is sent first |
+| `TKEEP` | 4 x `NumLanes_g` | Valid bytes: all set except in the last beat of a packet, where the valid bytes are contiguous from byte 0 (at least one) |
+| `TLAST` | 1 | Last beat of the packet |
+| `TUSER` | 1 | With `TLAST`: '1' ends the packet with an EEP instead of an EOP (send), the packet ended with an EEP (receive, "Terminated by EEP" of READ_PACKET.indication, ECSS 6.2.2) |
 
-Transmit rules (checked by the Network interface, ECSS 5.3.7):
+This is the format of the link ports of OpenSPP: `spp_core` with `DataWidth_g` = 32 x `NumLanes_g` connects to a VC
+port directly (its `M_Link_User(0)` to `S_Vc_TUser`).
 
-- A packet is a sequence of data characters ended by an EOP or EEP. A word may contain at most one end marker; the
-  characters after it in the word are Fills.
-- Fills may also precede the first data character of a word. Words of four Fills inside a beat are sent (they keep
-  the alignment of the words of a beat); beats of Fill words only are dropped.
-- A framing error (second end marker in a word, data after an end marker, a K-code other than EOP, EEP or Fill)
-  ends the packet with an EEP, discards the rest of the packet up to the user's next end marker and sets the framing
-  error flag of the VC in the MIB.
+Send: the bytes of a packet become data characters in their order, followed by the EOP (or EEP) and Fills up to the end
+of the row; when the last beat is full, the end marker follows in an additional row (one more cycle). A beat with an
+invalid `TKEEP` (no byte, a gap, or not all bytes without `TLAST`) is a framing error: the packet is ended with an EEP
+when bytes of it were sent before, otherwise nothing of it is sent (no packet of zero length, ECSS 5.3.9h); the rest of
+the packet up to `TLAST` is discarded, and the framing error flag of the VC is set in the MIB (VC_FRAMING_ERROR,
+DL_ERRORS bit 9).
 
-Receive format: the received characters in the same format. A beat ends at the end of a packet: the words after the
-word with the EOP or EEP are Fill words. The user ignores Fill characters. After a link reset, a packet that was being
-received is ended with an EEP (ECSS 5.7.10).
+Receive: the Fills are removed and every packet is delivered from byte 0 of the first beat, also when the far end
+started it after Fills at any character of a word (ECSS 5.3.7.2c, for example after a routing switch deleted path
+address characters). A packet without data (an EOP or EEP right after the end of the previous packet) is discarded
+and counted (NI_RX_EMPTY_COUNT). A received beat that breaks the character rules of ECSS 5.3.7 (a Fill or another
+K-code inside a packet, data or a second end marker after an EOP or EEP in the same word) sets the receive framing
+error flag (VC_RX_FRAMING_ERROR, DL_ERRORS bit 11): the packet is ended with an EEP after the bytes of its earlier beats
+and the characters up to the next end marker are discarded. After a link reset, a packet that was being received is
+ended with an EEP (ECSS 5.7.10).
 
 Back-pressure: `S_Vc_TReady` is low when the output VC buffer is full; the Data Link layer sends data only when the far
 end has announced buffer space (flow control credit). With the continuous mode of a VC (VC_CFG bit 8) the output
-buffer accepts data also without credit: when the buffer is full, the current packet is ended with an EEP and the rest
-of the packet is discarded. `M_Vc_TReady` may be low at any time; the far end is stopped through flow control.
+buffer accepts data also without credit: when the buffer is full or no lane is active, the buffer is flushed and the
+rest of the packet being written is discarded; a packet of which bytes were already sent is ended with an EEP (no
+packet of zero length is sent). `M_Vc_TReady` may be low at any time; the far end is stopped through flow control. Both
+directions carry one beat per cycle inside a packet; a packet costs at most one additional cycle (end marker row after
+a full last beat, last beat of a received packet whose bytes need one more beat).
 
 ### 5.2 Broadcast messages (`UserClk`)
 
@@ -137,11 +146,12 @@ is high while a sticky flag enabled in IRQ_MASK is set.
 The adapter aligns the receive symbols to 10-bit symbol boundaries, decodes them, and passes them in `LaneClk`
 (receive clock correction with the SKIP words that the Lane layer sends, ECSS 5.5.3). The transmit side takes one word
 per `LaneClk` cycle without gaps. For the AMD Versal GTY, `ofb_pa_gty` connects these ports one to one; its
-`LaneClk` output is the lane clock of the core (see `hdl/ofb_vck190/src/ofb_vck190_top.vhd`).
+`LaneClk` output is the lane clock of the core (see `hdl/ofb_vck190/src/ofb_vck190_top.vhd`). The generic
+`NumLanes_g` of `ofb_pa_gty` defaults to 4 (one GTY quad) and that of `ofb_core` to 1: set both to the same value.
 
 ## 6. Programming sequence
 
-1. Release `Rst`. Read ID (0x0FB10006) and GENERICS.
+1. Release `Rst`. Read ID (0x0FB10007) and GENERICS.
 2. Optional configuration before the link start:
    - DL_CTRL bit 8 DataScrambled (set after reset), DL_BC_INTERVAL.
    - Per VC: VC_CFG (priority, continuous mode, virtual network number), VC_BANDWIDTH, VC_SLOTS_LO / HI.
@@ -156,7 +166,9 @@ per `LaneClk` cycle without gaps. For the AMD Versal GTY, `ofb_pa_gty` connects 
    several lanes, DL_STATUS bits 1:0 = 3 (link initialised). VC_HAS_CREDIT shows the VCs that may send.
 5. Operation: DL_ERRORS, LANE_EVENTS and ECC_STATUS hold sticky flags (interrupt sources); the counters count retries,
    CRC, frame and sequence errors, lane timeouts and Misaligned conditions. DL_ERRORS bit 10 reports receive rows
-   lost because CoreClk is slower than LaneClk (a clocking error).
+   lost because CoreClk is slower than LaneClk (a clocking error). DL_ERRORS bits 9 and 11 report framing errors of
+   the VC ports (section 5.1) with the VC in VC_FRAMING_ERROR and VC_RX_FRAMING_ERROR; NI_RX_EMPTY_COUNT counts the
+   received packets of zero length.
 6. Link Reset: DL_CTRL bit 0 resets both ends of the link (the far end sees a Far-End Link Reset); the link
    initialises again without software action. The maximum number of data-sending lanes is taken over at a link reset.
    The command clears the status flags and counters of the Data Link, Multi-Lane and Lane layers (ECSS 5.9.4e), not
@@ -189,14 +201,15 @@ into the buffers of a channel (test of the EDAC paths). Single errors are correc
 error (DED) in a row crossing (channels 6 and 7) becomes a link error that the error recovery repairs: the frame is
 sent again. A DED in the output VC buffers, the error recovery buffer, the frame buffer or the broadcast output
 buffer resets the link (packets in progress end with EEP at the far end), a DED in an input VC buffer ends the
-packet with EEP, a DED in the broadcast input buffer discards the message. No corrupted word reaches a user; only a
+packet with EEP (a packet whose first beat holds the error has no bytes left and is discarded as a packet of zero
+length), a DED in the broadcast input buffer discards the message. No corrupted word reaches a user; only a
 DED in the control crossings (channel 8) is reported without further action.
 
 ## 7. Performance
 
 Measured in simulation (TC-CORE-16, 6.25 Gbit/s lanes, payload capacity 5 Gbit/s per lane, packets of 1 to 1024
 bytes on all VCs): from one end only 94 % of the lane capacity (4.7, 9.4 and 18.7 Gbit/s with 1, 2 and 4 lanes),
-with traffic in both directions 90 % per direction. The latency of a short packet on an idle link is about 0.35 us
+with traffic in both directions 90 % per direction. The latency of a short packet on an idle link is about 0.4 us
 without the serialisation delay of the transceivers; the receiver forwards a data frame after its EDF (store and
 forward), so the latency grows with the frame length (up to 64 words per lane).
 

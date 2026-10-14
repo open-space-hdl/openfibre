@@ -6,8 +6,9 @@
 ---------------------------------------------------------------------------------------------------
 -- Description
 ---------------------------------------------------------------------------------------------------
--- Network interface of an OpenFibre node: AXI4-Stream ports of the virtual channels (NI-1) with the
--- framing check of the transmitted words, and of the broadcast messages (NI-3).
+-- Network interface of an OpenFibre node: AXI4-Stream packet ports of the virtual channels with the
+-- conversion to and from N-Chars and Fills (NI-1), and the ports of the broadcast messages (NI-3) and
+-- of the schedule (NI-4).
 --
 -- Documentation: hdl/ofb_ni/docs/architecture.md
 
@@ -26,20 +27,24 @@ library work;
 entity ofb_ni is
     generic (
         NumVc_g    : positive range 1 to 32 := 8;
-        NumLanes_g : positive range 1 to 4  := 1 -- Words per beat of the VC ports
+        NumLanes_g : positive range 1 to 4  := 1 -- 4 x NumLanes_g bytes per beat of the VC ports
     );
     port (
         -- Control Ports (user clock)
         Clk           : in    std_logic;
         Rst           : in    std_logic;
-        -- User: words to send per VC (TUSER: K flag per character)
+        -- User: packets to send per VC (TUSER: end the packet with an EEP)
         S_Vc_TData    : in    std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
-        S_Vc_TUser    : in    std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
+        S_Vc_TKeep    : in    std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
+        S_Vc_TLast    : in    std_logic_vector(NumVc_g-1 downto 0);
+        S_Vc_TUser    : in    std_logic_vector(NumVc_g-1 downto 0);
         S_Vc_TValid   : in    std_logic_vector(NumVc_g-1 downto 0);
         S_Vc_TReady   : out   std_logic_vector(NumVc_g-1 downto 0);
-        -- User: received words per VC
+        -- User: received packets per VC (TUSER: the packet ended with an EEP)
         M_Vc_TData    : out   std_logic_vector(32*NumLanes_g*NumVc_g-1 downto 0);
-        M_Vc_TUser    : out   std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
+        M_Vc_TKeep    : out   std_logic_vector(4*NumLanes_g*NumVc_g-1 downto 0);
+        M_Vc_TLast    : out   std_logic_vector(NumVc_g-1 downto 0);
+        M_Vc_TUser    : out   std_logic_vector(NumVc_g-1 downto 0);
         M_Vc_TValid   : out   std_logic_vector(NumVc_g-1 downto 0);
         M_Vc_TReady   : in    std_logic_vector(NumVc_g-1 downto 0);
         -- User: broadcast messages to send (TUSER: channel 7:0, B_TYPE 15:8, DELAYED 16)
@@ -79,8 +84,10 @@ entity ofb_ni is
         RxBc_Ready    : out   std_logic;
         TxSched_Slot  : out   std_logic_vector(5 downto 0);
         TxSched_Valid : out   std_logic;
-        -- Status
-        Ev_FrameErr   : out   std_logic_vector(NumVc_g-1 downto 0)
+        -- Status: one-cycle events per VC
+        Ev_FrameErr   : out   std_logic_vector(NumVc_g-1 downto 0); -- Invalid TKEEP of a packet to send
+        Ev_RxFrameErr : out   std_logic_vector(NumVc_g-1 downto 0); -- Character rule violation in a received packet
+        Ev_RxEmpty    : out   std_logic_vector(NumVc_g-1 downto 0)  -- Received packet of zero length discarded
     );
 end entity;
 
@@ -89,35 +96,57 @@ end entity;
 ---------------------------------------------------------------------------------------------------
 architecture rtl of ofb_ni is
 
+    -- Data and K flag (TKEEP) bits of the beat of one VC
+    constant Dw_c : positive := 32 * NumLanes_g;
+    constant Kw_c : positive := 4 * NumLanes_g;
+
 begin
 
     -- VC ports (NI-1)
     g_vc : for i in 0 to NumVc_g-1 generate
 
-        i_vc : entity work.ofb_ni_vc
+        i_tx : entity work.ofb_ni_vc_tx
             generic map (
                 NumLanes_g => NumLanes_g
             )
             port map (
                 Clk         => Clk,
                 Rst         => Rst,
-                In_Data     => S_Vc_TData(32*NumLanes_g*(i+1)-1 downto 32*NumLanes_g*i),
-                In_K        => S_Vc_TUser(4*NumLanes_g*(i+1)-1 downto 4*NumLanes_g*i),
+                In_Data     => S_Vc_TData(Dw_c*(i+1)-1 downto Dw_c*i),
+                In_Keep     => S_Vc_TKeep(Kw_c*(i+1)-1 downto Kw_c*i),
+                In_Last     => S_Vc_TLast(i),
+                In_User     => S_Vc_TUser(i),
                 In_Valid    => S_Vc_TValid(i),
                 In_Ready    => S_Vc_TReady(i),
-                Out_Data    => TxVc_Data(32*NumLanes_g*(i+1)-1 downto 32*NumLanes_g*i),
-                Out_K       => TxVc_K(4*NumLanes_g*(i+1)-1 downto 4*NumLanes_g*i),
+                Out_Data    => TxVc_Data(Dw_c*(i+1)-1 downto Dw_c*i),
+                Out_K       => TxVc_K(Kw_c*(i+1)-1 downto Kw_c*i),
                 Out_Valid   => TxVc_Valid(i),
                 Out_Ready   => TxVc_Ready(i),
                 Ev_FrameErr => Ev_FrameErr(i)
             );
 
-    end generate;
+        i_rx : entity work.ofb_ni_vc_rx
+            generic map (
+                NumLanes_g => NumLanes_g
+            )
+            port map (
+                Clk         => Clk,
+                Rst         => Rst,
+                In_Data     => RxVc_Data(Dw_c*(i+1)-1 downto Dw_c*i),
+                In_K        => RxVc_K(Kw_c*(i+1)-1 downto Kw_c*i),
+                In_Valid    => RxVc_Valid(i),
+                In_Ready    => RxVc_Ready(i),
+                Out_Data    => M_Vc_TData(Dw_c*(i+1)-1 downto Dw_c*i),
+                Out_Keep    => M_Vc_TKeep(Kw_c*(i+1)-1 downto Kw_c*i),
+                Out_Last    => M_Vc_TLast(i),
+                Out_User    => M_Vc_TUser(i),
+                Out_Valid   => M_Vc_TValid(i),
+                Out_Ready   => M_Vc_TReady(i),
+                Ev_FrameErr => Ev_RxFrameErr(i),
+                Ev_Empty    => Ev_RxEmpty(i)
+            );
 
-    M_Vc_TData  <= RxVc_Data;
-    M_Vc_TUser  <= RxVc_K;
-    M_Vc_TValid <= RxVc_Valid;
-    RxVc_Ready  <= M_Vc_TReady;
+    end generate;
 
     -- Broadcast port (NI-3)
     TxBc_Data    <= S_Bc_TData;
