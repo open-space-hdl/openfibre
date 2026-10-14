@@ -56,8 +56,8 @@ per lane.
   5.7.7.2.1 to 5.7.7.2.4 means all requirements of those clauses.
 - Coding conventions: those of Open Logic (naming, two-process style, synchronous high-active resets, VSG rules), entity
   prefix `ofb_`, VHDL library `openfibre`; see [conventions.md](conventions.md).
-- "FT" (fault-tolerant) means the Open Logic `olo_ft_*` entities: SECDED ECC on every RAM, TMR on every clock domain
-  crossing.
+- "FT" (fault-tolerant) means the protection the core takes from Open Logic: SECDED ECC on every RAM (`olo_ft_*`
+  entities) and triplicated synchronisers on every clock domain crossing (`SyncTmr_g` = true).
 
 | Term | Meaning |
 | --- | --- |
@@ -152,7 +152,7 @@ Ten principles govern every block of the core; each implements a goal of section
 | P2 | Streams everywhere | Every data path between blocks is a valid / ready stream with `Last` = end of frame and a sideband for K flags and metadata (Open Logic AXI4-Stream conventions). No read-enable with implied latency, no threshold handshakes. |
 | P3 | Few clock domains, proven crossings | Three internal domains per port (lane clock per lane, core clock, management clock) plus the user clock. Every crossing is built from Open Logic entities with triplicated synchronisers (`SyncTmr_g` = true): `olo_ft_fifo_async` for data, `olo_base_cc_bits` for levels, `ofb_cc_pulse` (handshake over `olo_base_cc_bits`) for events, `olo_base_cc_reset` for resets. |
 | P4 | Explicit state semantics | An ECSS "received" condition is a one-cycle event from the block that decodes it. Every state register has a specified reset value. Resets follow the Open Logic convention: synchronous and high-active inside every block; `olo_base_reset_gen` brings the power-on reset into each clock domain. Link reset and lane reset are synchronous commands. |
-| P5 | Fault tolerance by construction | All RAMs are `olo_ft_ram_*` (SECDED ECC), long-lived buffers use the scrubbing variants, the synchronisers of all crossings are triplicated. State machines use safe encoding with a defined recovery state. ECC events are counted in the MIB. |
+| P5 | Fault tolerance by construction | All RAMs are `olo_ft_ram_*` (SECDED ECC), long-lived buffers use the scrubbing variants, the synchronisers of all crossings are triplicated. State machines use safe encoding with a defined recovery state. ECC events are counted in the MIB. The regular logic relies on the TMR of the synthesis tool ([user guide, section 8](user_guide.md#8-protection-scope)). |
 | P6 | Scalable by generics, optional by bypass | Lanes 1 to 4, VCs 1 to 32, broadcast channels, QoS mechanisms and scrambling are generics. A feature that is disabled is removed at elaboration or bypassed, never left half connected. One Lane layer serves all transceivers through a generic datapath width. |
 | P7 | One management interface | All configuration and status parameters of ECSS 5.9 live in one register file behind one AXI4-Lite port, generated from a single register description (VHDL package, documentation, C header, test model). |
 | P8 | Verifiable in isolation | Each block has a transaction-level specification and a unit test bench that drives only its ports. Layer benches connect real blocks with reference models; tests never reach into the hierarchy. |
@@ -185,7 +185,7 @@ domains, and the MIB reaches every layer.
 | D6 | One Lane layer with 1 or 2 words per lane clock cycle | One implementation for transceivers with 32-bit and 64-bit interfaces |
 | D7 | Precedence of control words and frames (ECSS 5.3.10c) is decided in two places only: the Data Link transmit scheduler (RETRY to idle frame) and the Lane layer (SKIP, LOST_SIGNAL, STANDBY) with the Multi-Lane layer (ALIGN, ACTIVE) | Each insertion point owns a contiguous part of the precedence list |
 | D8 | The user width of a VC port is NumLanes_g x 32 bit (4, 8 or 16 bytes per beat) and `MaxDataLanes_g` equals NumLanes_g; rows of fewer data-sending lanes are packed in DT-1 and DR-6 | A 32-bit port would limit one VC to the bandwidth of one lane |
-| D9 | The protocol state machines use safe encoding with a defined recovery state, without TMR; the `olo_ft_*` crossings keep their TMR synchronisers | TMR stays where Open Logic provides it (P5); a state machine recovers from an upset through its recovery state and the protocol (link reset, error recovery) |
+| D9 | The protocol state machines use safe encoding with a defined recovery state; the core triplicates only its clock domain crossings (Open Logic synchronisers, `ofb_cc_pulse`) | The core triplicates only the crossings, as Open Logic does (P5); the synthesis tool triplicates the regular logic including the state machines ([user guide, section 8](user_guide.md#8-protection-scope)), and a state machine also recovers from an upset through its recovery state and the protocol (link reset, error recovery) |
 | D10 | SCHEDULE.request (ECSS 6.3.4) comes from the NI-4 user port; a generic adds the time-slot start by a received broadcast message of a configurable type (off by default) | The source of the time-slot start depends on the network |
 | D11 | The VC ports carry packets of bytes with `TKEEP`, `TLAST` and an EEP flag (Packet Transfer service, ECSS 6.2.2); NI-1 converts them to and from the N-Chars and Fills of the Virtual Channel service (6.3.2): end markers and Fills on transmission, Fill removal and alignment of the first byte to byte 0 on reception | The user of a node sends and reads packets; EOP, EEP and Fill are characters of the link. The packet format is the link format of OpenSPP, so the cores connect without an adapter |
 
