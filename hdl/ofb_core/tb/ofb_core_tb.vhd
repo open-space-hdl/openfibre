@@ -1047,6 +1047,44 @@ begin
 
                 check_value(CoreBcLost(0) > 0, error, "Message with a DED in the broadcast input buffer discarded");
 
+            -- TC-CORE-19: complete restart of one end while the other end is in Link Initialised (ECSS 5.7.9,
+            -- Near-End Reset a.3): power-on reset of B, Interface Reset of B, power-on reset of A. The lanes of
+            -- both ends initialise from ClearLine, the end in Link Initialised detects the far-end reset
+            -- (Far-End Link Reset) and resets too, the link comes up and the traffic continues
+            elsif run("test_far_end_restart") then
+                linkUp(500 us);
+                sendAll(3);
+                waitDelivered(2 ms);
+                log(ID_LOG_HDR, "Power-on reset of B");
+                CoreRstReq(1) <= '1';
+                cycles(100);
+                CoreRstReq(1) <= '0';
+                cycles(100);
+                linkUp(500 us);
+                rd(0, RegDlErrors_c, Data_v);
+                check_value(Data_v(5), '1', error, "Far-End Link Reset at A after the power-on reset of B");
+                wr(0, RegDlErrors_c, x"00000020");
+                sendAll(3);
+                waitDelivered(2 ms);
+                log(ID_LOG_HDR, "Interface Reset of B");
+                wr(1, RegDlCtrl_c, x"00000102");
+                cycles(100);
+                linkUp(500 us);
+                rd(0, RegDlErrors_c, Data_v);
+                check_value(Data_v(5), '1', error, "Far-End Link Reset at A after the Interface Reset of B");
+                sendAll(3);
+                waitDelivered(2 ms);
+                log(ID_LOG_HDR, "Power-on reset of A");
+                CoreRstReq(0) <= '1';
+                cycles(100);
+                CoreRstReq(0) <= '0';
+                cycles(100);
+                linkUp(500 us);
+                rd(1, RegDlErrors_c, Data_v);
+                check_value(Data_v(5), '1', error, "Far-End Link Reset at B after the power-on reset of A");
+                sendAll(3);
+                waitDelivered(2 ms);
+
             end if;
 
         end loop;

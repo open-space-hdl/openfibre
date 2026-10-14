@@ -36,6 +36,7 @@ The core supports 1 to 4 lanes (`NumLanes_g`). The VC ports carry packets of 4 x
 | CORE-PL-02 | The bit synchronisation status of the Physical adapter per lane (`Phy_BitSync`, LaneClk, not synchronised when left open) shall be passed to the MIB. | 5.4.2e |
 | CORE-PL-03 | The PRBS test of the MIB (MG-5) shall connect to the Physical adapters per lane (LaneClk): transmitted and checked pattern (`Phy_PrbsTxSel`, `Phy_PrbsRxSel`), force error and checker reset pulses (`Phy_PrbsForceErr`, `Phy_PrbsCntReset`), checker error and lock (`Phy_PrbsErr`, `Phy_PrbsLocked`, not locked and without errors when left open). | none (test function) |
 | CORE-PF-01 | With packets of up to 1024 bytes on all VCs, two cores shall transfer at least 90 % of the payload capacity of the lanes (32 bits per LaneClk cycle and lane) in one direction and at least 85 % in each direction when both ends send. | none (performance) |
+| CORE-SY-03 | When one end restarts completely (power-on reset or Interface Reset) while the other end is in Link Initialised, the other end shall detect the far-end reset and reset its link, and the link shall initialise again. | 5.7.9 |
 | CORE-SY-02 | Two cores with 2 or 4 lanes shall transfer packets without loss also when a lane fails and is reconnected during traffic, with fewer data-sending lanes than lanes, and in the Multi-Lane bypass. | 5.6, 5.7.7 (system level) |
 
 ## 3. Configuration parameters

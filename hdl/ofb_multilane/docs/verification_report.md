@@ -38,6 +38,7 @@ Defects found during verification:
 
 | Finding | Fix |
 | --- | --- |
+| TC-CORE-19 (core): the far-end capability event of a lane that entered Active in the same cycle was reported with "a lane was Active", so the far-end reset of a restarted end was not detected and the link stayed down for good | The lane states of the cycle before the event decide (ML-LM-14); TC-ML-48 forces the event and the transition to Active into the same cycle and fails with the old evaluation (mutation check) |
 | TC-ML-24: the one-cycle link reset pulse of the sequencer did not cover a rising clock edge (testbench timing) | Sequencer aligned to the falling edge before the pulse |
 | Found during the design of the link reset state machine: a capability change in the middle of Connected can make the far end miss the INIT3LinkResetFlag | Capability held while the lane is in Connected (TC-ML-25, mutation checked) |
 | TC-ML-35: a receive-only lane enters Active from Connected without INIT3 (ECSS 5.5.2.10e.3), so its unscramble enable stayed at the reset value and the data of that lane were not unscrambled | Unscramble enable of a lane without its own capability taken from the last capability of any lane (ML-LM-15 extended) |

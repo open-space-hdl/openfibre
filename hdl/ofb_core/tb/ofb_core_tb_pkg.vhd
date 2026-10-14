@@ -82,6 +82,9 @@ package ofb_core_tb_pkg is
 
     signal CoreBcLost : CoreCount_t := (others => 0);
 
+    -- Power-on reset of one core (in addition to the reset of the harness)
+    signal CoreRstReq : std_logic_vector(0 to 1) := "00";
+
     -- Raw beats for VC 0 of core A in queue 0 (sent before the generated packets of VC 0): bytes 127:0
     -- (byte 0 in bits 7:0), TKEEP 143:128, TLAST 144, TUSER 145
     subtype RawBeat_t is BeatEntry_t;

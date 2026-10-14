@@ -215,9 +215,10 @@ is an overflow (`Ev_Overflow` per VC).
 
 Reset enters ConfigReset. Link errors are the protocol error of DT-7, the overflows of DR-5 and DR-6 and the
 uncorrectable errors of DL-ED-01. The condition
-"all lanes not active" is evaluated by the Multi-Lane layer at the capability event and passed with it
-(`Ml_FarCapabilityIdle`): the lane becomes active a few cycles after the event, and a lane active level that crosses
-to the core clock separately can arrive before the event (found with the core testbench).
+"all lanes not active" is evaluated by the Multi-Lane layer with the lane states before the capability event and
+passed with it (`Ml_FarCapabilityIdle`): the lane that delivers the capability can enter Active in the same cycle, and
+a lane active level that crosses to the core clock separately can arrive before the event (found with the core
+testbench).
 
 Received rows reach `ofb_dl_rx_check` only in Link Initialised (DL-LR-05).
 

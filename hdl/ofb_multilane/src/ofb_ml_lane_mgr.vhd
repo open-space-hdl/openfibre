@@ -250,7 +250,10 @@ begin
             end if;
         end loop;
 
-        if Active_v = (Active_v'range => '0') then
+        -- Far-end reset of ECSS 5.7.9 (Near-End Reset a.3): no lane Active when the capability is received.
+        -- The capability belongs to the Connected state: a lane that enters Active in the cycle of its
+        -- capability event counts as not Active, so the lane states of the previous cycle are used (ML-LM-14)
+        if r.Act = (r.Act'range => '0') then
             v.CapIdle := '1';
         else
             v.CapIdle := '0';

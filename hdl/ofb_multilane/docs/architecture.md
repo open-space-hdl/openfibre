@@ -108,7 +108,7 @@ All outputs are registered unless noted. `Active(i)` is the decoded lane state o
 | `RxLanes` | Active and RxEn (zero in bypass) |
 | `NumTxLanes`, `NumRxLanes` | Number of set bits of T and of `RxLanes` (4 bits) |
 | `ActLanes` | Active, for the ACT field and the alignment state machine |
-| `Dl_FarCapability*` | Event of the lowest lane with a capability event in this cycle (in bypass lane 0 only), registered; `Dl_FarCapabilityIdle` = no lane was Active in the cycle of the event |
+| `Dl_FarCapability*` | Event of the lowest lane with a capability event in this cycle (in bypass lane 0 only), registered; `Dl_FarCapabilityIdle` = no lane was Active in the cycle before the event (a lane can enter Active in the cycle of its own capability event, ML-LM-14) |
 | `Dl_LaneActive` | At least one lane is Active |
 
 ### 2.6 ofb_ml_tx (ML-2)

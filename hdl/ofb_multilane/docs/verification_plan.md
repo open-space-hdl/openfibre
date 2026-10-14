@@ -4,7 +4,8 @@
 
 The Multi-Lane layer is verified on two levels: unit testbenches of the column codec (encoder and decoder), which
 checks the ECSS examples bit-exactly and random frames against a reference model, and of the receive side of the
-multi-lane case (lane alignment and row concentrator), which drives words per lane directly; and layer testbenches in
+multi-lane case (lane alignment and row concentrator), which drives words per lane directly, and of the lane manager,
+which drives lane states and capability events directly; and layer testbenches in
 which two Multi-Lane layers exchange rows through Lane layers and the behavioural Physical adapter model, with one
 lane (bypass) and with 2 and 4 lanes. All checks observe ports only.
 
@@ -18,6 +19,7 @@ The reference model (`ofb_ml_tb_pkg`) computes the CRC-16 and the scrambling seq
 | `ofb_ml_codec_tb` | `ofb_ml_codec_th` | `ofb_ml_col_enc` and `ofb_ml_col_dec`; AXI-Stream VVCs for the encoder input and the decoder input; random back-pressure at the encoder output; the decoder input is switched between its VVC and the encoder output (loopback); logs of both outputs |
 | `ofb_multilane_tb` | `ofb_multilane_th` | Two `ofb_multilane` (A, B, one lane) with two `ofb_lane` and `ofb_tb_pa_model`; AXI-Stream VVCs for the transmit rows; logs of the received rows; Data Link control and status through package signals |
 | `ofb_ml_link_tb` | `ofb_ml_link_th` | Two `ofb_multilane` (A, B) with `NumLanes_g` = 2 and 4 (VUnit configurations), one `ofb_lane` per lane (`SkipExternal_g`), one `ofb_tb_pa_model` per lane with skew, cut and bit errors; row drivers fed from a row queue per end; monitors that parse the received rows into frames and control words and compare them with the expected streams; a monitor of the words sent on every lane (ACTIVE, ALIGN, PAD, IDLE, SKIP, PRBS) |
+| `ofb_ml_lane_mgr_tb` | none (test sequencer drives the DUT) | `ofb_ml_lane_mgr` (`NumLanes_g = 2`); lane states and far-end capability events from the sequencer; the capability event and its idle flag at the Data Link side checked |
 | `ofb_ml_align_tb` | none (test sequencer drives the DUT) | `ofb_ml_align` and `ofb_ml_rx` (`NumLanes_g = 4`); words per lane from the sequencer; log of the rows passed and of the alignment state |
 
 Lane clock 156.25 MHz. Simulator: GHDL.
@@ -72,6 +74,7 @@ Lane clock 156.25 MHz. Simulator: GHDL.
 | `test_align_states` (TC-ML-42) | Not Ready to Near-End Ready only when the far-end active lanes equal the near-end active lanes; Near-End Ready to Both-Ends Ready on a data word; Both-Ends Ready to Near-End Ready on ACTIVE; RXERR within and after 4 us; invalid ALIGN; ALIGN of a hot redundant lane removes the lane from the data-receiving lanes; an incorrect ALIGN on an active lane that is not data-receiving is ignored; valid ACTIVE needs two equal words | ML-AL-02 to 04, ML-AL-08 to 10 |
 | `test_slip_reverse` (TC-ML-44) | Lane slip at B while both ends send: Misaligned condition at B; every word that B sends is received at A in order, without RXERR, mismatch or CRC error at A; traffic afterwards correct | ML-DS-12 |
 | `test_enc_poison` (TC-ML-45) | Encoder: frame of Figure 5-44 with poisoned words (CRC inverted), poisoned word between two frames (CRC of the next frame inverted), clean frame (CRC as in the standard) | ML-ENC-08 |
+| `test_far_reset_idle` (TC-ML-48, `ofb_ml_lane_mgr_tb`) | Lane manager with two lanes, lane states and capability events from the sequencer: event in Connected with no lane Active, event in the cycle in which the lane enters Active (counts as not Active), event of a lane entering Active while another lane is Active (counts as Active) | ML-LM-14 |
 | `test_poison` (TC-ML-46) | Rows of one data frame poisoned at A: exactly one EDF with CRC error at B; traffic afterwards correct | ML-DS-13, ML-ENC-08 |
 | `test_packing` (TC-ML-43) | Data words packed into rows of N words, incomplete row before EDF, RETRY, SIF and RXERR; FCT and broadcast words pass waiting data words; one word of replicated broadcast and idle rows | ML-CO-05, ML-CO-06 |
 | `test_packing_errors` (TC-ML-47) | Frame structure errors at the receiver: SIF inside a data frame passes the waiting words and starts an idle frame; second SBF without EBF; SDF after a broadcast frame packs again; SIF inside a broadcast frame inside and outside a data frame | ML-CO-05, ML-CO-06 |
