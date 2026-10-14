@@ -1,9 +1,10 @@
 # OpenFibre: User Guide
 
 This guide describes how to integrate the OpenFibre core `ofb_core` into an FPGA design: sources, generics, clocks,
-interfaces, programming sequence and synthesis settings. The design itself is described in the
-[architecture](architecture.md) and in the documentation of every module (`hdl/<module>/docs/`); the register map is in
-[register_map.md](../hdl/ofb_mib/docs/register_map.md), with the C header `sw/ofb_regs.h` for the software.
+interfaces, programming sequence, performance, synthesis settings and the conformance to the standard. The design
+itself is described in the [architecture](architecture.md) and in the documentation of every module
+(`hdl/<module>/docs/`); the register map is in [register_map.md](../hdl/ofb_mib/docs/register_map.md), with the C
+header `sw/ofb_regs.h` for the software.
 
 ## 1. Scope
 
@@ -207,11 +208,22 @@ DED in the control crossings (channel 8) is reported without further action.
 
 ## 7. Performance
 
-Measured in simulation (TC-CORE-16, 6.25 Gbit/s lanes, payload capacity 5 Gbit/s per lane, packets of 1 to 1024
-bytes on all VCs): from one end only 94 % of the lane capacity (4.7, 9.4 and 18.7 Gbit/s with 1, 2 and 4 lanes),
-with traffic in both directions 90 % per direction. The latency of a short packet on an idle link is about 0.4 us
-without the serialisation delay of the transceivers; the receiver forwards a data frame after its EDF (store and
-forward), so the latency grows with the frame length (up to 64 words per lane).
+C is the payload capacity of the lanes per direction: 32 bits per `LaneClk` cycle and lane, with `LaneClk` = R / 40
+for the data signalling rate R (8B/10B), so C = 0.8 x R x `NumLanes_g`, 5 Gbit/s per lane at 6.25 Gbit/s. The
+measurements are simulations of two cores with the behavioural Physical adapter, `LaneClk` 156.25 MHz, `CoreClk`
+166.7 MHz and `UserClk` 192.3 MHz, packets of 1 to 1024 bytes at random on four VCs; the throughput counts the words of
+the received packets including the word with the end marker.
+
+| Property | Value | Measured in |
+| --- | --- | --- |
+| Throughput, one direction | 94.6 %, 94.2 % and 93.7 % of C with 1, 2 and 4 lanes (4.73, 9.42 and 18.73 Gbit/s at 6.25 Gbit/s) | TC-CORE-16 |
+| Throughput, both directions | At least 90.5 %, 90.5 % and 89.7 % of C per direction with 1, 2 and 4 lanes (4.53, 9.05 and 17.94 Gbit/s at 6.25 Gbit/s) | TC-CORE-16 |
+| Link overhead | SDF and EDF per data frame (at most 64 words per lane), end marker and Fill characters, a SKIP word every 5000 words per lane, and with traffic in both directions the ACK and FCT words of the reverse traffic | |
+| Packet on the link | A packet of n bytes takes ceil((n + 1) / (4 x `NumLanes_g`)) rows of 4 x `NumLanes_g` characters: the bytes, the EOP or EEP, Fills to the end of the row | TC-NI-07 |
+| VC ports | 4 x `NumLanes_g` bytes per beat, one beat per `UserClk` cycle inside a packet. One more cycle per packet: at `S_Vc` when the last beat is full (row with the end marker), at `M_Vc` when the bytes of the last received row need one more beat | TC-NI-07 |
+| Clocks | `UserClk` not slower than `LaneClk` for the full throughput at the VC ports. `CoreClk` not slower than `LaneClk` (CORE-CK-01): with a slower `CoreClk` received rows are lost (DL_ERRORS bit 10) | TC-CORE-15 |
+| Latency | Packet of one byte on the idle link: 365, 388 and 392 ns with 1, 2 and 4 lanes, without the serialisation and transceiver delay. The receiver forwards a data frame after its EDF (store and forward), so the latency grows with the frame length | TC-CORE-16 |
+| Share of a VC | Set by the quality of service configuration: priority, bandwidth (VC_BANDWIDTH), time-slots (ECSS 5.7.4) | |
 
 ## 8. Protection scope
 
@@ -263,3 +275,23 @@ of the CIPS at 0xA400_0000; `hdl/ofb_vck190/tcl/xsdb_mib.tcl` reads and writes t
 bit error rate test of section 6. Resources of the whole reference design on the XCVC1902 (eight
 VCs, four lanes, third build): 47992 LUT (3325 as memory), 47212 registers, 36 RAMB36 and 2 RAMB18, 8 DSP; all timing
 constraints met (WNS +0.030 ns at 150 MHz in the user side of the input VC buffers, +0.157 ns at the lane clock).
+
+## 10. Conformance
+
+OpenFibre implements a SpaceFibre port of a node with one end-point per virtual channel according to
+ECSS-E-ST-50-11C. The [compliance matrix](compliance.md) lists the requirements and the test cases of every clause.
+Where the standard leaves a choice, the section "Interpretation of the standard" of the module specifications
+([ofb_dl](../hdl/ofb_dl/docs/specification.md), [ofb_multilane](../hdl/ofb_multilane/docs/specification.md),
+[ofb_ni](../hdl/ofb_ni/docs/specification.md), [ofb_mib](../hdl/ofb_mib/docs/specification.md),
+[ofb_pa_gty](../hdl/ofb_pa_gty/docs/specification.md)) states the behaviour of the core.
+
+| Status | Clauses | Scope |
+| --- | --- | --- |
+| Implemented | 5.3.2 to 5.3.10, 5.4.1, 5.4.2, 5.5.2 to 5.5.8, 5.6.1 to 5.6.10, 5.7.2 to 5.7.10, 5.8.3, 5.8.5 to 5.8.7, 5.8.12.1, 5.8.13, 5.9.1 to 5.9.4, 6.2 to 6.5 | Lane, Multi-Lane, Data Link and Network layer of a node, MIB and service interfaces. The Physical layer clauses (5.3.2, 5.4.1, 5.4.2, 6.4) need a Physical adapter: `ofb_pa_gty` for the AMD Versal GTY |
+| Implemented with a restriction | 5.6.2 | 1 to 4 lanes per port (`NumLanes_g`); the standard allows up to 16 lanes (5.6.2c) |
+| Implemented with a restriction | 5.4.2.3 | `ofb_pa_gty` runs at 6.25 Gbit/s (5.4.2.3b) from a 156.25 MHz reference clock. The core itself takes any data signalling rate (`LaneClk` = R / 40) |
+| Outside the scope of a node with one port | 5.8.8 to 5.8.11 | Routing switch, packet addressing, group adaptive routing, packet multicast |
+| Outside the scope of a node with one port | 5.8.12.2 | Acceptance and forwarding of broadcast messages in a routing switch (port of arrival, broadcast time-out) |
+| Outside the scope of the core | 5.4.3 to 5.4.6 | Electrical and fibre optic physical layer and media, connectors and cables: properties of the transceiver, the board and the harness |
+| Outside the scope of the core | 5.8.2, 5.8.4, 5.8.14 | Composition of networks, links and units. For a link the user selects at least two VCs (`NumVc_g`, 5.8.4c; one VC for a point-to-point or configuration link, 5.8.4d) and the same VC numbers at both ends (5.8.4e) |
+| Not implemented | none | Every clause that a node with one port needs is implemented |
