@@ -9,7 +9,9 @@ Usage: python tools/run_xsim.py [--clean] [test run or testbench ...]
 Creates the transceiver wizard instance ofb_gtw with Vivado (hdl/ofb_pa_gty/tcl/ofb_gtw.tcl) and exports its
 simulation sources (once, in vivado_out/ofb_pa_gty), compiles them, Open Logic and the OpenFibre sources with the AMD
 simulator (xsim) and runs the testbenches (default: all of TESTBENCHES). A testbench passes when its log contains "Simulation done"
-and no line with "FAIL" or an error. The Vivado installation is taken from VIVADO_PATH (default D:/AMD/2025.2/Vivado).
+and no line with "FAIL" or an error. A run whose log shows the power-up error of the transceiver model (DIV_VAL_CHK)
+is elaborated and simulated again, at most three times in total; every repetition is reported. The Vivado
+installation is taken from VIVADO_PATH (default D:/AMD/2025.2/Vivado).
 """
 
 import hashlib
@@ -42,6 +44,11 @@ TESTBENCHES = {
 
 # Open Logic areas compiled into the library olo
 OLO_AREAS = ("base", "axi", "intf", "ft")
+
+# Power-up error of the transceiver model (LCPLL divider check of one quad) and the number of elaborations per test
+# run when it occurs; see the verification report of hdl/ofb_pa_gty
+MODEL_ERROR = "DIV_VAL_CHK"
+MODEL_ATTEMPTS = 3
 
 
 def tool(name):
@@ -190,16 +197,27 @@ def simulate(export, name):
     opts = ["--relax", "--mt", "4"] + libs + gens
     opts += ["--snapshot", tb, f"xil_defaultlib.{entity}", "xil_defaultlib.glbl"]
     (export / f"elaborate_{tb}.opt").write_text(" ".join(opts) + "\n", encoding="utf-8")
-    run([tool("xelab"), "-f", f"elaborate_{tb}.opt"], export, f"elaborate_{tb}.log")
-    start = time.time()
-    subprocess.run([tool("xsim"), tb, "-R", "-log", f"simulate_{tb}.log"], cwd=export, stdout=subprocess.DEVNULL,
-                   stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
-    log = (export / f"simulate_{tb}.log").read_text(encoding="utf-8", errors="replace")
-    failed = re.search(r"FAIL|Error:|Failure:|FATAL", log) is not None or "Simulation done" not in log
-    for line in log.splitlines():
-        if re.search(r"Note:|Warning:|Error:|Failure:|FAIL|Simulation done", line):
-            print("  " + line.strip(), flush=True)
-    print(f"{'fail' if failed else 'pass'} {name} ({time.time() - start:.0f} s)", flush=True)
+    for attempt in range(1, MODEL_ATTEMPTS + 1):
+        run([tool("xelab"), "-f", f"elaborate_{tb}.opt"], export, f"elaborate_{tb}.log")
+        start = time.time()
+        subprocess.run([tool("xsim"), tb, "-R", "-log", f"simulate_{tb}.log"], cwd=export, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
+        log = (export / f"simulate_{tb}.log").read_text(encoding="utf-8", errors="replace")
+        failed = re.search(r"FAIL|Error:|Failure:|FATAL", log) is not None or "Simulation done" not in log
+        for line in log.splitlines():
+            if re.search(r"Note:|Warning:|Error:|Failure:|FAIL|Simulation done", line):
+                print("  " + line.strip(), flush=True)
+        # Power-up error of the transceiver model: it depends on the elaborated snapshot (xelab builds a different
+        # snapshot from the same libraries every time), not on the design; a new elaboration is run
+        model_error = MODEL_ERROR in log
+        if model_error and attempt < MODEL_ATTEMPTS:
+            print(f"model error {name} (attempt {attempt} of {MODEL_ATTEMPTS}: transceiver model power-up error "
+                  f"{MODEL_ERROR}, {time.time() - start:.0f} s), elaborating again", flush=True)
+            continue
+        break
+    verdict = "fail" if failed else "pass"
+    note = f", attempt {attempt} of {MODEL_ATTEMPTS}" if attempt > 1 or model_error else ""
+    print(f"{verdict} {name} ({time.time() - start:.0f} s{note})", flush=True)
     return not failed
 
 

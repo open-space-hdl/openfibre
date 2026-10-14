@@ -83,8 +83,11 @@ its own unit testbench. `hdl/<module>/README.md` links the four documents and ex
 - GHDL is the default simulator. Only the tests that instantiate the vendor transceiver model (PA-1 wrapper test and
   the end-to-end test of two cores over the transceivers) run in the AMD Vivado simulator
   (`tools/run_xsim.py`); their testbenches use plain VHDL checks evaluated from the log. The transceiver model (secure
-  IP with a firmware simulation) is not deterministic under heavy CPU load: an `ofb_pa_gty_tb` run next to six GHDL
-  simulations failed to align two lanes. Run `tools/run_xsim.py` without other simulations.
+  IP with a firmware simulation) gives the same result in every run of one elaborated snapshot, but the elaborator
+  builds a different snapshot from the same sources every time, and in some snapshots the model of one quad fails
+  its power-up (error `DIV_VAL_CHK`, the quad never becomes ready). The runner detects this error and elaborates the
+  test run again (at most three attempts, every repetition is reported). It concerns only the simulation model, not
+  the design or the device image.
 - Negative tests inject the fault from the bench (corrupted word, wrong sequence number, ...) and expect the alert
   with `increment_expected_alerts`.
 
