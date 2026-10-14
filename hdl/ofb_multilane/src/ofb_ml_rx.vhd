@@ -120,22 +120,22 @@ begin
             data : AccData_t;
             k    : AccK_t;
             cnt  : natural) return Row_t is
-            variable Row_v : Row_t;
+            variable Ret_v : Row_t;
         begin
-            Row_v.Data   := (others => '0');
-            Row_v.K      := (others => '0');
-            Row_v.Mask   := (others => '0');
-            Row_v.CrcErr := '0';
+            Ret_v.Data   := (others => '0');
+            Ret_v.K      := (others => '0');
+            Ret_v.Mask   := (others => '0');
+            Ret_v.CrcErr := '0';
 
             for i in 0 to NumLanes_g-1 loop
                 if i < cnt then
-                    Row_v.Data(32*i+31 downto 32*i) := data(i);
-                    Row_v.K(4*i+3 downto 4*i)       := k(i);
-                    Row_v.Mask(i)                   := '1';
+                    Ret_v.Data(32*i+31 downto 32*i) := data(i);
+                    Ret_v.K(4*i+3 downto 4*i)       := k(i);
+                    Ret_v.Mask(i)                   := '1';
                 end if;
             end loop;
 
-            return Row_v;
+            return Ret_v;
         end function;
 
     -- Row processing
