@@ -39,7 +39,7 @@ Physical adapter depends on the target (section 7.6).
 
 OpenFibre is an open SpaceFibre implementation that is based on the Open Logic VHDL Library. The code lives in
 [open-space-hdl/openfibre](https://github.com/open-space-hdl/openfibre) under the PSI HDL Library License, Version
-1.0, the licence of Open Logic. Open Logic is pinned to the tag `4.7.0-ft.2` (425d69d) of the branch
+1.0, the licence of Open Logic. Open Logic is pinned to the tag `4.7.0-ft.6` (5d8ae56) of the branch
 `fault-tolerant` of open-space-hdl/open-logic-ft, the fault-tolerant fork of Open Logic. The line rate is 6.25 Gbit/s
 per lane.
 
@@ -48,7 +48,7 @@ per lane.
 | ID | Document | Version used |
 | --- | --- | --- |
 | \[ECSS\] | ECSS-E-ST-50-11C, SpaceFibre: very high-speed serial link | 15 May 2019 |
-| \[OLO\] | [Open Logic, fault-tolerant fork, branch fault-tolerant](https://github.com/open-space-hdl/open-logic-ft/tree/fault-tolerant) | 4.7.0-ft.2 (425d69d) |
+| \[OLO\] | [Open Logic, fault-tolerant fork, branch fault-tolerant](https://github.com/open-space-hdl/open-logic-ft/tree/fault-tolerant) | 4.7.0-ft.6 (5d8ae56) |
 
 ### Conventions
 

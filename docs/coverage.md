@@ -32,7 +32,9 @@ Closure rules:
 
 ## 2. Result
 
-Run on 2026-10-15: 232 tests, all passed, 65 minutes. Numbers are covered/total bins per file; bold marks a metric
+Run on 2026-10-15 with Open Logic 4.7.0-ft.2: 232 tests, all passed, 65 minutes (and 232 of 232 without coverage).
+The run applies to Open Logic 4.7.0-ft.6: none of the Open Logic files that OpenFibre uses differs between the two
+tags, and the OpenFibre sources are those of the run. Numbers are covered/total bins per file; bold marks a metric
 with misses.
 
 | File | Statements | Branches | FSM States | FSM Transitions | Conditions | Expressions |
