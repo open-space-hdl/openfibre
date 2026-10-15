@@ -194,7 +194,7 @@ begin
                 VcInDepth_g => 256 * N_c
             )
             port map (
-                Rst                    => RstI,
+                Rst                    => RstI or CoreRstReq(i),
                 UserClk                => UserClk,
                 CoreClk                => CoreClk,
                 LaneClk                => LaneClk,

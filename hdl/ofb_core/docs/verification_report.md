@@ -2,8 +2,8 @@
 
 ## 1. Test results
 
-Run on 2026-10-14 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_core*"`; all tests
-pass in QuestaSim as well (coverage run of the full regression, 228 of 228).
+Run on 2026-10-15 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_core*"`; the full
+regression passes in GHDL (232 of 232) and in QuestaSim, with and without coverage (232 of 232 each).
 
 Generics of the GHDL simulations, checked on 2026-10-14: VUnit 5.0.0.dev7 appends the generics of a test to the list
 of the option `ghdl.sim_flags` in place, and configurations that share that list pass their generics on to later GHDL
@@ -15,7 +15,7 @@ simulator are not affected.
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_core_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 18 x 3 | 54 |
+| `ofb_core_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 19 x 3 | 57 |
 | `ofb_core_tb`, configuration `lanes1_slowcore` (TC-CORE-15 only) | 1 | 1 |
 
 Throughput and latency (TC-CORE-16, lane capacity 5 Gbit/s per lane: 32 bits per 6.4 ns; core clock 166.7 MHz, user
@@ -71,6 +71,11 @@ PRBS test (TC-CORE-18, all configurations): the checkers of B lock on every lane
 counted once at B on lane 0, the PRBS-7 checker on the PRBS-31 pattern counts errors. Without the forced error in the
 adapter model the test fails (mutation check).
 
+Restart of one end (TC-CORE-19, all configurations): after the power-on reset of B, the Interface Reset of B and
+the power-on reset of A the other end reports Far-End Link Reset, the link initialises again and the traffic is
+delivered. Without the fix of the lane manager (section 2) the link stays down after the Interface Reset of B in all
+configurations (mutation check).
+
 The campaign found three design defects (section 2): words lost in the Multi-Lane distributor in Not Ready, silent
 corruption by double errors in the row crossings, and a second error recovery caused by the latency of the receive
 error state machine of the Data Link layer.
@@ -95,4 +100,5 @@ Defects found during verification:
 | Functional coverage (testbench): the campaign sent packets of at most 64 bytes, so no fault hit a packet of several data frames | Campaign packets cycle through all length classes up to 1024 bytes at the same load; 15 runs pass |
 | TC-CORE-13 (2 lanes, seed 2): a packet delivered twice after a lane slip: two out-of-sequence words in consecutive cycles were checked against an old Receive Polarity Flag and started a second error recovery | Data Link layer: receive error state machine updated in the cycle of the word (DL-RE-01, TC-DL-26) |
 | TC-CORE-03 (4 lanes) after the input stage of the column encoder: no retry at A. The 20 packets per VC were sent within about 200 cycles, while the bit errors are spread over 2740 cycles; with the one cycle of additional transmit latency the only bit errors of the A to B direction that had hit a data frame hit idle words, which with several lanes are lane slips with a realignment and no retry (Multi-Lane report) | Testbench: 200 packets per VC and end, so that the traffic lasts over most of the bit errors with every lane configuration |
+| TC-CORE-19 (all configurations, found while testing the transmitter ready input): after a complete restart of one end while the other end was in Link Initialised, the link stayed down for good. The end in Link Initialised received the far-end capability with INIT3LinkResetFlag set, but the Multi-Lane layer reported that a lane was Active: the lane enters Active in the same cycle in which it passes the capability when it has already sent its three INIT3 words, and the lane states of that cycle were used. The end therefore did not reset, and the restarted end waited in Check Far-End Reset | The Multi-Lane layer uses the lane states of the cycle before the capability event: the capability belongs to the Connected state (ECSS 5.7.9 Near-End Reset a.3, ML-LM-14, TC-ML-48) |
 | TC-CORE-14 with the packet ports of the VCs: a DED in the first beat of a packet in the input VC buffer leaves a packet without data (the EEP that replaces the beat); the Network interface discards it as a packet of zero length, so it no longer arrives as a packet ended with EEP | The test counts the packets ended with EEP and the packets of zero length at A (NI_RX_EMPTY_COUNT); the second error (packets of one word) gives exactly one packet of zero length per VC |
