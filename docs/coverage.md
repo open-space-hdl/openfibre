@@ -32,28 +32,28 @@ Closure rules:
 
 ## 2. Result
 
-Run on 2026-10-14: 228 tests, all passed, 90 minutes. Numbers are covered/total bins per file; bold marks a metric
+Run on 2026-10-15: 232 tests, all passed, 65 minutes. Numbers are covered/total bins per file; bold marks a metric
 with misses.
 
 | File | Statements | Branches | FSM States | FSM Transitions | Conditions | Expressions |
 | --- | --- | --- | --- | --- | --- | --- |
 | `ofb_core/src/ofb_core.vhd` | 1/1 |  |  |  |  |  |
-| `ofb_core/src/ofb_core_cc.vhd` | 38/38 | 4/4 |  |  |  | **13/24** |
+| `ofb_core/src/ofb_core_cc.vhd` | 38/38 | 4/4 |  |  |  | **14/24** |
 | `ofb_dl/src/ofb_dl.vhd` | 51/51 | 19/19 |  |  | **6/7** | **15/19** |
 | `ofb_dl/src/ofb_dl_bc_in.vhd` | 12/12 |  |  |  |  | **9/11** |
 | `ofb_dl/src/ofb_dl_bc_out.vhd` | 23/23 | 18/18 |  |  | **8/9** | **4/6** |
-| `ofb_dl/src/ofb_dl_erb.vhd` | 151/151 | 67/67 | 3/3 | 4/4 | **35/37** | **22/41** |
+| `ofb_dl/src/ofb_dl_erb.vhd` | 151/151 | 67/67 | 3/3 | 4/4 | **35/37** | **23/41** |
 | `ofb_dl/src/ofb_dl_link_reset.vhd` | 20/20 | 29/29 | 4/4 | 8/8 | **8/10** | 2/2 |
 | `ofb_dl/src/ofb_dl_mac.vhd` | 60/60 | 34/34 |  |  | **13/16** | 2/2 |
 | `ofb_dl/src/ofb_dl_pkg.vhd` | **40/41** | 21/21 |  |  | **8/9** |  |
 | `ofb_dl/src/ofb_dl_qos_regs.vhd` | 19/19 | 15/15 |  |  | **3/4** |  |
-| `ofb_dl/src/ofb_dl_rx_buf.vhd` | 27/27 | 15/15 |  |  | 9/9 | **13/14** |
+| `ofb_dl/src/ofb_dl_rx_buf.vhd` | 27/27 | 15/15 |  |  | 9/9 | 14/14 |
 | `ofb_dl/src/ofb_dl_rx_check.vhd` | 168/168 | 88/88 |  |  | 16/16 | 7/7 |
 | `ofb_dl/src/ofb_dl_rx_err.vhd` | 9/9 | 23/23 | 4/4 | 8/8 | 4/4 |  |
-| `ofb_dl/src/ofb_dl_tx_admit.vhd` | 71/71 | **31/32** |  |  | **17/19** | **3/4** |
-| `ofb_dl/src/ofb_dl_tx_frame.vhd` | 123/123 | 39/39 |  |  | **18/19** | **5/6** |
-| `ofb_dl/src/ofb_dl_vc_in.vhd` | **170/171** | **63/64** |  |  | **6/11** | **45/50** |
-| `ofb_dl/src/ofb_dl_vc_out.vhd` | 112/112 | **64/65** |  |  | **35/37** | **20/25** |
+| `ofb_dl/src/ofb_dl_tx_admit.vhd` | 71/71 | **31/32** |  |  | **17/19** | 4/4 |
+| `ofb_dl/src/ofb_dl_tx_frame.vhd` | 123/123 | 39/39 |  |  | **18/19** | 6/6 |
+| `ofb_dl/src/ofb_dl_vc_in.vhd` | **170/171** | **63/64** |  |  | **6/11** | **47/50** |
+| `ofb_dl/src/ofb_dl_vc_out.vhd` | 112/112 | **64/65** |  |  | **35/37** | **21/25** |
 | `ofb_lane/src/ofb_lane.vhd` | 9/9 |  |  |  |  | 2/2 |
 | `ofb_lane/src/ofb_lane_init.vhd` | 179/179 | 124/124 | 10/10 | 20/20 | **52/60** | 10/10 |
 | `ofb_lane/src/ofb_lane_loopback.vhd` | 17/17 | 6/6 |  |  |  |  |

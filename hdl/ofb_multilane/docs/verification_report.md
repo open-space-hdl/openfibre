@@ -11,13 +11,18 @@ Run on 2026-10-06 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 | `ofb_multilane_tb` (layer, one lane) | 6 | 6 |
 | `ofb_ml_align_tb` (ML-5, ML-6, four lanes) | 5 | 5 |
 | `ofb_ml_link_tb` (multi-lane link, configurations `lanes2` and `lanes4`) | 11 x 2 | 22 |
+| `ofb_ml_lane_mgr_tb` (ML-1, capability event and transition to Active in the same cycle) | 1 | 1 |
+
+Correction of the far-end reset detection (ML-LM-14, 2026-10-15): the full regression passes in GHDL (232 of 232) and
+in QuestaSim, with and without coverage (232 of 232 each); the lane manager keeps 110 of 110 statements and 56 of 56
+branches.
 
 Full regression of the repository: 193 of 193 tests pass (phase 5, after the code coverage closure and the functional
 coverage of the core).
 
 ## 2. Summary
 
-All 43 test cases pass; every requirement of the specification is covered (see the verification plan). The column
+All 44 tests pass; every requirement of the specification is covered (see the verification plan). The column
 encoder reproduces ECSS Figures 5-42 and 5-44 bit-exactly, and the decoder restores them. VSG reports no errors and no
 warnings.
 

@@ -2,8 +2,8 @@
 
 ## 1. Test results
 
-Run on 2026-10-14 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_core*"`; all tests
-pass in QuestaSim as well (coverage run of the full regression, 228 of 228).
+Run on 2026-10-15 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_core*"`; the full
+regression passes in GHDL (232 of 232) and in QuestaSim, with and without coverage (232 of 232 each).
 
 Generics of the GHDL simulations, checked on 2026-10-14: VUnit 5.0.0.dev7 appends the generics of a test to the list
 of the option `ghdl.sim_flags` in place, and configurations that share that list pass their generics on to later GHDL
@@ -15,7 +15,7 @@ simulator are not affected.
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_core_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 18 x 3 | 54 |
+| `ofb_core_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 19 x 3 | 57 |
 | `ofb_core_tb`, configuration `lanes1_slowcore` (TC-CORE-15 only) | 1 | 1 |
 
 Throughput and latency (TC-CORE-16, lane capacity 5 Gbit/s per lane: 32 bits per 6.4 ns; core clock 166.7 MHz, user
