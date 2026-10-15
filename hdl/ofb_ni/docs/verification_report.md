@@ -6,7 +6,7 @@ Run on 2026-10-13 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_ni_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 7 x 3 | 21 |
+| `ofb_ni_tb` (configurations `lanes1` to `lanes4`) | 7 x 4 | 28 |
 
 Throughput (TC-NI-07, all configurations): transmit 100 rows of 20 packets in 100 cycles; receive 100 beats of 20
 packets with a tail beat each in 119 cycles (the limit is 6 cycles per packet).

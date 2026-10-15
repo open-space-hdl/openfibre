@@ -24,6 +24,7 @@ The core supports 1 to 4 lanes (`NumLanes_g`). The VC ports carry packets of 4 x
 | --- | --- | --- |
 | CORE-IF-01 | The core shall offer the AXI4-Stream ports of `ofb_ni`, the AXI4-Lite port and interrupt of `ofb_mib`, and per lane the symbol stream and control of the Physical adapter as defined by `ofb_lane`. | 6.2, 6.3, 6.5, 5.5.1k to n |
 | CORE-CK-01 | The core shall run on four clocks: UserClk, CoreClk, LaneClk and MgmtClk; CoreClk shall not be slower than LaneClk. | none (architecture section 6) |
+| CORE-CK-02 | `LaneClkFreq_g` and `CoreClkFreq_g` shall be the frequencies of LaneClk and CoreClk: the timers of the Lane and Multi-Lane layers (ClearLine of 2 us, alignment) and the scrubbing interval of the error recovery buffer are counted in their cycles; the elaboration shall stop with an error when one of them is not positive. | 5.5.2.4 |
 | CORE-RS-01 | One asynchronous reset input shall reset every clock domain through a reset generator per domain. | 5.7.9.2a.1 (power-on reset) |
 | CORE-CC-02 | A receive row lost because the crossing FIFO is full (CoreClk slower than LaneClk, outside CORE-CK-01) shall be reported to the MIB. | 5.9.4c |
 | CORE-CC-01 | Rows shall cross between CoreClk and LaneClk through FIFOs that are flushed on link reset; link reset and LaneReset shall cross as pulses, the near-end capability as a level, the far-end capability event together with its "no lane active" qualifier. | 5.7.9, 5.7.10b |
@@ -37,6 +38,7 @@ The core supports 1 to 4 lanes (`NumLanes_g`). The VC ports carry packets of 4 x
 | CORE-PL-03 | The PRBS test of the MIB (MG-5) shall connect to the Physical adapters per lane (LaneClk): transmitted and checked pattern (`Phy_PrbsTxSel`, `Phy_PrbsRxSel`), force error and checker reset pulses (`Phy_PrbsForceErr`, `Phy_PrbsCntReset`), checker error and lock (`Phy_PrbsErr`, `Phy_PrbsLocked`, not locked and without errors when left open). | none (test function) |
 | CORE-PF-01 | With packets of up to 1024 bytes on all VCs, two cores shall transfer at least 90 % of the payload capacity of the lanes (32 bits per LaneClk cycle and lane) in one direction and at least 85 % in each direction when both ends send. | none (performance) |
 | CORE-SY-03 | When one end restarts completely (power-on reset or Interface Reset) while the other end is in Link Initialised, the other end shall detect the far-end reset and reset its link, and the link shall initialise again. | 5.7.9 |
+| CORE-SY-04 | Packets of any length shall be transferred: a packet longer than a data frame and than the output and input VC buffers is streamed through them, with no length limit in the core. | 5.3.9g, 5.7.2.2c |
 | CORE-SY-02 | Two cores with 2 or 4 lanes shall transfer packets without loss also when a lane fails and is reconnected during traffic, with fewer data-sending lanes than lanes, and in the Multi-Lane bypass. | 5.6, 5.7.7 (system level) |
 
 ## 3. Configuration parameters
