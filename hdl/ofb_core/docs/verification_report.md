@@ -14,7 +14,8 @@ before the configurations, the check of `run.py` stops the run (mutation check).
 simulator are not affected.
 
 Run on 2026-10-15 with the configurations of the generic ranges: the full regression `python run.py`, 287 of 287
-tests pass in GHDL.
+tests pass in GHDL and in QuestaSim, with and without coverage (287 of 287 each; the three tests of `vc32` with 32
+VCs and two lanes in a separate run, commit 0bab3a2, see `docs/coverage.md`).
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
