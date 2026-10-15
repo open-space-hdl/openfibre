@@ -18,9 +18,9 @@ the link and exercises the user clock crossings of the core; at 150 MHz a VC por
 more than the 18.7 Gbit/s that four lanes deliver (94 % of the payload capacity, user guide section 7). In
 simulation (`IncludeCips_g` = false) clock models of the same frequencies replace the CIPS.
 
-The core reset is a register of `MgmtClk`: the power-on reset or `LaneRst` (transmitters not ready, a register of
-the lane clock, synchronised with `olo_intf_sync`), so that no logic sits in front of the reset synchronisers of the
-core. The echo needs no buffering: the output
+The core and the adapter are reset by the power-on reset. The transmitter ready status of the adapter
+(`Stat_TxReady`, lane clock) drives `Phy_TxReady` of the core, which holds the link in Near-End Reset until the
+transmitters are ready. The echo needs no buffering: the output
 port of every VC (`M_Vc`) feeds the input port of the same VC (`S_Vc`), back-pressure included. The serial loopback
 enables of the core drive the adapter, and the comma alignment of the adapter (`Stat_Aligned`) is the bit
 synchronisation status of the core (`Phy_BitSync`, LANE_STATUS bit 6). The PRBS test signals of the core (`Phy_Prbs*`)

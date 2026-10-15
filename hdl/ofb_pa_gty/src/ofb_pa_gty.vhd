@@ -28,11 +28,13 @@ library unisim;
 ---------------------------------------------------------------------------------------------------
 entity ofb_pa_gty is
     generic (
-        NumLanes_g  : positive range 1 to 4 := 4;
-        SimDevice_g : string                := "VERSAL_AI_CORE" -- SIM_DEVICE of BUFG_GT (device family)
+        NumLanes_g       : positive range 1 to 4             := 4;
+        SimDevice_g      : string                            := "VERSAL_AI_CORE"; -- SIM_DEVICE of BUFG_GT (device family)
+        RstPulseCycles_g : positive range 3 to positive'high := 1000 -- Minimum reset of the transceivers (FreeRunClk)
     );
     port (
-        -- Free-running clock of the transceiver reset controller, asynchronous reset (high active)
+        -- Free-running clock of the transceiver reset controller; asynchronous reset (high active, any
+        -- pulse width), synchronised and stretched to RstPulseCycles_g cycles of FreeRunClk inside
         FreeRunClk             : in    std_logic;
         Rst                    : in    std_logic;
         -- Reference clock of the quad (output O of the IBUFDS_GTE5 of the reference clock pins)
@@ -312,7 +314,23 @@ architecture struct of ofb_pa_gty is
     signal TxDpCnt   : natural range 0 to 255                  := 0;
     signal TxDpReset : std_logic                               := '0';
 
+    -- Reset synchronised to FreeRunClk and stretched
+    signal RstFree : std_logic;
+
 begin
+
+    -- Reset of the transceiver reset controller and of the FreeRunClk logic: asserted asynchronously,
+    -- released synchronously to FreeRunClk after at least RstPulseCycles_g cycles (PA-RS-02)
+    i_rst_free : entity olo.olo_base_reset_gen
+        generic map (
+            RstPulseCycles_g => RstPulseCycles_g,
+            SyncTmr_g        => true
+        )
+        port map (
+            Clk    => FreeRunClk,
+            RstIn  => Rst,
+            RstOut => RstFree
+        );
 
     -----------------------------------------------------------------------------------------------
     -- User clock: transmit output clock of channel 0 for all transmitters and receivers (the
@@ -454,7 +472,7 @@ begin
             else
                 TxDpReset <= '0';
             end if;
-            if Rst = '1' then
+            if RstFree = '1' then
                 FarLbLast <= (others => '0');
                 TxDpCnt   <= 0;
                 TxDpReset <= '0';
@@ -639,7 +657,7 @@ begin
             INTF0_TX_clrb_leaf_out             => open,
             INTF0_RX_clr_out                   => open,
             INTF0_RX_clrb_leaf_out             => open,
-            INTF0_rst_all_in                   => Rst,
+            INTF0_rst_all_in                   => RstFree,
             INTF0_rst_tx_pll_and_datapath_in   => '0',
             INTF0_rst_tx_datapath_in           => TxDpReset,
             INTF0_rst_tx_done_out              => TxDone,

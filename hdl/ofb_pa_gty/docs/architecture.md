@@ -13,6 +13,11 @@ elastic buffers cross from the recovered clocks to this clock and remove or inse
 sequence of four symbols, `RX_CC_LEN_SEQ` 4). The wizard reset controller clears the `BUFG_GT` (`INTF0_TX_clr_out`)
 until the transmit PLL is locked and holds the receivers in reset until their PMA reset is done.
 
+`Rst` passes an `olo_base_reset_gen` on `FreeRunClk` (`SyncTmr_g` = true): asserted asynchronously, released
+synchronously after at least `RstPulseCycles_g` cycles (default 1000). The stretched reset drives the reset of the
+wizard (`INTF0_rst_all_in`) and the transmit datapath reset logic, so that a reset pulse of any width restarts the
+transceivers completely (PA-RS-02).
+
 ## 3. Channel mapping
 
 | Core port (lane l) | Transceiver channel l |

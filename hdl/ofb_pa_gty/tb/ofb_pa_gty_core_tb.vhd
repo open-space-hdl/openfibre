@@ -80,8 +80,9 @@ architecture sim of ofb_pa_gty_core_tb is
     signal FreeRunClk : std_logic  := '0';
     signal Rst        : std_logic  := '1';
     signal LaneClk    : EndArray_t;
-    signal LaneRst    : EndArray_t;
-    signal CoreRst    : EndArray_t;
+    signal TxReady    : EndArray_t;
+    signal RxReady    : EndArray_t;
+    signal Aligned    : LaneVecArray_t;
 
     -- Serial lines
     signal TxP : LaneVecArray_t;
@@ -254,7 +255,7 @@ begin
         Rst <= '1';
         wait for 200 ns;
         Rst <= '0';
-        wait until CoreRst(0) = '0' and CoreRst(1) = '0' for Timeout_c;
+        wait until TxReady(0) = '1' and TxReady(1) = '1' for Timeout_c;
         report "Transceivers ready at " & time'image(now);
         wait for 1 us;
 
@@ -399,7 +400,15 @@ begin
     -----------------------------------------------------------------------------------------------
     g_end : for e in 0 to 1 generate
 
-        CoreRst(e) <= Rst or LaneRst(e);
+        -- Timeline of the reset sequence of the end: receivers ready, every lane aligned
+        p_timeline : process is
+        begin
+            wait until RxReady(e) = '1';
+            report "End " & integer'image(e) & ": receivers ready at " & time'image(now);
+            wait until (and Aligned(e)) = '1';
+            report "End " & integer'image(e) & ": all lanes aligned at " & time'image(now);
+            wait;
+        end process;
 
         i_pa : entity work.ofb_pa_gty
             generic map (
@@ -410,7 +419,7 @@ begin
                 Rst           => Rst,
                 RefClk        => RefClk(e),
                 LaneClk       => LaneClk(e),
-                LaneRst       => LaneRst(e),
+                LaneRst       => open,
                 Gt_TxP        => TxP(e),
                 Gt_TxN        => TxN(e),
                 Gt_RxP        => TxP(1 - e),
@@ -427,9 +436,9 @@ begin
                 Phy_CdrEnable => CdrEnable(e),
                 Phy_RxInvert  => RxInvert(e),
                 Phy_NoSignal  => NoSignal(e),
-                Stat_TxReady  => open,
-                Stat_RxReady  => open,
-                Stat_Aligned  => open,
+                Stat_TxReady  => TxReady(e),
+                Stat_RxReady  => RxReady(e),
+                Stat_Aligned  => Aligned(e),
                 Stat_RxBufErr => open,
                 Stat_ClkCor   => ClkCor(e)
             );
@@ -443,7 +452,7 @@ begin
                 VcInDepth_g   => 256 * Lanes_c
             )
             port map (
-                Rst               => CoreRst(e),
+                Rst               => Rst,
                 UserClk           => LaneClk(e),
                 CoreClk           => LaneClk(e),
                 LaneClk           => LaneClk(e),
@@ -497,7 +506,8 @@ begin
                 Phy_RxEnable      => RxEnable(e),
                 Phy_CdrEnable     => CdrEnable(e),
                 Phy_RxInvert      => RxInvert(e),
-                Phy_NoSignal      => NoSignal(e)
+                Phy_NoSignal      => NoSignal(e),
+                Phy_TxReady       => TxReady(e)
             );
 
         -------------------------------------------------------------------------------------------

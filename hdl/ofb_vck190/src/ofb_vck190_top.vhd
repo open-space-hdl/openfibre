@@ -62,16 +62,13 @@ architecture struct of ofb_vck190_top is
     constant Lanes_c : positive := 4;
 
     -- Clocks and resets: MgmtClk (CIPS pl0, 100 MHz), UserClk (CIPS pl1, 150 MHz), lane clock
-    signal MgmtClk     : std_logic := '0';
-    signal UserClk     : std_logic := '0';
-    signal PlRstN      : std_logic := '1';
-    signal PorIn       : std_logic;
-    signal PorRst      : std_logic;
-    signal RefClk      : std_logic;
-    signal LaneClk     : std_logic;
-    signal LaneRst     : std_logic;
-    signal LaneRstMgmt : std_logic;
-    signal CoreRst     : std_logic := '1';
+    signal MgmtClk : std_logic := '0';
+    signal UserClk : std_logic := '0';
+    signal PlRstN  : std_logic := '1';
+    signal PorIn   : std_logic;
+    signal PorRst  : std_logic;
+    signal RefClk  : std_logic;
+    signal LaneClk : std_logic;
 
     -- Physical adapter interface
     signal PhyTxData  : std_logic_vector(32*Lanes_c-1 downto 0);
@@ -305,7 +302,7 @@ begin
             Rst                    => PorRst,
             RefClk                 => RefClk,
             LaneClk                => LaneClk,
-            LaneRst                => LaneRst,
+            LaneRst                => open,
             Gt_TxP                 => Qsfp_TxP,
             Gt_TxN                 => Qsfp_TxN,
             Gt_RxP                 => Qsfp_RxP,
@@ -337,25 +334,8 @@ begin
             Phy_PrbsLocked         => PrbsLocked
         );
 
-    -- Reset of the core: power-on reset or transceivers not ready, from a register (no logic in front of the
-    -- reset synchronisers of the core)
-    i_lanerst_sync : entity olo.olo_intf_sync
-        generic map (
-            SyncTmr_g => true
-        )
-        port map (
-            Clk          => MgmtClk,
-            DataAsync(0) => LaneRst,
-            DataSync(0)  => LaneRstMgmt
-        );
-
-    p_core_rst : process (MgmtClk) is
-    begin
-        if rising_edge(MgmtClk) then
-            CoreRst <= PorRst or LaneRstMgmt;
-        end if;
-    end process;
-
+    -- Reset of the core: power-on reset; the core holds the link in Near-End Reset until the transmitters
+    -- are ready (Phy_TxReady from Stat_TxReady of the adapter, both in the lane clock domain)
     i_core : entity work.ofb_core
         generic map (
             NumVc_g       => NumVc_g,
@@ -365,7 +345,7 @@ begin
             VcInDepth_g   => 256 * Lanes_c
         )
         port map (
-            Rst                    => CoreRst,
+            Rst                    => PorRst,
             UserClk                => UserClk,
             CoreClk                => LaneClk,
             LaneClk                => LaneClk,
@@ -420,6 +400,7 @@ begin
             Phy_CdrEnable          => CdrEnable,
             Phy_RxInvert           => RxInvert,
             Phy_NoSignal           => NoSignal,
+            Phy_TxReady            => TxReady,
             Phy_SerialNearLoopback => SerNearLb,
             Phy_SerialFarLoopback  => SerFarLb,
             Phy_PrbsTxSel          => PrbsTxSel,
