@@ -369,6 +369,12 @@ begin
         if enabled("test_tx_ready_late") or enabled("test_tx_ready_never") then
             CoreTxReady(0) <= '0';
         end if;
+        -- TC-CORE-25: the lane and core clocks of A do not run from the reset on, the lines from A carry no signal
+        if enabled("test_tx_ready_pulse") then
+            CoreTxReady(0)    <= '0';
+            CoreLaneClkRun(0) <= '0';
+            CoreCoreClkRun(0) <= '0';
+        end if;
         await_uvvm_initialization(VOID);
         disable_log_msg(ALL_MESSAGES);
         enable_log_msg(ID_LOG_HDR);
@@ -1296,6 +1302,39 @@ begin
                     check_value(Data_v, x"00001000", error, "Only TX_LOST at A, round " & to_string(round));
                     wr(0, RegDlErrors_c, x"00001000");
                 end loop;
+
+            -- TC-CORE-25: a false transmitter ready pulse before the lane clock of A runs (a transceiver that
+            -- still shows the reset done of an earlier start): Phy_TxReady of A is 1 from 10 us to 38 us while
+            -- LaneClk and CoreClk of A stand still, LaneClk and CoreClk run from 64 us on, the transmitters are
+            -- ready from 65 us on. The link comes up and the traffic is delivered; A reports TX_LOST (it saw the
+            -- pulse end), B no error flag
+            elsif run("test_tx_ready_pulse") then
+
+                for l in 0 to NumLanes_g-1 loop
+                    PaCtrl(l).AtoB.Cut <= true;
+                end loop;
+
+                wait for 10 us - now;
+                CoreTxReady(0)    <= '1';
+                wait for 38 us - now;
+                CoreTxReady(0)    <= '0';
+                wait for 64 us - now;
+                CoreLaneClkRun(0) <= '1';
+                CoreCoreClkRun(0) <= '1';
+                wait for 65 us - now;
+                CoreTxReady(0)    <= '1';
+
+                for l in 0 to NumLanes_g-1 loop
+                    PaCtrl(l).AtoB.Cut <= false;
+                end loop;
+
+                linkUp(500 us);
+                sendAll(5);
+                waitDelivered(2 ms);
+                rd(0, RegDlErrors_c, Data_v);
+                check_value(Data_v, x"00001000", error, "Only TX_LOST at A");
+                rd(1, RegDlErrors_c, Data_v);
+                check_value(Data_v, x"00000000", error, "No error flag at B");
 
             end if;
 

@@ -145,9 +145,10 @@ architecture sim of ofb_pa_gty_core_tb is
     -- Reset of one adapter only (transmitter reset in operation)
     type TimeArray_t is array (0 to 1) of time;
 
-    signal PaRstReq : EndArray_t  := (others => '0');
-    signal PaRst    : EndArray_t;
-    signal LaneEdge : TimeArray_t := (others => 0 fs); -- last rising edge of LaneClk
+    signal PaRstReq   : EndArray_t  := (others => '0');
+    signal PaRst      : EndArray_t;
+    signal LaneEdge   : TimeArray_t := (others => 0 fs); -- last rising edge of LaneClk
+    signal AllAligned : EndArray_t;
 
     -- Traffic: bursts of Packets_c packets per VC and direction, released one after the other
     signal StartTraffic : boolean    := false;
@@ -329,7 +330,8 @@ begin
                     Fail_v := true;
                 end if;
                 rd(e, RegDlErrors_c, A_v);
-                if A_v(9 downto 0) /= "0000000000" then
+                report "End " & integer'image(e) & ": DL_ERRORS " & to_hstring(A_v);
+                if A_v(12 downto 0) /= "0000000000000" then
                     report "FAIL: errors reported in the MIB" severity error;
                     Fail_v := true;
                 end if;
@@ -393,7 +395,7 @@ begin
             rd(e, RegRetries_c, B_v);
             report "End " & integer'image(e) & ": DL_ERRORS " & to_hstring(A_v) & ", retries " &
                    integer'image(to_integer(unsigned(B_v)));
-            if A_v(9 downto 0) /= "0000000000" or unsigned(B_v) /= 0 then
+            if A_v(12 downto 0) /= "0000000000000" or unsigned(B_v) /= 0 then
                 report "FAIL: errors or retries reported in the MIB" severity error;
                 Fail_v := true;
             end if;
@@ -478,9 +480,14 @@ begin
         end loop;
 
         rd(0, RegDlErrors_c, A_v);
-        report "A after the transmitter reset: DL_ERRORS " & to_hstring(A_v);
+        rd(1, RegDlErrors_c, B_v);
+        report "After the transmitter reset of A: DL_ERRORS A " & to_hstring(A_v) & ", B " & to_hstring(B_v);
         if A_v(12) /= '1' then
             report "FAIL: TX_LOST of A not kept" severity error;
+            Fail_v := true;
+        end if;
+        if B_v(12) /= '0' then
+            report "FAIL: TX_LOST of B set, its transmitters were not reset" severity error;
             Fail_v := true;
         end if;
 
@@ -505,14 +512,47 @@ begin
             end if;
         end process;
 
-        -- Timeline of the reset sequence of the end: receivers ready, every lane aligned
-        p_timeline : process is
+        -- Timestamps of the first LaneClk edge and of every edge of Stat_TxReady
+        p_lane_first : process is
         begin
-            wait until RxReady(e) = '1';
-            report "End " & integer'image(e) & ": receivers ready at " & time'image(now);
-            wait until (and Aligned(e)) = '1';
-            report "End " & integer'image(e) & ": all lanes aligned at " & time'image(now);
+            wait until rising_edge(LaneClk(e));
+            report "End " & integer'image(e) & ": first LaneClk edge at " & time'image(now);
             wait;
+        end process;
+
+        p_tx_ready_edges : process is
+        begin
+            wait on TxReady(e);
+            report "End " & integer'image(e) & ": Stat_TxReady " & std_logic'image(TxReady(e)) & " at " &
+                   time'image(now);
+        end process;
+
+        -- Invariant of the transmitter ready status (CORE-PL-04, PA-ST-02): while Stat_TxReady is 1, LaneClk of
+        -- the end runs. Stat_TxReady is a register of FreeRunClk and may follow a stop of LaneClk by two cycles.
+        p_tx_ready_clk : process (FreeRunClk) is
+        begin
+            if rising_edge(FreeRunClk) then
+                if TxReady(e) = '1' and now - LaneEdge(e) > 2 * RefPeriodB_c + 2 * FreePeriod_c then
+                    report "FAIL: end " & integer'image(e) & ": Stat_TxReady 1 while LaneClk stands still (last edge at " &
+                           time'image(LaneEdge(e)) & ")" severity error;
+                end if;
+            end if;
+        end process;
+
+        -- Timeline of the receivers: every change of the receivers ready status and of the alignment of all lanes
+        AllAligned(e) <= and Aligned(e);
+
+        p_rx_timeline : process is
+        begin
+            wait on RxReady(e), AllAligned(e);
+            if RxReady(e)'event then
+                report "End " & integer'image(e) & ": receivers ready " & std_logic'image(RxReady(e)) & " at " &
+                       time'image(now);
+            end if;
+            if AllAligned(e)'event then
+                report "End " & integer'image(e) & ": all lanes aligned " & std_logic'image(AllAligned(e)) & " at " &
+                       time'image(now);
+            end if;
         end process;
 
         i_pa : entity work.ofb_pa_gty

@@ -52,7 +52,11 @@ in one `olo_intf_sync` with `SyncTmr_g` = true (two stages, three synchroniser c
 
 `Stat_TxReady` is `rst_tx_done` (the transmit reset done of the wizard, already synchronised to `FreeRunClk`) from a
 register of `FreeRunClk` (PA-ST-02): it falls while `LaneClk` stands still, and it drives `Phy_TxReady` of the core
-without further logic. `LaneRst` comes from an `olo_base_reset_gen` on `LaneClk` (`RstInPolarity_g` = '0',
+without further logic. It is taken only after `rst_tx_done` was 0 once since the release of the reset (`TxArmed`):
+when the reset is released, `rst_tx_done` still shows 1 until the master reset of the wizard starts (in the
+transceiver model about 28 us later, while `LaneClk` does not run yet). A wizard that kept `rst_tx_done` at 1 through
+its master reset would leave `Stat_TxReady` at 0 for good: the link would not start, a visible failure instead of a
+ready status without a lane clock. `LaneRst` comes from an `olo_base_reset_gen` on `LaneClk` (`RstInPolarity_g` = '0',
 `SyncTmr_g` = true) with `Stat_TxReady` as input: set without a clock edge while the transmitters are not ready,
 released synchronously.
 

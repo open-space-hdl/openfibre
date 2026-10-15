@@ -270,7 +270,7 @@ begin
         rd(RegDlErrors_c, A_v);
         rd(RegRetries_c, B_v);
         report "Far end: DL_ERRORS " & to_hstring(A_v) & ", retries " & integer'image(to_integer(unsigned(B_v)));
-        if A_v(9 downto 0) /= "0000000000" or unsigned(B_v) /= 0 then
+        if A_v(12 downto 0) /= "0000000000000" or unsigned(B_v) /= 0 then
             report "FAIL: errors or retries at the far end" severity error;
             Fail_v := true;
         end if;

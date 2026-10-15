@@ -297,6 +297,7 @@ architecture struct of ofb_pa_gty is
 
     -- Transmitters ready, register of FreeRunClk
     signal TxReadyReg : std_logic := '0';
+    signal TxArmed    : std_logic := '0'; -- rst_tx_done was 0 since the release of the reset
 
     -- Status synchronised to LaneClk
     signal SyncIn  : std_logic_vector(2*NumLanes_g downto 0);
@@ -501,11 +502,17 @@ begin
     -- controller clears the BUFG_GT until the transmit PMA reset is done), so the status is kept in
     -- the free-running clock domain.
     -----------------------------------------------------------------------------------------------
+    -- rst_tx_done is taken only after it was 0 once since the release of the reset: when the reset
+    -- is released, it still shows the state from before the master reset of the wizard (PA-ST-02)
     p_tx_ready : process (FreeRunClk) is
     begin
         if rising_edge(FreeRunClk) then
-            TxReadyReg <= TxDone;
+            if TxDone = '0' then
+                TxArmed <= '1';
+            end if;
+            TxReadyReg <= TxDone and TxArmed;
             if RstFree = '1' then
+                TxArmed    <= '0';
                 TxReadyReg <= '0';
             end if;
         end if;
