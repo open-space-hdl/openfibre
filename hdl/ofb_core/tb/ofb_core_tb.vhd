@@ -1139,7 +1139,6 @@ begin
                     check_value(Data_v, x"00000000", error, "No error flag at core " & to_string(c));
                 end loop;
 
-
             -- TC-CORE-21: the transmitters of A become ready only 50 us after the reset: until then A stays
             -- in Near-End Reset with its lanes in reset (no error, link not initialised), afterwards the link
             -- comes up as after a reset; TX_LOST is not set by the first start
@@ -1168,7 +1167,6 @@ begin
                     rd(c, RegDlErrors_c, Data_v);
                     check_value(Data_v, x"00000000", error, "No error flag at core " & to_string(c));
                 end loop;
-
 
                 sendAll(5);
                 waitDelivered(2 ms);

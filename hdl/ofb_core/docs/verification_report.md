@@ -15,11 +15,12 @@ simulator are not affected.
 
 Run on 2026-10-15 with the configurations of the generic ranges: the full regression `python run.py`, 287 of 287
 tests pass in GHDL and in QuestaSim, with and without coverage (287 of 287 each; the three tests of `vc32` with 32
-VCs and two lanes in a separate run, commit 0bab3a2, see `docs/coverage.md`).
+VCs and two lanes in a separate run, commit 0bab3a2, see `docs/coverage.md`). Run on 2026-10-15 with the
+transmitter ready input `Phy_TxReady` (TC-CORE-21 to TC-CORE-23): 299 of 299 tests pass in GHDL.
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_core_tb` (configurations `lanes1` to `lanes4`) | 20 x 4 | 80 |
+| `ofb_core_tb` (configurations `lanes1` to `lanes4`) | 23 x 4 | 92 |
 | `ofb_core_tb`, configuration `lanes1_slowcore` (TC-CORE-15 only) | 1 | 1 |
 | `ofb_core_tb`, configurations `vc1` and `vc32` (TC-CORE-01, 02, 04) | 3 x 2 | 6 |
 | `ofb_core_tb`, configuration `halfrate` (TC-CORE-01, 04) | 2 | 2 |
@@ -44,6 +45,16 @@ The frequency generics of the testbench are derived from the generated clock per
 
 Packets of 65542 bytes (TC-CORE-20, the largest Space Packet) pass with 1 to 4 lanes: one from A to B and two at the
 same time from B to A, every byte compared.
+
+Transmitters of the Physical adapter not ready (`Phy_TxReady`, 1 to 4 lanes). TC-CORE-21: with the transmitters of A
+ready 50 us after the reset, A stays in Near-End Reset with every lane of A off (transmitter, receiver and CDR) and
+the link of B is not initialised; afterwards the link comes up without an error flag at either end. TC-CORE-22: with
+the transmitters of A never ready, A stays in Near-End Reset for 300 us without lane activity, interrupt, error
+flag, retry or lane event, and its MIB stays accessible. TC-CORE-23: when the transmitters of A drop during traffic,
+both ends reset the link, A sets TX_LOST and keeps its configuration, no lane of A is on in the last 5 us of the
+hold, and the traffic is delivered after the transmitters return; TX_LOST stays set until it is cleared. Mutation
+check: with the Data Link layer ignoring `Phy_TxReady`, and with the held reset not crossed to the lane clock
+domain as a level, all three tests fail (one lane).
 
 Throughput and latency (TC-CORE-16, lane capacity 5 Gbit/s per lane: 32 bits per 6.4 ns; core clock 166.7 MHz, user
 clock 192.3 MHz; packets of 1 to 1024 bytes on four VCs):
