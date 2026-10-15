@@ -44,7 +44,6 @@ entity ofb_dl_link_reset is
         Ctrl_ConfigReset      : out   std_logic; -- One cycle: reset of the configuration parameters
         Ctrl_LinkResetFlag    : out   std_logic; -- INIT3LinkResetFlag of the near-end capability
         Ev_FarEndLinkReset    : out   std_logic;
-        Ev_TxLost             : out   std_logic; -- Transmitters no longer ready after they were ready (pulse)
         -- 0 ConfigReset, 1 NearEndReset, 2 CheckFarEnd, 3 LinkInit
         Stat_State            : out   std_logic_vector(1 downto 0)
     );
@@ -60,8 +59,6 @@ architecture rtl of ofb_dl_link_reset is
     signal State    : LinkResetFsm_t;
     signal FarReset : std_logic;
     signal FarEv    : std_logic;
-    signal TxLast   : std_logic; -- Phy_TxReady of the previous cycle
-    signal TxSeen   : std_logic; -- Transmitters were ready since the reset
 
 begin
 
@@ -70,11 +67,7 @@ begin
     p_fsm : process (Clk) is
     begin
         if rising_edge(Clk) then
-            FarEv  <= '0';
-            TxLast <= Phy_TxReady;
-            if Phy_TxReady = '1' then
-                TxSeen <= '1';
-            end if;
+            FarEv <= '0';
 
             case State is
                 when ConfigReset_s =>
@@ -111,10 +104,8 @@ begin
             end case;
 
             if Rst = '1' then
-                State  <= ConfigReset_s;
-                FarEv  <= '0';
-                TxLast <= '0';
-                TxSeen <= '0';
+                State <= ConfigReset_s;
+                FarEv <= '0';
             end if;
         end if;
     end process;
@@ -123,7 +114,6 @@ begin
     Ctrl_LaneReset     <= '1' when State = ConfigReset_s or State = NearEndReset_s else '0';
     Ctrl_ConfigReset   <= '1' when State = ConfigReset_s else '0';
     Ctrl_LinkResetFlag <= '0' when State = LinkInit_s else '1';
-    Ev_TxLost          <= TxSeen and TxLast and not Phy_TxReady;
     Ev_FarEndLinkReset <= FarEv;
 
     with State select Stat_State <=

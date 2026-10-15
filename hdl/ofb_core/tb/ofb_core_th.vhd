@@ -58,11 +58,11 @@ end entity;
 ---------------------------------------------------------------------------------------------------
 architecture sim of ofb_core_th is
 
-    signal UserClk : std_logic := '0';
-    signal CoreClk : std_logic := '0';
-    signal LaneClk : std_logic := '0';
-    signal MgmtI   : std_logic := '0';
-    signal RstI    : std_logic := '1';
+    signal UserClk  : std_logic := '0';
+    signal CoreClkG : std_logic := '0'; -- generated core clock
+    signal LaneClkG : std_logic := '0'; -- generated lane clock
+    signal MgmtI    : std_logic := '0';
+    signal RstI     : std_logic := '1';
 
     constant N_c : positive := NumLanes_g;
 
@@ -142,6 +142,16 @@ architecture sim of ofb_core_th is
     signal SerFarLb   : LaneArray_t;
     signal BitSync    : LaneArray_t;
     signal TxReady    : std_logic_vector(0 to 1) := "00";
+
+    -- Clocks of the cores and of the channel model: one delta cycle after the generated clocks, the
+    -- clocks of a core gated by its run flags (taken while the generated clock is low)
+    type ClkArray_t is array (0 to 1) of std_logic;
+
+    signal CoreClk    : ClkArray_t;
+    signal LaneClk    : ClkArray_t;
+    signal ModelClk   : std_logic;
+    signal CoreRun    : ClkArray_t := (others => '1');
+    signal LaneRun    : ClkArray_t := (others => '1');
     signal PrbsTxSel  : KArray_t;
     signal PrbsRxSel  : KArray_t;
     signal PrbsForce  : LaneArray_t;
@@ -153,12 +163,13 @@ begin
 
     i_ti_uvvm_engine : entity uvvm_vvc_framework.ti_uvvm_engine;
 
-    UserClk <= not UserClk after 2.6 ns;
-    CoreClk <= not CoreClk after CoreHalfPs_g * 1 ps;
-    LaneClk <= not LaneClk after LaneHalfPs_g * 1 ps;
-    MgmtI   <= not MgmtI after 5 ns;
-    MgmtClk <= MgmtI;
-    Rst     <= RstI;
+    UserClk  <= not UserClk after 2.6 ns;
+    CoreClkG <= not CoreClkG after CoreHalfPs_g * 1 ps;
+    LaneClkG <= not LaneClkG after LaneHalfPs_g * 1 ps;
+    ModelClk <= LaneClkG;
+    MgmtI    <= not MgmtI after 5 ns;
+    MgmtClk  <= MgmtI;
+    Rst      <= RstI;
 
     p_rst : process is
     begin
@@ -201,13 +212,28 @@ begin
 
         CoreLaneOn(i) <= or (TxEnable(i) or RxEnable(i) or CdrEnable(i));
 
-        -- Transmitters ready from the sequencer, in the lane clock domain like Stat_TxReady of the adapter
-        p_tx_ready : process (LaneClk) is
+        -- Transmitters ready from the sequencer, a register of the free-running management clock like
+        -- Stat_TxReady of the adapter (FreeRunClk)
+        p_tx_ready : process (MgmtI) is
         begin
-            if rising_edge(LaneClk) then
+            if rising_edge(MgmtI) then
                 TxReady(i) <= CoreTxReady(i);
             end if;
         end process;
+
+        -- Clocks of the core: they stop and start while the generated clock is low (no short pulses)
+        p_run : process (CoreClkG, LaneClkG) is
+        begin
+            if falling_edge(CoreClkG) then
+                CoreRun(i) <= CoreCoreClkRun(i);
+            end if;
+            if falling_edge(LaneClkG) then
+                LaneRun(i) <= CoreLaneClkRun(i);
+            end if;
+        end process;
+
+        CoreClk(i) <= CoreClkG when CoreRun(i) = '1' else '0';
+        LaneClk(i) <= LaneClkG when LaneRun(i) = '1' else '0';
 
         i_core : entity work.ofb_core
             generic map (
@@ -224,8 +250,8 @@ begin
             port map (
                 Rst                    => RstI or CoreRstReq(i),
                 UserClk                => UserClk,
-                CoreClk                => CoreClk,
-                LaneClk                => LaneClk,
+                CoreClk                => CoreClk(i),
+                LaneClk                => LaneClk(i),
                 MgmtClk                => MgmtI,
                 S_Vc_TData             => SVcData(i),
                 S_Vc_TKeep             => SVcKeep(i),
@@ -670,7 +696,7 @@ begin
                 Instance_g => l
             )
             port map (
-                Clk          => LaneClk,
+                Clk          => ModelClk,
                 A_Tx_Data    => PhyTxData(0)(32*l+31 downto 32*l),
                 A_Tx_K       => PhyTxK(0)(4*l+3 downto 4*l),
                 A_TxEnable   => TxEnable(0)(l),

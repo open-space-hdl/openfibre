@@ -64,12 +64,16 @@ the four clocks, in both directions,
 `Rst` is an asynchronous reset, high active. A reset generator per clock domain asserts the reset of the domain
 asynchronously and releases it synchronously; all four clocks must run for the reset to complete.
 
-`Phy_TxReady` (`LaneClk`, level) tells the core whether the transmitters of the Physical adapter are ready. While it
+`Phy_TxReady` (asynchronous level) tells the core whether the transmitters of the Physical adapter are ready. While it
 is 0, the link stays in Near-End Reset: link reset and LaneReset are held, the lanes stay in ClearLine, the buffers
 keep the state of a link reset, and the MIB stays accessible (DL_STATUS bit 9, TX_READY). When the transmitters drop
-after they were ready, the link is reset and DL_ERRORS bit 12 (TX_LOST) is set. The port reads 0 while `LaneClk` does
-not run. Connect `Stat_TxReady` of `ofb_pa_gty`; the default `'1'` is for an adapter that is always ready. The reset
-of the core then needs no adapter status: `ofb_vck190_top` resets the core and the adapter with the power-on reset.
+after they were ready, the link is reset and DL_ERRORS bit 12 (TX_LOST) is set. The core synchronises the level to
+CoreClk, LaneClk and MgmtClk separately, so the hold and TX_LOST also work while a transceiver stops `LaneClk` (and a
+`CoreClk` that is the same clock) during a reset of its transmitters. Integration rule: drive `Phy_TxReady` from a
+register (any clock domain) or a constant, never from combinational logic: the core takes it asynchronously, and a
+glitch would reset the link. Connect `Stat_TxReady` of `ofb_pa_gty` (a register of `FreeRunClk`); the default `'1'`
+is for an adapter that is always ready. The reset of the core then needs no adapter status: `ofb_vck190_top` resets
+the core and the adapter with the power-on reset.
 
 ## 5. Interfaces
 
@@ -149,7 +153,7 @@ is high while a sticky flag enabled in IRQ_MASK is set.
 | `Phy_CdrEnable` | out | Clock and data recovery enable |
 | `Phy_RxInvert` | out | Invert the receive polarity (crossed pair detected) |
 | `Phy_NoSignal` | in | No signal on the line, synchronous to `LaneClk` (the adapter synchronises it) |
-| `Phy_TxReady` | in | Transmitters ready (one bit for all lanes, level, default `'1'`); while 0 the link is held in Near-End Reset (section 4) |
+| `Phy_TxReady` | in | Transmitters ready (one bit for all lanes, asynchronous level from a register or a constant, default `'1'`); while 0 the link is held in Near-End Reset (section 4) |
 | `Phy_SerialNearLoopback`, `Phy_SerialFarLoopback` | out | Near-end and far-end serial loopback (LANE_CTRL bits 16 and 17) |
 | `Phy_BitSync` | in | Bit synchronisation of the clock and data recovery (LANE_STATUS bit 6, ECSS 5.4.2e); optional, `ofb_pa_gty` provides it as `Stat_Aligned` |
 | `Phy_PrbsTxSel`, `Phy_PrbsRxSel` | out | PRBS test: transmitted and checked pattern per lane (4 bits, LANE_PRBS_CTRL) |

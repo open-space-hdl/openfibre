@@ -124,7 +124,6 @@ entity ofb_dl is
         Ev_Retry              : out   std_logic;
         Ev_ProtocolError      : out   std_logic;
         Ev_FarEndLinkReset    : out   std_logic;
-        Ev_TxLost             : out   std_logic;
         Ev_BcDiscard          : out   std_logic;
         Ctrl_ConfigReset      : out   std_logic;
         Stat_ErbEmpty         : out   std_logic;
@@ -343,7 +342,6 @@ begin
             Ctrl_ConfigReset      => ConfigReset,
             Ctrl_LinkResetFlag    => ResetFlag,
             Ev_FarEndLinkReset    => Ev_FarEndLinkReset,
-            Ev_TxLost             => Ev_TxLost,
             Stat_State            => LrState
         );
 

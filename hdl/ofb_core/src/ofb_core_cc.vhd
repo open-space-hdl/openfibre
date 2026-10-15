@@ -7,8 +7,8 @@
 -- Description
 ---------------------------------------------------------------------------------------------------
 -- Crossing between the Data Link layer (core clock) and the Multi-Lane layer (lane clock): row
--- FIFOs in both directions, link reset and LaneReset pulses and their held state, near-end capability,
--- lane active and far-end capability events. The core clock must not be slower than the lane clock.
+-- FIFOs in both directions, link reset and LaneReset pulses, near-end capability, lane active and
+-- far-end capability events. The core clock must not be slower than the lane clock.
 --
 -- Documentation: hdl/ofb_core/docs/architecture.md
 
@@ -48,8 +48,6 @@ entity ofb_core_cc is
         Dl_RxRow_Valid          : out   std_logic;
         Dl_LinkReset            : in    std_logic;
         Dl_LaneReset            : in    std_logic;
-        -- Link reset and LaneReset held (level): Near-End Reset while the transmitters are not ready
-        Dl_ResetHold            : in    std_logic                                    := '0';
         Dl_NearCapability       : in    Char_t;
         Dl_FarCapability        : out   Char_t;
         Dl_FarCapabilityValid   : out   std_logic;
@@ -70,6 +68,8 @@ entity ofb_core_cc is
         Ml_RxRow_Mask           : in    std_logic_vector(NumLanes_g-1 downto 0);
         Ml_RxRow_CrcErr         : in    std_logic;
         Ml_RxRow_Valid          : in    std_logic;
+        -- Link reset and LaneReset held (lane clock, level): the transmitters are not ready
+        Ml_ResetHold            : in    std_logic                                    := '0';
         Ml_LinkReset            : out   std_logic;
         Ml_LaneReset            : out   std_logic;
         Ml_NearCapability       : out   Char_t;
@@ -103,8 +103,6 @@ architecture rtl of ofb_core_cc is
     signal RxReady   : std_logic;
     signal Active    : std_logic_vector(0 downto 0);
     signal Pulses    : std_logic_vector(1 downto 0);
-    signal HoldIn    : std_logic_vector(0 downto 0);
-    signal Hold      : std_logic_vector(0 downto 0);
     signal CoreFlush : std_logic;
     signal ActiveIn  : std_logic_vector(0 downto 0);
     signal CapIn     : std_logic_vector(8 downto 0);
@@ -226,26 +224,11 @@ begin
             Out_Pulse    => Pulses
         );
 
-    -- A held reset also crosses as a level: the pulse crossing alone repeats the pulse with gaps, in
-    -- which the lanes would leave ClearLine (DL-LR-06)
-    HoldIn(0) <= Dl_ResetHold;
-
-    i_hold : entity olo.olo_base_cc_bits
-        generic map (
-            Width_g   => 1,
-            SyncTmr_g => true
-        )
-        port map (
-            In_Clk   => CoreClk,
-            In_Rst   => CoreRst,
-            In_Data  => HoldIn,
-            Out_Clk  => LaneClk,
-            Out_Rst  => LaneRst,
-            Out_Data => Hold
-        );
-
-    Ml_LinkReset <= Pulses(0) or Hold(0);
-    Ml_LaneReset <= Pulses(1) or Hold(0);
+    -- While the transmitters are not ready the lanes are held in reset from the lane clock domain
+    -- (CORE-PL-04): the pulse crossing alone repeats the pulse with gaps, in which the lanes would
+    -- leave ClearLine
+    Ml_LinkReset <= Pulses(0) or Ml_ResetHold;
+    Ml_LaneReset <= Pulses(1) or Ml_ResetHold;
 
     i_near_cap : entity olo.olo_base_cc_bits
         generic map (

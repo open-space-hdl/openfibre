@@ -1241,6 +1241,62 @@ begin
                 rd(0, RegDlErrors_c, Data_v);
                 check_value(Data_v(12), '0', error, "TX_LOST at A cleared");
 
+            -- TC-CORE-24: the transmitters of A are reset during traffic and their clock stops (LaneClk and
+            -- CoreClk of A stand still, the lines from A carry no signal): the MIB of A reports TX_READY 0
+            -- and TX_LOST while the clocks stand still, the lanes of A are held as soon as LaneClk runs
+            -- again. The link comes up again with the lanes released 1 us before the Data Link layer (round
+            -- 0: LaneClk runs again 1 us before CoreClk) and with the Data Link layer released 1 us before
+            -- the lanes (round 1); no error flag but TX_LOST at A in either order
+            elsif run("test_tx_ready_clock_stop") then
+                CoreCfg(0).Lossy <= true;
+                CoreCfg(1).Lossy <= true;
+                linkUp(500 us);
+
+                for round in 0 to 1 loop
+                    sendAll(10);
+                    cycles(300);
+                    CoreLaneClkRun(0) <= '0';
+                    CoreCoreClkRun(0) <= '0';
+                    cycles(10);
+                    CoreTxReady(0)    <= '0';
+
+                    for l in 0 to NumLanes_g-1 loop
+                        PaCtrl(l).AtoB.Cut <= true;
+                    end loop;
+
+                    cycles(1000);
+                    rd(0, RegDlStatus_c, Data_v);
+                    check_value(Data_v(9), '0', error, "TX_READY 0 at A while its clocks stand still");
+                    rd(0, RegDlErrors_c, Data_v);
+                    check_value(Data_v(12), '1', error, "TX_LOST at A while its clocks stand still");
+                    if round = 0 then
+                        CoreLaneClkRun(0) <= '1';
+                        cycles(20);
+                        check_value(CoreLaneOn(0), '0', error, "Lanes of A held as soon as LaneClk runs again");
+                    else
+                        CoreCoreClkRun(0) <= '1';
+                        cycles(20);
+                    end if;
+                    CoreTxReady(0) <= '1';
+
+                    for l in 0 to NumLanes_g-1 loop
+                        PaCtrl(l).AtoB.Cut <= false;
+                    end loop;
+
+                    cycles(100);
+                    if round = 0 then
+                        CoreCoreClkRun(0) <= '1';
+                    else
+                        CoreLaneClkRun(0) <= '1';
+                    end if;
+                    linkUp(500 us);
+                    sendAll(5);
+                    waitDelivered(5 ms);
+                    rd(0, RegDlErrors_c, Data_v);
+                    check_value(Data_v, x"00001000", error, "Only TX_LOST at A, round " & to_string(round));
+                    wr(0, RegDlErrors_c, x"00001000");
+                end loop;
+
             end if;
 
         end loop;

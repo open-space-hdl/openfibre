@@ -89,8 +89,13 @@ package ofb_core_tb_pkg is
     -- A lane of the core has its transmitter, receiver or CDR enabled (all off in ClearLine and Disabled)
     signal CoreLaneOn : std_logic_vector(0 to 1);
 
-    -- Transmitters of the Physical adapter ready, per core (Phy_TxReady; the harness registers it in LaneClk)
+    -- Transmitters of the Physical adapter ready, per core (Phy_TxReady; the harness registers it in the
+    -- free-running MgmtClk, like Stat_TxReady of ofb_pa_gty in FreeRunClk)
     signal CoreTxReady : std_logic_vector(0 to 1) := "11";
+
+    -- LaneClk and CoreClk of a core run ('1') or stand still ('0'); taken while the clock is low
+    signal CoreLaneClkRun : std_logic_vector(0 to 1) := "11";
+    signal CoreCoreClkRun : std_logic_vector(0 to 1) := "11";
 
     -- Interrupt outputs of the cores
     signal CoreIrq : std_logic_vector(0 to 1);

@@ -20,8 +20,9 @@ RANGE_CONFIGS = (
     ("vc1", {"NumLanes_g": 2, "NumVc_g": 1}, BASIC_TESTS),
     ("vc32", {"NumLanes_g": 2, "NumVc_g": 32}, BASIC_TESTS),
     # Lane clock at half the rate (LaneClk 78.125 MHz): the timers of the Lane and Multi-Lane layers follow
-    # LaneClkFreq_g
-    ("halfrate", {"NumLanes_g": 2, "LaneHalfPs_g": 6400}, ("test_link_up", "test_link_reset")),
+    # LaneClkFreq_g; with the transmitter ready tests the Data Link layer leaves its hold well before the lanes
+    ("halfrate", {"NumLanes_g": 2, "LaneHalfPs_g": 6400},
+     ("test_link_up", "test_link_reset", "test_tx_ready_late", "test_tx_ready_lost")),
     # Smallest buffers: output VC buffer 64 words, input VC buffer 128 words per lane (two flow control units),
     # error recovery buffer 64 rows
     ("minbuf", {"NumLanes_g": 2, "VcOutDepth_g": 32, "VcInDepth_g": 256, "ErbRows_g": 64},

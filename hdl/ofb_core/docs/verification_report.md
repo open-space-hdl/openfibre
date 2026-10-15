@@ -16,14 +16,15 @@ simulator are not affected.
 Run on 2026-10-15 with the configurations of the generic ranges: the full regression `python run.py`, 287 of 287
 tests pass in GHDL and in QuestaSim, with and without coverage (287 of 287 each; the three tests of `vc32` with 32
 VCs and two lanes in a separate run, commit 0bab3a2, see `docs/coverage.md`). Run on 2026-10-15 with the
-transmitter ready input `Phy_TxReady` (TC-CORE-21 to TC-CORE-23): 299 of 299 tests pass in GHDL.
+transmitter ready input `Phy_TxReady` (TC-CORE-21 to TC-CORE-24, asynchronous input with one reset generator per
+clock domain): 305 of 305 tests pass in GHDL.
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_core_tb` (configurations `lanes1` to `lanes4`) | 23 x 4 | 92 |
+| `ofb_core_tb` (configurations `lanes1` to `lanes4`) | 24 x 4 | 96 |
 | `ofb_core_tb`, configuration `lanes1_slowcore` (TC-CORE-15 only) | 1 | 1 |
 | `ofb_core_tb`, configurations `vc1` and `vc32` (TC-CORE-01, 02, 04) | 3 x 2 | 6 |
-| `ofb_core_tb`, configuration `halfrate` (TC-CORE-01, 04) | 2 | 2 |
+| `ofb_core_tb`, configuration `halfrate` (TC-CORE-01, 04, 21, 23) | 4 | 4 |
 | `ofb_core_tb`, configuration `minbuf` (TC-CORE-01 to 04) | 4 | 4 |
 | `ofb_core_tb`, configuration `noprbs` (TC-CORE-01, 02) | 2 | 2 |
 
@@ -52,9 +53,17 @@ the link of B is not initialised; afterwards the link comes up without an error 
 the transmitters of A never ready, A stays in Near-End Reset for 300 us without lane activity, interrupt, error
 flag, retry or lane event, and its MIB stays accessible. TC-CORE-23: when the transmitters of A drop during traffic,
 both ends reset the link, A sets TX_LOST and keeps its configuration, no lane of A is on in the last 5 us of the
-hold, and the traffic is delivered after the transmitters return; TX_LOST stays set until it is cleared. Mutation
-check: with the Data Link layer ignoring `Phy_TxReady`, and with the held reset not crossed to the lane clock
-domain as a level, all three tests fail (one lane).
+hold, and the traffic is delivered after the transmitters return; TX_LOST stays set until it is cleared.
+TC-CORE-24: LaneClk and CoreClk of A stop and its transmitters become not ready during traffic; while the clocks
+stand still the MIB of A reads TX_READY 0 and TX_LOST 1, 200 ns after LaneClk runs again no lane of A is on, and
+the link comes up again with the lanes released 1 us before the Data Link layer (round 0) and with the Data Link
+layer released 1 us before the lanes (round 1); after each round DL_ERRORS of A holds only TX_LOST. TC-CORE-21 and
+TC-CORE-23 also pass with LaneClk at 78.125 MHz (`halfrate`), where the Data Link layer is released first.
+
+Mutation checks (one lane): with the Data Link layer ignoring `Phy_TxReady`, TC-CORE-21 to TC-CORE-24 fail (A not
+in Near-End Reset; in TC-CORE-24 a sequence error at A, DL_ERRORS 0x1008); without the hold of the lanes,
+TC-CORE-21 to TC-CORE-24 fail (lanes of A on during the hold); with the MIB taking `Phy_TxReady` from a register
+of LaneClk, TC-CORE-24 fails (TX_READY 1 while the clocks stand still).
 
 Throughput and latency (TC-CORE-16, lane capacity 5 Gbit/s per lane: 32 bits per 6.4 ns; core clock 166.7 MHz, user
 clock 192.3 MHz; packets of 1 to 1024 bytes on four VCs):

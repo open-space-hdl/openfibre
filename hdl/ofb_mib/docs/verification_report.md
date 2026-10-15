@@ -10,7 +10,7 @@ Run on 2026-10-13 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 
 Full regression of the repository: 227 of 227 tests pass (with the packet ports of the VCs and register map version
 7). VSG reports no errors and no warnings. Run on 2026-10-15 with register map version 8 (transmitter ready): 11 of
-11, full regression 299 of 299.
+11, full regression 305 of 305.
 
 ## 2. Summary
 
@@ -41,7 +41,8 @@ VC in consecutive cycles and two VCs in the same cycle and reads 4. QuestaSim (c
 
 Transmitter ready (register map version 8, MG-ST-06): TC-MG-03 reads DL_STATUS bit 9 (TX_READY) as 1 and as 0;
 TC-MG-04 sets DL_ERRORS bit 12 (TX_LOST) with its interrupt and clears it with W1C. The core testbench checks both
-bits with the link held in Near-End Reset (TC-CORE-21 to TC-CORE-23).
+bits with the link held in Near-End Reset (TC-CORE-21 to TC-CORE-24), TC-CORE-24 also while the core and lane
+clocks of the core stand still.
 
 Defects found during verification:
 

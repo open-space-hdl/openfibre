@@ -57,6 +57,8 @@ entity ofb_mib is
         S_AxiLite_RValid       : out   std_logic;
         S_AxiLite_RReady       : in    std_logic;
         Irq                    : out   std_logic;
+        -- Transmitters of the Physical adapter ready, synchronised to Clk (TX_READY, TX_LOST)
+        Phy_TxReady            : in    std_logic                                    := '1';
         -- Core clock domain: Data Link layer
         CoreClk                : in    std_logic;
         CoreRst                : in    std_logic;
@@ -76,8 +78,6 @@ entity ofb_mib is
         Dl_EvRetry             : in    std_logic;
         Dl_EvProtocolError     : in    std_logic;
         Dl_EvFarEndLinkReset   : in    std_logic;
-        Dl_EvTxLost            : in    std_logic                                    := '0';
-        Dl_TxReady             : in    std_logic                                    := '1';
         Dl_EvBcDiscard         : in    std_logic;
         Dl_EvInputOverflow     : in    std_logic_vector(NumVc_g-1 downto 0);
         Dl_EvCreditOverflow    : in    std_logic_vector(NumVc_g-1 downto 0);
@@ -156,8 +156,8 @@ architecture rtl of ofb_mib is
 
     -- Widths of the crossing vectors
     constant CoreCfgW_c   : positive := 20;
-    constant CoreStatW_c  : positive := 8 + 3 * NumVc_g + 6 + 1;
-    constant CoreEvW_c    : positive := 8 + 2 * NumVc_g + 1;
+    constant CoreStatW_c  : positive := 8 + 3 * NumVc_g + 6;
+    constant CoreEvW_c    : positive := 8 + 2 * NumVc_g;
     constant LaneCfgW_c   : positive := 26;
     constant LaneStatW_c  : positive := 104;
     -- PRBS test: configuration bits of a lane (TX pattern, RX pattern, hold) and word counter width
@@ -205,6 +205,8 @@ architecture rtl of ofb_mib is
 
     -- Sticky flags and counters
     signal DlErrors    : std_logic_vector(12 downto 0);
+    signal TxLast      : std_logic := '0'; -- Phy_TxReady of the previous cycle
+    signal TxSeen      : std_logic := '0'; -- The transmitters were ready since the reset
     signal VcInOvf     : std_logic_vector(NumVc_g-1 downto 0);
     signal VcCrOvf     : std_logic_vector(NumVc_g-1 downto 0);
     signal VcFrErr     : std_logic_vector(NumVc_g-1 downto 0);
@@ -356,12 +358,17 @@ begin
             DlErrors(9)          <= DlErrors(9) or (or UserEv(NumVc_g-1 downto 0));
             DlErrors(10)         <= DlErrors(10) or LaneEv(4*NumLanes_g+1);
             DlErrors(11)         <= DlErrors(11) or (or UserEv(2*NumVc_g-1 downto NumVc_g));
-            DlErrors(12)         <= DlErrors(12) or CoreEv(CoreEvW_c - 1);
-            VcInOvf              <= VcInOvf or CoreEv(7 + NumVc_g downto 8);
-            VcCrOvf              <= VcCrOvf or CoreEv(7 + 2 * NumVc_g downto 8 + NumVc_g);
-            VcFrErr              <= VcFrErr or UserEv(NumVc_g-1 downto 0);
-            VcRxFrErr            <= VcRxFrErr or UserEv(2*NumVc_g-1 downto NumVc_g);
-            LaneEvents           <= LaneEvents or LaneEv(4*NumLanes_g-1 downto 0);
+            -- TX_LOST: the transmitters are no longer ready after they were ready (MG-ST-06)
+            DlErrors(12) <= DlErrors(12) or (TxSeen and TxLast and not Phy_TxReady);
+            TxLast       <= Phy_TxReady;
+            if Phy_TxReady = '1' then
+                TxSeen <= '1';
+            end if;
+            VcInOvf    <= VcInOvf or CoreEv(7 + NumVc_g downto 8);
+            VcCrOvf    <= VcCrOvf or CoreEv(7 + 2 * NumVc_g downto 8 + NumVc_g);
+            VcFrErr    <= VcFrErr or UserEv(NumVc_g-1 downto 0);
+            VcRxFrErr  <= VcRxFrErr or UserEv(2*NumVc_g-1 downto NumVc_g);
+            LaneEvents <= LaneEvents or LaneEv(4*NumLanes_g-1 downto 0);
             -- Bandwidth flags once the status crossing has transferred a value after reset
             if StatSettle = 31 then
                 VcBwOver  <= VcBwOver or CoreStat(7 + 2 * NumVc_g downto 8 + NumVc_g);
@@ -543,6 +550,8 @@ begin
                 PrbsCmd      <= (others => '0');
                 IrqMask      <= (others => '0');
                 DlErrors     <= (others => '0');
+                TxLast       <= '0';
+                TxSeen       <= '0';
                 VcInOvf      <= (others => '0');
                 VcCrOvf      <= (others => '0');
                 VcFrErr      <= (others => '0');
@@ -599,7 +608,7 @@ begin
                     Data_v(3 downto 2) := CoreStat(3 downto 2);
                     Data_v(6 downto 4) := CoreStat(6 downto 4);
                     Data_v(8)          := CoreStat(7);
-                    Data_v(9)          := CoreStat(CoreStatW_c - 1);
+                    Data_v(9)          := Phy_TxReady;
                 when RegDlErrors_c =>
                     Data_v(12 downto 0) := DlErrors;
                 when RegDlRetries_c =>
@@ -639,7 +648,7 @@ begin
                 when RegVcIdleLimit_c =>
                     Data_v := IdleLimit;
                 when RegSchedStatus_c =>
-                    Data_v(5 downto 0) := CoreStat(CoreStatW_c - 2 downto CoreStatW_c - 7);
+                    Data_v(5 downto 0) := CoreStat(CoreStatW_c - 1 downto CoreStatW_c - 6);
                 when RegMlCtrl_c =>
                     Data_v(2 downto 0) := MlMax;
                     Data_v(8)          := MlBypass;
@@ -798,7 +807,7 @@ begin
     Dl_RegAddr <= QosWrOut(43 downto 32);
     Dl_RegData <= QosWrOut(31 downto 0);
 
-    CoreStatIn <= Dl_TxReady & Dl_TimeSlot & Dl_BwUnder & Dl_BwOver & Dl_HasCredit & Dl_ErbEmpty & Dl_WordIdState & Dl_RxErrState &
+    CoreStatIn <= Dl_TimeSlot & Dl_BwUnder & Dl_BwOver & Dl_HasCredit & Dl_ErbEmpty & Dl_WordIdState & Dl_RxErrState &
                   Dl_LinkResetState;
 
     i_core_stat : entity olo.olo_base_cc_status
@@ -815,7 +824,7 @@ begin
             Out_Data  => CoreStat
         );
 
-    CoreEvIn <= Dl_EvTxLost & Dl_EvCreditOverflow & Dl_EvInputOverflow & Dl_EvBcDiscard & Dl_EvFarEndLinkReset & Dl_EvProtocolError &
+    CoreEvIn <= Dl_EvCreditOverflow & Dl_EvInputOverflow & Dl_EvBcDiscard & Dl_EvFarEndLinkReset & Dl_EvProtocolError &
                 Dl_EvRetry & Dl_EvSeqErr & Dl_EvFrameErr & Dl_EvCrc8Err & Dl_EvCrc16Err;
 
     i_core_ev : entity work.ofb_cc_pulse

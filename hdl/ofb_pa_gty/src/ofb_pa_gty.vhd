@@ -39,7 +39,8 @@ entity ofb_pa_gty is
         Rst                    : in    std_logic;
         -- Reference clock of the quad (output O of the IBUFDS_GTE5 of the reference clock pins)
         RefClk                 : in    std_logic;
-        -- Word clock of the lanes (transmit user clock of the quad) and its reset
+        -- Word clock of the lanes (transmit user clock of the quad, stopped while the transmitters are
+        -- reset) and its reset (asserted while the transmitters are not ready, released synchronously)
         LaneClk                : out   std_logic;
         LaneRst                : out   std_logic;
         -- Serial lines
@@ -72,8 +73,9 @@ entity ofb_pa_gty is
         Phy_PrbsCntReset       : in    std_logic_vector(NumLanes_g-1 downto 0)   := (others => '0');
         Phy_PrbsErr            : out   std_logic_vector(NumLanes_g-1 downto 0);
         Phy_PrbsLocked         : out   std_logic_vector(NumLanes_g-1 downto 0);
-        -- Status (LaneClk)
+        -- Transmitters ready (FreeRunClk, register): for Phy_TxReady of ofb_core
         Stat_TxReady           : out   std_logic;
+        -- Status (LaneClk)
         Stat_RxReady           : out   std_logic;
         Stat_Aligned           : out   std_logic_vector(NumLanes_g-1 downto 0);
         Stat_RxBufErr          : out   std_logic_vector(NumLanes_g-1 downto 0);
@@ -293,12 +295,14 @@ architecture struct of ofb_pa_gty is
     signal TxDone : std_logic;
     signal RxDone : std_logic;
 
+    -- Transmitters ready, register of FreeRunClk
+    signal TxReadyReg : std_logic := '0';
+
     -- Status synchronised to LaneClk
-    signal SyncIn     : std_logic_vector(2*NumLanes_g+1 downto 0);
-    signal SyncOut    : std_logic_vector(2*NumLanes_g+1 downto 0);
-    signal RxReady    : std_logic;
-    signal RxSeenK    : std_logic_vector(Ch_c-1 downto 0) := (others => '0');
-    signal LaneRstReg : std_logic                         := '1';
+    signal SyncIn  : std_logic_vector(2*NumLanes_g downto 0);
+    signal SyncOut : std_logic_vector(2*NumLanes_g downto 0);
+    signal RxReady : std_logic;
+    signal RxSeenK : std_logic_vector(Ch_c-1 downto 0) := (others => '0');
 
     -- Serial loopbacks: loopback mode per channel, transmit datapath reset after a change of the
     -- far-end loopback (FreeRunClk)
@@ -428,14 +432,14 @@ begin
     end generate;
 
     -----------------------------------------------------------------------------------------------
-    -- Status to LaneClk: reset done (FreeRunClk), electrical idle and comma alignment (asynchronous)
+    -- Status to LaneClk: receive reset done (FreeRunClk), electrical idle and comma alignment
+    -- (asynchronous)
     -----------------------------------------------------------------------------------------------
-    SyncIn(0) <= TxDone;
-    SyncIn(1) <= RxDone;
+    SyncIn(0) <= RxDone;
 
     g_sync : for l in 0 to NumLanes_g-1 generate
-        SyncIn(2 + l)              <= RxElecIdle(l);
-        SyncIn(2 + NumLanes_g + l) <= RxAligned(l);
+        SyncIn(1 + l)              <= RxElecIdle(l);
+        SyncIn(1 + NumLanes_g + l) <= RxAligned(l);
     end generate;
 
     -- The far-end loopback enables come from logic of the lane clock domain (the voters of the MIB
@@ -482,7 +486,7 @@ begin
 
     i_sync : entity olo.olo_intf_sync
         generic map (
-            Width_g   => 2*NumLanes_g+2,
+            Width_g   => 2*NumLanes_g+1,
             SyncTmr_g => true
         )
         port map (
@@ -491,20 +495,41 @@ begin
             DataSync  => SyncOut
         );
 
-    -- Lane reset from a register: it is synchronised to other clock domains
-    p_lane_rst : process (UsrClk) is
+    -----------------------------------------------------------------------------------------------
+    -- Transmitters ready (PA-ST-02): the reset done of the transceiver reset controller (already in
+    -- FreeRunClk) from a register. The user clock stops while the transmitters are reset (the reset
+    -- controller clears the BUFG_GT until the transmit PMA reset is done), so the status is kept in
+    -- the free-running clock domain.
+    -----------------------------------------------------------------------------------------------
+    p_tx_ready : process (FreeRunClk) is
     begin
-        if rising_edge(UsrClk) then
-            LaneRstReg <= not SyncOut(0);
+        if rising_edge(FreeRunClk) then
+            TxReadyReg <= TxDone;
+            if RstFree = '1' then
+                TxReadyReg <= '0';
+            end if;
         end if;
     end process;
 
-    RxReady      <= SyncOut(1);
-    Stat_TxReady <= SyncOut(0);
-    Stat_RxReady <= SyncOut(1);
-    LaneRst      <= LaneRstReg;
-    Phy_NoSignal <= SyncOut(NumLanes_g+1 downto 2);
-    Stat_Aligned <= SyncOut(2*NumLanes_g+1 downto NumLanes_g+2);
+    Stat_TxReady <= TxReadyReg;
+
+    -- Lane reset: set without a clock edge while the transmitters are not ready, released
+    -- synchronously to the user clock
+    i_lane_rst : entity olo.olo_base_reset_gen
+        generic map (
+            RstInPolarity_g => '0',
+            SyncTmr_g       => true
+        )
+        port map (
+            Clk    => UsrClk,
+            RstOut => LaneRst,
+            RstIn  => TxReadyReg
+        );
+
+    RxReady      <= SyncOut(0);
+    Stat_RxReady <= SyncOut(0);
+    Phy_NoSignal <= SyncOut(NumLanes_g downto 1);
+    Stat_Aligned <= SyncOut(2*NumLanes_g downto NumLanes_g+1);
 
     -----------------------------------------------------------------------------------------------
     -- Transceiver wizard instance

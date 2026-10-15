@@ -19,8 +19,9 @@ more than the 18.7 Gbit/s that four lanes deliver (94 % of the payload capacity,
 simulation (`IncludeCips_g` = false) clock models of the same frequencies replace the CIPS.
 
 The core and the adapter are reset by the power-on reset. The transmitter ready status of the adapter
-(`Stat_TxReady`, lane clock) drives `Phy_TxReady` of the core, which holds the link in Near-End Reset until the
-transmitters are ready. The echo needs no buffering: the output
+(`Stat_TxReady`, a register of the free-running clock) drives `Phy_TxReady` of the core, which holds the link in
+Near-End Reset until the transmitters are ready, also while the lane clock stands still during a reset of the
+transmitters. The echo needs no buffering: the output
 port of every VC (`M_Vc`) feeds the input port of the same VC (`S_Vc`), back-pressure included. The serial loopback
 enables of the core drive the adapter, and the comma alignment of the adapter (`Stat_Aligned`) is the bit
 synchronisation status of the core (`Phy_BitSync`, LANE_STATUS bit 6). The PRBS test signals of the core (`Phy_Prbs*`)

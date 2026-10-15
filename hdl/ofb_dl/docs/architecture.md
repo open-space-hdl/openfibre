@@ -226,8 +226,8 @@ testbench).
 Received rows reach `ofb_dl_rx_check` only in Link Initialised (DL-LR-05).
 
 While `Phy_TxReady` is 0 the state machine stays in NearEndReset, so link reset and LaneReset stay asserted
-(DL-LR-06). `Ev_TxLost` is a pulse when `Phy_TxReady` falls after it was 1 since the reset (TX_LOST of the MIB); the
-first start of the transmitters does not raise it. `Phy_TxReady` arrives synchronised to the core clock (`ofb_core`).
+(DL-LR-06). `Phy_TxReady` is the hold of the core clock domain inverted (`ofb_core`, architecture section 4); the
+MIB detects the loss of the transmitters itself (TX_LOST).
 
 ### 3.12 Quality of service: ofb_dl_mac (DT-4) and ofb_dl_qos_regs
 
