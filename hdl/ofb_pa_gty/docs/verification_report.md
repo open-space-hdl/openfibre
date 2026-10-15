@@ -10,6 +10,7 @@ Run on 2026-10-05 with Vivado 2025.2 (transceiver wizard gtwiz_versal 1.0, xsim)
 | `ofb_pa_gty_cc_tb`, run `cc` | TC-PA-03 | Pass | 94 us |
 | `ofb_pa_gty_cc_tb`, run `far` | TC-PA-05 | Pass | 144 us |
 | `ofb_pa_gty_core_tb` | TC-PA-02 | Pass | 199 us |
+| `ofb_pa_gty_core_tb`, runs `lanes1` to `lanes3` | TC-PA-02 with 1 to 3 lanes (2026-10-15) | Pass | 98 to 104 us |
 
 TC-PA-01: transmitters ready after 64.9 us, receivers ready after 68.2 us; 342 data words per lane checked without
 error, all lanes aligned, NoSignal low.
@@ -32,6 +33,17 @@ TC-PA-02 (200 ppm): transceivers ready after 64.9 us, link initialised after 94.
 data-receiving, Both-Ends Ready at both ends, ML_STATUS 0x2FF); first burst delivered after 98.3 us; 4 clock
 corrections at A and 1 at B by 194.3 us; all 24 packets per VC and direction and 4 broadcast messages per direction
 delivered in order, DL_ERRORS zero and no retry at either end.
+
+TC-PA-02 with one to three lanes (run on 2026-10-15, `python tools/run_xsim.py ofb_pa_gty_core_tb.lanes1` to
+`.lanes3`, link initialisation and first burst; four lanes are the full run above):
+
+| Lanes | Transceivers ready | Link initialised | First burst delivered | ML_STATUS |
+| --- | --- | --- | --- | --- |
+| 1 | 64.9 us | 94.06 us | 104.18 us | 0x611 |
+| 2 | 64.9 us | 94.11 us | 100.23 us | 0x233 |
+| 3 | 64.9 us | 94.16 us | 98.28 us | 0x277 |
+
+All packets of the first burst and the broadcast messages delivered in order at both ends, DL_ERRORS zero.
 
 A simulation of the transceiver model takes about 10 minutes of elaboration and 2 to 25 minutes of simulation.
 A line `model error <run> (attempt 1 of 3: transceiver model power-up error DIV_VAL_CHK, ...), elaborating again` in

@@ -33,7 +33,7 @@ The frequency generics of the testbench are derived from the generated clock per
 | Generic | Range | Simulated | Synthesised | Rejected |
 | --- | --- | --- | --- | --- |
 | `NumVc_g` | 1 to 32 | 1, 4, 32 (8 in the system test with the transceiver model) | 1, 8, 32 | outside the subtype |
-| `NumLanes_g` | 1 to 4 | 1, 2, 3, 4 (all test cases) | 1, 2, 3, 4 | outside the subtype |
+| `NumLanes_g` | 1 to 4 | 1, 2, 3, 4 (all test cases); with `ofb_pa_gty` and the transceiver model 1 to 4 | 1, 2, 3, 4 | outside the subtype |
 | `LaneClkFreq_g` | positive | 156.25 MHz; 78.125 MHz (`halfrate`: ClearLine measured 2.010 us and 2.022 us) | 156.25 MHz | not positive (check by inspection: GHDL synthesis cannot override a real generic) |
 | `CoreClkFreq_g` | positive | 166.7 MHz; 125 MHz (`lanes1_slowcore`) | 200 MHz | as `LaneClkFreq_g` |
 | `VcOutDepth_g` | power of two, `VcOutDepth_g` x `NumLanes_g` >= 64 | 128 beats; 32 beats with two lanes (`minbuf`) | 64 with one lane, 16 with four lanes, 128 | 32 with one lane, 16 with two lanes, 96 |

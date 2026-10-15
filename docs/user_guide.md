@@ -153,6 +153,8 @@ The adapter aligns the receive symbols to 10-bit symbol boundaries, decodes them
 per `LaneClk` cycle without gaps. For the AMD Versal GTY, `ofb_pa_gty` connects these ports one to one; its
 `LaneClk` output is the lane clock of the core (see `hdl/ofb_vck190/src/ofb_vck190_top.vhd`). The generic
 `NumLanes_g` of `ofb_pa_gty` defaults to 4 (one GTY quad) and that of `ofb_core` to 1: set both to the same value.
+The adapter is verified with the transceiver model for 1 to 4 lanes; the unused channels of the quad send electrical
+idle.
 
 ## 6. Programming sequence
 
