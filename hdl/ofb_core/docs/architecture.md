@@ -11,7 +11,8 @@ ofb_mib below with the management connections, and the reset generators](img/ofb
 | --- | --- | --- |
 | Transmit rows | CoreClk to LaneClk | `olo_ft_fifo_async`, 16 rows, write side reset on link reset (flush); a row read with a DED goes to the Multi-Lane layer with all mask bits set, as a non-replicated row and with `Ml_TxRow_Poison` (CORE-ED-02) |
 | Receive rows | LaneClk to CoreClk | `olo_ft_fifo_async`, 16 rows, read side reset on link reset; a full FIFO is reported as `Ev_RxOverflow` to the MIB, DL_ERRORS bit 10 (cannot happen while CoreClk is not slower than LaneClk); a row read with a DED is replaced by one RXERR (CORE-ED-02) |
-| Link reset, LaneReset | CoreClk to LaneClk | `ofb_cc_pulse` |
+| Link reset, LaneReset | CoreClk to LaneClk | `ofb_cc_pulse`; while the Data Link layer holds them (transmitters not ready, DL-LR-06) also as a level through `olo_base_cc_bits`, ORed with the pulses: the pulse crossing alone repeats the pulse with gaps in which the lanes would leave ClearLine. The hold condition (LaneReset of the Data Link layer and not `Phy_TxReady`, both CoreClk) is combinational in front of the crossing; the input register of `olo_base_cc_bits` (`In_Data` registered in `In_Clk`) stores it before the synchronisers, so no combinational path reaches the clock crossing |
+| Transmitters ready (`Phy_TxReady`) | LaneClk to CoreClk (in `ofb_core`) | `olo_base_cc_bits`; its input register is in the lane reset, so the level reads 0 while LaneClk does not run (CORE-PL-04) |
 | Near-end capability | CoreClk to LaneClk | `olo_base_cc_bits` (the bits are independent) |
 | Lane active | LaneClk to CoreClk | `olo_base_cc_bits` |
 | Far-end capability and "no lane active" | LaneClk to CoreClk | `olo_ft_fifo_async` (4 entries), event and qualifier in one word |

@@ -76,6 +76,8 @@ entity ofb_mib is
         Dl_EvRetry             : in    std_logic;
         Dl_EvProtocolError     : in    std_logic;
         Dl_EvFarEndLinkReset   : in    std_logic;
+        Dl_EvTxLost            : in    std_logic                                    := '0';
+        Dl_TxReady             : in    std_logic                                    := '1';
         Dl_EvBcDiscard         : in    std_logic;
         Dl_EvInputOverflow     : in    std_logic_vector(NumVc_g-1 downto 0);
         Dl_EvCreditOverflow    : in    std_logic_vector(NumVc_g-1 downto 0);
@@ -154,8 +156,8 @@ architecture rtl of ofb_mib is
 
     -- Widths of the crossing vectors
     constant CoreCfgW_c   : positive := 20;
-    constant CoreStatW_c  : positive := 8 + 3 * NumVc_g + 6;
-    constant CoreEvW_c    : positive := 8 + 2 * NumVc_g;
+    constant CoreStatW_c  : positive := 8 + 3 * NumVc_g + 6 + 1;
+    constant CoreEvW_c    : positive := 8 + 2 * NumVc_g + 1;
     constant LaneCfgW_c   : positive := 26;
     constant LaneStatW_c  : positive := 104;
     -- PRBS test: configuration bits of a lane (TX pattern, RX pattern, hold) and word counter width
@@ -202,7 +204,7 @@ architecture rtl of ofb_mib is
     signal CmdIfReset    : std_logic;
 
     -- Sticky flags and counters
-    signal DlErrors    : std_logic_vector(11 downto 0);
+    signal DlErrors    : std_logic_vector(12 downto 0);
     signal VcInOvf     : std_logic_vector(NumVc_g-1 downto 0);
     signal VcCrOvf     : std_logic_vector(NumVc_g-1 downto 0);
     signal VcFrErr     : std_logic_vector(NumVc_g-1 downto 0);
@@ -354,6 +356,7 @@ begin
             DlErrors(9)          <= DlErrors(9) or (or UserEv(NumVc_g-1 downto 0));
             DlErrors(10)         <= DlErrors(10) or LaneEv(4*NumLanes_g+1);
             DlErrors(11)         <= DlErrors(11) or (or UserEv(2*NumVc_g-1 downto NumVc_g));
+            DlErrors(12)         <= DlErrors(12) or CoreEv(CoreEvW_c - 1);
             VcInOvf              <= VcInOvf or CoreEv(7 + NumVc_g downto 8);
             VcCrOvf              <= VcCrOvf or CoreEv(7 + 2 * NumVc_g downto 8 + NumVc_g);
             VcFrErr              <= VcFrErr or UserEv(NumVc_g-1 downto 0);
@@ -403,7 +406,7 @@ begin
                     when RegDlBcInterval_c =>
                         BcInterval <= RbWrData(15 downto 0);
                     when RegDlErrors_c =>
-                        DlErrors <= DlErrors and not RbWrData(11 downto 0);
+                        DlErrors <= DlErrors and not RbWrData(12 downto 0);
                     when RegDlRetries_c =>
                         Retries <= (others => '0');
                     when RegDlCrc16Count_c =>
@@ -596,8 +599,9 @@ begin
                     Data_v(3 downto 2) := CoreStat(3 downto 2);
                     Data_v(6 downto 4) := CoreStat(6 downto 4);
                     Data_v(8)          := CoreStat(7);
+                    Data_v(9)          := CoreStat(CoreStatW_c - 1);
                 when RegDlErrors_c =>
-                    Data_v(11 downto 0) := DlErrors;
+                    Data_v(12 downto 0) := DlErrors;
                 when RegDlRetries_c =>
                     Data_v := std_logic_vector(Retries);
                 when RegDlCrc16Count_c =>
@@ -635,7 +639,7 @@ begin
                 when RegVcIdleLimit_c =>
                     Data_v := IdleLimit;
                 when RegSchedStatus_c =>
-                    Data_v(5 downto 0) := CoreStat(CoreStatW_c - 1 downto CoreStatW_c - 6);
+                    Data_v(5 downto 0) := CoreStat(CoreStatW_c - 2 downto CoreStatW_c - 7);
                 when RegMlCtrl_c =>
                     Data_v(2 downto 0) := MlMax;
                     Data_v(8)          := MlBypass;
@@ -695,7 +699,7 @@ begin
             RbRdData <= Data_v;
 
             -- Interrupt
-            Irq_v := or (DlErrors and IrqMask(11 downto 0));
+            Irq_v := or (DlErrors and IrqMask(12 downto 0));
             -- EDAC: uncorrectable error (bit 24), corrected error (bit 25)
             if (or EccDedStk) = '1' and IrqMask(24) = '1' then
                 Irq_v := '1';
@@ -794,7 +798,7 @@ begin
     Dl_RegAddr <= QosWrOut(43 downto 32);
     Dl_RegData <= QosWrOut(31 downto 0);
 
-    CoreStatIn <= Dl_TimeSlot & Dl_BwUnder & Dl_BwOver & Dl_HasCredit & Dl_ErbEmpty & Dl_WordIdState & Dl_RxErrState &
+    CoreStatIn <= Dl_TxReady & Dl_TimeSlot & Dl_BwUnder & Dl_BwOver & Dl_HasCredit & Dl_ErbEmpty & Dl_WordIdState & Dl_RxErrState &
                   Dl_LinkResetState;
 
     i_core_stat : entity olo.olo_base_cc_status
@@ -811,7 +815,7 @@ begin
             Out_Data  => CoreStat
         );
 
-    CoreEvIn <= Dl_EvCreditOverflow & Dl_EvInputOverflow & Dl_EvBcDiscard & Dl_EvFarEndLinkReset & Dl_EvProtocolError &
+    CoreEvIn <= Dl_EvTxLost & Dl_EvCreditOverflow & Dl_EvInputOverflow & Dl_EvBcDiscard & Dl_EvFarEndLinkReset & Dl_EvProtocolError &
                 Dl_EvRetry & Dl_EvSeqErr & Dl_EvFrameErr & Dl_EvCrc8Err & Dl_EvCrc16Err;
 
     i_core_ev : entity work.ofb_cc_pulse

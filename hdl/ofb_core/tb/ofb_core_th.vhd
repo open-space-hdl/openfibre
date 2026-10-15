@@ -141,6 +141,7 @@ architecture sim of ofb_core_th is
     signal SerNearLb  : LaneArray_t;
     signal SerFarLb   : LaneArray_t;
     signal BitSync    : LaneArray_t;
+    signal TxReady    : std_logic_vector(0 to 1) := "00";
     signal PrbsTxSel  : KArray_t;
     signal PrbsRxSel  : KArray_t;
     signal PrbsForce  : LaneArray_t;
@@ -200,6 +201,14 @@ begin
 
         CoreLaneOn(i) <= or (TxEnable(i) or RxEnable(i) or CdrEnable(i));
 
+        -- Transmitters ready from the sequencer, in the lane clock domain like Stat_TxReady of the adapter
+        p_tx_ready : process (LaneClk) is
+        begin
+            if rising_edge(LaneClk) then
+                TxReady(i) <= CoreTxReady(i);
+            end if;
+        end process;
+
         i_core : entity work.ofb_core
             generic map (
                 NumVc_g         => NumVc_g,
@@ -257,7 +266,7 @@ begin
                 S_AxiLite_RResp        => RResp(i),
                 S_AxiLite_RValid       => RValid(i),
                 S_AxiLite_RReady       => RReady(i),
-                Irq                    => open,
+                Irq                    => CoreIrq(i),
                 PhyTx_Data             => PhyTxData(i),
                 PhyTx_K                => PhyTxK(i),
                 PhyRx_Data             => PhyRxData(i),
@@ -270,6 +279,7 @@ begin
                 Phy_CdrEnable          => CdrEnable(i),
                 Phy_RxInvert           => RxInvert(i),
                 Phy_NoSignal           => NoSignal(i),
+                Phy_TxReady            => TxReady(i),
                 Phy_SerialNearLoopback => SerNearLb(i),
                 Phy_SerialFarLoopback  => SerFarLb(i),
                 Phy_BitSync            => BitSync(i),

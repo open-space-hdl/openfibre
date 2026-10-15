@@ -47,8 +47,8 @@ the standard" of the module specifications.
 | 5.6.7 | Alignment state machine | ML-5 | ML-AL-08, ML-AL-09, ML-CO-04, ML-DS-06, ML-DS-07, ML-DS-08, ML-DS-12 | TC-ML-30, TC-ML-31, TC-ML-32, TC-ML-34, TC-ML-37, TC-ML-40, TC-ML-41, TC-ML-42, TC-ML-44 | Verified |
 | 5.6.8, 5.6.9 except 5.6.9.1a, b | Asymmetric links, unidirectional lanes | ML-1 | ML-AL-04, ML-DS-09, ML-IF-07, ML-LM-09, ML-LM-10, ML-LM-11, ML-LM-12 | TC-ML-31, TC-ML-33, TC-ML-35, TC-ML-36, TC-ML-42 | Verified |
 | 5.6.10 except 5.6.10c, g | Hot redundant lanes | ML-1 | ML-AL-01, ML-AL-03, ML-DS-09, ML-DS-10, ML-LM-13 | TC-ML-30, TC-ML-31, TC-ML-33, TC-ML-34, TC-ML-35, TC-ML-40, TC-ML-42 | Verified |
-| 5.7.2.1, 5.7.2.2 | Virtual channels, output VC buffer | DT-1 | CORE-SY-04, DL-CM-01, DL-CM-02, DL-IF-01, DL-RW-06, DL-VO-01, DL-VO-02, DL-VO-05 | TC-CORE-01, TC-CORE-02, TC-CORE-03, TC-CORE-04, TC-CORE-20, TC-DL-02, TC-DL-18, TC-DL-22, TC-DL-30, TC-DL-31 | Verified |
-| 5.7.2.3 | Input VC buffers | DR-6 | DL-RW-06, DL-VI-01, DL-VI-04, DL-VI-05 | TC-CORE-01, TC-CORE-02, TC-CORE-03, TC-CORE-04, TC-DL-02, TC-DL-18, TC-DL-29 | Verified |
+| 5.7.2.1, 5.7.2.2 | Virtual channels, output VC buffer | DT-1 | CORE-SY-04, DL-CM-01, DL-CM-02, DL-IF-01, DL-LR-06, DL-RW-06, DL-VO-01, DL-VO-02, DL-VO-05 | TC-CORE-01, TC-CORE-02, TC-CORE-03, TC-CORE-04, TC-CORE-20, TC-CORE-21, TC-CORE-22, TC-CORE-23, TC-DL-02, TC-DL-18, TC-DL-22, TC-DL-30, TC-DL-31 | Verified |
+| 5.7.2.3 | Input VC buffers | DR-6 | DL-LR-06, DL-RW-06, DL-VI-01, DL-VI-04, DL-VI-05 | TC-CORE-01, TC-CORE-02, TC-CORE-03, TC-CORE-04, TC-CORE-21, TC-CORE-22, TC-CORE-23, TC-DL-02, TC-DL-18, TC-DL-29 | Verified |
 | 5.7.3.1 | Output VC flow control | DT-2 | DL-CR-01, DL-CR-02, DL-RW-04, DL-VO-03, DL-VO-04 | TC-CORE-02, TC-DL-01, TC-DL-02, TC-DL-04, TC-DL-17, TC-DL-19 | Verified |
 | 5.7.3.2 | Input VC flow control | DR-6 | DL-RW-03, DL-VI-02, DL-VI-03, DL-VI-05 | TC-CORE-01, TC-CORE-02, TC-CORE-03, TC-CORE-04, TC-CORE-08, TC-DL-01, TC-DL-04, TC-DL-10, TC-DL-20, TC-DL-29 | Verified |
 | 5.7.4.1 to 5.7.4.7 | Medium access control and QoS | DT-4 | DL-MAC-01, DL-QS-01, DL-QS-02, DL-QS-03, DL-QS-04, DL-QS-05, DL-QS-06, DL-QS-07, DL-VO-04, NI-SC-01 | TC-CORE-02, TC-CORE-06, TC-DL-02, TC-DL-04, TC-DL-17, TC-DL-19, TC-DL-21, TC-DL-28, TC-MG-05, TC-QS-01, TC-QS-02, TC-QS-03, TC-QS-04, TC-QS-05, TC-QS-06, TC-QS-07 | Verified |
@@ -68,15 +68,15 @@ the standard" of the module specifications.
 | 5.7.7.2.3, 5.7.7.2.4 | Receiving ACKs and NACKs | DT-7 | CORE-FT-01, DL-ER-02, DL-ER-03, DL-ER-04, DL-SQ-02, DL-SR-03 | TC-CORE-03, TC-CORE-07, TC-CORE-13, TC-DL-01, TC-DL-05, TC-DL-06, TC-DL-15, TC-DL-16 | Verified |
 | 5.7.7.3 | Receive error state machine | DR-3 | CORE-FT-01, DL-RE-01, DL-RE-03 | TC-CORE-13, TC-DL-05, TC-DL-12, TC-DL-26, TC-DL-27 | Verified |
 | 5.7.8 | Data word identification state machine | DR-1 | DL-RW-03, DL-RW-05, DL-WI-01, ML-DEC-01, ML-ENC-01 | TC-CORE-02, TC-CORE-08, TC-DL-13, TC-DL-27, TC-ML-03, TC-ML-05, TC-ML-08, TC-ML-09 | Verified |
-| 5.7.9 | Link reset state machine | DC-1 | CORE-CC-01, CORE-RS-01, CORE-SY-03, DL-LR-01, DL-LR-02, DL-LR-03, DL-LR-05, MG-CF-01, ML-LM-02, ML-LM-03, ML-LM-14 | TC-CORE-01, TC-CORE-02, TC-CORE-04, TC-CORE-14, TC-CORE-17, TC-CORE-19, TC-DL-01, TC-DL-06, TC-DL-07, TC-DL-16, TC-DL-28, TC-MG-01, TC-MG-02, TC-MG-05, TC-MG-06, `test_far_reset_idle` (TC-ML-48, `ofb_ml_lane_mgr_tb`), TC-ML-22, TC-ML-25, TC-ML-30 | Verified |
-| 5.7.10a1 to a3 | Link reset, output VC side | DT-1 | CORE-CC-01, DL-ED-01, DL-ER-06, DL-FA-05, DL-LR-04, DL-LR-05, DL-VI-04, DL-VO-02, ML-BP-03, ML-DS-11 | TC-CORE-02, TC-CORE-04, TC-CORE-14, TC-CORE-17, TC-DL-06, TC-DL-07, TC-DL-18, TC-DL-25, TC-DL-29, TC-ML-05, TC-ML-24, TC-ML-38 | Verified |
-| 5.7.10a4 to a7 | Link reset, input VC side (EEP rules) | DR-6 | CORE-CC-01, DL-ED-01, DL-ER-06, DL-FA-05, DL-LR-04, DL-LR-05, DL-VI-04, DL-VO-02, ML-BP-03, ML-DS-11 | TC-CORE-02, TC-CORE-04, TC-CORE-14, TC-CORE-17, TC-DL-06, TC-DL-07, TC-DL-18, TC-DL-25, TC-DL-29, TC-ML-05, TC-ML-24, TC-ML-38 | Verified |
-| 5.7.10b | Link reset, Data Link actions | DC-1 | CORE-CC-01, DL-ED-01, DL-ER-06, DL-FA-05, DL-LR-04, DL-LR-05, DL-VI-04, DL-VO-02, ML-BP-03, ML-DS-11 | TC-CORE-02, TC-CORE-04, TC-CORE-14, TC-CORE-17, TC-DL-06, TC-DL-07, TC-DL-18, TC-DL-25, TC-DL-29, TC-ML-05, TC-ML-24, TC-ML-38 | Verified |
+| 5.7.9 | Link reset state machine | DC-1 | CORE-CC-01, CORE-PL-04, CORE-RS-01, CORE-SY-03, DL-LR-01, DL-LR-02, DL-LR-03, DL-LR-05, DL-LR-06, MG-CF-01, ML-LM-02, ML-LM-03, ML-LM-14 | TC-CORE-01, TC-CORE-02, TC-CORE-04, TC-CORE-14, TC-CORE-17, TC-CORE-19, TC-CORE-21, TC-CORE-22, TC-CORE-23, TC-DL-01, TC-DL-06, TC-DL-07, TC-DL-16, TC-DL-28, TC-MG-01, TC-MG-02, TC-MG-05, TC-MG-06, `test_far_reset_idle` (TC-ML-48, `ofb_ml_lane_mgr_tb`), TC-ML-22, TC-ML-25, TC-ML-30, TC-PA-02 | Verified |
+| 5.7.10a1 to a3 | Link reset, output VC side | DT-1 | CORE-CC-01, DL-ED-01, DL-ER-06, DL-FA-05, DL-LR-04, DL-LR-05, DL-LR-06, DL-VI-04, DL-VO-02, ML-BP-03, ML-DS-11 | TC-CORE-02, TC-CORE-04, TC-CORE-14, TC-CORE-17, TC-CORE-21, TC-CORE-22, TC-CORE-23, TC-DL-06, TC-DL-07, TC-DL-18, TC-DL-25, TC-DL-29, TC-ML-05, TC-ML-24, TC-ML-38 | Verified |
+| 5.7.10a4 to a7 | Link reset, input VC side (EEP rules) | DR-6 | CORE-CC-01, DL-ED-01, DL-ER-06, DL-FA-05, DL-LR-04, DL-LR-05, DL-LR-06, DL-VI-04, DL-VO-02, ML-BP-03, ML-DS-11 | TC-CORE-02, TC-CORE-04, TC-CORE-14, TC-CORE-17, TC-CORE-21, TC-CORE-22, TC-CORE-23, TC-DL-06, TC-DL-07, TC-DL-18, TC-DL-25, TC-DL-29, TC-ML-05, TC-ML-24, TC-ML-38 | Verified |
+| 5.7.10b | Link reset, Data Link actions | DC-1 | CORE-CC-01, DL-ED-01, DL-ER-06, DL-FA-05, DL-LR-04, DL-LR-05, DL-LR-06, DL-VI-04, DL-VO-02, ML-BP-03, ML-DS-11 | TC-CORE-02, TC-CORE-04, TC-CORE-14, TC-CORE-17, TC-CORE-21, TC-CORE-22, TC-CORE-23, TC-DL-06, TC-DL-07, TC-DL-18, TC-DL-25, TC-DL-29, TC-ML-05, TC-ML-24, TC-ML-38 | Verified |
 | 5.8.3 | Virtual networks | NI-2 | MG-VN-01 | TC-MG-05 | Verified |
 | 5.8.5 to 5.8.7, 5.8.13 | Packet format, sending and receiving packets, nodes | NI-1 | NI-IF-01 | TC-CORE-02, TC-CORE-17, TC-NI-01, TC-NI-03 | Verified |
 | 5.8.12 | Broadcast messages | NI-3 | NI-IF-02, NI-RX-04 | TC-CORE-02, TC-CORE-17 | Verified |
 | 5.8.8 to 5.8.11 | Routing switch, addressing, adaptive routing, multicast | Out of scope | - | - | Out of scope (routing switch) |
-| 5.9.1 to 5.9.4 | Management Information Base | MG-1 | CORE-CC-02, DL-IF-05, MG-CF-01, MG-IF-01, MG-IF-02, MG-ST-01, MG-ST-04, MG-ST-05 | TC-CORE-01, TC-CORE-02, TC-CORE-04, TC-CORE-15, TC-DL-07, TC-DL-21, TC-MG-01, TC-MG-02, TC-MG-03, TC-MG-04, TC-MG-05, TC-MG-06, TC-MG-08, TC-MG-11 | Verified |
+| 5.9.1 to 5.9.4 | Management Information Base | MG-1 | CORE-CC-02, DL-IF-05, MG-CF-01, MG-IF-01, MG-IF-02, MG-ST-01, MG-ST-04, MG-ST-05, MG-ST-06 | TC-CORE-01, TC-CORE-02, TC-CORE-04, TC-CORE-15, TC-CORE-21, TC-CORE-22, TC-CORE-23, TC-DL-07, TC-DL-21, TC-MG-01, TC-MG-02, TC-MG-03, TC-MG-04, TC-MG-05, TC-MG-06, TC-MG-08, TC-MG-11 | Verified |
 | 6.2.2, 6.3.2 | Packet transfer and Virtual Channel services | NI-1 | NI-IF-01, NI-RX-01 | TC-CORE-02, TC-CORE-05, TC-CORE-17, TC-NI-01, TC-NI-03, TC-NI-06 | Verified |
 | 6.2.3, 6.3.3 | Broadcast message services | NI-3 | NI-IF-02, NI-RX-04 | TC-CORE-02, TC-CORE-17 | Verified |
 | 6.3.4 | Schedule synchronisation service | NI-4 | DL-QS-06, NI-SC-01 | TC-CORE-06, TC-DL-21 | Verified |
@@ -92,14 +92,14 @@ reference included).
 
 | Module | Requirements | Verified by a test case | Without a test case |
 | --- | --- | --- | --- |
-| `ofb_core` | 18 | 18 | - |
-| `ofb_dl` | 77 | 77 | - |
+| `ofb_core` | 19 | 19 | - |
+| `ofb_dl` | 78 | 78 | - |
 | `ofb_lane` | 32 | 32 | - |
-| `ofb_mib` | 20 | 20 | - |
+| `ofb_mib` | 21 | 21 | - |
 | `ofb_multilane` | 69 | 69 | - |
 | `ofb_ni` | 12 | 12 | - |
-| `ofb_pa_gty` | 12 | 12 | - |
+| `ofb_pa_gty` | 13 | 13 | - |
 | `ofb_pkg` | 11 | 11 | - |
 | `ofb_vck190` | 8 | 8 | - |
 
-Requirements: 259; without a test case: 0; test cases of the plans not run by a testbench: 0.
+Requirements: 263; without a test case: 0; test cases of the plans not run by a testbench: 0.

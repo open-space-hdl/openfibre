@@ -88,6 +88,8 @@ architecture sim of ofb_mib_tb is
     signal DlStates      : std_logic_vector(7 downto 0)         := x"00";
     signal HasCredit     : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
     signal DlEv          : std_logic_vector(7 downto 0)         := x"00";
+    signal DlTxReady     : std_logic                            := '1';
+    signal DlTxLost      : std_logic                            := '0';
     signal InOvf         : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
     signal CrOvf         : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
     signal BwOver        : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
@@ -220,7 +222,7 @@ begin
 
             -- TC-MG-01: identification and reset values
             if run("test_reset_values") then
-                chk(16#000#, x"0FB10007", "ID");
+                chk(16#000#, x"0FB10008", "ID");
                 chk(16#004#, x"00000104", "Generics");
                 chk(16#008#, x"00000100", "DataScrambled set");
                 chk(16#00C#, x"00000028", "Broadcast interval 40");
@@ -293,7 +295,11 @@ begin
                 MlStat    <= "1011";
                 BitSync   <= "1";
                 cycles(20);
-                chk(16#010#, x"0000013F", "Data Link status");
+                chk(16#010#, x"0000033F", "Data Link status with TX_READY");
+                DlTxReady <= '0';
+                cycles(20);
+                chk(16#010#, x"0000013F", "Data Link status without TX_READY");
+                DlTxReady <= '1';
                 chk(16#030#, x"0000000A", "Has Credit");
                 chk(16#104#, x"00789A67", "Lane status with bit synchronisation (bit 6)");
                 chk(16#10C#, x"0000D156", "Lane reasons");
@@ -481,6 +487,26 @@ begin
                 wr(16#044#, x"00020000");
                 cycles(3);
                 check_value(Irq, '1', error, "Interrupt for the lane timeout");
+                wait until rising_edge(CoreClk);
+                DlTxLost  <= '1';
+                wait until rising_edge(CoreClk);
+                DlTxLost  <= '0';
+                cycles(20);
+                chk(16#014#, x"00001681", "TX_LOST flag (bit 12)");
+                wr(16#044#, x"00001000");
+                cycles(3);
+                check_value(Irq, '1', error, "Interrupt for TX_LOST");
+                wr(16#014#, x"00001000");
+                cycles(3);
+                check_value(Irq, '0', error, "Interrupt cleared with TX_LOST");
+                chk(16#014#, x"00000681", "TX_LOST cleared");
+                wait until rising_edge(CoreClk);
+                DlTxLost  <= '1';
+                wait until rising_edge(CoreClk);
+                DlTxLost  <= '0';
+                cycles(20);
+                wr(16#044#, x"00020000");
+                cycles(3);
                 -- Link Reset command clears the status of the Data Link, Multi-Lane and Lane layers
                 wr(16#008#, x"00000101");
                 chk(16#014#, x"00000000", "Data Link flags cleared by Link Reset");
@@ -829,6 +855,8 @@ begin
             Dl_EvRetry             => DlEv(4),
             Dl_EvProtocolError     => DlEv(5),
             Dl_EvFarEndLinkReset   => DlEv(6),
+            Dl_EvTxLost            => DlTxLost,
+            Dl_TxReady             => DlTxReady,
             Dl_EvBcDiscard         => DlEv(7),
             Dl_EvInputOverflow     => InOvf,
             Dl_EvCreditOverflow    => CrOvf,

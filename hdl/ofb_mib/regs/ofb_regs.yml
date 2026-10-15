@@ -15,14 +15,14 @@
 #   RC   read only, any write to the register clears it (counters)
 # A reset value written as text depends on generics or on the instance (lane, VC); status fields have none.
 
-id: 0x0FB10007
+id: 0x0FB10008
 
 registers:
   - name: ID
     offset: 0x000
     description: Identification of the core and version of the register map
     fields:
-      - {name: ID, bits: "31:0", access: RO, reset: 0x0FB10007, description: "0x0FB1 (OpenFibre) and register map version 7"}
+      - {name: ID, bits: "31:0", access: RO, reset: 0x0FB10008, description: "0x0FB1 (OpenFibre) and register map version 8"}
 
   - name: GENERICS
     offset: 0x004
@@ -53,6 +53,7 @@ registers:
       - {name: RX_ERR_STATE, bits: "3:2", access: RO, description: "Receive error state machine: 0 Valid Positive, 1 Valid Negative, 2 Error Positive, 3 Error Negative"}
       - {name: WORD_ID_STATE, bits: "6:4", access: RO, description: Data word identification state machine}
       - {name: ERB_EMPTY, bits: "8", access: RO, description: Error recovery buffer empty}
+      - {name: TX_READY, bits: "9", access: RO, description: "Transmitters of the Physical adapter ready (Phy_TxReady); while 0 the link is held in Near-End Reset"}
 
   - name: DL_ERRORS
     offset: 0x014
@@ -70,6 +71,7 @@ registers:
       - {name: FRAMING_ERROR, bits: "9", access: W1C, reset: 0, description: "Framing error of a packet to send: invalid TKEEP (any VC)"}
       - {name: RX_ROW_OVERFLOW, bits: "10", access: W1C, reset: 0, description: Receive row lost in the crossing to the core clock}
       - {name: RX_FRAMING_ERROR, bits: "11", access: W1C, reset: 0, description: "Character rule violation in a received packet (any VC)"}
+      - {name: TX_LOST, bits: "12", access: W1C, reset: 0, description: "Transmitters no longer ready after they were ready (Phy_TxReady fell): link held in Near-End Reset"}
 
   - name: DL_RETRIES
     offset: 0x018
@@ -138,7 +140,7 @@ registers:
     offset: 0x044
     description: Interrupt enables
     fields:
-      - {name: DL_ERRORS, bits: "11:0", access: RW, reset: 0, description: Interrupt enable of the DL_ERRORS bits}
+      - {name: DL_ERRORS, bits: "12:0", access: RW, reset: 0, description: Interrupt enable of the DL_ERRORS bits}
       - {name: LANE_EVENTS, bits: "19:16", access: RW, reset: 0, description: Interrupt enable of the LANE_EVENTS bits of any lane}
       - {name: ECC_DED, bits: "24", access: RW, reset: 0, description: Interrupt enable of the ECC DED flags}
       - {name: ECC_SEC, bits: "25", access: RW, reset: 0, description: Interrupt enable of the ECC SEC flag}

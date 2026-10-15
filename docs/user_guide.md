@@ -64,6 +64,13 @@ the four clocks, in both directions,
 `Rst` is an asynchronous reset, high active. A reset generator per clock domain asserts the reset of the domain
 asynchronously and releases it synchronously; all four clocks must run for the reset to complete.
 
+`Phy_TxReady` (`LaneClk`, level) tells the core whether the transmitters of the Physical adapter are ready. While it
+is 0, the link stays in Near-End Reset: link reset and LaneReset are held, the lanes stay in ClearLine, the buffers
+keep the state of a link reset, and the MIB stays accessible (DL_STATUS bit 9, TX_READY). When the transmitters drop
+after they were ready, the link is reset and DL_ERRORS bit 12 (TX_LOST) is set. The port reads 0 while `LaneClk` does
+not run. Connect `Stat_TxReady` of `ofb_pa_gty`; the default `'1'` is for an adapter that is always ready. The reset
+of the core then needs no adapter status: `ofb_vck190_top` resets the core and the adapter with the power-on reset.
+
 ## 5. Interfaces
 
 ### 5.1 Virtual channels (`UserClk`)
@@ -142,6 +149,7 @@ is high while a sticky flag enabled in IRQ_MASK is set.
 | `Phy_CdrEnable` | out | Clock and data recovery enable |
 | `Phy_RxInvert` | out | Invert the receive polarity (crossed pair detected) |
 | `Phy_NoSignal` | in | No signal on the line, synchronous to `LaneClk` (the adapter synchronises it) |
+| `Phy_TxReady` | in | Transmitters ready (one bit for all lanes, level, default `'1'`); while 0 the link is held in Near-End Reset (section 4) |
 | `Phy_SerialNearLoopback`, `Phy_SerialFarLoopback` | out | Near-end and far-end serial loopback (LANE_CTRL bits 16 and 17) |
 | `Phy_BitSync` | in | Bit synchronisation of the clock and data recovery (LANE_STATUS bit 6, ECSS 5.4.2e); optional, `ofb_pa_gty` provides it as `Stat_Aligned` |
 | `Phy_PrbsTxSel`, `Phy_PrbsRxSel` | out | PRBS test: transmitted and checked pattern per lane (4 bits, LANE_PRBS_CTRL) |
@@ -158,7 +166,7 @@ idle.
 
 ## 6. Programming sequence
 
-1. Release `Rst`. Read ID (0x0FB10007) and GENERICS.
+1. Release `Rst`. Read ID (0x0FB10008) and GENERICS.
 2. Optional configuration before the link start:
    - DL_CTRL bit 8 DataScrambled (set after reset), DL_BC_INTERVAL.
    - Per VC: VC_CFG (priority, continuous mode, virtual network number), VC_BANDWIDTH, VC_SLOTS_LO / HI.
@@ -311,6 +319,7 @@ Where the standard leaves a choice, the section "Interpretation of the standard"
 | Implemented | 5.3.2 to 5.3.10, 5.4.1, 5.4.2, 5.5.2 to 5.5.8, 5.6.1 to 5.6.10, 5.7.2 to 5.7.10, 5.8.3, 5.8.5 to 5.8.7, 5.8.12.1, 5.8.13, 5.9.1 to 5.9.4, 6.2 to 6.5 | Lane, Multi-Lane, Data Link and Network layer of a node, MIB and service interfaces. The Physical layer clauses (5.3.2, 5.4.1, 5.4.2, 6.4) need a Physical adapter: `ofb_pa_gty` for the AMD Versal GTY |
 | Implemented with a restriction | 5.6.2 | 1 to 4 lanes per port (`NumLanes_g`); the standard allows up to 16 lanes (5.6.2c) |
 | Implemented with a restriction | 5.4.2.3 | `ofb_pa_gty` runs at 6.25 Gbit/s (5.4.2.3b) from a 156.25 MHz reference clock. The core itself takes any data signalling rate (`LaneClk` = R / 40) |
+| Implemented with an interpretation | 5.7.9.3c | The link reset state machine leaves Near-End Reset only while the transmitters of the Physical adapter are ready (`Phy_TxReady`, section 4); the standard leaves it unconditionally. A transmitter that is not ready cannot send the INIT words of the lane initialisation. With `Phy_TxReady` = 1, the default of the port, the behaviour is that of the standard (DL-LR-06) |
 | Outside the scope of a node with one port | 5.8.8 to 5.8.11 | Routing switch, packet addressing, group adaptive routing, packet multicast |
 | Outside the scope of a node with one port | 5.8.12.2 | Acceptance and forwarding of broadcast messages in a routing switch (port of arrival, broadcast time-out) |
 | Outside the scope of the core | 5.4.3 to 5.4.6 | Electrical and fibre optic physical layer and media, connectors and cables: properties of the transceiver, the board and the harness |
