@@ -65,6 +65,22 @@ begin
         variable Num_v : natural;
         variable Seq_v : natural := 0;
 
+        -- Lanes 0 to n-1 without lane `skip` (-1: none), as a vector of MaxLanes_c bits
+        function laneSet (
+            n    : positive;
+            skip : integer := -1) return std_logic_vector is
+            variable Set_v : std_logic_vector(MaxLanes_c-1 downto 0) := (others => '0');
+        begin
+
+            for l in 0 to n-1 loop
+                if l /= skip then
+                    Set_v(l) := '1';
+                end if;
+            end loop;
+
+            return Set_v;
+        end function;
+
         procedure cycles (n : natural) is
         begin
 
@@ -392,7 +408,7 @@ begin
                 if N_c = 4 then
                     check_value(LinkStat(0).DataSending, "1101", error, "Hot redundant lane 3 promoted");
                 else
-                    check_value(LinkStat(0).DataSending, "0001", error, "Lane 0 sends alone");
+                    check_value(LinkStat(0).DataSending, laneSet(N_c, 1), error, "All lanes but lane 1 send");
                 end if;
                 check_value(LinkStat(1).RxErrs > 0, error, "RXERR passed after the failure");
                 traffic(20, "Traffic without lane 1");
@@ -412,7 +428,7 @@ begin
                 if N_c = 4 then
                     check_value(LinkStat(0).DataSending, "0111", error, "Lane 3 hot redundant again");
                 else
-                    check_value(LinkStat(0).DataSending, "0011", error, "Both lanes send");
+                    check_value(LinkStat(0).DataSending, laneSet(N_c), error, "All lanes send");
                 end if;
                 traffic(20, "Traffic after the reconnection");
                 checkClean("After the reconnection");
