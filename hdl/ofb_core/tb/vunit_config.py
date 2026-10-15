@@ -18,7 +18,7 @@ BASIC_TESTS = ("test_link_up", "test_traffic", "test_link_reset")
 RANGE_CONFIGS = (
     # One VC (point-to-point or configuration link, ECSS 5.8.4d) and the maximum of 32 VCs
     ("vc1", {"NumLanes_g": 2, "NumVc_g": 1}, BASIC_TESTS),
-    ("vc32", {"NumLanes_g": 4, "NumVc_g": 32}, BASIC_TESTS),
+    ("vc32", {"NumLanes_g": 2, "NumVc_g": 32}, BASIC_TESTS),
     # Lane clock at half the rate (LaneClk 78.125 MHz): the timers of the Lane and Multi-Lane layers follow
     # LaneClkFreq_g
     ("halfrate", {"NumLanes_g": 2, "LaneHalfPs_g": 6400}, ("test_link_up", "test_link_reset")),

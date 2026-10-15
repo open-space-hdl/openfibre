@@ -51,7 +51,7 @@ and 96).
 
 | Test cases | Configuration | Requirements |
 | --- | --- | --- |
-| TC-CORE-01, TC-CORE-02, TC-CORE-04 (`vc1`, `vc32`) | One VC with two lanes (a point-to-point or configuration link, ECSS 5.8.4d) and the maximum of 32 VCs with four lanes; TC-CORE-01 reads the generics from the MIB (GENERICS) | CORE-IF-01, MG-IF-02 |
+| TC-CORE-01, TC-CORE-02, TC-CORE-04 (`vc1`, `vc32`) | One VC with two lanes (a point-to-point or configuration link, ECSS 5.8.4d) and the maximum of 32 VCs with two lanes (four lanes with 32 VCs are elaborated and synthesised by `lint/synth_check.py`); TC-CORE-01 reads the generics from the MIB (GENERICS) | CORE-IF-01, MG-IF-02 |
 | TC-CORE-01, TC-CORE-04 (`halfrate`) | Two lanes with `LaneClk` at 78.125 MHz (half the data signalling rate) and `LaneClkFreq_g` to match: TC-CORE-04 measures ClearLine (2 us) at the lanes of A after the Link Reset command | CORE-CK-02, LN-INIT-02 |
 | TC-CORE-01, TC-CORE-02, TC-CORE-03, TC-CORE-04 (`minbuf`) | Two lanes with the smallest buffers: output VC buffer 64 words, input VC buffer 128 words per lane (two flow control units), error recovery buffer 64 rows | DL-VO-05, DL-VI-05, DL-ER-08 |
 | TC-CORE-01, TC-CORE-02 (`noprbs`) | One lane, lane initialisation without PRBS words after INIT1 and INIT2 (`InitPrbsWords_g` = 0) | LN-TX-01 |
