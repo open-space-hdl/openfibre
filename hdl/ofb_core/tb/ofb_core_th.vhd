@@ -25,6 +25,9 @@ library uvvm_util;
 library uvvm_vvc_framework;
     use uvvm_vvc_framework.ti_vvc_framework_support_pkg.all;
 
+library olo;
+    use olo.olo_base_pkg_math.all;
+
 library work;
     use work.ofb_pkg.all;
     use work.ofb_tb_pkg.all;
@@ -35,8 +38,14 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_core_th is
     generic (
-        NumLanes_g   : positive range 1 to 4 := 1;
-        CoreHalfPs_g : positive              := 3000 -- Half period of CoreClk in ps
+        NumLanes_g      : positive range 1 to 4  := 1;
+        NumVc_g         : positive range 1 to 32 := 4;
+        CoreHalfPs_g    : positive               := 3000; -- Half period of CoreClk in ps
+        LaneHalfPs_g    : positive               := 3200; -- Half period of LaneClk in ps
+        VcOutDepth_g    : positive               := 128;
+        VcInDepth_g     : natural                := 0;    -- 0: 256 x NumLanes_g words
+        ErbRows_g       : positive               := 512;
+        InitPrbsWords_g : natural range 0 to 64  := 64
     );
     port (
         MgmtClk : out   std_logic;
@@ -60,9 +69,11 @@ architecture sim of ofb_core_th is
     -- Bytes per beat of the VC ports
     constant B_c : positive := 4 * N_c;
 
-    type VcDataArray_t is array (0 to 1) of std_logic_vector(32*N_c*CoreNumVc_c-1 downto 0);
-    type VcKeepArray_t is array (0 to 1) of std_logic_vector(B_c*CoreNumVc_c-1 downto 0);
-    type VcBitArray_t is array (0 to 1) of std_logic_vector(CoreNumVc_c-1 downto 0);
+    constant VcInDepth_c : positive := choose(VcInDepth_g = 0, 256 * N_c, VcInDepth_g);
+
+    type VcDataArray_t is array (0 to 1) of std_logic_vector(32*N_c*NumVc_g-1 downto 0);
+    type VcKeepArray_t is array (0 to 1) of std_logic_vector(B_c*NumVc_g-1 downto 0);
+    type VcBitArray_t is array (0 to 1) of std_logic_vector(NumVc_g-1 downto 0);
     type BcDataArray_t is array (0 to 1) of std_logic_vector(63 downto 0);
     type BcUserArray_t is array (0 to 1) of std_logic_vector(17 downto 0);
     type BitArray_t is array (0 to 1) of std_logic;
@@ -143,7 +154,7 @@ begin
 
     UserClk <= not UserClk after 2.6 ns;
     CoreClk <= not CoreClk after CoreHalfPs_g * 1 ps;
-    LaneClk <= not LaneClk after 3.2 ns;
+    LaneClk <= not LaneClk after LaneHalfPs_g * 1 ps;
     MgmtI   <= not MgmtI after 5 ns;
     MgmtClk <= MgmtI;
     Rst     <= RstI;
@@ -187,11 +198,19 @@ begin
         -- Bit synchronisation of the model: signal at the receiver and CDR enabled
         BitSync(i) <= not NoSignal(i) and CdrEnable(i);
 
+        CoreLaneOn(i) <= or (TxEnable(i) or RxEnable(i) or CdrEnable(i));
+
         i_core : entity work.ofb_core
             generic map (
-                NumVc_g     => CoreNumVc_c,
-                NumLanes_g  => N_c,
-                VcInDepth_g => 256 * N_c
+                NumVc_g         => NumVc_g,
+                NumLanes_g      => N_c,
+                -- The frequency generics match the generated clocks
+                LaneClkFreq_g   => 1.0e12 / real(2 * LaneHalfPs_g),
+                CoreClkFreq_g   => 1.0e12 / real(2 * CoreHalfPs_g),
+                VcOutDepth_g    => VcOutDepth_g,
+                VcInDepth_g     => VcInDepth_c,
+                ErbRows_g       => ErbRows_g,
+                InitPrbsWords_g => InitPrbsWords_g
             )
             port map (
                 Rst                    => RstI or CoreRstReq(i),
@@ -265,7 +284,7 @@ begin
         -------------------------------------------------------------------------------------------
         -- Packet generators and receivers per VC
         -------------------------------------------------------------------------------------------
-        g_vc : for v in 0 to CoreNumVc_c-1 generate
+        g_vc : for v in 0 to NumVc_g-1 generate
 
             p_gen : process is
                 variable Seed1_v : positive := 1 + 17 * i + 3 * v;
@@ -360,7 +379,7 @@ begin
                                         end if;
                                     end loop;
 
-                                    CoreSb_v.add_expected(1 + (1 - i) * CoreNumVc_c + v, K_v & Word_v);
+                                    CoreSb_v.add_expected(1 + (1 - i) * CoreMaxVc_c + v, K_v & Word_v);
                                 end if;
                             end loop;
 
@@ -381,7 +400,7 @@ begin
             end process;
 
             p_rx : process (UserClk) is
-                constant Inst_c  : positive := 1 + i * CoreNumVc_c + v;
+                constant Inst_c  : positive := 1 + i * CoreMaxVc_c + v;
                 variable Seed1_v : positive := 5 + 13 * i + 7 * v;
                 variable Seed2_v : positive := 3000 + 3 * i + 19 * v;
                 variable Rand_v  : real;
@@ -562,9 +581,9 @@ begin
                     -- Random DELAYED flag, B_TYPE and channel
                     Del_v       := randByte;
                     User_v      := Del_v(0) & randByte & randByte;
-                    CoreSb_v.add_expected(1 + 2 * CoreNumVc_c + (1 - i), "0000" & Data_v(31 downto 0));
-                    CoreSb_v.add_expected(1 + 2 * CoreNumVc_c + (1 - i), "0000" & Data_v(63 downto 32));
-                    CoreSb_v.add_expected(1 + 2 * CoreNumVc_c + (1 - i), x"0000" & "000" & User_v);
+                    CoreSb_v.add_expected(1 + 2 * CoreMaxVc_c + (1 - i), "0000" & Data_v(31 downto 0));
+                    CoreSb_v.add_expected(1 + 2 * CoreMaxVc_c + (1 - i), "0000" & Data_v(63 downto 32));
+                    CoreSb_v.add_expected(1 + 2 * CoreMaxVc_c + (1 - i), x"0000" & "000" & User_v);
                     SBcData(i)  <= Data_v;
                     SBcUser(i)  <= '0' & User_v;
                     SBcValid(i) <= '1';
@@ -582,7 +601,7 @@ begin
         end process;
 
         p_bc_rx : process (UserClk) is
-            constant Inst_c  : positive := 1 + 2 * CoreNumVc_c + i;
+            constant Inst_c  : positive := 1 + 2 * CoreMaxVc_c + i;
             variable Lost_v  : natural  := 0;
             variable Dummy_v : std_logic_vector(35 downto 0);
         begin
@@ -603,10 +622,10 @@ begin
                     end loop;
 
                     CoreBcLost(i) <= Lost_v;
-                    CoreSb_v.check_received(1 + 2 * CoreNumVc_c + i, "0000" & MBcData(i)(31 downto 0));
-                    CoreSb_v.check_received(1 + 2 * CoreNumVc_c + i, "0000" & MBcData(i)(63 downto 32));
+                    CoreSb_v.check_received(1 + 2 * CoreMaxVc_c + i, "0000" & MBcData(i)(31 downto 0));
+                    CoreSb_v.check_received(1 + 2 * CoreMaxVc_c + i, "0000" & MBcData(i)(63 downto 32));
                     -- DELAYED, B_TYPE and channel; LATE depends on the error recovery
-                    CoreSb_v.check_received(1 + 2 * CoreNumVc_c + i, x"0000" & "000" & MBcUser(i)(16 downto 0));
+                    CoreSb_v.check_received(1 + 2 * CoreMaxVc_c + i, x"0000" & "000" & MBcUser(i)(16 downto 0));
                     CovBc_v.sample_coverage((1 - i, boolean'pos(MBcUser(i)(16) = '1')));
                     CovLate_v.sample_coverage((1 - i, boolean'pos(MBcUser(i)(17) = '1')));
                 end if;

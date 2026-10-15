@@ -11,7 +11,7 @@ checked with scoreboards. The final end-to-end test with the transceiver model f
 
 | Testbench | Harness | DUT and environment |
 | --- | --- | --- |
-| `ofb_core_tb` | `ofb_core_th` | Two `ofb_core` (4 VCs) A and B with `NumLanes_g` = 1, 2 and 4 (VUnit configurations `lanes1`, `lanes2`, `lanes4`), one `ofb_tb_pa_model` per lane, one `ofb_tb_axilite_master` per core, packet generator and receiver per VC (random length and bytes, beats of 4 x `NumLanes_g` bytes with `TKEEP` and `TLAST`, receiver back-pressure; the receiver checks the `TKEEP` format and compares the packets as words of four bytes with a last word of the remaining bytes, the end marker (EOP, or EEP from `TUSER`) and Fills), broadcast generator and receiver (channel, B_TYPE and DELAYED compared; LATE depends on the error recovery), SCHEDULE.request strobe per core, raw beat queue for VC 0 of A (bytes, `TKEEP`, `TLAST`, `TUSER`) |
+| `ofb_core_tb` | `ofb_core_th` | Two `ofb_core` (4 VCs) A and B with `NumLanes_g` = 1 to 4 (VUnit configurations `lanes1` to `lanes4`), `LaneClkFreq_g` and `CoreClkFreq_g` derived from the generated clock periods, one `ofb_tb_pa_model` per lane, one `ofb_tb_axilite_master` per core, packet generator and receiver per VC (random length and bytes, beats of 4 x `NumLanes_g` bytes with `TKEEP` and `TLAST`, receiver back-pressure; the receiver checks the `TKEEP` format and compares the packets as words of four bytes with a last word of the remaining bytes, the end marker (EOP, or EEP from `TUSER`) and Fills), broadcast generator and receiver (channel, B_TYPE and DELAYED compared; LATE depends on the error recovery), SCHEDULE.request strobe per core, raw beat queue for VC 0 of A (bytes, `TKEEP`, `TLAST`, `TUSER`) |
 
 ## 3. Test cases
 
@@ -23,6 +23,7 @@ checked with scoreboards. The final end-to-end test with the transceiver model f
 | `test_prbs` (TC-CORE-18) | PRBS test from A to B on every lane through the MIB registers (behavioural adapter model with a functional PRBS checker): the checkers of B lock, no error, a forced error at A is counted at B on lane 0 only, a PRBS-7 checker on the PRBS-31 pattern counts errors | CORE-PL-03, MG-PR-01, MG-PR-02, MG-PR-03 |
 | `test_error_recovery` (TC-CORE-03) | 20 bit errors per direction during traffic (200 packets per VC and end, so that the bit errors hit data frames also with four lanes): all delivered, retries counted in the MIB, no link reset | CORE-SY-01 |
 | `test_far_end_restart` (TC-CORE-19) | Complete restart of one end while the other end is in Link Initialised: power-on reset of B, Interface Reset of B, power-on reset of A; Far-End Link Reset at the other end each time, link up again, traffic | CORE-SY-03 |
+| `test_long_packets` (TC-CORE-20) | Packets of 65542 bytes (largest Space Packet): one from A to B on VC 0, then two at the same time from B to A on VCs 1 and 2; every byte compared, no error flag at either end | CORE-SY-04, CORE-SY-01 |
 | `test_link_reset` (TC-CORE-04) | Link Reset command at A through the MIB: both ends reset, Far-End Link Reset at B only, link up again, traffic | CORE-SY-01, CORE-CC-01 |
 | `test_qos_config` (TC-CORE-06) | Bandwidth of VC 3 of A set to zero through the MIB: its packets wait; with a bandwidth they are delivered. VC 3 of A excluded from time-slot 5, SCHEDULE.request to slot 5 at the Network interface: current time-slot 5 in the MIB, the packets of VC 3 wait; SCHEDULE.request to slot 0: delivered | CORE-IF-01, CORE-SY-01, NI-SC-01 |
 | `test_framing_error` (TC-CORE-05) | Raw beats at VC 0 of A: a gap in `TKEEP` in the first beat (nothing reaches B, no packet of zero length at B), a partial `TKEEP` without `TLAST` in the second beat (B receives the first beat ended with EEP, the rest is discarded), a packet of three bytes with the EEP flag of the user (received with EEP); the framing error flags are set at A (VC_FRAMING_ERROR, DL_ERRORS bit 9), no receive framing error and NI_RX_EMPTY_COUNT zero at B | CORE-IF-01, NI-TX-01, NI-TX-03, NI-TX-04, NI-RX-01 |
@@ -37,7 +38,23 @@ checked with scoreboards. The final end-to-end test with the transceiver model f
 | `test_ded_containment` (TC-CORE-14) | Lossy comparison (packets may be lost or end with EEP, every word received must be correct): a DED injected through the MIB into each buffer channel of the Data Link layer of A (output VC, error recovery, frame, input VC, broadcast output, broadcast input) during traffic in both directions: DED counted; link reset (far-end link reset at B) for the output VC, error recovery, frame and broadcast output buffers, none for the input buffers; no protocol error; traffic after the error delivered; a broadcast message discarded at A. For the input VC buffers the DED is injected twice with no traffic in flight: into an early word of one packet of 1024 bytes per VC from B (the packet ends with EEP at A, its rest of several beats is discarded up to its end), then into one of four packets of one word per VC (the beat with the error is the whole packet: the EEP that replaces it is a packet of zero length, discarded and counted in NI_RX_EMPTY_COUNT of A, one per VC); together at least two packets per VC end with EEP at A or are discarded as packets of zero length | DL-ED-01, DL-ED-02, DL-LR-05, CORE-ED-01, NI-RX-02 |
 | `test_bypass` (TC-CORE-09) | Multi-Lane bypass through the MIB at both cores: bypass and lane 0 reported, traffic delivered | CORE-SY-02, CORE-ML-01 |
 
-All test cases run in the three configurations; with one lane TC-CORE-07 only checks the link start.
+All test cases run in the four lane configurations; with one lane TC-CORE-07 only checks the link start.
+
+### Generic ranges
+
+Every value of a generic that changes the structure of the core is simulated, and the boundaries of the numeric
+ranges are simulated and synthesised. The configurations below run the named test cases in addition to the lane
+configurations; `python lint/synth_check.py` synthesises the same boundaries with GHDL and checks that every value
+outside the ranges is rejected at elaboration with the message of its check (`VcOutDepth_g` 32 with one lane, 16
+with two lanes, 96; `VcInDepth_g` 96 and 192 with one lane, 128 with two lanes, 256 with four lanes; `ErbRows_g` 32
+and 96).
+
+| Test cases | Configuration | Requirements |
+| --- | --- | --- |
+| TC-CORE-01, TC-CORE-02, TC-CORE-04 (`vc1`, `vc32`) | One VC with two lanes (a point-to-point or configuration link, ECSS 5.8.4d) and the maximum of 32 VCs with two lanes (four lanes with 32 VCs are elaborated and synthesised by `lint/synth_check.py`); TC-CORE-01 reads the generics from the MIB (GENERICS) | CORE-IF-01, MG-IF-02 |
+| TC-CORE-01, TC-CORE-04 (`halfrate`) | Two lanes with `LaneClk` at 78.125 MHz (half the data signalling rate) and `LaneClkFreq_g` to match: TC-CORE-04 measures ClearLine (2 us) at the lanes of A after the Link Reset command | CORE-CK-02, LN-INIT-02 |
+| TC-CORE-01, TC-CORE-02, TC-CORE-03, TC-CORE-04 (`minbuf`) | Two lanes with the smallest buffers: output VC buffer 64 words, input VC buffer 128 words per lane (two flow control units), error recovery buffer 64 rows | DL-VO-05, DL-VI-05, DL-ER-08 |
+| TC-CORE-01, TC-CORE-02 (`noprbs`) | One lane, lane initialisation without PRBS words after INIT1 and INIT2 (`InitPrbsWords_g` = 0) | LN-TX-01 |
 
 ## 4. Functional coverage
 

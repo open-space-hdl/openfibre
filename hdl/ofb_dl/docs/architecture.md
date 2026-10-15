@@ -195,7 +195,10 @@ is an overflow (`Ev_Overflow` per VC).
   with this next-state logic.
 - FCT requests: a counter of free blocks of 64 words, set to `VcInDepth_g / 64` on link reset, + 1 for every 64 words
   read by the Network layer (pulse through `ofb_cc_pulse`), - M for every FCT admitted; an FCT is requested while at
-  least M blocks are free (M = `Cfg_FctMult` + 1).
+  least M blocks are free (M = `Cfg_FctMult` + 1). With several lanes a beat can hold back up to N - 1 words of a
+  packet until the next words arrive, and these words occupy space that no FCT has released yet. With a buffer of one
+  flow control unit (M x 64 words) the counter would then stay below M for good; with at least two units it reaches
+  M as soon as the credit of the far end is used up (DL-VI-05: at least 128 x N words with several lanes).
 - User side after link reset: when the last character read was not EOP, EEP or Fill, a beat EEP, Fill, ... is read
   first.
 

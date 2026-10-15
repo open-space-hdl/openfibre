@@ -12,7 +12,7 @@ two complete cores are verified in the core testbench.
 
 | Testbench | DUT and environment |
 | --- | --- |
-| `ofb_ni_tb` with `ofb_ni_th` | `ofb_ni` with two VCs and `NumLanes_g` = 1, 2 and 4 (VUnit configurations `lanes1`, `lanes2`, `lanes4`: 4, 8 and 16 bytes per beat). Per VC: a driver of the packets to send and a driver of the received rows (queues filled by the sequencer, random valid), a monitor of the rows to the Data Link layer and a monitor of the received packets (random ready). The row monitor compares every word with K flags; the packet monitor checks the `TKEEP` format (byte 0 valid, contiguous, all bytes in a beat without `TLAST`) and compares every byte with its position (last byte of the packet, EEP flag). Counters of the three events per VC |
+| `ofb_ni_tb` with `ofb_ni_th` | `ofb_ni` with two VCs and `NumLanes_g` = 1 to 4 (VUnit configurations `lanes1` to `lanes4`: 4, 8, 12 and 16 bytes per beat). Per VC: a driver of the packets to send and a driver of the received rows (queues filled by the sequencer, random valid), a monitor of the rows to the Data Link layer and a monitor of the received packets (random ready). The row monitor compares every word with K flags; the packet monitor checks the `TKEEP` format (byte 0 valid, contiguous, all bytes in a beat without `TLAST`) and compares every byte with its position (last byte of the packet, EEP flag). Counters of the three events per VC |
 
 The sequencer builds the received rows from character patterns (data, EOP, EEP, Fill, K28.5) with the rule of the
 input VC buffer: a row ends after the word with an end marker and is completed with Fills. Data bytes are running

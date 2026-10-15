@@ -27,6 +27,11 @@ library std;
 -- Entity
 ---------------------------------------------------------------------------------------------------
 entity ofb_pa_gty_core_tb is
+    generic (
+        Lanes_g : positive range 1 to 4 := 4;
+        -- Link initialisation and the first burst only (the lane counts below four)
+        Short_g : boolean               := false
+    );
 end entity;
 
 ---------------------------------------------------------------------------------------------------
@@ -34,7 +39,7 @@ end entity;
 ---------------------------------------------------------------------------------------------------
 architecture sim of ofb_pa_gty_core_tb is
 
-    constant Lanes_c   : positive := 4;
+    constant Lanes_c   : positive := Lanes_g;
     constant Vcs_c     : positive := 4;
     constant Packets_c : positive := 12;  -- packets per VC, direction and burst
     constant Bcs_c     : positive := 4;   -- broadcast messages per direction
@@ -296,6 +301,34 @@ begin
         end loop;
 
         report "First burst delivered at " & time'image(now);
+
+        if Short_g then
+
+            for e in 0 to 1 loop
+
+                for v in 0 to Vcs_c-1 loop
+                    if Received(e, v) /= Packets_c then
+                        report "FAIL: packets missing" severity error;
+                        Fail_v := true;
+                    end if;
+                end loop;
+
+                if BcReceived(e) /= Bcs_c or errorSum(e) /= 0 then
+                    report "FAIL: broadcast messages missing or errors" severity error;
+                    Fail_v := true;
+                end if;
+                rd(e, RegDlErrors_c, A_v);
+                if A_v(9 downto 0) /= "0000000000" then
+                    report "FAIL: errors reported in the MIB" severity error;
+                    Fail_v := true;
+                end if;
+            end loop;
+
+            if not Fail_v then
+                report "Simulation done at " & time'image(now);
+            end if;
+            finish;
+        end if;
 
         -- Clock correction at both ends (200 ppm: one word every 5000 words), then the second burst
         loop

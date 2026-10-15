@@ -43,10 +43,16 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_core_tb is
     generic (
-        runner_cfg   : string;
-        NumLanes_g   : positive range 1 to 4 := 1;
-        Seed_g       : positive              := 1;   -- Seed of the fault injection campaign
-        CoreHalfPs_g : positive              := 3000 -- Half period of CoreClk in ps (LaneClk: 3200)
+        runner_cfg      : string;
+        NumLanes_g      : positive range 1 to 4  := 1;
+        NumVc_g         : positive range 1 to 32 := 4;
+        Seed_g          : positive               := 1;    -- Seed of the fault injection campaign
+        CoreHalfPs_g    : positive               := 3000; -- Half period of CoreClk in ps
+        LaneHalfPs_g    : positive               := 3200; -- Half period of LaneClk in ps
+        VcOutDepth_g    : positive               := 128;
+        VcInDepth_g     : natural                := 0;    -- 0: 256 x NumLanes_g words
+        ErbRows_g       : positive               := 512;
+        InitPrbsWords_g : natural range 0 to 64  := 64
     );
 end entity;
 
@@ -58,8 +64,15 @@ architecture sim of ofb_core_tb is
     signal MgmtClk : std_logic;
     signal Rst     : std_logic;
 
+    -- Payload capacity of one lane in Gbit/s: 32 bits per LaneClk cycle
+    constant LaneGbps_c : real := 32.0 / (2.0e-3 * real(LaneHalfPs_g));
+
+    -- Largest Space Packet (CCSDS 133.0-B-2: 6 header bytes and 65536 data bytes), TC-CORE-20
+    constant LongPacket_c : positive := 65542;
+
     -- Register addresses
     constant RegId_c        : natural := 16#000#;
+    constant RegGenerics_c  : natural := 16#004#;
     constant RegDlCtrl_c    : natural := 16#008#;
     constant RegDlStatus_c  : natural := 16#010#;
     constant RegDlErrors_c  : natural := 16#014#;
@@ -192,7 +205,7 @@ begin
             loop
                 Pending_v := 0;
 
-                for inst in 1 to 2 * CoreNumVc_c + 2 loop
+                for inst in 1 to 2 * CoreMaxVc_c + 2 loop
                     Pending_v := Pending_v + CoreSb_v.get_pending_count(inst);
                 end loop;
 
@@ -200,7 +213,7 @@ begin
                 cycles(50);
                 if now - Start_v > timeout then
 
-                    for inst in 1 to 2 * CoreNumVc_c + 2 loop
+                    for inst in 1 to 2 * CoreMaxVc_c + 2 loop
                         if CoreSb_v.get_pending_count(inst) > 0 then
                             log(ID_LOG_HDR, "Instance " & to_string(inst) & ": " &
                                 to_string(CoreSb_v.get_pending_count(inst)) & " elements pending");
@@ -219,7 +232,7 @@ begin
 
             for c in 0 to 1 loop
 
-                for vc in 0 to CoreNumVc_c-1 loop
+                for vc in 0 to NumVc_g-1 loop
                     CoreCfg(c).Vc(vc).Packets <= CoreCfg(c).Vc(vc).Packets + n;
                 end loop;
 
@@ -275,7 +288,7 @@ begin
             waitDelivered(2 ms);
             wr(0, RegEccInject_c, std_logic_vector(to_unsigned(16#100# + EccChVcIn_c, 32)));
 
-            for vc in 0 to CoreNumVc_c-1 loop
+            for vc in 0 to NumVc_g-1 loop
                 CoreCfg(1).Vc(vc).MinLen  <= minLen;
                 CoreCfg(1).Vc(vc).MaxLen  <= maxLen;
                 CoreCfg(1).Vc(vc).Packets <= CoreCfg(1).Vc(vc).Packets + packets;
@@ -314,7 +327,7 @@ begin
         -- Expected data words of a full raw beat at the receiver of VC 0 (default: B)
         procedure expBeatWords (
             first : natural;
-            inst  : positive := 1 + CoreNumVc_c) is
+            inst  : positive := 1 + CoreMaxVc_c) is
             variable Word_v : Word_t;
         begin
 
@@ -341,7 +354,7 @@ begin
         procedure defaultLengths is
         begin
 
-            for vc in 0 to CoreNumVc_c-1 loop
+            for vc in 0 to NumVc_g-1 loop
                 CoreCfg(1).Vc(vc).MinLen <= CoreVcCfgDefault_c.MinLen;
                 CoreCfg(1).Vc(vc).MaxLen <= CoreVcCfgDefault_c.MaxLen;
             end loop;
@@ -357,12 +370,12 @@ begin
         enable_log_msg(ID_LOG_HDR);
         CoreSb_v.set_scope("CORE_SB");
 
-        for inst in 1 to 2 * CoreNumVc_c + 2 loop
+        for inst in 1 to 2 * CoreMaxVc_c + 2 loop
             CoreSb_v.enable(inst);
             CoreSb_v.disable_log_msg(inst, ID_DATA);
         end loop;
 
-        coreCovInit;
+        coreCovInit(NumVc_g);
         wait until Rst = '0';
         cycles(50);
 
@@ -370,6 +383,9 @@ begin
 
             -- TC-CORE-01: identification, link start through the MIB
             if run("test_link_up") then
+                rd(0, RegGenerics_c, Data_v);
+                check_value(to_integer(unsigned(Data_v(7 downto 0))), NumVc_g, error, "NUM_VC of A");
+                check_value(to_integer(unsigned(Data_v(11 downto 8))), NumLanes_g, error, "NUM_LANES of A");
                 rd(0, RegId_c, Data_v);
                 check_value(Data_v, x"0FB10007", error, "ID of A");
                 linkUp(500 us);
@@ -387,7 +403,7 @@ begin
 
                 for c in 0 to 1 loop
 
-                    for vc in 0 to CoreNumVc_c-1 loop
+                    for vc in 0 to NumVc_g-1 loop
                         CoreCfg(c).Vc(vc).MaxLen   <= 200;
                         CoreCfg(c).Vc(vc).ReadyPct <= 70;
                     end loop;
@@ -428,10 +444,19 @@ begin
                 rd(0, RegDlStatus_c, Data_v);
                 check_value(Data_v(1 downto 0), "11", error, "No link reset at A");
 
-            -- TC-CORE-04: Link Reset through the MIB resets both ends
+            -- TC-CORE-04: Link Reset through the MIB resets both ends. The lanes of A pass ClearLine,
+            -- which lasts 2 us counted in LaneClk cycles of LaneClkFreq_g (ECSS 5.5.2.4)
             elsif run("test_link_reset") then
                 linkUp(500 us);
                 wr(0, RegDlCtrl_c, x"00000101");
+                if CoreLaneOn(0) = '1' then
+                    wait until CoreLaneOn(0) = '0' for 10 us;
+                end if;
+                T0_v := now - CoreLaneOn(0)'last_event;
+                wait until CoreLaneOn(0) = '1' for 20 us;
+                log(ID_LOG_HDR, "ClearLine of A: " & to_string(now - T0_v));
+                check_value(now - T0_v >= 2 us and now - T0_v < 2 us + 40 * LaneHalfPs_g * 1 ps, error,
+                            "ClearLine of A lasts 2 us");
                 cycles(100);
                 linkUp(500 us);
                 rd(1, RegDlErrors_c, Data_v);
@@ -450,7 +475,7 @@ begin
                 check_value(Data_v, x"00000000", error, "Bandwidth of VC 3 at A read back");
                 CoreCfg(0).Vc(3).Packets <= 3;
                 cycles(2000);
-                check_value(CoreSb_v.get_pending_count(1 + CoreNumVc_c + 3) > 0, error, "VC 3 of A blocked");
+                check_value(CoreSb_v.get_pending_count(1 + CoreMaxVc_c + 3) > 0, error, "VC 3 of A blocked");
                 wr(0, 16#434#, x"00000100");
                 waitDelivered(1 ms);
                 -- SCHEDULE.request through the Network interface: VC 3 of A excluded from time-slot 5
@@ -462,7 +487,7 @@ begin
                 check_value(Data_v(5 downto 0), "000101", error, "Current time-slot 5 at A");
                 CoreCfg(0).Vc(3).Packets <= 6;
                 cycles(2000);
-                check_value(CoreSb_v.get_pending_count(1 + CoreNumVc_c + 3) > 0, error, "VC 3 of A waits in time-slot 5");
+                check_value(CoreSb_v.get_pending_count(1 + CoreMaxVc_c + 3) > 0, error, "VC 3 of A waits in time-slot 5");
                 CoreCfg(0).Slot          <= 0;
                 CoreCfg(0).SchedReq      <= CoreCfg(0).SchedReq + 1;
                 waitDelivered(1 ms);
@@ -515,7 +540,7 @@ begin
 
                 for c in 0 to 1 loop
 
-                    for vc in 0 to CoreNumVc_c-1 loop
+                    for vc in 0 to NumVc_g-1 loop
                         CoreCfg(c).Vc(vc).MaxLen <= 300;
                     end loop;
 
@@ -582,12 +607,12 @@ begin
                 -- the rest of the packet is discarded
                 rawBeat(16#30#, AllKeep_c, '0');
                 expBeatWords(16#30#);
-                CoreSb_v.add_expected(1 + CoreNumVc_c, "1111" & CharFill_c & CharFill_c & CharFill_c & CharEep_c);
+                CoreSb_v.add_expected(1 + CoreMaxVc_c, "1111" & CharFill_c & CharFill_c & CharFill_c & CharEep_c);
                 rawBeat(16#40#, '0' & AllKeep_c(NumLanes_g*4-2 downto 0), '0');
                 rawBeat(16#50#, AllKeep_c, '1');
                 -- Packet of three bytes ended with an EEP by the user
                 rawBeat(16#60#, (NumLanes_g*4-1 downto 3 => '0') & "111", '1', '1');
-                CoreSb_v.add_expected(1 + CoreNumVc_c, "1000" & CharEep_c & x"626160");
+                CoreSb_v.add_expected(1 + CoreMaxVc_c, "1000" & CharEep_c & x"626160");
                 waitDelivered(1 ms);
                 rd(0, RegFrameErr_c, Data_v);
                 check_value(Data_v(0), '1', error, "Framing error of VC 0 at A");
@@ -661,7 +686,7 @@ begin
                 -- Packets of all length classes, so that faults hit packets of several data frames
                 for c in 0 to 1 loop
 
-                    for vc in 0 to CoreNumVc_c-1 loop
+                    for vc in 0 to NumVc_g-1 loop
                         CoreCfg(c).Vc(vc).LenClasses <= true;
                     end loop;
 
@@ -789,7 +814,7 @@ begin
 
                 for c in 0 to 1 loop
 
-                    for vc in 0 to CoreNumVc_c-1 loop
+                    for vc in 0 to NumVc_g-1 loop
                         CoreCfg(c).Vc(vc).LenClasses <= true;
                         CoreCfg(c).Vc(vc).ReadyPct   <= 70;
                     end loop;
@@ -830,7 +855,7 @@ begin
 
                     for c in 0 to 1 loop
 
-                        for vc in 0 to CoreNumVc_c-1 loop
+                        for vc in 0 to NumVc_g-1 loop
                             CoreCfg(c).Vc(vc).MaxLen <= 1024;
                             if c = 0 or dir = 1 then
                                 CoreCfg(c).Vc(vc).Packets <= CoreCfg(c).Vc(vc).Packets + 40 * NumLanes_g;
@@ -843,7 +868,7 @@ begin
                     N_v  := 0;
                     W0_v := 0;
 
-                    for vc in 0 to CoreNumVc_c-1 loop
+                    for vc in 0 to NumVc_g-1 loop
                         N_v  := N_v + CoreRxWords(1, vc);
                         W0_v := W0_v + CoreRxWords(0, vc);
                     end loop;
@@ -853,24 +878,24 @@ begin
                     Rate_v  := 0.0;
                     RateB_v := 0.0;
 
-                    for vc in 0 to CoreNumVc_c-1 loop
+                    for vc in 0 to NumVc_g-1 loop
                         Rate_v  := Rate_v + real(CoreRxWords(1, vc));
                         RateB_v := RateB_v + real(CoreRxWords(0, vc));
                     end loop;
 
-                    -- Payload bits per ns = Gbit/s; capacity 32 bits per 6.4 ns and lane = 5 Gbit/s
+                    -- Payload bits per ns = Gbit/s; capacity 32 bits per LaneClk cycle and lane
                     Rate_v  := (Rate_v - real(N_v)) * 32.0 / real((now - T0_v) / 1 ns);
                     RateB_v := (RateB_v - real(W0_v)) * 32.0 / real((now - T0_v) / 1 ns);
                     if dir = 0 then
                         log(ID_SEQUENCER, "A to B only: " & to_string(Rate_v, 3) & " Gbit/s, " &
-                            to_string(100.0 * Rate_v / (5.0 * real(NumLanes_g)), 1) & " % of the lane capacity");
-                        check_value(Rate_v > 0.9 * 5.0 * real(NumLanes_g), error, "Throughput from A to B");
+                            to_string(100.0 * Rate_v / (LaneGbps_c * real(NumLanes_g)), 1) & " % of the lane capacity");
+                        check_value(Rate_v > 0.9 * LaneGbps_c * real(NumLanes_g), error, "Throughput from A to B");
                     else
                         log(ID_SEQUENCER, "Both directions: A to B " & to_string(Rate_v, 3) & " Gbit/s, B to A " &
-                            to_string(RateB_v, 3) & " Gbit/s (" & to_string(100.0 * Rate_v / (5.0 * real(NumLanes_g)), 1) &
-                            " %, " & to_string(100.0 * RateB_v / (5.0 * real(NumLanes_g)), 1) & " %)");
-                        check_value(Rate_v > 0.85 * 5.0 * real(NumLanes_g), error, "Throughput from A to B");
-                        check_value(RateB_v > 0.85 * 5.0 * real(NumLanes_g), error, "Throughput from B to A");
+                            to_string(RateB_v, 3) & " Gbit/s (" & to_string(100.0 * Rate_v / (LaneGbps_c * real(NumLanes_g)), 1) &
+                            " %, " & to_string(100.0 * RateB_v / (LaneGbps_c * real(NumLanes_g)), 1) & " %)");
+                        check_value(Rate_v > 0.85 * LaneGbps_c * real(NumLanes_g), error, "Throughput from A to B");
+                        check_value(RateB_v > 0.85 * LaneGbps_c * real(NumLanes_g), error, "Throughput from B to A");
                     end if;
                     waitDelivered(5 ms);
                 end loop;
@@ -1024,7 +1049,7 @@ begin
                         sendAll(2);
                         waitDelivered(2 ms);
                         rd(0, RegNiRxEmptyCount_c, Data_v);
-                        check_value(to_integer(unsigned(Data_v(15 downto 0))) - N_v, CoreNumVc_c, error,
+                        check_value(to_integer(unsigned(Data_v(15 downto 0))) - N_v, NumVc_g, error,
                                     "Packets of zero length after the second error in the input VC buffers of A");
                         defaultLengths;
                         rd(1, RegDlErrors_c, Data_v);
@@ -1038,11 +1063,11 @@ begin
                 rd(0, RegNiRxEmptyCount_c, Data_v);
                 N_v := to_integer(unsigned(Data_v(15 downto 0)));
 
-                for vc in 0 to CoreNumVc_c-1 loop
+                for vc in 0 to NumVc_g-1 loop
                     N_v := N_v + CoreRxEep(0, vc);
                 end loop;
 
-                check_value(N_v >= 2 * CoreNumVc_c, error, "Packets with a DED in the input VC buffers of A ended " &
+                check_value(N_v >= 2 * NumVc_g, error, "Packets with a DED in the input VC buffers of A ended " &
                             "with EEP or discarded");
 
                 check_value(CoreBcLost(0) > 0, error, "Message with a DED in the broadcast input buffer discarded");
@@ -1085,6 +1110,31 @@ begin
                 sendAll(3);
                 waitDelivered(2 ms);
 
+            -- TC-CORE-20: packets of 65542 bytes (the largest Space Packet of CCSDS 133.0-B-2), much longer
+            -- than a data frame and than the VC buffers: one from A to B on VC 0, then two at the same time from
+            -- B to A on VCs 1 and 2; every byte is compared, no error flag
+            elsif run("test_long_packets") then
+                linkUp(500 us);
+                CoreCfg(0).Vc(0).MinLen  <= LongPacket_c;
+                CoreCfg(0).Vc(0).MaxLen  <= LongPacket_c;
+                CoreCfg(0).Vc(0).Packets <= CoreCfg(0).Vc(0).Packets + 1;
+                cycles(1);
+                waitDelivered(2 ms);
+
+                for vc in 1 to 2 loop
+                    CoreCfg(1).Vc(vc).MinLen  <= LongPacket_c;
+                    CoreCfg(1).Vc(vc).MaxLen  <= LongPacket_c;
+                    CoreCfg(1).Vc(vc).Packets <= CoreCfg(1).Vc(vc).Packets + 1;
+                end loop;
+
+                cycles(1);
+                waitDelivered(4 ms);
+
+                for c in 0 to 1 loop
+                    rd(c, RegDlErrors_c, Data_v);
+                    check_value(Data_v, x"00000000", error, "No error flag at core " & to_string(c));
+                end loop;
+
             end if;
 
         end loop;
@@ -1101,8 +1151,14 @@ begin
     -----------------------------------------------------------------------------------------------
     i_th : entity work.ofb_core_th
         generic map (
-            NumLanes_g   => NumLanes_g,
-            CoreHalfPs_g => CoreHalfPs_g
+            NumLanes_g      => NumLanes_g,
+            NumVc_g         => NumVc_g,
+            CoreHalfPs_g    => CoreHalfPs_g,
+            LaneHalfPs_g    => LaneHalfPs_g,
+            VcOutDepth_g    => VcOutDepth_g,
+            VcInDepth_g     => VcInDepth_g,
+            ErbRows_g       => ErbRows_g,
+            InitPrbsWords_g => InitPrbsWords_g
         )
         port map (
             MgmtClk => MgmtClk,

@@ -285,6 +285,12 @@ architecture rtl of ofb_core is
 
 begin
 
+    -- The timers of the Lane and Multi-Lane layers and the scrubbing interval are counted in cycles of
+    -- these frequencies (CORE-CK-02)
+    assert LaneClkFreq_g > 0.0 and CoreClkFreq_g > 0.0
+        report "ofb_core: LaneClkFreq_g and CoreClkFreq_g must be the frequencies of LaneClk and CoreClk"
+        severity failure;
+
     -----------------------------------------------------------------------------------------------
     -- Resets per clock domain (MG-4)
     -----------------------------------------------------------------------------------------------

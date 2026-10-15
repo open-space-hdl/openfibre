@@ -29,6 +29,7 @@ UVVM in xsim is limited; the runner evaluates the log.
 | TC-PA-05 (`ofb_pa_gty_cc_tb`, run `far`) | Both reference clocks at 156.25 MHz: words in order at both ends, then far-end serial loopback on every lane of B: A receives its own words, 3000 data words per lane in order without error | PA-LB-01 |
 | TC-PA-03 (`ofb_pa_gty_cc_tb`, run `cc`) | At least 4 clock corrections at each end (SKIP words inserted at A, removed at B), no receive buffer error, 3000 data words per lane and end received in order without loss or repetition | PA-CC-01, PA-ST-01 |
 | TC-PA-02 (`ofb_pa_gty_core_tb`) | LaneStart at A, AutoStart at B: lane initialisation through the transceivers (ClearLine with electrical idle and CDR hold, polarity control), alignment of the four lanes, link initialised at both ends; a first burst of 12 packets per VC (1 to 40 words) and 4 broadcast messages in both directions; clock corrections at both ends (SKIP words inserted at one end, removed at the other); a second burst of 12 packets per VC; all delivered in order, no error flag in DL_ERRORS, no retry | PA-IF-01 to 03, PA-CC-01, PA-SE-01, PA-SE-02, PA-SY-01, CORE-SY-01, CORE-SY-02 |
+| TC-PA-02 with 1 to 3 lanes (runs `ofb_pa_gty_core_tb.lanes1` to `.lanes3`: `Lanes_g` = 1 to 3, `Short_g`) | Cores and adapters with one, two and three lanes, the other channels of the quad idle: link initialised at both ends with all lanes data-sending and data-receiving, first burst delivered in order, no error flag | PA-IF-01, PA-SY-01, CORE-SY-01 |
 
 ## 4. Coverage analysis
 

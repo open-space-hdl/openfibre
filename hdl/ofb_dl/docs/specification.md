@@ -47,9 +47,10 @@ level.
 
 | ID | Requirement | ECSS |
 | --- | --- | --- |
-| DL-VO-01 | Every VC shall have an output VC buffer of `VcOutDepth_g` beats (at least 64 words, 256 N-Chars), which accepts beats while it is not full and keeps their order. | 5.7.2.2a to f |
+| DL-VO-01 | Every VC shall have an output VC buffer of `VcOutDepth_g` beats (a power of two; at least 64 words, 256 N-Chars, DL-VO-05), which accepts beats while it is not full and keeps their order. | 5.7.2.2a to f |
 | DL-VO-02 | On link reset the output VC buffer shall be flushed; if the last character written by the Network layer was not an EOP, EEP or Fill, all new words shall be discarded up to and including the next word with an EOP or EEP. | 5.7.2.2g, 5.7.10a.1 to 3 |
 | DL-VO-03 | The output VC buffer shall indicate a data segment ready when its FCT credit counter allows at least one row and it contains a full segment, a word with an EOP or EEP, or is full. | 5.7.3.1b |
+| DL-VO-05 | The elaboration shall stop with an error when `VcOutDepth_g` is not a power of two or the output VC buffer holds fewer than 64 words (`VcOutDepth_g` x `NumLanes_g` < 64). | 5.7.2.2a |
 | DL-VO-04 | A data segment shall have at most `min(segment size, credit, words in the buffer, free space of the error recovery buffer)` words in whole rows, the segment size being 64 x P words (DL-RW-03), so that the input VC buffer at the far end has room for it. | 5.7.3.1d, 5.7.4.1c, 5.3.8.2c |
 | DL-CR-01 | Every VC shall have an FCT credit counter of `CreditWidth_g` bits (at least four FCTs) that is increased by M x 64 words for every received FCT of the VC, decreased by the words sent, set to zero on link reset and not changed on LaneReset. | 5.7.3.1a, e to h, j, k |
 | DL-CR-02 | An FCT that would overflow the credit counter shall leave it unchanged at its maximum value and raise the credit overflow status of the VC. | 5.7.3.1i |
@@ -102,6 +103,7 @@ level.
 | DL-ER-04 | A valid ACK or NACK with a sequence count different from that of the previous valid ACK or NACK and no item with that count in the buffer shall cause a link reset and raise the Link Reset Caused by Protocol Error status. | 5.7.7.2.3d, 5.7.7.2.4e |
 | DL-ER-05 | The error recovery buffer shall be full when it cannot store an item of a kind (data word, FCT, broadcast message) or 127 items are waiting for acknowledgement; no new item of that kind shall then be accepted. | 5.7.7.1n, o |
 | DL-ER-06 | On link reset the error recovery buffer shall be emptied; on LaneReset it shall not. | 5.7.7.1h, i, 5.7.10b.8 |
+| DL-ER-08 | The error recovery buffer shall hold `ErbRows_g` data rows; the elaboration shall stop with an error when `ErbRows_g` is not a power of two of at least 64 (a data segment of 64 rows). | 5.7.7.1m |
 | DL-ER-07 | The number of error recovery attempts (RETRYs sent) shall be counted, reported, and cleared by reset, interface reset or the MIB. The empty state of the buffer shall be reported. | 5.7.7.1j to l, Table 5-37 |
 
 ### 2.8 Data word identification and frame checks (DR-1, DR-2, DR-4)
@@ -128,9 +130,10 @@ level.
 
 | ID | Requirement | ECSS |
 | --- | --- | --- |
-| DL-VI-01 | Every VC shall have an input VC buffer of `VcInDepth_g` words (at least 64 x `NumLanes_g` words) on `UserClk`, which stores the received words without gaps and keeps the order of the received N-Chars and Fills. | 5.7.2.3a, b, 5.3.7.2d |
+| DL-VI-01 | Every VC shall have an input VC buffer of `VcInDepth_g` words (`NumLanes_g` times a power of two; at least 64 words with one lane and 128 x `NumLanes_g` words with several lanes, DL-VI-05) on `UserClk`, which stores the received words without gaps and keeps the order of the received N-Chars and Fills. | 5.7.2.3a, b, 5.3.7.2d |
 | DL-VI-02 | After link reset an input VC buffer shall request one FCT (multiplier M = P, DL-RW-03) for every M x 64 words of space, and one further FCT every time the Network layer has read M x 64 words; FCT requests of several VCs shall be served in round-robin order. | 5.7.3.2b to d |
 | DL-VI-03 | A word received for a full input VC buffer is an overflow: the link shall be reset and the input buffer overflow status of the VC raised. | 5.7.3.2e |
+| DL-VI-05 | The elaboration shall stop with an error when `VcInDepth_g` is not `NumLanes_g` times a power of two of at least 64 words, or is less than 128 x `NumLanes_g` words with several lanes. A beat of N words holds back up to N - 1 words of a packet until the next words arrive; with a buffer of one flow control unit (M x 64 words) the next FCT would then never be sent and the VC would stop for good. | 5.7.2.3b, 5.7.3.2 |
 | DL-VI-04 | On link reset the input VC buffers shall be flushed; if the last character read by the Network layer was not an EOP, EEP or Fill, an EEP shall be the next character read. | 5.7.2.3d, 5.7.10a.4 to 7 |
 | DL-BI-01 | Accepted broadcast messages shall be passed to the Network layer through a broadcast input buffer of `BcInDepth_g` messages; a message that finds the buffer full shall be discarded and counted. | 5.7.6.7c |
 
@@ -202,10 +205,10 @@ level.
 | --- | --- | --- |
 | `NumVc_g` | 8 | Number of virtual channels (1 to 32) |
 | `NumLanes_g` | 1 | Words per row (number of lanes of the Multi-Lane layer, 1 to 4) |
-| `VcOutDepth_g` | 128 | Output VC buffer, beats of `NumLanes_g` words |
-| `VcInDepth_g` | 256 | Input VC buffer, words (multiple of 64 x `NumLanes_g`) |
+| `VcOutDepth_g` | 128 | Output VC buffer, beats of `NumLanes_g` words (a power of two, at least 64 words) |
+| `VcInDepth_g` | 256 | Input VC buffer, words (`NumLanes_g` times a power of two; at least 64 with one lane, 128 x `NumLanes_g` with several lanes; reference value 256 x `NumLanes_g`) |
 | `BcOutDepth_g`, `BcInDepth_g` | 4 | Broadcast buffers, messages |
-| `ErbRows_g` | 512 | Error recovery buffer, data rows |
+| `ErbRows_g` | 512 | Error recovery buffer, data rows (a power of two, at least 64) |
 | `ErbDataItems_g`, `ErbFctItems_g`, `ErbBcItems_g` | 32, 16, 4 | Error recovery buffer, items per kind (sum below 128) |
 | `CreditWidth_g` | 12 | FCT credit counter width (words) |
 

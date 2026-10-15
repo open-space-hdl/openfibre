@@ -31,7 +31,8 @@ library work;
 ---------------------------------------------------------------------------------------------------
 package ofb_core_tb_pkg is
 
-    constant CoreNumVc_c : positive := 4;
+    -- Size of the arrays per VC; the testbench generic NumVc_g sets the VCs of the cores
+    constant CoreMaxVc_c : positive := 32;
 
     -- Packet generator and receiver of one VC
     type CoreVcCfg_t is record
@@ -42,7 +43,7 @@ package ofb_core_tb_pkg is
         LenClasses : boolean;  -- Packet lengths cycle through the length classes of CovPkt_v
     end record;
 
-    type CoreVcCfgArray_t is array (0 to CoreNumVc_c-1) of CoreVcCfg_t;
+    type CoreVcCfgArray_t is array (0 to CoreMaxVc_c-1) of CoreVcCfg_t;
 
     type CoreCfg_t is record
         Vc       : CoreVcCfgArray_t;
@@ -71,7 +72,7 @@ package ofb_core_tb_pkg is
     signal CoreCfg : CoreCfgArray_t := (others => CoreCfgDefault_c);
 
     -- Lossy comparison: packets received with an EEP at their end and packets lost, per core and VC
-    type CoreVcCount_t is array (0 to 1, 0 to CoreNumVc_c-1) of natural;
+    type CoreVcCount_t is array (0 to 1, 0 to CoreMaxVc_c-1) of natural;
 
     signal CoreRxEep   : CoreVcCount_t := (others => (others => 0));
     signal CoreRxLost  : CoreVcCount_t := (others => (others => 0));
@@ -85,16 +86,19 @@ package ofb_core_tb_pkg is
     -- Power-on reset of one core (in addition to the reset of the harness)
     signal CoreRstReq : std_logic_vector(0 to 1) := "00";
 
+    -- A lane of the core has its transmitter, receiver or CDR enabled (all off in ClearLine and Disabled)
+    signal CoreLaneOn : std_logic_vector(0 to 1);
+
     -- Raw beats for VC 0 of core A in queue 0 (sent before the generated packets of VC 0): bytes 127:0
     -- (byte 0 in bits 7:0), TKEEP 143:128, TLAST 144, TUSER 145
     subtype RawBeat_t is BeatEntry_t;
 
     shared variable RawQueue_v : BeatQueues_t;
 
-    -- Scoreboard: the words of the received packets for core d and VC v in instance 1 + d * CoreNumVc_c
+    -- Scoreboard: the words of the received packets for core d and VC v in instance 1 + d * CoreMaxVc_c
     -- + v (a packet as data words of four bytes and a last word with the remaining bytes, EOP or EEP and
     -- Fills: the N-Char representation of ECSS 5.3.7 from byte 0), broadcast messages for core d in
-    -- instance 1 + 2 * CoreNumVc_c + d (three elements per message)
+    -- instance 1 + 2 * CoreMaxVc_c + d (three elements per message)
     shared variable CoreSb_v : t_generic_sb;
 
     -- AXI4-Lite VVC instances of core A and B
@@ -118,7 +122,7 @@ package ofb_core_tb_pkg is
     shared variable CovLate_v : t_coverpoint;
 
     -- Bins of the coverpoints (called by the sequencer before the traffic starts)
-    procedure coreCovInit;
+    procedure coreCovInit (numVc : positive);
 
     -- Coverage summary of the coverpoints into the log
     procedure coreCovReport;
@@ -130,10 +134,10 @@ end package;
 ---------------------------------------------------------------------------------------------------
 package body ofb_core_tb_pkg is
 
-    procedure coreCovInit is
+    procedure coreCovInit (numVc : positive) is
     begin
         CovPkt_v.set_name("CovPkt");
-        CovPkt_v.add_cross(bin_range(0, 1, 0), bin_range(0, CoreNumVc_c-1, 0),
+        CovPkt_v.add_cross(bin_range(0, 1, 0), bin_range(0, numVc-1, 0),
                            bin_range(LenMin_c(0), LenMax_c(0)) & bin_range(LenMin_c(1), LenMax_c(1)) &
                            bin_range(LenMin_c(2), LenMax_c(2)) & bin_range(LenMin_c(3), LenMax_c(3)));
         CovEnd_v.set_name("CovEnd");

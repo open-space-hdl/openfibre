@@ -13,10 +13,37 @@ generics of its configuration, and the GHDL results before that copy are valid. 
 before the configurations, the check of `run.py` stops the run (mutation check). QuestaSim and the AMD Vivado
 simulator are not affected.
 
+Run on 2026-10-15 with the configurations of the generic ranges: the full regression `python run.py`, 287 of 287
+tests pass in GHDL and in QuestaSim, with and without coverage (287 of 287 each; the three tests of `vc32` with 32
+VCs and two lanes in a separate run, commit 0bab3a2, see `docs/coverage.md`).
+
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_core_tb` (configurations `lanes1`, `lanes2`, `lanes4`) | 19 x 3 | 57 |
+| `ofb_core_tb` (configurations `lanes1` to `lanes4`) | 20 x 4 | 80 |
 | `ofb_core_tb`, configuration `lanes1_slowcore` (TC-CORE-15 only) | 1 | 1 |
+| `ofb_core_tb`, configurations `vc1` and `vc32` (TC-CORE-01, 02, 04) | 3 x 2 | 6 |
+| `ofb_core_tb`, configuration `halfrate` (TC-CORE-01, 04) | 2 | 2 |
+| `ofb_core_tb`, configuration `minbuf` (TC-CORE-01 to 04) | 4 | 4 |
+| `ofb_core_tb`, configuration `noprbs` (TC-CORE-01, 02) | 2 | 2 |
+
+Generic ranges (verification plan, section "Generic ranges"): every value of a generic that changes the structure
+is simulated, the boundaries of the numeric ranges are simulated or synthesised with GHDL (`lint/synth_check.py`),
+and every value outside a range stops the elaboration with the message of its check (synth_check, rejected values).
+The frequency generics of the testbench are derived from the generated clock periods.
+
+| Generic | Range | Simulated | Synthesised | Rejected |
+| --- | --- | --- | --- | --- |
+| `NumVc_g` | 1 to 32 | 1, 4, 32 (32 VCs with two lanes; 8 in the system test with the transceiver model) | 1, 8, 32 (four lanes with 32 VCs elaborated and synthesised) | outside the subtype |
+| `NumLanes_g` | 1 to 4 | 1, 2, 3, 4 (all test cases); with `ofb_pa_gty` and the transceiver model 1 to 4 | 1, 2, 3, 4 | outside the subtype |
+| `LaneClkFreq_g` | positive | 156.25 MHz; 78.125 MHz (`halfrate`: ClearLine measured 2.010 us and 2.022 us) | 156.25 MHz | not positive (check by inspection: GHDL synthesis cannot override a real generic) |
+| `CoreClkFreq_g` | positive | 166.7 MHz; 125 MHz (`lanes1_slowcore`) | 200 MHz | as `LaneClkFreq_g` |
+| `VcOutDepth_g` | power of two, `VcOutDepth_g` x `NumLanes_g` >= 64 | 128 beats; 32 beats with two lanes (`minbuf`) | 64 with one lane, 16 with four lanes, 128 | 32 with one lane, 16 with two lanes, 96 |
+| `VcInDepth_g` | `NumLanes_g` x power of two; >= 64 with one lane, >= 128 x `NumLanes_g` with several lanes | 256 x `NumLanes_g`; 256 with two lanes (`minbuf`) | 64 with one lane, 512 with four lanes, 256 x `NumLanes_g` | 96 and 192 with one lane, 128 with two lanes, 256 with four lanes |
+| `ErbRows_g` | power of two, >= 64 | 512; 64 (`minbuf`) | 64, 512 | 32, 96 |
+| `InitPrbsWords_g` | 0 to 64 | 64; 0 (`noprbs`) | 0, 64 | outside the subtype |
+
+Packets of 65542 bytes (TC-CORE-20, the largest Space Packet) pass with 1 to 4 lanes: one from A to B and two at the
+same time from B to A, every byte compared.
 
 Throughput and latency (TC-CORE-16, lane capacity 5 Gbit/s per lane: 32 bits per 6.4 ns; core clock 166.7 MHz, user
 clock 192.3 MHz; packets of 1 to 1024 bytes on four VCs):
@@ -25,6 +52,7 @@ clock 192.3 MHz; packets of 1 to 1024 bytes on four VCs):
 | --- | --- | --- | --- |
 | lanes1 | 365 ns | 4.73 Gbit/s (94.6 %) | 4.53 / 4.53 Gbit/s (90.5 / 90.6 %) |
 | lanes2 | 388 ns | 9.42 Gbit/s (94.2 %) | 9.07 / 9.05 Gbit/s (90.7 / 90.5 %) |
+| lanes3 | 390 ns | 14.11 Gbit/s (94.1 %) | 13.58 / 13.60 Gbit/s (90.5 / 90.7 %) |
 | lanes4 | 392 ns | 18.73 Gbit/s (93.7 %) | 17.94 / 17.98 Gbit/s (89.7 / 89.9 %) |
 
 The latency includes the behavioural Physical adapter (no serialisation delay) and the store-and-forward frame
@@ -88,6 +116,8 @@ Defects found during verification:
 
 | Finding | Fix |
 | --- | --- |
+| Generic ranges (2026-10-15): with more than one lane and an input VC buffer of one flow control unit (`VcInDepth_g` = 64 x `NumLanes_g`, for example the default 256 with four lanes), the traffic of TC-CORE-02 stopped for good. A beat of the input VC buffer is offered when N words are available or one of them ends a packet, so up to N - 1 words of a packet wait for the next words. The FCT counter frees one block per 64 words read and requests an FCT at M free blocks; with M blocks in the buffer, one waiting word keeps the counter at M - 1, no FCT is sent, the far end sends nothing more and the word waits for good. With one lane a beat is one word and nothing waits; with two flow control units the counter reaches M as soon as the credit of the far end is used up. All earlier versions are affected; the hardware builds use 256 x `NumLanes_g` and are not | The elaboration rejects input VC buffers below 128 x `NumLanes_g` words with several lanes (DL-VI-05); the logic is unchanged. Shown with temporary configurations: 2 lanes with 128 words and 4 lanes with 256 words stop, 1 lane with 64 words and two flow control units with 30, 50 and 95 % ready at the receiver pass |
+| Testbench: `CoreClkFreq_g` kept its default of 200 MHz while the harness generated 166.7 MHz, so the scrubbing interval of the error recovery buffer did not match its clock | The harness derives `LaneClkFreq_g` and `CoreClkFreq_g` from the generated periods (CORE-CK-02) |
 | After a Link Reset command the far end did not reset: the lane becomes active a few cycles after the capability event, and the lane active level crossed to the core clock faster than the event, so the link reset state machine saw an active lane | The Multi-Lane layer qualifies the capability event with "no lane active" at the time of the event (`Dl_FarCapabilityIdle`), and both cross in one FIFO word |
 | TC-CORE-07 (2 and 4 lanes): with the SKIP request of the Multi-Lane layer the own SKIP counter of the Lane layer kept counting and left its range (GHDL bound check) after 5000 words in Active | The own counter only counts without `SkipExternal_g` |
 | Testbench, 2 and 4 lanes: the generators of the VCs assigned their slice of the beat signal with a variable index, so every generator drove the whole signal (several drivers, X at the core input) | Beat built in a variable, the static slice of the VC assigned once |

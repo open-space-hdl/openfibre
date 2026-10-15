@@ -22,6 +22,7 @@ library ieee;
     use ieee.numeric_std.all;
 
 library olo;
+    use olo.olo_base_pkg_math.all;
     use olo.olo_base_pkg_attribute.all;
     use olo.olo_ft_pkg_ecc.all;
 
@@ -147,6 +148,17 @@ begin
 
     assert Depth_g mod (MaxFrameWords_c * N_c) = 0
         report "ofb_dl_vc_in: Depth_g must be a multiple of 64 x NumLanes_g"
+        severity failure;
+    -- Every bank is an asynchronous FIFO of Depth_g / NumLanes_g words
+    assert isPower2(Depth_g / N_c)
+        report "ofb_dl_vc_in: Depth_g / NumLanes_g must be a power of two"
+        severity failure;
+    -- With several lanes a beat holds back up to N-1 words until the next words arrive. A buffer of one flow
+    -- control unit (M x 64 words) could then never become free for the next FCT, and the VC would stop for good;
+    -- one more unit always leaves a full block free (DL-VI-05)
+    assert N_c = 1 or Depth_g >= 2 * MaxFrameWords_c * N_c
+        report "ofb_dl_vc_in: Depth_g must be at least 128 x NumLanes_g with several lanes " &
+               "(reference value 256 x NumLanes_g)"
         severity failure;
 
     -----------------------------------------------------------------------------------------------

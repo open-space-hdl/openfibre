@@ -217,6 +217,10 @@ begin
     assert 2**AddrWidth_c = Rows_g
         report "ofb_dl_erb: Rows_g must be a power of two"
         severity failure;
+    -- A data segment of 64 rows (one data frame of 64 words per lane) fits (DL-ER-08)
+    assert Rows_g >= MaxFrameWords_c
+        report "ofb_dl_erb: Rows_g must be at least 64"
+        severity failure;
     assert DataItems_g + FctItems_g + BcItems_g <= 127
         report "ofb_dl_erb: at most 127 items can wait for acknowledgement"
         severity failure;

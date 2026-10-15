@@ -36,12 +36,16 @@ The sources are VHDL-2008 and use no vendor primitives. `run.py` shows the compl
 | --- | --- | --- |
 | `NumVc_g` | 8 | Number of virtual channels (1 to 32) |
 | `NumLanes_g` | 1 | Number of lanes (1 to 4); the VC ports carry 4 x `NumLanes_g` bytes per beat |
-| `LaneClkFreq_g` | 156.25e6 | Frequency of `LaneClk` in Hz (lane timers, alignment timeout) |
-| `CoreClkFreq_g` | 200.0e6 | Frequency of `CoreClk` in Hz (scrubber of the error recovery buffer) |
-| `VcOutDepth_g` | 128 | Output VC buffer per VC, in beats |
-| `VcInDepth_g` | 256 | Input VC buffer per VC, in words (multiple of 64 x `NumLanes_g`) |
-| `ErbRows_g` | 512 | Error recovery buffer, in data rows of `NumLanes_g` words |
-| `InitPrbsWords_g` | 64 | PRBS words sent after INIT1 and INIT2 during lane initialisation |
+| `LaneClkFreq_g` | 156.25e6 | Frequency of `LaneClk` in Hz (lane timers, alignment timeout); must match the clock |
+| `CoreClkFreq_g` | 200.0e6 | Frequency of `CoreClk` in Hz (scrubber of the error recovery buffer); must match the clock |
+| `VcOutDepth_g` | 128 | Output VC buffer per VC, in beats: a power of two, at least 64 words (`VcOutDepth_g` x `NumLanes_g` >= 64) |
+| `VcInDepth_g` | 256 | Input VC buffer per VC, in words: `NumLanes_g` times a power of two, at least 64 with one lane and 128 x `NumLanes_g` with several lanes. With three or four lanes the default is too small: set it, reference value 256 x `NumLanes_g` |
+| `ErbRows_g` | 512 | Error recovery buffer, in data rows of `NumLanes_g` words: a power of two, at least 64 |
+| `InitPrbsWords_g` | 64 | PRBS words sent after INIT1 and INIT2 during lane initialisation (0 to 64) |
+
+A value outside these ranges stops the elaboration with a message that names the rule. Every lane count, 1 and 32
+VCs, a lane clock of 78.125 MHz, the smallest buffers and lane initialisation without PRBS words are simulated; the
+boundaries are also synthesised (verification report of `ofb_core`, section "Generic ranges").
 
 ## 4. Clocks and reset
 
@@ -149,6 +153,8 @@ The adapter aligns the receive symbols to 10-bit symbol boundaries, decodes them
 per `LaneClk` cycle without gaps. For the AMD Versal GTY, `ofb_pa_gty` connects these ports one to one; its
 `LaneClk` output is the lane clock of the core (see `hdl/ofb_vck190/src/ofb_vck190_top.vhd`). The generic
 `NumLanes_g` of `ofb_pa_gty` defaults to 4 (one GTY quad) and that of `ofb_core` to 1: set both to the same value.
+The adapter is verified with the transceiver model for 1 to 4 lanes; the unused channels of the quad send electrical
+idle.
 
 ## 6. Programming sequence
 
@@ -216,14 +222,29 @@ the received packets including the word with the end marker.
 
 | Property | Value | Measured in |
 | --- | --- | --- |
-| Throughput, one direction | 94.6 %, 94.2 % and 93.7 % of C with 1, 2 and 4 lanes (4.73, 9.42 and 18.73 Gbit/s at 6.25 Gbit/s) | TC-CORE-16 |
-| Throughput, both directions | At least 90.5 %, 90.5 % and 89.7 % of C per direction with 1, 2 and 4 lanes (4.53, 9.05 and 17.94 Gbit/s at 6.25 Gbit/s) | TC-CORE-16 |
+| Throughput, one direction | 94.6 %, 94.2 %, 94.1 % and 93.7 % of C with 1, 2, 3 and 4 lanes (4.73, 9.42, 14.11 and 18.73 Gbit/s at 6.25 Gbit/s) | TC-CORE-16 |
+| Throughput, both directions | At least 90.5 %, 90.5 %, 90.5 % and 89.7 % of C per direction with 1, 2, 3 and 4 lanes (4.53, 9.05, 13.58 and 17.94 Gbit/s at 6.25 Gbit/s) | TC-CORE-16 |
 | Link overhead | SDF and EDF per data frame (at most 64 words per lane), end marker and Fill characters, a SKIP word every 5000 words per lane, and with traffic in both directions the ACK and FCT words of the reverse traffic | |
 | Packet on the link | A packet of n bytes takes ceil((n + 1) / (4 x `NumLanes_g`)) rows of 4 x `NumLanes_g` characters: the bytes, the EOP or EEP, Fills to the end of the row | TC-NI-07 |
 | VC ports | 4 x `NumLanes_g` bytes per beat, one beat per `UserClk` cycle inside a packet. One more cycle per packet: at `S_Vc` when the last beat is full (row with the end marker), at `M_Vc` when the bytes of the last received row need one more beat | TC-NI-07 |
 | Clocks | `UserClk` not slower than `LaneClk` for the full throughput at the VC ports. `CoreClk` not slower than `LaneClk` (CORE-CK-01): with a slower `CoreClk` received rows are lost (DL_ERRORS bit 10) | TC-CORE-15 |
-| Latency | Packet of one byte on the idle link: 365, 388 and 392 ns with 1, 2 and 4 lanes, without the serialisation and transceiver delay. The receiver forwards a data frame after its EDF (store and forward), so the latency grows with the frame length | TC-CORE-16 |
+| Packet length | No limit: packets longer than a data frame and than the VC buffers are streamed through them; packets of 65542 bytes (the largest Space Packet) with 1 to 4 lanes | TC-CORE-20 |
+| Latency | Packet of one byte on the idle link: 365, 388, 390 and 392 ns with 1, 2, 3 and 4 lanes, without the serialisation and transceiver delay. The receiver forwards a data frame after its EDF (store and forward), so the latency grows with the frame length | TC-CORE-16 |
 | Share of a VC | Set by the quality of service configuration: priority, bandwidth (VC_BANDWIDTH), time-slots (ECSS 5.7.4) | |
+
+Capacity for packets of n bytes: a packet takes rows(n) = ceil((n + 1) / (4 x `NumLanes_g`)) rows on the link, so the
+payload capacity per direction is
+
+capacity(n) = rowEff x f(`LaneClk`) x n / rows(n) bytes per second,
+
+with the row efficiency rowEff derived from the measured throughput: rowEff = eta x `NumLanes_g` x sum(rows(n)) /
+sum(ceil((n + 1) / 4)), sums over n = 1 to 1024 (the throughput eta counts words of 4 bytes, the row padding after
+the word with the end marker is not counted). rowEff is 0.946, 0.946, 0.948 and 0.948 with 1, 2, 3 and 4 lanes in one
+direction, 0.905, 0.909, 0.912 and 0.908 per direction in both directions. It is an average over packets of 1 to 1024
+bytes; for longer packets the overhead per row is the same by construction (SDF and EDF per data frame of 64 words per
+lane, a SKIP word every 5000 words), so the values are conservative there, below the bound 64/66 x 4999/5000 = 0.9695.
+Example: four lanes at 156.25 MHz and packets of 1024 bytes give 0.948 x 156.25e6 x 1024 / 65 = 2.33e9 bytes per
+second (18.7 Gbit/s).
 
 ## 8. Protection scope
 
@@ -295,3 +316,13 @@ Where the standard leaves a choice, the section "Interpretation of the standard"
 | Outside the scope of the core | 5.4.3 to 5.4.6 | Electrical and fibre optic physical layer and media, connectors and cables: properties of the transceiver, the board and the harness |
 | Outside the scope of the core | 5.8.2, 5.8.4, 5.8.14 | Composition of networks, links and units. For a link the user selects at least two VCs (`NumVc_g`, 5.8.4c; one VC for a point-to-point or configuration link, 5.8.4d) and the same VC numbers at both ends (5.8.4e) |
 | Not implemented | none | Every clause that a node with one port needs is implemented |
+
+## 11. Corrected defects
+
+Defects of earlier versions that a user of the core can meet, with their correction. The verification reports of the
+modules describe each finding.
+
+| Defect | Affected versions | Correction |
+| --- | --- | --- |
+| With more than one lane and an input VC buffer of one flow control unit (`VcInDepth_g` = 64 x `NumLanes_g`, for example the default 256 with four lanes), the traffic of a VC could stop for good: a beat holds back up to `NumLanes_g` - 1 words until the next words arrive, so the buffer never became free for the next FCT | All versions before the check of the generic ranges | The elaboration rejects input VC buffers below 128 x `NumLanes_g` words with several lanes (DL-VI-05); reference value 256 x `NumLanes_g` |
+| After a complete restart of one end while the other end was in Link Initialised, the link could stay down for good: the capability event of a lane that entered Active in the same cycle was evaluated with the lane already Active | All versions before the correction of the Multi-Lane layer (CORE-SY-03) | The lane manager uses the lane states of the cycle before the event (ML-LM-14) |

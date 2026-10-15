@@ -7,7 +7,7 @@ checks the ECSS examples bit-exactly and random frames against a reference model
 multi-lane case (lane alignment and row concentrator), which drives words per lane directly, and of the lane manager,
 which drives lane states and capability events directly; and layer testbenches in
 which two Multi-Lane layers exchange rows through Lane layers and the behavioural Physical adapter model, with one
-lane (bypass) and with 2 and 4 lanes. All checks observe ports only.
+lane (bypass) and with 2, 3 and 4 lanes. All checks observe ports only.
 
 The reference model (`ofb_ml_tb_pkg`) computes the CRC-16 and the scrambling sequence with the functions of `ofb_pkg`
 (`crc16Update`, `prbsWord`, `prbsNextState`), independent of the Open Logic entities used in the RTL.

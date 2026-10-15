@@ -134,6 +134,15 @@ architecture rtl of ofb_dl_vc_out is
 
 begin
 
+    -- ECSS 5.7.2.2a: at least 256 N-Chars (DL-VO-05)
+    assert Depth_g * NumLanes_g >= MaxFrameWords_c
+        report "ofb_dl_vc_out: the output VC buffer must hold at least 64 words (Depth_g x NumLanes_g)"
+        severity failure;
+    -- The buffer is an asynchronous FIFO of Depth_g beats
+    assert isPower2(Depth_g)
+        report "ofb_dl_vc_out: Depth_g must be a power of two"
+        severity failure;
+
     -----------------------------------------------------------------------------------------------
     -- User side: spill after link reset, continuous mode, count of the beats with EOP or EEP
     -----------------------------------------------------------------------------------------------

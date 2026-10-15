@@ -32,10 +32,12 @@ Closure rules:
 
 ## 2. Result
 
-Run on 2026-10-15 with Open Logic 4.7.0-ft.2: 232 tests, all passed, 65 minutes (and 232 of 232 without coverage).
-The run applies to Open Logic 4.7.0-ft.6: none of the Open Logic files that OpenFibre uses differs between the two
-tags, and the OpenFibre sources are those of the run. Numbers are covered/total bins per file; bold marks a metric
-with misses.
+Run on 2026-10-15 with Open Logic 4.7.0-ft.6 and the configurations of the generic ranges: 287 tests, all passed,
+with coverage and without coverage. 284 tests ran in the full regression (about two hours with coverage); the three
+tests of the configuration `vc32` (TC-CORE-01, TC-CORE-02 and TC-CORE-04 with 32 VCs and two lanes, commit 0bab3a2)
+ran in both modes on their own, and their coverage is merged into that of the full regression (`vcover merge`). The
+HDL and the testbenches of the other 284 tests are the same in both states. The merged coverage equals that of the
+earlier run of 232 tests. Numbers are covered/total bins per file; bold marks a metric with misses.
 
 | File | Statements | Branches | FSM States | FSM Transitions | Conditions | Expressions |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -75,7 +77,7 @@ with misses.
 | `ofb_ni/src/ofb_ni_vc_tx.vhd` | 59/59 | 31/31 |  |  | 11/11 | **5/6** |
 | `ofb_pkg/src/ofb_cc_pulse.vhd` | 19/19 | 8/8 |  |  |  |  |
 | `ofb_pkg/src/ofb_pkg.vhd` | 55/55 | 10/10 |  |  | **1/2** |  |
-| Total | 2807/2809 (99.9 %) | 1355/1362 (99.5 %) | 29/29 (100.0 %) | 62/62 (100.0 %) | 419/465 (90.1 %) | 221/280 (78.9 %) |
+| Total | 2807/2809 (99.9 %) | 1355/1362 (99.5 %) | 29/29 (100.0 %) | 62/62 (100.0 %) | 419/465 (90.1 %) | 229/280 (81.8 %) |
 
 ## 3. Gaps found and closed
 

@@ -3,14 +3,14 @@
 ## 1. Test results
 
 Run on 2026-10-06 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `python run.py "*ofb_ml*"`
-`"*ofb_multilane*"`.
+`"*ofb_multilane*"`; the link testbench with three lanes on 2026-10-15 (full regression, all pass).
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
 | `ofb_ml_codec_tb` (ML-3, ML-4) | 10 | 10 |
 | `ofb_multilane_tb` (layer, one lane) | 6 | 6 |
 | `ofb_ml_align_tb` (ML-5, ML-6, four lanes) | 5 | 5 |
-| `ofb_ml_link_tb` (multi-lane link, configurations `lanes2` and `lanes4`) | 11 x 2 | 22 |
+| `ofb_ml_link_tb` (multi-lane link, configurations `lanes2` to `lanes4`) | 11 x 3 | 33 |
 | `ofb_ml_lane_mgr_tb` (ML-1, capability event and transition to Active in the same cycle) | 1 | 1 |
 
 Correction of the far-end reset detection (ML-LM-14, 2026-10-15): the full regression passes in GHDL (232 of 232) and
@@ -22,7 +22,7 @@ coverage of the core).
 
 ## 2. Summary
 
-All 44 tests pass; every requirement of the specification is covered (see the verification plan). The column
+All 55 tests pass; every requirement of the specification is covered (see the verification plan). The column
 encoder reproduces ECSS Figures 5-42 and 5-44 bit-exactly, and the decoder restores them. VSG reports no errors and no
 warnings.
 
@@ -43,6 +43,7 @@ Defects found during verification:
 
 | Finding | Fix |
 | --- | --- |
+| TC-ML-34 with three lanes (2026-10-15, first run of `lanes3`): the expected data-sending lanes after the failure of lane 1 were written for two lanes ("lane 0 sends alone"); the Multi-Lane layer correctly sends on lanes 0 and 2 | Testbench: the expected lanes are all lanes but lane 1, and all lanes after the reconnection, for any lane count |
 | TC-CORE-19 (core): the far-end capability event of a lane that entered Active in the same cycle was reported with "a lane was Active", so the far-end reset of a restarted end was not detected and the link stayed down for good | The lane states of the cycle before the event decide (ML-LM-14); TC-ML-48 forces the event and the transition to Active into the same cycle and fails with the old evaluation (mutation check) |
 | TC-ML-24: the one-cycle link reset pulse of the sequencer did not cover a rising clock edge (testbench timing) | Sequencer aligned to the falling edge before the pulse |
 | Found during the design of the link reset state machine: a capability change in the middle of Connected can make the far end miss the INIT3LinkResetFlag | Capability held while the lane is in Connected (TC-ML-25, mutation checked) |

@@ -39,6 +39,10 @@ TESTBENCHES = {
     "ofb_pa_gty_cc_tb.cc": ("ofb_pa_gty_cc_tb", {"RefPpmB_g": "1000"}),
     "ofb_pa_gty_cc_tb.far": ("ofb_pa_gty_cc_tb", {"RefPpmB_g": "0", "FarLoopback_g": "true"}),
     "ofb_pa_gty_core_tb": ("ofb_pa_gty_core_tb", {}),
+    # One to three lanes of the quad: link initialisation and the first burst
+    "ofb_pa_gty_core_tb.lanes1": ("ofb_pa_gty_core_tb", {"Lanes_g": "1", "Short_g": "true"}),
+    "ofb_pa_gty_core_tb.lanes2": ("ofb_pa_gty_core_tb", {"Lanes_g": "2", "Short_g": "true"}),
+    "ofb_pa_gty_core_tb.lanes3": ("ofb_pa_gty_core_tb", {"Lanes_g": "3", "Short_g": "true"}),
     "ofb_vck190_tb": ("ofb_vck190_tb", {}),
 }
 
