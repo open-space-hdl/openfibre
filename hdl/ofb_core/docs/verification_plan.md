@@ -12,6 +12,7 @@ checked with scoreboards. The final end-to-end test with the transceiver model f
 | Testbench | Harness | DUT and environment |
 | --- | --- | --- |
 | `ofb_core_tb` | `ofb_core_th` | Two `ofb_core` (4 VCs) A and B with `NumLanes_g` = 1 to 4 (VUnit configurations `lanes1` to `lanes4`), `LaneClkFreq_g` and `CoreClkFreq_g` derived from the generated clock periods, one `ofb_tb_pa_model` per lane, one `ofb_tb_axilite_master` per core, packet generator and receiver per VC (random length and bytes, beats of 4 x `NumLanes_g` bytes with `TKEEP` and `TLAST`, receiver back-pressure; the receiver checks the `TKEEP` format and compares the packets as words of four bytes with a last word of the remaining bytes, the end marker (EOP, or EEP from `TUSER`) and Fills), broadcast generator and receiver (channel, B_TYPE and DELAYED compared; LATE depends on the error recovery), SCHEDULE.request strobe per core, raw beat queue for VC 0 of A (bytes, `TKEEP`, `TLAST`, `TUSER`) |
+| `ofb_core_cc_tb` | none | `ofb_core_cc` with one lane: the sequencer drives the link reset and LaneReset levels of the Data Link layer (one signal) and the hold of the lanes; a monitor counts the pulses of `Ml_LinkReset` and `Ml_LaneReset` outside the hold in LaneClk and checks that each lasts one cycle. CoreClk faster than LaneClk (3 ns and 3.2 ns half periods, `core_fast`), equal (`equal`) and LaneClk at half the rate (`lane_half`) |
 
 ## 3. Test cases
 
@@ -29,6 +30,7 @@ checked with scoreboards. The final end-to-end test with the transceiver model f
 | `test_tx_ready_lost` (TC-CORE-23) | `Phy_TxReady` of A falls during traffic (lossy comparison): A in Near-End Reset with TX_LOST set, no lane of A enabled in the last 5 us of the hold, configuration of A kept; when it rises the link initialises again and the traffic is delivered; TX_LOST stays set until it is cleared | CORE-PL-04, CORE-CC-01, DL-LR-06, MG-ST-06 |
 | `test_tx_ready_clock_stop` (TC-CORE-24) | Two rounds during traffic (lossy comparison): LaneClk and CoreClk of A stop, `Phy_TxReady` of A falls and the lines from A carry no signal (a transmitter reset that stops the transmit clock); while the clocks stand still the MIB of A reads TX_READY 0 and TX_LOST 1; round 0: LaneClk runs again first, no lane of A enabled 200 ns later, `Phy_TxReady` rises and CoreClk runs again 1 us later (lanes released 1 us before the Data Link layer); round 1: CoreClk first, LaneClk 1 us later (Data Link layer released first); each round: link initialised again, traffic delivered, DL_ERRORS of A only TX_LOST | CORE-PL-04, CORE-PL-05, DL-LR-06, MG-ST-06 |
 | `test_tx_ready_pulse` (TC-CORE-25) | A false transmitter ready pulse before the lane clock of A runs, as a transceiver shows it when it still reports the reset done of an earlier start: LaneClk and CoreClk of A stand still from the reset on and the lines from A carry no signal; `Phy_TxReady` of A is 1 from 10 us to 38 us, the clocks of A run from 64 us on, the transmitters are ready from 65 us on: link initialised, traffic delivered, DL_ERRORS of A only TX_LOST, no error flag at B | CORE-PL-04, CORE-PL-05, MG-ST-06 |
+| `test_tx_ready_start` (TC-CORE-26) | Both cores start as after the power-up of their transceivers, with the MIB running from the reset on: LaneClk and CoreClk of both cores stand still and the lines carry no signal until 64.1 us, the transmitters of both are ready from 64.885 us on (the timeline of the transceiver model); link initialised, traffic delivered, no error flag and no retry at either core | CORE-PL-04, CORE-PL-06, ML-BP-04 |
 | `test_link_reset` (TC-CORE-04) | Link Reset command at A through the MIB: both ends reset, Far-End Link Reset at B only, link up again, traffic | CORE-SY-01, CORE-CC-01 |
 | `test_qos_config` (TC-CORE-06) | Bandwidth of VC 3 of A set to zero through the MIB: its packets wait; with a bandwidth they are delivered. VC 3 of A excluded from time-slot 5, SCHEDULE.request to slot 5 at the Network interface: current time-slot 5 in the MIB, the packets of VC 3 wait; SCHEDULE.request to slot 0: delivered | CORE-IF-01, CORE-SY-01, NI-SC-01 |
 | `test_framing_error` (TC-CORE-05) | Raw beats at VC 0 of A: a gap in `TKEEP` in the first beat (nothing reaches B, no packet of zero length at B), a partial `TKEEP` without `TLAST` in the second beat (B receives the first beat ended with EEP, the rest is discarded), a packet of three bytes with the EEP flag of the user (received with EEP); the framing error flags are set at A (VC_FRAMING_ERROR, DL_ERRORS bit 9), no receive framing error and NI_RX_EMPTY_COUNT zero at B | CORE-IF-01, NI-TX-01, NI-TX-03, NI-TX-04, NI-RX-01 |
@@ -45,6 +47,10 @@ checked with scoreboards. The final end-to-end test with the transceiver model f
 
 All test cases run in the four lane configurations; with one lane TC-CORE-07 only checks the link start.
 
+| Test case (`ofb_core_cc_tb`) | Procedure and checks | Requirements |
+| --- | --- | --- |
+| `test_link_reset_entry` (TC-CORE-27) | Release of the resets with the level set and released 50 cycles later: no pulse. Entries with a level of 1, 2 and 200 CoreClk cycles: one link reset and one LaneReset pulse each, one while the level of 200 cycles is still held, none after the release. Two entries with three cycles between them (within one transfer of the crossing): two pulses. Hold of the lanes: both outputs follow it as a level; an entry while the lanes are held, a level of 200 cycles that ends 3 CoreClk cycles after the hold: no pulse after the hold | CORE-PL-06, CORE-PL-04 |
+
 ### Generic ranges
 
 Every value of a generic that changes the structure of the core is simulated, and the boundaries of the numeric
@@ -60,6 +66,7 @@ and 96).
 | TC-CORE-01, TC-CORE-04, TC-CORE-21, TC-CORE-23 (`halfrate`) | Two lanes with `LaneClk` at 78.125 MHz (half the data signalling rate) and `LaneClkFreq_g` to match: TC-CORE-04 measures ClearLine (2 us) at the lanes of A after the Link Reset command; with TC-CORE-21 and TC-CORE-23 the hold of the Data Link layer is released clearly before the hold of the lanes | CORE-CK-02, LN-INIT-02, CORE-PL-05 |
 | TC-CORE-01, TC-CORE-02, TC-CORE-03, TC-CORE-04 (`minbuf`) | Two lanes with the smallest buffers: output VC buffer 64 words, input VC buffer 128 words per lane (two flow control units), error recovery buffer 64 rows | DL-VO-05, DL-VI-05, DL-ER-08 |
 | TC-CORE-01, TC-CORE-02 (`noprbs`) | One lane, lane initialisation without PRBS words after INIT1 and INIT2 (`InitPrbsWords_g` = 0) | LN-TX-01 |
+| TC-CORE-21 to TC-CORE-26 (`eqclk`) | One lane with CoreClk at the frequency of LaneClk (both 156.25 MHz), as when both are the transmit clock of the transceiver: the first rows of the Data Link layer after the release of a hold reach the Multi-Lane layer within a few cycles of the entry pulse | CORE-PL-06, ML-BP-04, CORE-CK-01 |
 
 ## 4. Functional coverage
 

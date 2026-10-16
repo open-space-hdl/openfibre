@@ -116,6 +116,9 @@ architecture rtl of ofb_core_cc is
     signal RxDed     : std_logic;
     signal CapSec    : std_logic;
     signal CapDed    : std_logic;
+    signal ResetLast : std_logic_vector(1 downto 0);
+    signal ResetIn   : std_logic_vector(1 downto 0);
+    signal ResetEdge : std_logic_vector(1 downto 0);
 
 begin
 
@@ -210,6 +213,25 @@ begin
     -----------------------------------------------------------------------------------------------
     -- Control
     -----------------------------------------------------------------------------------------------
+    -- One pulse per entry into the link reset (CORE-PL-06): the Data Link layer holds its link reset
+    -- and LaneReset while the transmitters are not ready, and a held level at the pulse crossing would
+    -- repeat the pulse and deliver the last repetition after the Data Link layer has left Near-End
+    -- Reset. The level after the entry comes from Ml_ResetHold in the lane clock domain.
+    ResetIn <= Dl_LaneReset & Dl_LinkReset;
+
+    p_reset_edge : process (CoreClk) is
+    begin
+        if rising_edge(CoreClk) then
+            ResetLast <= ResetIn;
+            -- The Data Link layer leaves its reset in ConfigReset: no entry at the release
+            if CoreRst = '1' then
+                ResetLast <= (others => '1');
+            end if;
+        end if;
+    end process;
+
+    ResetEdge <= ResetIn and not ResetLast;
+
     i_resets : entity work.ofb_cc_pulse
         generic map (
             NumPulses_g => 2
@@ -217,16 +239,14 @@ begin
         port map (
             In_Clk       => CoreClk,
             In_Rst       => CoreRst,
-            In_Pulse(0)  => Dl_LinkReset,
-            In_Pulse(1)  => Dl_LaneReset,
+            In_Pulse     => ResetEdge,
             Out_Clk      => LaneClk,
             Out_Rst      => LaneRst,
             Out_Pulse    => Pulses
         );
 
     -- While the transmitters are not ready the lanes are held in reset from the lane clock domain
-    -- (CORE-PL-04): the pulse crossing alone repeats the pulse with gaps, in which the lanes would
-    -- leave ClearLine
+    -- (CORE-PL-04), also while the core clock stands still
     Ml_LinkReset <= Pulses(0) or Ml_ResetHold;
     Ml_LaneReset <= Pulses(1) or Ml_ResetHold;
 

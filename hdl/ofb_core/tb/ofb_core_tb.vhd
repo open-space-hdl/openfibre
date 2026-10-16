@@ -375,6 +375,12 @@ begin
             CoreLaneClkRun(0) <= '0';
             CoreCoreClkRun(0) <= '0';
         end if;
+        -- TC-CORE-26: the lane and core clocks of both cores do not run from the reset on, the lines carry no signal
+        if enabled("test_tx_ready_start") then
+            CoreTxReady    <= "00";
+            CoreLaneClkRun <= "00";
+            CoreCoreClkRun <= "00";
+        end if;
         await_uvvm_initialization(VOID);
         disable_log_msg(ALL_MESSAGES);
         enable_log_msg(ID_LOG_HDR);
@@ -1335,6 +1341,40 @@ begin
                 check_value(Data_v, x"00001000", error, "Only TX_LOST at A");
                 rd(1, RegDlErrors_c, Data_v);
                 check_value(Data_v, x"00000000", error, "No error flag at B");
+
+            -- TC-CORE-26: both cores start as after the power-up of their transceivers, with the MIB running
+            -- from the reset on: LaneClk and CoreClk of both cores stand still and the lines carry no signal
+            -- until 64.1 us, the transmitters are ready from 64.885 us on. The link comes up and the traffic is
+            -- delivered without an error flag or a retry at either core
+            elsif run("test_tx_ready_start") then
+
+                for l in 0 to NumLanes_g-1 loop
+                    PaCtrl(l).AtoB.Cut <= true;
+                    PaCtrl(l).BtoA.Cut <= true;
+                end loop;
+
+                wait for 64.1 us - now;
+                CoreLaneClkRun <= "11";
+                CoreCoreClkRun <= "11";
+                wait for 64.885 us - now;
+                CoreTxReady    <= "11";
+
+                for l in 0 to NumLanes_g-1 loop
+                    PaCtrl(l).AtoB.Cut <= false;
+                    PaCtrl(l).BtoA.Cut <= false;
+                end loop;
+
+                wait for 1 us;
+                linkUp(500 us);
+                sendAll(5);
+                waitDelivered(2 ms);
+
+                for c in 0 to 1 loop
+                    rd(c, RegDlErrors_c, Data_v);
+                    check_value(Data_v, x"00000000", error, "No error flag at core " & to_string(c));
+                    rd(c, RegRetries_c, Data_v);
+                    check_value(Data_v, x"00000000", error, "No retry at core " & to_string(c));
+                end loop;
 
             end if;
 

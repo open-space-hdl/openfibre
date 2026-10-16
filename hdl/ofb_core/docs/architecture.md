@@ -11,7 +11,7 @@ ofb_mib below with the management connections, and the reset generators](img/ofb
 | --- | --- | --- |
 | Transmit rows | CoreClk to LaneClk | `olo_ft_fifo_async`, 16 rows, write side reset on link reset (flush); a row read with a DED goes to the Multi-Lane layer with all mask bits set, as a non-replicated row and with `Ml_TxRow_Poison` (CORE-ED-02) |
 | Receive rows | LaneClk to CoreClk | `olo_ft_fifo_async`, 16 rows, read side reset on link reset; a full FIFO is reported as `Ev_RxOverflow` to the MIB, DL_ERRORS bit 10 (cannot happen while CoreClk is not slower than LaneClk); a row read with a DED is replaced by one RXERR (CORE-ED-02) |
-| Link reset, LaneReset | CoreClk to LaneClk | `ofb_cc_pulse`, ORed in the lane clock domain with the hold of the lanes while the transmitters are not ready (section 4): the pulse crossing alone would repeat a held reset with gaps in which the lanes leave ClearLine |
+| Link reset, LaneReset | CoreClk to LaneClk | `ofb_cc_pulse` with the rising edge of the levels of the Data Link layer: one pulse per entry into the link reset (CORE-PL-06); ORed in the lane clock domain with the hold of the lanes while the transmitters are not ready (section 4) |
 | Transmitters ready (`Phy_TxReady`) | Asynchronous to CoreClk, LaneClk and MgmtClk (in `ofb_core`) | One `olo_base_reset_gen` per domain (section 4) |
 | Near-end capability | CoreClk to LaneClk | `olo_base_cc_bits` (the bits are independent) |
 | Lane active | LaneClk to CoreClk | `olo_base_cc_bits` |
@@ -34,7 +34,7 @@ stands still. The input therefore drives three `olo_base_reset_gen` (`RstInPolar
 | Domain | Hold | Use |
 | --- | --- | --- |
 | CoreClk | `TxHoldCore` | Data Link layer: Near-End Reset with link reset and LaneReset held (DL-LR-06) |
-| LaneClk | `TxHoldLane` | Lane and Multi-Lane layers: link reset and LaneReset of all lanes, ORed with the pulses of the crossing in `ofb_core_cc` |
+| LaneClk | `TxHoldLane` | Lane and Multi-Lane layers: link reset and LaneReset of all lanes, ORed with the entry pulses of the crossing in `ofb_core_cc` |
 | MgmtClk | `TxHoldMgmt` | MIB: TX_READY and the TX_LOST flag (MG-ST-06), also while CoreClk and LaneClk stand still |
 
 `Phy_TxReady` = 0 sets the input registers of the three synchroniser chains of each generator without a clock edge.
@@ -67,3 +67,21 @@ one cycle for a metastable first stage). With both clocks running the two releas
 
 TC-CORE-24 forces an offset of 1 us in both orders; TC-CORE-21 and TC-CORE-23 also run with LaneClk at 78.125 MHz
 (`halfrate`), where the Data Link layer is released clearly first.
+
+Entry pulses (CORE-PL-06). The Data Link layer holds its link reset and LaneReset as a level for the whole Near-End
+Reset, which lasts as long as the transmitters are not ready; the level resets its own blocks and the row FIFOs of
+`ofb_core_cc`. The pulse crossing receives only the rising edge of the level (a register in CoreClk, set by the reset
+of the domain, so that the release of the reset is no entry). A held level at the crossing would repeat the pulse
+after every transfer, and the last repetition would reach the Multi-Lane layer up to two transfers after the Data Link
+layer left Near-End Reset. While the transmitters are not ready the lanes get the level from `TxHoldLane`. Two entries
+within one transfer (about four cycles of each clock) give two pulses, the second one after the first transfer.
+
+First rows of a link. After a link reset of one cycle the entry pulse reaches the Multi-Lane layer a few cycles after
+the Data Link layer left Near-End Reset, when it may already have written its first rows (FCT) into the transmit FIFO.
+The Multi-Lane layer takes rows only while it can send them: in Both-Ends Ready, and in the bypass while lane 0 is
+Active (ML-DS-06, ML-BP-04). Every link reset resets the lanes as well, and a lane becomes Active only after its
+initialisation, so a pulse never discards a row of the new link. A LaneReset that reaches a lane in ClearLine does not
+restart its 2 us (ECSS 5.5.2.4): pulses shortly after the release of a hold do not delay the lane initialisation.
+TC-CORE-27 checks the pulses at the ports of `ofb_core_cc`; TC-CORE-21 to TC-CORE-26 run with one lane and CoreClk at
+the frequency of LaneClk (`eqclk`), where the first rows reach the Multi-Lane layer within a few cycles of the entry
+pulse.
