@@ -244,7 +244,8 @@ begin
                                DataSending => '0',
                                DataReceiving => '0',
                                AlignState => AlignNotReady_c,
-                               ActiveCnt => 0);
+                               ActiveCnt => 0,
+                               RowsTaken => 0);
                     Init_v := false;
                 end if;
                 if RstI = '0' then
@@ -257,6 +258,9 @@ begin
                     end if;
                     if FarCapValid(i) = '1' then
                         Stat_v.FarCapCnt := Stat_v.FarCapCnt + 1;
+                    end if;
+                    if TxRowValid(i) = '1' and TxRowReady(i) = '1' then
+                        Stat_v.RowsTaken := Stat_v.RowsTaken + 1;
                     end if;
                     if LaneState(i) = LaneStateActive_c and LastState_v /= LaneStateActive_c then
                         Stat_v.ActiveCnt := Stat_v.ActiveCnt + 1;

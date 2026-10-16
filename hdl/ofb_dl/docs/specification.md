@@ -142,9 +142,10 @@ level.
 | ID | Requirement | ECSS |
 | --- | --- | --- |
 | DL-LR-01 | The link reset state machine shall implement Configuration Reset, Near-End Reset, Check Far-End Reset and Link Initialised with the transitions of the standard; reset and Interface Reset lead to Configuration Reset, the Link Reset parameter, a protocol error and an input buffer overflow to Near-End Reset. | 5.7.9.1 to 5.7.9.5 |
-| DL-LR-02 | In Near-End Reset link reset and LaneReset of all lanes shall be asserted for one cycle; in Check Far-End Reset the INIT3LinkResetFlag of the near-end capability shall be 1, in Link Initialised 0. | 5.7.9.3b, 5.7.9.4b, 5.7.9.5b |
+| DL-LR-02 | In Near-End Reset link reset and LaneReset of all lanes shall be asserted for one cycle (held while the transmitters are not ready, DL-LR-06); in Check Far-End Reset the INIT3LinkResetFlag of the near-end capability shall be 1, in Link Initialised 0. | 5.7.9.3b, 5.7.9.4b, 5.7.9.5b |
 | DL-LR-03 | The far-end capability shall be used as an event (not as a stored level): Check Far-End Reset moves to Link Initialised, and Link Initialised to Near-End Reset when no lane is active, on a capability event with INIT3LinkResetFlag set; the latter raises the Far-End Link Reset status. | 5.7.9.4c, 5.7.9.5c, Table 5-37 |
 | DL-LR-04 | Link reset shall perform the actions of 5.7.10b in all Data Link blocks: frame stopped, broadcast credit zero, PRBS seed, sequence counters and polarity flags cleared, error recovery buffer emptied, data word identification in RxNothing. | 5.7.10b |
+| DL-LR-06 | While the transmitters of the Physical layer are not ready (`Phy_TxReady` = 0), the link reset state machine shall stay in Near-End Reset with link reset and LaneReset asserted; Check Far-End Reset and Link Initialised shall move to Near-End Reset when the transmitters become not ready. `Phy_TxReady` is the level of the hold synchronised to Clk (CORE-PL-04). | 5.7.9.3, 5.7.10b, 5.7.2.2g, 5.7.2.3d |
 | DL-LR-05 | Received words shall be passed to the receive checks only in Link Initialised: words that arrive while the near end is reset belong to the link before the reset (an ACK of a discarded frame would otherwise cause a protocol error and a second link reset). | 5.7.9, 5.7.10 |
 
 ### 2.12 Status (DC-2)
@@ -216,6 +217,7 @@ level.
 
 | Topic | Interpretation |
 | --- | --- |
+| Near-End Reset while the transmitters are not ready (5.7.9.3c) | The standard leaves Near-End Reset unconditionally. A transmitter that is not ready cannot send the lane initialisation, and a lane that starts against it runs into its timeouts. The link reset state machine therefore stays in Near-End Reset while `Phy_TxReady` is 0, with link reset and LaneReset held: the actions of 5.7.10b and the buffer actions of 5.7.2.2g and 5.7.2.3d stay in force, and the lanes stay in ClearLine. A loss of the transmitters is handled like a link error (Near-End Reset). With `Phy_TxReady` = 1, the default of the port, the behaviour is that of the standard (DL-LR-06) |
 | FCT credit and segment size (5.7.3.1b, 5.7.4.1c) | A VC competes when its credit is greater than zero; the segment is limited to the credit, so the far-end buffer always has room |
 | FULL (5.7.7.1n to q) | The error recovery buffer is managed per kind of item; a kind that has no room blocks only new items of that kind, and FULL is sent (note 2 of 5.7.7.1q). Resending stored items is always allowed |
 | Frame interrupted by RETRY | Every item is complete in the error recovery buffer before it is sent (store and forward), so an interrupted frame is resent completely |

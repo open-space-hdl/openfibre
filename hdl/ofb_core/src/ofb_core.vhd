@@ -104,6 +104,10 @@ entity ofb_core is
         Phy_CdrEnable          : out   std_logic_vector(NumLanes_g-1 downto 0);
         Phy_RxInvert           : out   std_logic_vector(NumLanes_g-1 downto 0);
         Phy_NoSignal           : in    std_logic_vector(NumLanes_g-1 downto 0);
+        -- Transmitters of the Physical adapter ready (asynchronous level from a register or a
+        -- constant); while '0' the link is held in Near-End Reset and the lanes in reset, also while
+        -- LaneClk and CoreClk stand still (CORE-PL-04, DL-LR-06)
+        Phy_TxReady            : in    std_logic                               := '1';
         -- Bit synchronisation of the clock-data recovery per lane, for the status (LaneClk)
         Phy_BitSync            : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
         -- Serial loopbacks of the Physical layer (MIB, LaneClk)
@@ -261,6 +265,11 @@ architecture rtl of ofb_core is
     signal EvRetry      : std_logic;
     signal EvProt       : std_logic;
     signal EvFarRst     : std_logic;
+    signal TxHoldCore   : std_logic; -- Transmitters not ready: hold of the Data Link layer (CoreClk)
+    signal TxHoldLane   : std_logic; -- Transmitters not ready: hold of the lanes (LaneClk)
+    signal TxHoldMgmt   : std_logic; -- Transmitters not ready: status of the MIB (MgmtClk)
+    signal TxReadyCore  : std_logic;
+    signal TxReadyMgmt  : std_logic;
     signal EvBcDisc     : std_logic;
     signal EvInOvf      : std_logic_vector(NumVc_g-1 downto 0);
     signal EvCrOvf      : std_logic_vector(NumVc_g-1 downto 0);
@@ -333,6 +342,51 @@ begin
             RstOut => MgmtRst,
             RstIn  => Rst
         );
+
+    -----------------------------------------------------------------------------------------------
+    -- Transmitters ready (CORE-PL-04): one reset generator per domain that uses the level. The input
+    -- registers of each generator are set by Phy_TxReady = '0' without a clock edge, so the hold is
+    -- not lost while the clock of the domain stands still (a transceiver stops its transmit clock
+    -- during a reset); the hold is released synchronously once the transmitters are ready.
+    -----------------------------------------------------------------------------------------------
+    -- Data Link layer: Near-End Reset (DL-LR-06)
+    i_txhold_core : entity olo.olo_base_reset_gen
+        generic map (
+            RstInPolarity_g => '0',
+            SyncTmr_g       => true
+        )
+        port map (
+            Clk    => CoreClk,
+            RstOut => TxHoldCore,
+            RstIn  => Phy_TxReady
+        );
+
+    -- Lane and Multi-Lane layers: link reset and LaneReset of all lanes
+    i_txhold_lane : entity olo.olo_base_reset_gen
+        generic map (
+            RstInPolarity_g => '0',
+            SyncTmr_g       => true
+        )
+        port map (
+            Clk    => LaneClk,
+            RstOut => TxHoldLane,
+            RstIn  => Phy_TxReady
+        );
+
+    -- MIB: TX_READY and TX_LOST (MG-ST-06)
+    i_txhold_mgmt : entity olo.olo_base_reset_gen
+        generic map (
+            RstInPolarity_g => '0',
+            SyncTmr_g       => true
+        )
+        port map (
+            Clk    => MgmtClk,
+            RstOut => TxHoldMgmt,
+            RstIn  => Phy_TxReady
+        );
+
+    TxReadyCore <= not TxHoldCore;
+    TxReadyMgmt <= not TxHoldMgmt;
 
     -----------------------------------------------------------------------------------------------
     -- Network interface
@@ -453,6 +507,7 @@ begin
             Ml_FarCapabilityValid => DlFarCapV,
             Ml_FarCapabilityIdle  => DlFarIdle,
             Ml_LaneActive         => DlActive,
+            Phy_TxReady           => TxReadyCore,
             Cfg_DataScrambled     => CfgScrambled,
             Cfg_LinkReset         => CfgLinkRst,
             Cfg_InterfaceReset    => CfgIfRst,
@@ -509,6 +564,7 @@ begin
             Dl_RxRow_Valid        => DlRxValid,
             Dl_LinkReset          => DlLinkRst,
             Dl_LaneReset          => DlLaneRst,
+            Ml_ResetHold          => TxHoldLane,
             Dl_NearCapability     => DlNearCap,
             Dl_FarCapability      => DlFarCap,
             Dl_FarCapabilityValid => DlFarCapV,
@@ -709,6 +765,7 @@ begin
             Dl_EvRetry             => EvRetry,
             Dl_EvProtocolError     => EvProt,
             Dl_EvFarEndLinkReset   => EvFarRst,
+            Phy_TxReady            => TxReadyMgmt,
             Dl_EvBcDiscard         => EvBcDisc,
             Dl_EvInputOverflow     => EvInOvf,
             Dl_EvCreditOverflow    => EvCrOvf,

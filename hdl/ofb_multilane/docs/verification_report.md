@@ -10,8 +10,11 @@ Run on 2026-10-06 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 | `ofb_ml_codec_tb` (ML-3, ML-4) | 10 | 10 |
 | `ofb_multilane_tb` (layer, one lane) | 6 | 6 |
 | `ofb_ml_align_tb` (ML-5, ML-6, four lanes) | 5 | 5 |
-| `ofb_ml_link_tb` (multi-lane link, configurations `lanes2` to `lanes4`) | 11 x 3 | 33 |
+| `ofb_ml_link_tb` (multi-lane link, configurations `lanes2` to `lanes4`) | 12 x 3 | 36 |
 | `ofb_ml_lane_mgr_tb` (ML-1, capability event and transition to Active in the same cycle) | 1 | 1 |
+
+Row acceptance in the bypass (ML-BP-04, 2026-10-16): 58 of 58 tests of the layer pass, among them the rewritten
+TC-ML-24 and the new TC-ML-49 with two to four lanes.
 
 Correction of the far-end reset detection (ML-LM-14, 2026-10-15): the full regression passes in GHDL (232 of 232) and
 in QuestaSim, with and without coverage (232 of 232 each); the lane manager keeps 110 of 110 statements and 56 of 56
@@ -22,7 +25,7 @@ coverage of the core).
 
 ## 2. Summary
 
-All 55 tests pass; every requirement of the specification is covered (see the verification plan). The column
+All 58 tests pass; every requirement of the specification is covered (see the verification plan). The column
 encoder reproduces ECSS Figures 5-42 and 5-44 bit-exactly, and the decoder restores them. VSG reports no errors and no
 warnings.
 
@@ -32,7 +35,9 @@ faults fails the named test: the PAD row replaced by the replicated word (TC-ML-
 alignment ignored (TC-ML-41), the 4 us rule removed (TC-ML-42), interleaved control words that flush the waiting data
 words (TC-ML-43), the maximum number of data-sending lanes ignored (TC-ML-33), no SKIP request (TC-ML-31),
 FarEndActive not cleared by an ACTIVE word (TC-ML-35). Phase 5: held words discarded in Not Ready (the defect found
-by TC-CORE-13) fail TC-ML-44; a poison mark that the distributor does not pass on fails TC-ML-46.
+by TC-CORE-13) fail TC-ML-44; a poison mark that the distributor does not pass on fails TC-ML-46. Rows taken while
+lane 0 is not Active (the behaviour before ML-BP-04, with one lane and in the bypass of several lanes) fail TC-ML-24
+and TC-ML-49.
 
 Code coverage (QuestaSim, [docs/coverage.md](../../../docs/coverage.md)): the first measurement showed five transitions
 of the frame state of the receiver (frame structure errors) and an incorrect ALIGN on a lane that is not data-receiving
@@ -43,6 +48,7 @@ Defects found during verification:
 
 | Finding | Fix |
 | --- | --- |
+| Simulation of two cores with the AMD transceiver model, one lane, CoreClk at the frequency of LaneClk (2026-10-16): after the start both ends reported a sequence error and a retry. The bypass took the first two rows of the Data Link layer (an idle frame word and the first FCT) into the column encoder while the lane was not yet Active; a link reset pulse of the core crossing that arrived a few cycles after the Data Link layer had left Near-End Reset discarded them, and the far end received the second FCT first. The bypass of a layer with several lanes (`ofb_ml_tx`) took rows in the same way | Rows are taken only while lane 0 is Active (ML-BP-04), as the row distributor takes none in Not Ready; TC-ML-24 checked the old behaviour and was rewritten, TC-ML-49 added; both fail without the change. In the core only the entry into the link reset crosses as a pulse (CORE-PL-06) |
 | TC-ML-34 with three lanes (2026-10-15, first run of `lanes3`): the expected data-sending lanes after the failure of lane 1 were written for two lanes ("lane 0 sends alone"); the Multi-Lane layer correctly sends on lanes 0 and 2 | Testbench: the expected lanes are all lanes but lane 1, and all lanes after the reconnection, for any lane count |
 | TC-CORE-19 (core): the far-end capability event of a lane that entered Active in the same cycle was reported with "a lane was Active", so the far-end reset of a restarted end was not detected and the link stayed down for good | The lane states of the cycle before the event decide (ML-LM-14); TC-ML-48 forces the event and the transition to Active into the same cycle and fails with the old evaluation (mutation check) |
 | TC-ML-24: the one-cycle link reset pulse of the sequencer did not cover a rising clock edge (testbench timing) | Sequencer aligned to the falling edge before the pulse |

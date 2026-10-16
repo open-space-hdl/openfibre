@@ -221,11 +221,13 @@ begin
     -----------------------------------------------------------------------------------------------
     g_single : if NumLanes_g = 1 generate
 
+        -- Rows are taken only while the lane is Active (ML-BP-04): a link reset of the crossing that
+        -- arrives after the Data Link layer has left Near-End Reset finds no row of the new link
         EncData      <= TxRow_Data;
         EncK         <= TxRow_K;
-        EncValid(0)  <= TxRow_Valid;
+        EncValid(0)  <= TxRow_Valid and Lane0Act;
         EncPoison(0) <= TxRow_Poison;
-        TxRow_Ready  <= EncReady(0);
+        TxRow_Ready  <= EncReady(0) and Lane0Act;
         Lane_SkipReq <= '0';
 
         -- Multi-Lane control words are not passed to the Data Link layer

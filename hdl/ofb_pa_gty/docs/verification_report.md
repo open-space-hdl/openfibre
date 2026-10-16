@@ -11,6 +11,8 @@ Run on 2026-10-05 with Vivado 2025.2 (transceiver wizard gtwiz_versal 1.0, xsim)
 | `ofb_pa_gty_cc_tb`, run `far` | TC-PA-05 | Pass | 144 us |
 | `ofb_pa_gty_core_tb` | TC-PA-02 | Pass | 199 us |
 | `ofb_pa_gty_core_tb`, runs `lanes1` to `lanes3` | TC-PA-02 with 1 to 3 lanes (2026-10-15) | Pass | 98 to 104 us |
+| `ofb_pa_gty_core_tb` | TC-PA-02 with the transmitter ready input of the core and the reset of the adapter of A (2026-10-16) | Pass | 294 us |
+| `ofb_pa_gty_core_tb`, runs `lanes1` and `lanes2` | TC-PA-02 with 1 and 2 lanes, transmitter ready input (2026-10-16) | Pass | 99 to 103 us |
 
 TC-PA-01: transmitters ready after 64.9 us, receivers ready after 68.2 us; 342 data words per lane checked without
 error, all lanes aligned, NoSignal low.
@@ -97,6 +99,28 @@ Rerun on 2026-10-14 with the detection of the model power-up error in `tools/run
 simulations on the host: all five runs pass at the first attempt with the results above (`ofb_pa_gty_cc_tb.far`:
 receivers ready after 68.2 us, every lane checked without error; `ofb_pa_gty_core_tb`: simulation done at 198.6 us).
 
+Run on 2026-10-16 with the transmitter ready input of the core (`Phy_TxReady` from `Stat_TxReady`, the core reset is
+the power-on reset alone), `Stat_TxReady` taken only after the transmit reset ran, one link reset pulse per entry at
+the crossing of the core and the row acceptance of the Multi-Lane layer. Each end reports the first `LaneClk` edge,
+every edge of `Stat_TxReady` and every change of its receivers ready and lanes aligned status, and checks that
+`Stat_TxReady` is 1 only while its `LaneClk` runs (no violation in any run):
+
+| Run | First `LaneClk` edge | `Stat_TxReady` 1 | All lanes aligned | Receivers ready | Link initialised | First burst delivered | ML_STATUS | DL_ERRORS after the start |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Four lanes (full run) | 64.097 us | 64.885 us | 66.541 / 66.696 us | 68.212 / 68.213 us | 93.085 us | 97.205 us | 0x2FF | 0 at both ends, no retry |
+| `lanes1` | 64.097 us | 64.885 us | 66.522 / 66.696 us | 68.212 / 68.213 us | 92.935 us | 103.055 us | 0x611 | 0 at both ends |
+| `lanes2` | 64.097 us | 64.885 us | 66.529 / 66.696 us | 68.212 / 68.213 us | 92.985 us | 99.105 us | 0x233 | 0 at both ends |
+
+The full run then resets the adapter of A with the link up: `Stat_TxReady` of A falls at 197.485 us, 2.45 us before
+`LaneClk` of A stops (199.937 us); while it stands still the MIB of A reads DL_STATUS 0x101 (TX_READY 0) and
+DL_ERRORS 0x1000 (TX_LOST). The transmitters of A are ready again at 228.725 us, the link is initialised again at
+290.205 us and the third burst is delivered at 294.205 us; afterwards A holds TX_LOST and B the Far-End Link Reset
+flag (DL_ERRORS 0x0020), B no TX_LOST. Four clock corrections at A and one at B by 193.2 us, every packet and
+broadcast message of the three bursts delivered in order. `lanes2` needed a second elaboration (power-up error of the
+transceiver model of B in the first one, section 2). `lanes3` ran on the transmitter ready state before the two changes
+of the first rows of a link: link initialised after 93.035 us, first burst after 97.155 us, ML_STATUS 0x277,
+DL_ERRORS zero.
+
 ## 2. Summary
 
 All test cases pass. VSG reports no errors and no warnings (the port names of the transceiver wizard and of
@@ -117,3 +141,5 @@ Findings during verification:
 | TC-PA-06: the forced error of the PRBS generator (`TXPRBSFORCEERR`, held for 1 to 64 cycles, near-end and external loopback) gave no error at the checker, although the port reaches the channel of the quad; the checker detects other errors | The transceiver model does not insert the forced error: TC-PA-06 inverts the line for 1 ns instead; the forced error is tested in the core testbench (TC-CORE-18, register to adapter port) and on the hardware (TC-VCK-HW-08) |
 | The transceiver model gives different results for the same sources: one `ofb_pa_gty_tb` run reached TX ready 14 ns early and two lanes never aligned; runs of `ofb_pa_gty_cc_tb.far`, `ofb_pa_gty_core_tb` and `ofb_vck190_tb` failed with a power-up error of the model of one quad (`DIV_VAL_CHK`: `div_val has to be >= 9 and <= 163 : 0`, about 38 us after the start, when the model programs the LCPLL; that quad never becomes ready). Analysis with `ofb_pa_gty_cc_tb.far` on 2026-10-14: the elaborator builds a different snapshot from the same sources every time (the snapshot files differ, with and without multithreaded elaboration); 7 fresh elaborations gave 6 passing and 1 failing snapshot. The failing snapshot fails in every further run with the same error at the same picosecond, with other simulations on the host or without, and also when the reset release of end B or of both ends is delayed by 3.2 us (20 x 160 ns, the least common multiple of the 6.4 ns reference clock and the 10 ns free-running clock periods), when the reference clock of B is shifted by 1.1 ns or its free-running clock by 3.7 ns: the error does not depend on the testbench timing. All 1947 parameters and ports of the quad level of the wizard are equal in failing and passing snapshots and at both ends; the outputs of the model of the failing quad differ from 1 to 2 us on (power-up of the encrypted model). The firmware files of the model have the same names in every run | Cause in the simulation model, not in the design or the testbench; the device image is not affected. `tools/run_xsim.py` detects the error in the log and elaborates the test run again (at most three attempts, every repetition reported) |
 | The runner reused an exported wizard instance generated before the PRBS ports were added to `tcl/ofb_gtw.tcl` (elaboration error: formal port `INTF0_TX1_ch_txprbssel` does not exist) | The runner keeps a hash of `tcl/ofb_gtw.tcl` and generates, exports and compiles the wizard instance again when it changes |
+| `ofb_pa_gty_core_tb.lanes1` with the transmitter ready input of the core (2026-10-16, before the changes of the first rows of a link): link and first burst as before, but DL_ERRORS 0x8 (sequence error) at both ends after the start | Defect of the core: the last link reset pulse of the crossing discarded the first two rows of the new link in the single-lane bypass (verification reports of `ofb_core` and `ofb_multilane`); after the change DL_ERRORS is zero and the link is initialised 1.1 us earlier (92.935 us) |
+| `ofb_pa_gty_core_tb` with the transmitter ready input of the core (2026-10-15, full run with four lanes): `Stat_TxReady` was 1 from 10.225 us to 38.135 us at both ends, 225 ns after the release of the stretched reset, while `LaneClk` started only at 64.097 us; it became 1 again at 64.885 us. The transmit reset done of the wizard still showed 1 when the reset was released and fell only when its master reset started. Both cores saw the transmitters drop and set TX_LOST (DL_ERRORS 0x1000 after the start at both ends); the bench checked only bits 9:0 | `Stat_TxReady` takes the reset done only after it was 0 once since the release of the reset (PA-ST-02). The bench checks that `Stat_TxReady` is 1 only while `LaneClk` of its end runs, reports every edge of `Stat_TxReady` and the first edge of `LaneClk`, and checks DL_ERRORS bits 12:0 (TX_LOST 0 after the start, 1 at A only after the reset of A) |

@@ -212,9 +212,9 @@ is an overflow (`Ev_Overflow` per VC).
 | State | Outputs | Exit (in this order) |
 | --- | --- | --- |
 | ConfigReset | Link reset, LaneReset, configuration reset | NearEndReset |
-| NearEndReset | Link reset, LaneReset | Interface Reset: ConfigReset; otherwise CheckFarEnd |
-| CheckFarEnd | INIT3LinkResetFlag = 1 | Interface Reset: ConfigReset; Link Reset or link error: NearEndReset; capability event with flag 1: LinkInit |
-| LinkInit | INIT3LinkResetFlag = 0 | Interface Reset: ConfigReset; Link Reset or link error: NearEndReset; capability event with flag 1 received while no lane was active (`Ml_FarCapabilityIdle`): NearEndReset, `Ev_FarEndLinkReset` |
+| NearEndReset | Link reset, LaneReset | Interface Reset: ConfigReset; transmitters ready (`Phy_TxReady`): CheckFarEnd |
+| CheckFarEnd | INIT3LinkResetFlag = 1 | Interface Reset: ConfigReset; Link Reset, link error or transmitters not ready: NearEndReset; capability event with flag 1: LinkInit |
+| LinkInit | INIT3LinkResetFlag = 0 | Interface Reset: ConfigReset; Link Reset, link error or transmitters not ready: NearEndReset; capability event with flag 1 received while no lane was active (`Ml_FarCapabilityIdle`): NearEndReset, `Ev_FarEndLinkReset` |
 
 Reset enters ConfigReset. Link errors are the protocol error of DT-7, the overflows of DR-5 and DR-6 and the
 uncorrectable errors of DL-ED-01. The condition
@@ -224,6 +224,10 @@ a lane active level that crosses to the core clock separately can arrive before 
 testbench).
 
 Received rows reach `ofb_dl_rx_check` only in Link Initialised (DL-LR-05).
+
+While `Phy_TxReady` is 0 the state machine stays in NearEndReset, so link reset and LaneReset stay asserted
+(DL-LR-06). `Phy_TxReady` is the hold of the core clock domain inverted (`ofb_core`, architecture section 4); the
+MIB detects the loss of the transmitters itself (TX_LOST).
 
 ### 3.12 Quality of service: ofb_dl_mac (DT-4) and ofb_dl_qos_regs
 

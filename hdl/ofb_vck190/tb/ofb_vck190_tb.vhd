@@ -63,8 +63,7 @@ architecture sim of ofb_vck190_tb is
     signal FreeRunClk : std_logic                                     := '0';
     signal Rst        : std_logic                                     := '1';
     signal LaneClk    : std_logic;
-    signal LaneRst    : std_logic;
-    signal CoreRst    : std_logic;
+    signal TxReady    : std_logic;
     signal PhyTxData  : std_logic_vector(32*Lanes_c-1 downto 0);
     signal PhyTxK     : std_logic_vector(4*Lanes_c-1 downto 0);
     signal PhyRxData  : std_logic_vector(32*Lanes_c-1 downto 0);
@@ -219,7 +218,7 @@ begin
         Rst <= '1';
         wait for 200 ns;
         Rst <= '0';
-        wait until CoreRst = '0' and Led(0) = '1' for Timeout_c;
+        wait until TxReady = '1' and Led(0) = '1' for Timeout_c;
         report "Transceivers ready at " & time'image(now);
         wait for 1 us;
 
@@ -271,7 +270,7 @@ begin
         rd(RegDlErrors_c, A_v);
         rd(RegRetries_c, B_v);
         report "Far end: DL_ERRORS " & to_hstring(A_v) & ", retries " & integer'image(to_integer(unsigned(B_v)));
-        if A_v(9 downto 0) /= "0000000000" or unsigned(B_v) /= 0 then
+        if A_v(12 downto 0) /= "0000000000000" or unsigned(B_v) /= 0 then
             report "FAIL: errors or retries at the far end" severity error;
             Fail_v := true;
         end if;
@@ -313,8 +312,6 @@ begin
     -----------------------------------------------------------------------------------------------
     -- Far end
     -----------------------------------------------------------------------------------------------
-    CoreRst <= Rst or LaneRst;
-
     i_pa : entity work.ofb_pa_gty
         generic map (
             NumLanes_g => Lanes_c
@@ -324,7 +321,7 @@ begin
             Rst           => Rst,
             RefClk        => FarRefClk,
             LaneClk       => LaneClk,
-            LaneRst       => LaneRst,
+            LaneRst       => open,
             Gt_TxP        => FarTxP,
             Gt_TxN        => FarTxN,
             Gt_RxP        => DutTxP,
@@ -341,7 +338,7 @@ begin
             Phy_CdrEnable => CdrEnable,
             Phy_RxInvert  => RxInvert,
             Phy_NoSignal  => NoSignal,
-            Stat_TxReady  => open,
+            Stat_TxReady  => TxReady,
             Stat_RxReady  => open,
             Stat_Aligned  => open,
             Stat_RxBufErr => open,
@@ -357,7 +354,7 @@ begin
             VcInDepth_g   => 256 * Lanes_c
         )
         port map (
-            Rst               => CoreRst,
+            Rst               => Rst,
             UserClk           => LaneClk,
             CoreClk           => LaneClk,
             LaneClk           => LaneClk,
@@ -411,7 +408,8 @@ begin
             Phy_RxEnable      => RxEnable,
             Phy_CdrEnable     => CdrEnable,
             Phy_RxInvert      => RxInvert,
-            Phy_NoSignal      => NoSignal
+            Phy_NoSignal      => NoSignal,
+            Phy_TxReady       => TxReady
         );
 
     -----------------------------------------------------------------------------------------------

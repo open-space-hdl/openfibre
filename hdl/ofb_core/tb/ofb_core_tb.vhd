@@ -365,6 +365,22 @@ begin
     -- Test cases
     begin
         test_runner_setup(runner, runner_cfg);
+        -- TC-CORE-21, TC-CORE-22: the transmitters of A are not ready from the reset on
+        if enabled("test_tx_ready_late") or enabled("test_tx_ready_never") then
+            CoreTxReady(0) <= '0';
+        end if;
+        -- TC-CORE-25: the lane and core clocks of A do not run from the reset on, the lines from A carry no signal
+        if enabled("test_tx_ready_pulse") then
+            CoreTxReady(0)    <= '0';
+            CoreLaneClkRun(0) <= '0';
+            CoreCoreClkRun(0) <= '0';
+        end if;
+        -- TC-CORE-26: the lane and core clocks of both cores do not run from the reset on, the lines carry no signal
+        if enabled("test_tx_ready_start") then
+            CoreTxReady    <= "00";
+            CoreLaneClkRun <= "00";
+            CoreCoreClkRun <= "00";
+        end if;
         await_uvvm_initialization(VOID);
         disable_log_msg(ALL_MESSAGES);
         enable_log_msg(ID_LOG_HDR);
@@ -387,7 +403,7 @@ begin
                 check_value(to_integer(unsigned(Data_v(7 downto 0))), NumVc_g, error, "NUM_VC of A");
                 check_value(to_integer(unsigned(Data_v(11 downto 8))), NumLanes_g, error, "NUM_LANES of A");
                 rd(0, RegId_c, Data_v);
-                check_value(Data_v, x"0FB10007", error, "ID of A");
+                check_value(Data_v, x"0FB10008", error, "ID of A");
                 linkUp(500 us);
                 rd(1, RegDlErrors_c, Data_v);
                 check_value(Data_v, x"00000000", error, "No error at B");
@@ -1133,6 +1149,231 @@ begin
                 for c in 0 to 1 loop
                     rd(c, RegDlErrors_c, Data_v);
                     check_value(Data_v, x"00000000", error, "No error flag at core " & to_string(c));
+                end loop;
+
+            -- TC-CORE-21: the transmitters of A become ready only 50 us after the reset: until then A stays
+            -- in Near-End Reset with its lanes in reset (no error, link not initialised), afterwards the link
+            -- comes up as after a reset; TX_LOST is not set by the first start
+            elsif run("test_tx_ready_late") then
+
+                for l in 0 to NumLanes_g-1 loop
+                    wr(0, RegLaneCtrl_c + 16#20# * l, x"00000063");
+                end loop;
+
+                cycles(5000);
+                check_value(CoreLaneOn(0) = '0' and CoreLaneOn(0)'last_event >= 50 us, error,
+                            "Lanes of A held in reset for 50 us");
+                rd(0, RegDlStatus_c, Data_v);
+                check_value(Data_v(1 downto 0), "01", error, "A held in Near-End Reset");
+                check_value(Data_v(9), '0', error, "TX_READY 0 at A");
+                rd(1, RegDlStatus_c, Data_v);
+                check_value(Data_v(1 downto 0) /= "11", error, "Link of B not initialised");
+                rd(0, RegLaneStat_c, Data_v);
+                check_value(Data_v(3 downto 0) /= x"7", error, "Lane 0 of A not active");
+                CoreTxReady(0) <= '1';
+                linkUp(500 us);
+                rd(0, RegDlStatus_c, Data_v);
+                check_value(Data_v(9), '1', error, "TX_READY 1 at A");
+
+                for c in 0 to 1 loop
+                    rd(c, RegDlErrors_c, Data_v);
+                    check_value(Data_v, x"00000000", error, "No error flag at core " & to_string(c));
+                end loop;
+
+                sendAll(5);
+                waitDelivered(2 ms);
+
+            -- TC-CORE-22: the transmitters of A never become ready: A stays in Near-End Reset without error
+            -- flags, counters or interrupts (all interrupt sources enabled); the MIB stays accessible with
+            -- TX_READY 0
+            elsif run("test_tx_ready_never") then
+                wr(0, RegIrqMask_c, x"030F1FFF");
+
+                for l in 0 to NumLanes_g-1 loop
+                    wr(0, RegLaneCtrl_c + 16#20# * l, x"00000063");
+                end loop;
+
+                N_v := 0;
+
+                for i in 1 to 30000 loop
+                    wait until falling_edge(MgmtClk);
+                    if CoreIrq(0) = '1' then
+                        N_v := N_v + 1;
+                    end if;
+                end loop;
+
+                check_value(N_v, 0, error, "No interrupt at A in 300 us");
+                check_value(CoreLaneOn(0) = '0' and CoreLaneOn(0)'last_event >= 300 us, error,
+                            "Lanes of A held in reset for 300 us");
+                rd(0, RegDlStatus_c, Data_v);
+                check_value(Data_v(1 downto 0), "01", error, "A held in Near-End Reset");
+                check_value(Data_v(9), '0', error, "TX_READY 0 at A");
+                rd(0, RegDlErrors_c, Data_v);
+                check_value(Data_v, x"00000000", error, "No error flag at A");
+                rd(0, RegRetries_c, Data_v);
+                check_value(Data_v, x"00000000", error, "No retry at A");
+
+                for l in 0 to NumLanes_g-1 loop
+                    rd(0, RegLaneEvents_c + 16#20# * l, Data_v);
+                    check_value(Data_v, x"00000000", error, "No event of lane " & to_string(l) & " at A");
+                end loop;
+
+                wr(0, RegDlBcInterval_c, x"00000123");
+                rd(0, RegDlBcInterval_c, Data_v);
+                check_value(Data_v, x"00000123", error, "MIB of A accessible");
+
+            -- TC-CORE-23: the transmitters of A drop during traffic: link reset of both ends (packets in
+            -- progress end with EEP or are lost, lossy comparison), the configuration of A is kept, TX_LOST is
+            -- set; when they are ready again the link comes up and the traffic continues
+            elsif run("test_tx_ready_lost") then
+                CoreCfg(0).Lossy <= true;
+                CoreCfg(1).Lossy <= true;
+                linkUp(500 us);
+                wr(0, RegDlBcInterval_c, x"00000033");
+                sendAll(20);
+                cycles(300);
+                CoreTxReady(0)   <= '0';
+                cycles(1000);
+                check_value(CoreLaneOn(0) = '0' and CoreLaneOn(0)'last_event >= 5 us, error,
+                            "Lanes of A held in reset in the last 5 us of the hold");
+                rd(0, RegDlStatus_c, Data_v);
+                check_value(Data_v(1 downto 0), "01", error, "A held in Near-End Reset");
+                check_value(Data_v(9), '0', error, "TX_READY 0 at A");
+                rd(0, RegDlErrors_c, Data_v);
+                check_value(Data_v(12), '1', error, "TX_LOST at A");
+                rd(0, RegDlBcInterval_c, Data_v);
+                check_value(Data_v, x"00000033", error, "Configuration of A kept");
+                CoreTxReady(0)   <= '1';
+                linkUp(500 us);
+                sendAll(5);
+                waitDelivered(5 ms);
+                rd(0, RegDlErrors_c, Data_v);
+                check_value(Data_v(12), '1', error, "TX_LOST at A still set (sticky)");
+                wr(0, RegDlErrors_c, x"00001000");
+                rd(0, RegDlErrors_c, Data_v);
+                check_value(Data_v(12), '0', error, "TX_LOST at A cleared");
+
+            -- TC-CORE-24: the transmitters of A are reset during traffic and their clock stops (LaneClk and
+            -- CoreClk of A stand still, the lines from A carry no signal): the MIB of A reports TX_READY 0
+            -- and TX_LOST while the clocks stand still, the lanes of A are held as soon as LaneClk runs
+            -- again. The link comes up again with the lanes released 1 us before the Data Link layer (round
+            -- 0: LaneClk runs again 1 us before CoreClk) and with the Data Link layer released 1 us before
+            -- the lanes (round 1); no error flag but TX_LOST at A in either order
+            elsif run("test_tx_ready_clock_stop") then
+                CoreCfg(0).Lossy <= true;
+                CoreCfg(1).Lossy <= true;
+                linkUp(500 us);
+
+                for round in 0 to 1 loop
+                    sendAll(10);
+                    cycles(300);
+                    CoreLaneClkRun(0) <= '0';
+                    CoreCoreClkRun(0) <= '0';
+                    cycles(10);
+                    CoreTxReady(0)    <= '0';
+
+                    for l in 0 to NumLanes_g-1 loop
+                        PaCtrl(l).AtoB.Cut <= true;
+                    end loop;
+
+                    cycles(1000);
+                    rd(0, RegDlStatus_c, Data_v);
+                    check_value(Data_v(9), '0', error, "TX_READY 0 at A while its clocks stand still");
+                    rd(0, RegDlErrors_c, Data_v);
+                    check_value(Data_v(12), '1', error, "TX_LOST at A while its clocks stand still");
+                    if round = 0 then
+                        CoreLaneClkRun(0) <= '1';
+                        cycles(20);
+                        check_value(CoreLaneOn(0), '0', error, "Lanes of A held as soon as LaneClk runs again");
+                    else
+                        CoreCoreClkRun(0) <= '1';
+                        cycles(20);
+                    end if;
+                    CoreTxReady(0) <= '1';
+
+                    for l in 0 to NumLanes_g-1 loop
+                        PaCtrl(l).AtoB.Cut <= false;
+                    end loop;
+
+                    cycles(100);
+                    if round = 0 then
+                        CoreCoreClkRun(0) <= '1';
+                    else
+                        CoreLaneClkRun(0) <= '1';
+                    end if;
+                    linkUp(500 us);
+                    sendAll(5);
+                    waitDelivered(5 ms);
+                    rd(0, RegDlErrors_c, Data_v);
+                    check_value(Data_v, x"00001000", error, "Only TX_LOST at A, round " & to_string(round));
+                    wr(0, RegDlErrors_c, x"00001000");
+                end loop;
+
+            -- TC-CORE-25: a false transmitter ready pulse before the lane clock of A runs (a transceiver that
+            -- still shows the reset done of an earlier start): Phy_TxReady of A is 1 from 10 us to 38 us while
+            -- LaneClk and CoreClk of A stand still, LaneClk and CoreClk run from 64 us on, the transmitters are
+            -- ready from 65 us on. The link comes up and the traffic is delivered; A reports TX_LOST (it saw the
+            -- pulse end), B no error flag
+            elsif run("test_tx_ready_pulse") then
+
+                for l in 0 to NumLanes_g-1 loop
+                    PaCtrl(l).AtoB.Cut <= true;
+                end loop;
+
+                wait for 10 us - now;
+                CoreTxReady(0)    <= '1';
+                wait for 38 us - now;
+                CoreTxReady(0)    <= '0';
+                wait for 64 us - now;
+                CoreLaneClkRun(0) <= '1';
+                CoreCoreClkRun(0) <= '1';
+                wait for 65 us - now;
+                CoreTxReady(0)    <= '1';
+
+                for l in 0 to NumLanes_g-1 loop
+                    PaCtrl(l).AtoB.Cut <= false;
+                end loop;
+
+                linkUp(500 us);
+                sendAll(5);
+                waitDelivered(2 ms);
+                rd(0, RegDlErrors_c, Data_v);
+                check_value(Data_v, x"00001000", error, "Only TX_LOST at A");
+                rd(1, RegDlErrors_c, Data_v);
+                check_value(Data_v, x"00000000", error, "No error flag at B");
+
+            -- TC-CORE-26: both cores start as after the power-up of their transceivers, with the MIB running
+            -- from the reset on: LaneClk and CoreClk of both cores stand still and the lines carry no signal
+            -- until 64.1 us, the transmitters are ready from 64.885 us on. The link comes up and the traffic is
+            -- delivered without an error flag or a retry at either core
+            elsif run("test_tx_ready_start") then
+
+                for l in 0 to NumLanes_g-1 loop
+                    PaCtrl(l).AtoB.Cut <= true;
+                    PaCtrl(l).BtoA.Cut <= true;
+                end loop;
+
+                wait for 64.1 us - now;
+                CoreLaneClkRun <= "11";
+                CoreCoreClkRun <= "11";
+                wait for 64.885 us - now;
+                CoreTxReady    <= "11";
+
+                for l in 0 to NumLanes_g-1 loop
+                    PaCtrl(l).AtoB.Cut <= false;
+                    PaCtrl(l).BtoA.Cut <= false;
+                end loop;
+
+                wait for 1 us;
+                linkUp(500 us);
+                sendAll(5);
+                waitDelivered(2 ms);
+
+                for c in 0 to 1 loop
+                    rd(c, RegDlErrors_c, Data_v);
+                    check_value(Data_v, x"00000000", error, "No error flag at core " & to_string(c));
+                    rd(c, RegRetries_c, Data_v);
+                    check_value(Data_v, x"00000000", error, "No retry at core " & to_string(c));
                 end loop;
 
             end if;

@@ -88,6 +88,7 @@ architecture sim of ofb_mib_tb is
     signal DlStates      : std_logic_vector(7 downto 0)         := x"00";
     signal HasCredit     : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
     signal DlEv          : std_logic_vector(7 downto 0)         := x"00";
+    signal TxReady       : std_logic                            := '1'; -- Phy_TxReady (MgmtClk)
     signal InOvf         : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
     signal CrOvf         : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
     signal BwOver        : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
@@ -220,7 +221,7 @@ begin
 
             -- TC-MG-01: identification and reset values
             if run("test_reset_values") then
-                chk(16#000#, x"0FB10007", "ID");
+                chk(16#000#, x"0FB10008", "ID");
                 chk(16#004#, x"00000104", "Generics");
                 chk(16#008#, x"00000100", "DataScrambled set");
                 chk(16#00C#, x"00000028", "Broadcast interval 40");
@@ -293,7 +294,11 @@ begin
                 MlStat    <= "1011";
                 BitSync   <= "1";
                 cycles(20);
-                chk(16#010#, x"0000013F", "Data Link status");
+                chk(16#010#, x"0000033F", "Data Link status with TX_READY");
+                TxReady   <= '0';
+                cycles(20);
+                chk(16#010#, x"0000013F", "Data Link status without TX_READY");
+                TxReady   <= '1';
                 chk(16#030#, x"0000000A", "Has Credit");
                 chk(16#104#, x"00789A67", "Lane status with bit synchronisation (bit 6)");
                 chk(16#10C#, x"0000D156", "Lane reasons");
@@ -481,6 +486,26 @@ begin
                 wr(16#044#, x"00020000");
                 cycles(3);
                 check_value(Irq, '1', error, "Interrupt for the lane timeout");
+                -- TX_LOST: the transmitters drop after they were ready
+                TxReady <= '0';
+                cycles(3);
+                TxReady <= '1';
+                cycles(20);
+                chk(16#014#, x"00001681", "TX_LOST flag (bit 12)");
+                wr(16#044#, x"00001000");
+                cycles(3);
+                check_value(Irq, '1', error, "Interrupt for TX_LOST");
+                wr(16#014#, x"00001000");
+                cycles(3);
+                check_value(Irq, '0', error, "Interrupt cleared with TX_LOST");
+                chk(16#014#, x"00000681", "TX_LOST cleared");
+                -- TX_LOST: the transmitters drop after they were ready
+                TxReady <= '0';
+                cycles(3);
+                TxReady <= '1';
+                cycles(20);
+                wr(16#044#, x"00020000");
+                cycles(3);
                 -- Link Reset command clears the status of the Data Link, Multi-Lane and Lane layers
                 wr(16#008#, x"00000101");
                 chk(16#014#, x"00000000", "Data Link flags cleared by Link Reset");
@@ -811,6 +836,7 @@ begin
             S_AxiLite_RValid       => RValid,
             S_AxiLite_RReady       => RReady,
             Irq                    => Irq,
+            Phy_TxReady            => TxReady,
             CoreClk                => CoreClk,
             CoreRst                => Rst,
             Dl_DataScrambled       => DataScrambled,

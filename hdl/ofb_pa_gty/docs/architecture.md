@@ -11,7 +11,15 @@ The transmit output clock of channel 0 (`TXOUTCLKPMA`, 6.25 Gbit/s / 40 bits = 1
 output is the user clock of all eight transmitters and receivers of the quad and `LaneClk` of the core. The receive
 elastic buffers cross from the recovered clocks to this clock and remove or insert SKIP words (clock correction
 sequence of four symbols, `RX_CC_LEN_SEQ` 4). The wizard reset controller clears the `BUFG_GT` (`INTF0_TX_clr_out`)
-until the transmit PLL is locked and holds the receivers in reset until their PMA reset is done.
+while the transmit PMA reset of a channel is not done (the AND of `TXPMARESETDONE` of the four channels) and for 17
+cycles of `FreeRunClk` after it; `LaneClk` therefore stops during every reset of the transmitters in operation (a
+reset through `Rst`, a transmit datapath reset after a change of the far-end loopback) and can end with a short pulse
+(AMD AM003, `BUFG_GT`). The receivers are held in reset until their PMA reset is done.
+
+`Rst` passes an `olo_base_reset_gen` on `FreeRunClk` (`SyncTmr_g` = true): asserted asynchronously, released
+synchronously after at least `RstPulseCycles_g` cycles (default 1000). The stretched reset drives the reset of the
+wizard (`INTF0_rst_all_in`) and the transmit datapath reset logic, so that a reset pulse of any width restarts the
+transceivers completely (PA-RS-02).
 
 ## 3. Channel mapping
 
@@ -39,10 +47,18 @@ Channels without a lane (`NumLanes_g` < 4) send electrical idle; their receive o
 
 ## 4. Status crossing
 
-`rst_tx_done` and `rst_rx_done` (free-running clock domain), `ch_rxelecidle` and `ch_rxbyteisaligned` (asynchronous)
-cross to `LaneClk` in one `olo_intf_sync` with `SyncTmr_g` = true (two stages, three synchroniser chains with a
-majority voter). `LaneRst` is
-the inverted transmitter ready.
+`rst_rx_done` (free-running clock domain), `ch_rxelecidle` and `ch_rxbyteisaligned` (asynchronous) cross to `LaneClk`
+in one `olo_intf_sync` with `SyncTmr_g` = true (two stages, three synchroniser chains with a majority voter).
+
+`Stat_TxReady` is `rst_tx_done` (the transmit reset done of the wizard, already synchronised to `FreeRunClk`) from a
+register of `FreeRunClk` (PA-ST-02): it falls while `LaneClk` stands still, and it drives `Phy_TxReady` of the core
+without further logic. It is taken only after `rst_tx_done` was 0 once since the release of the reset (`TxArmed`):
+when the reset is released, `rst_tx_done` still shows 1 until the master reset of the wizard starts (in the
+transceiver model about 28 us later, while `LaneClk` does not run yet). A wizard that kept `rst_tx_done` at 1 through
+its master reset would leave `Stat_TxReady` at 0 for good: the link would not start, a visible failure instead of a
+ready status without a lane clock. `LaneRst` comes from an `olo_base_reset_gen` on `LaneClk` (`RstInPolarity_g` = '0',
+`SyncTmr_g` = true) with `Stat_TxReady` as input: set without a clock edge while the transmitters are not ready,
+released synchronously.
 
 ## 5. Transceiver configuration
 

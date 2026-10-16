@@ -6,10 +6,12 @@
 ---------------------------------------------------------------------------------------------------
 -- Description
 ---------------------------------------------------------------------------------------------------
--- End-to-end testbench: two OpenFibre cores with four lanes, each with its Physical adapter PA-1
--- and the transceiver model, connected by their serial lines. The reference clocks of the two ends
--- differ by 100 ppm. A starts the link through the MIB (B with AutoStart); packets on all VCs and
--- broadcast messages travel in both directions and are checked; no error is reported in the MIB.
+-- End-to-end testbench: two OpenFibre cores with one to four lanes, each with its Physical adapter
+-- ofb_pa_gty, connected by their serial lines. The reference clocks of the two ends differ by
+-- 200 ppm. A starts the link through the MIB (B with AutoStart); packets on all VCs and broadcast
+-- messages travel in both directions and are checked; no error is reported in the MIB. The full run
+-- then resets the adapter of A with the link up (its lane clock stops) and checks the hold of the
+-- link, TX_LOST and the recovery with a third burst.
 --
 -- Documentation: hdl/ofb_pa_gty/docs/verification_plan.md
 
@@ -80,8 +82,9 @@ architecture sim of ofb_pa_gty_core_tb is
     signal FreeRunClk : std_logic  := '0';
     signal Rst        : std_logic  := '1';
     signal LaneClk    : EndArray_t;
-    signal LaneRst    : EndArray_t;
-    signal CoreRst    : EndArray_t;
+    signal TxReady    : EndArray_t;
+    signal RxReady    : EndArray_t;
+    signal Aligned    : LaneVecArray_t;
 
     -- Serial lines
     signal TxP : LaneVecArray_t;
@@ -139,9 +142,17 @@ architecture sim of ofb_pa_gty_core_tb is
     signal RValid  : EndArray_t;
     signal RReady  : EndArray_t  := (others => '0');
 
-    -- Traffic
+    -- Reset of one adapter only (transmitter reset in operation)
+    type TimeArray_t is array (0 to 1) of time;
+
+    signal PaRstReq   : EndArray_t  := (others => '0');
+    signal PaRst      : EndArray_t;
+    signal LaneEdge   : TimeArray_t := (others => 0 fs); -- last rising edge of LaneClk
+    signal AllAligned : EndArray_t;
+
+    -- Traffic: bursts of Packets_c packets per VC and direction, released one after the other
     signal StartTraffic : boolean    := false;
-    signal StartBurst2  : boolean    := false;
+    signal BurstGo      : natural    := 1;
     signal ClkCorCnt    : NatArray_t := (others => 0);
     signal Received     : CntArray_t := (others => (others => 0));
     signal BcReceived   : NatArray_t := (others => 0);
@@ -186,6 +197,7 @@ begin
     -----------------------------------------------------------------------------------------------
     p_main : process is
         variable A_v    : Data_t;
+        variable T_v    : time;
         variable B_v    : Data_t;
         variable Done_v : boolean;
         variable Fail_v : boolean := false;
@@ -254,7 +266,7 @@ begin
         Rst <= '1';
         wait for 200 ns;
         Rst <= '0';
-        wait until CoreRst(0) = '0' and CoreRst(1) = '0' for Timeout_c;
+        wait until TxReady(0) = '1' and TxReady(1) = '1' for Timeout_c;
         report "Transceivers ready at " & time'image(now);
         wait for 1 us;
 
@@ -318,7 +330,8 @@ begin
                     Fail_v := true;
                 end if;
                 rd(e, RegDlErrors_c, A_v);
-                if A_v(9 downto 0) /= "0000000000" then
+                report "End " & integer'image(e) & ": DL_ERRORS " & to_hstring(A_v);
+                if A_v(12 downto 0) /= "0000000000000" then
                     report "FAIL: errors reported in the MIB" severity error;
                     Fail_v := true;
                 end if;
@@ -342,7 +355,7 @@ begin
             report "FAIL: no clock correction" severity error;
             Fail_v := true;
         end if;
-        StartBurst2 <= true;
+        BurstGo <= 2;
 
         loop
             wait for 2 us;
@@ -382,11 +395,101 @@ begin
             rd(e, RegRetries_c, B_v);
             report "End " & integer'image(e) & ": DL_ERRORS " & to_hstring(A_v) & ", retries " &
                    integer'image(to_integer(unsigned(B_v)));
-            if A_v(9 downto 0) /= "0000000000" or unsigned(B_v) /= 0 then
+            if A_v(12 downto 0) /= "0000000000000" or unsigned(B_v) /= 0 then
                 report "FAIL: errors or retries reported in the MIB" severity error;
                 Fail_v := true;
             end if;
         end loop;
+
+        -- Transmitter reset in operation (CORE-PL-04, PA-ST-02): the adapter of A is reset with the
+        -- link up and no traffic. Its reset controller clears the BUFG_GT, so LaneClk of A stops; the
+        -- MIB of A reports TX_READY 0 and TX_LOST while LaneClk stands still; both ends initialise the
+        -- link again when the transmitters are ready, and a third burst is delivered.
+        PaRstReq(0) <= '1';
+        wait for 100 ns;
+        PaRstReq(0) <= '0';
+        T_v         := now;
+
+        loop
+            wait for 100 ns;
+            exit when now - LaneEdge(0) > 1 us or now - T_v > 100 us;
+        end loop;
+
+        if now - LaneEdge(0) > 1 us then
+            report "Lane clock of A stopped at " & time'image(LaneEdge(0));
+        else
+            report "FAIL: the lane clock of A did not stop" severity error;
+            Fail_v := true;
+        end if;
+        rd(0, RegDlStatus_c, A_v);
+        rd(0, RegDlErrors_c, B_v);
+        report "A with its lane clock stopped: DL_STATUS " & to_hstring(A_v) & ", DL_ERRORS " & to_hstring(B_v);
+        if A_v(9) /= '0' or B_v(12) /= '1' then
+            report "FAIL: TX_READY or TX_LOST of A while its lane clock stands still" severity error;
+            Fail_v := true;
+        end if;
+        wait until TxReady(0) = '1' for 1 ms;
+        report "Transceivers of A ready again at " & time'image(now);
+
+        loop
+            wait for 2 us;
+            rd(0, RegDlStatus_c, A_v);
+            rd(1, RegDlStatus_c, B_v);
+            exit when (A_v(1 downto 0) = "11" and B_v(1 downto 0) = "11") or now - T_v > 1 ms;
+        end loop;
+
+        report "Link initialised again at " & time'image(now);
+        if A_v(1 downto 0) /= "11" or B_v(1 downto 0) /= "11" then
+            report "FAIL: link not initialised after the transmitter reset" severity error;
+            Fail_v := true;
+        end if;
+        BurstGo <= 3;
+
+        loop
+            wait for 2 us;
+            Done_v := true;
+
+            for e in 0 to 1 loop
+
+                for v in 0 to Vcs_c-1 loop
+                    if Received(e, v) < 3 * Packets_c then
+                        Done_v := false;
+                    end if;
+                end loop;
+
+            end loop;
+
+            exit when Done_v or now - T_v > 2 ms;
+        end loop;
+
+        report "Third burst delivered at " & time'image(now);
+
+        for e in 0 to 1 loop
+
+            for v in 0 to Vcs_c-1 loop
+                if Received(e, v) /= 3 * Packets_c then
+                    report "FAIL: packets missing after the transmitter reset" severity error;
+                    Fail_v := true;
+                end if;
+            end loop;
+
+            if errorSum(e) /= 0 then
+                report "FAIL: errors after the transmitter reset" severity error;
+                Fail_v := true;
+            end if;
+        end loop;
+
+        rd(0, RegDlErrors_c, A_v);
+        rd(1, RegDlErrors_c, B_v);
+        report "After the transmitter reset of A: DL_ERRORS A " & to_hstring(A_v) & ", B " & to_hstring(B_v);
+        if A_v(12) /= '1' then
+            report "FAIL: TX_LOST of A not kept" severity error;
+            Fail_v := true;
+        end if;
+        if B_v(12) /= '0' then
+            report "FAIL: TX_LOST of B set, its transmitters were not reset" severity error;
+            Fail_v := true;
+        end if;
 
         if not Fail_v then
             report "Simulation done at " & time'image(now);
@@ -399,7 +502,58 @@ begin
     -----------------------------------------------------------------------------------------------
     g_end : for e in 0 to 1 generate
 
-        CoreRst(e) <= Rst or LaneRst(e);
+        PaRst(e) <= Rst or PaRstReq(e);
+
+        -- Last rising edge of the lane clock (the reset controller stops it during a transmitter reset)
+        p_lane_edge : process (LaneClk(e)) is
+        begin
+            if rising_edge(LaneClk(e)) then
+                LaneEdge(e) <= now;
+            end if;
+        end process;
+
+        -- Timestamps of the first LaneClk edge and of every edge of Stat_TxReady
+        p_lane_first : process is
+        begin
+            wait until rising_edge(LaneClk(e));
+            report "End " & integer'image(e) & ": first LaneClk edge at " & time'image(now);
+            wait;
+        end process;
+
+        p_tx_ready_edges : process is
+        begin
+            wait on TxReady(e);
+            report "End " & integer'image(e) & ": Stat_TxReady " & std_logic'image(TxReady(e)) & " at " &
+                   time'image(now);
+        end process;
+
+        -- Invariant of the transmitter ready status (CORE-PL-04, PA-ST-02): while Stat_TxReady is 1, LaneClk of
+        -- the end runs. Stat_TxReady is a register of FreeRunClk and may follow a stop of LaneClk by two cycles.
+        p_tx_ready_clk : process (FreeRunClk) is
+        begin
+            if rising_edge(FreeRunClk) then
+                if TxReady(e) = '1' and now - LaneEdge(e) > 2 * RefPeriodB_c + 2 * FreePeriod_c then
+                    report "FAIL: end " & integer'image(e) & ": Stat_TxReady 1 while LaneClk stands still (last edge at " &
+                           time'image(LaneEdge(e)) & ")" severity error;
+                end if;
+            end if;
+        end process;
+
+        -- Timeline of the receivers: every change of the receivers ready status and of the alignment of all lanes
+        AllAligned(e) <= and Aligned(e);
+
+        p_rx_timeline : process is
+        begin
+            wait on RxReady(e), AllAligned(e);
+            if RxReady(e)'event then
+                report "End " & integer'image(e) & ": receivers ready " & std_logic'image(RxReady(e)) & " at " &
+                       time'image(now);
+            end if;
+            if AllAligned(e)'event then
+                report "End " & integer'image(e) & ": all lanes aligned " & std_logic'image(AllAligned(e)) & " at " &
+                       time'image(now);
+            end if;
+        end process;
 
         i_pa : entity work.ofb_pa_gty
             generic map (
@@ -407,10 +561,10 @@ begin
             )
             port map (
                 FreeRunClk    => FreeRunClk,
-                Rst           => Rst,
+                Rst           => PaRst(e),
                 RefClk        => RefClk(e),
                 LaneClk       => LaneClk(e),
-                LaneRst       => LaneRst(e),
+                LaneRst       => open,
                 Gt_TxP        => TxP(e),
                 Gt_TxN        => TxN(e),
                 Gt_RxP        => TxP(1 - e),
@@ -427,9 +581,9 @@ begin
                 Phy_CdrEnable => CdrEnable(e),
                 Phy_RxInvert  => RxInvert(e),
                 Phy_NoSignal  => NoSignal(e),
-                Stat_TxReady  => open,
-                Stat_RxReady  => open,
-                Stat_Aligned  => open,
+                Stat_TxReady  => TxReady(e),
+                Stat_RxReady  => RxReady(e),
+                Stat_Aligned  => Aligned(e),
                 Stat_RxBufErr => open,
                 Stat_ClkCor   => ClkCor(e)
             );
@@ -443,7 +597,7 @@ begin
                 VcInDepth_g   => 256 * Lanes_c
             )
             port map (
-                Rst               => CoreRst(e),
+                Rst               => Rst,
                 UserClk           => LaneClk(e),
                 CoreClk           => LaneClk(e),
                 LaneClk           => LaneClk(e),
@@ -497,7 +651,8 @@ begin
                 Phy_RxEnable      => RxEnable(e),
                 Phy_CdrEnable     => CdrEnable(e),
                 Phy_RxInvert      => RxInvert(e),
-                Phy_NoSignal      => NoSignal(e)
+                Phy_NoSignal      => NoSignal(e),
+                Phy_TxReady       => TxReady(e)
             );
 
         -------------------------------------------------------------------------------------------
@@ -514,9 +669,9 @@ begin
             begin
                 wait until StartTraffic;
 
-                for p in 0 to 2 * Packets_c-1 loop
-                    if p = Packets_c and not StartBurst2 then
-                        wait until StartBurst2;
+                for p in 0 to 3 * Packets_c-1 loop
+                    if p mod Packets_c = 0 and p / Packets_c >= BurstGo then
+                        wait until BurstGo > p / Packets_c;
                     end if;
                     Len_v := packetLen(v, p);
                     Pos_v := 0;

@@ -117,8 +117,10 @@ Two-process design (record `r`). Inputs from ML-1 (T, D, H, `NumTxLanes`, `ActLa
 state from ML-5. `L` is the number of set bits of D; `Idx(i)` is the number of set bits of D below lane `i` (the
 position of lane `i` in the sending row).
 
-**Bypass.** `Enc_Data(0) = TxRow word 0`, `Enc_Valid(0) = TxRow_Valid`, `TxRow_Ready = Enc_Ready(0)`; no other lane is
-driven. The Lane layer sends IDLE when there is no word.
+**Bypass.** The alignment state is taken as Both-Ends Ready, so that no ACTIVE and no ALIGN word is sent (ECSS
+5.6.3); lane 0 is the only data-sending lane. A row is taken only while lane 0 is Active (ML-BP-04): before, a row
+would wait in `Q` or `Rep`, where a link reset that reaches the layer after the Data Link layer has left Near-End
+Reset would discard it (section 2.10). The Lane layer sends IDLE when there is no word.
 
 **Sending rows.** `Advance` = T is not empty and every lane of T has `Enc_Ready`. `Enc_Valid(i) = T(i) and Advance`,
 so all active transmitting lanes take a word in the same cycle or none does (lock-step; the Lane layers send SKIP in
@@ -274,7 +276,15 @@ an overflow is reported by a simulation assertion.
 ### 2.10 Bypass (ML-2, ML-6 with one lane)
 
 - Transmit: word 0 of the row goes to the column encoder of lane 0; `TxRow_Mask` and `TxRow_Replicate` are not
-  needed with one lane. The encoder output drives the lane.
+  needed with one lane. The encoder output drives the lane. A row is taken only while the lane is Active
+  (`Enc_Valid(0) = TxRow_Valid and Active`, `TxRow_Ready = Enc_Ready(0) and Active`, ML-BP-04), as the row
+  distributor takes no row in Not Ready (ML-DS-06). The encoder holds up to two words while its output waits for the
+  lane, and its input stage is ready also while it is flushed. A row taken before the lane is Active would wait in
+  the encoder, and a link reset that reaches the layer after the Data Link layer has left Near-End Reset (the
+  link reset crosses from the core clock as a pulse, a few cycles after the Data Link layer released it) would
+  discard this first row of the new link; the far end would see a sequence error. Every link reset also resets the
+  lane, and the lane becomes Active only after its initialisation, so no link reset reaches a row taken while the
+  lane is Active, except the link reset of a new link.
 - Receive: the column decoder output becomes the row (`RxRow_Mask = "0..01"`); PAD, ACTIVE and ALIGN are discarded
   (`RxRow_Valid` cleared).
 

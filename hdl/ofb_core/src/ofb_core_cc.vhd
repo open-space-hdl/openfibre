@@ -68,6 +68,8 @@ entity ofb_core_cc is
         Ml_RxRow_Mask           : in    std_logic_vector(NumLanes_g-1 downto 0);
         Ml_RxRow_CrcErr         : in    std_logic;
         Ml_RxRow_Valid          : in    std_logic;
+        -- Link reset and LaneReset held (lane clock, level): the transmitters are not ready
+        Ml_ResetHold            : in    std_logic                                    := '0';
         Ml_LinkReset            : out   std_logic;
         Ml_LaneReset            : out   std_logic;
         Ml_NearCapability       : out   Char_t;
@@ -100,6 +102,7 @@ architecture rtl of ofb_core_cc is
     signal RxOut     : std_logic_vector(RowW_c-1 downto 0);
     signal RxReady   : std_logic;
     signal Active    : std_logic_vector(0 downto 0);
+    signal Pulses    : std_logic_vector(1 downto 0);
     signal CoreFlush : std_logic;
     signal ActiveIn  : std_logic_vector(0 downto 0);
     signal CapIn     : std_logic_vector(8 downto 0);
@@ -113,6 +116,9 @@ architecture rtl of ofb_core_cc is
     signal RxDed     : std_logic;
     signal CapSec    : std_logic;
     signal CapDed    : std_logic;
+    signal ResetLast : std_logic_vector(1 downto 0);
+    signal ResetIn   : std_logic_vector(1 downto 0);
+    signal ResetEdge : std_logic_vector(1 downto 0);
 
 begin
 
@@ -207,6 +213,25 @@ begin
     -----------------------------------------------------------------------------------------------
     -- Control
     -----------------------------------------------------------------------------------------------
+    -- One pulse per entry into the link reset (CORE-PL-06): the Data Link layer holds its link reset
+    -- and LaneReset while the transmitters are not ready, and a held level at the pulse crossing would
+    -- repeat the pulse and deliver the last repetition after the Data Link layer has left Near-End
+    -- Reset. The level after the entry comes from Ml_ResetHold in the lane clock domain.
+    ResetIn <= Dl_LaneReset & Dl_LinkReset;
+
+    p_reset_edge : process (CoreClk) is
+    begin
+        if rising_edge(CoreClk) then
+            ResetLast <= ResetIn;
+            -- The Data Link layer leaves its reset in ConfigReset: no entry at the release
+            if CoreRst = '1' then
+                ResetLast <= (others => '1');
+            end if;
+        end if;
+    end process;
+
+    ResetEdge <= ResetIn and not ResetLast;
+
     i_resets : entity work.ofb_cc_pulse
         generic map (
             NumPulses_g => 2
@@ -214,13 +239,16 @@ begin
         port map (
             In_Clk       => CoreClk,
             In_Rst       => CoreRst,
-            In_Pulse(0)  => Dl_LinkReset,
-            In_Pulse(1)  => Dl_LaneReset,
+            In_Pulse     => ResetEdge,
             Out_Clk      => LaneClk,
             Out_Rst      => LaneRst,
-            Out_Pulse(0) => Ml_LinkReset,
-            Out_Pulse(1) => Ml_LaneReset
+            Out_Pulse    => Pulses
         );
+
+    -- While the transmitters are not ready the lanes are held in reset from the lane clock domain
+    -- (CORE-PL-04), also while the core clock stands still
+    Ml_LinkReset <= Pulses(0) or Ml_ResetHold;
+    Ml_LaneReset <= Pulses(1) or Ml_ResetHold;
 
     i_near_cap : entity olo.olo_base_cc_bits
         generic map (

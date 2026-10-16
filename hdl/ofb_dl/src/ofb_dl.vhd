@@ -100,6 +100,9 @@ entity ofb_dl is
         Ml_FarCapabilityValid : in    std_logic;
         Ml_FarCapabilityIdle  : in    std_logic;
         Ml_LaneActive         : in    std_logic;
+        -- Transmitters of the Physical layer ready (synchronised to Clk); while '0' the link is held in
+        -- Near-End Reset
+        Phy_TxReady           : in    std_logic                                    := '1';
         -- Configuration
         Cfg_DataScrambled     : in    std_logic                                    := '1';
         Cfg_LinkReset         : in    std_logic                                    := '0';
@@ -330,6 +333,7 @@ begin
             Cfg_InterfaceReset    => Cfg_InterfaceReset,
             Cfg_LinkReset         => Cfg_LinkReset,
             Err_LinkReset         => ErrLinkRst,
+            Phy_TxReady           => Phy_TxReady,
             Ml_FarCapability      => Ml_FarCapability,
             Ml_FarCapabilityValid => Ml_FarCapabilityValid,
             Ml_FarCapabilityIdle  => Ml_FarCapabilityIdle,

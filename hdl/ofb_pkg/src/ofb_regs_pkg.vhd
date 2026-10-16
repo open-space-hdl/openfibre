@@ -25,7 +25,7 @@ package ofb_regs_pkg is
     -----------------------------------------------------------------------------------------------
     -- Identification
     -----------------------------------------------------------------------------------------------
-    constant RegMapId_c : std_logic_vector(31 downto 0) := x"0FB10007";
+    constant RegMapId_c : std_logic_vector(31 downto 0) := x"0FB10008";
 
     -----------------------------------------------------------------------------------------------
     -- Register addresses (byte addresses)
@@ -122,6 +122,7 @@ package ofb_regs_pkg is
     constant DlStatusWordIdStateLo_c : natural := 4;
     constant DlStatusWordIdStateHi_c : natural := 6;
     constant DlStatusErbEmpty_c      : natural := 8;
+    constant DlStatusTxReady_c       : natural := 9;
 
     constant DlErrorsCrc16_c           : natural := 0;
     constant DlErrorsCrc8_c            : natural := 1;
@@ -135,6 +136,7 @@ package ofb_regs_pkg is
     constant DlErrorsFramingError_c    : natural := 9;
     constant DlErrorsRxRowOverflow_c   : natural := 10;
     constant DlErrorsRxFramingError_c  : natural := 11;
+    constant DlErrorsTxLost_c          : natural := 12;
 
     constant DlRetriesCountLo_c : natural := 0;
     constant DlRetriesCountHi_c : natural := 31;
@@ -168,7 +170,7 @@ package ofb_regs_pkg is
     constant MlStatusBypass_c          : natural := 10;
 
     constant IrqMaskDlErrorsLo_c   : natural := 0;
-    constant IrqMaskDlErrorsHi_c   : natural := 11;
+    constant IrqMaskDlErrorsHi_c   : natural := 12;
     constant IrqMaskLaneEventsLo_c : natural := 16;
     constant IrqMaskLaneEventsHi_c : natural := 19;
     constant IrqMaskEccDed_c       : natural := 24;

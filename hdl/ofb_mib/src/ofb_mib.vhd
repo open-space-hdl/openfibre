@@ -57,6 +57,8 @@ entity ofb_mib is
         S_AxiLite_RValid       : out   std_logic;
         S_AxiLite_RReady       : in    std_logic;
         Irq                    : out   std_logic;
+        -- Transmitters of the Physical adapter ready, synchronised to Clk (TX_READY, TX_LOST)
+        Phy_TxReady            : in    std_logic                                    := '1';
         -- Core clock domain: Data Link layer
         CoreClk                : in    std_logic;
         CoreRst                : in    std_logic;
@@ -202,7 +204,9 @@ architecture rtl of ofb_mib is
     signal CmdIfReset    : std_logic;
 
     -- Sticky flags and counters
-    signal DlErrors    : std_logic_vector(11 downto 0);
+    signal DlErrors    : std_logic_vector(12 downto 0);
+    signal TxLast      : std_logic := '0'; -- Phy_TxReady of the previous cycle
+    signal TxSeen      : std_logic := '0'; -- The transmitters were ready since the reset
     signal VcInOvf     : std_logic_vector(NumVc_g-1 downto 0);
     signal VcCrOvf     : std_logic_vector(NumVc_g-1 downto 0);
     signal VcFrErr     : std_logic_vector(NumVc_g-1 downto 0);
@@ -354,11 +358,17 @@ begin
             DlErrors(9)          <= DlErrors(9) or (or UserEv(NumVc_g-1 downto 0));
             DlErrors(10)         <= DlErrors(10) or LaneEv(4*NumLanes_g+1);
             DlErrors(11)         <= DlErrors(11) or (or UserEv(2*NumVc_g-1 downto NumVc_g));
-            VcInOvf              <= VcInOvf or CoreEv(7 + NumVc_g downto 8);
-            VcCrOvf              <= VcCrOvf or CoreEv(7 + 2 * NumVc_g downto 8 + NumVc_g);
-            VcFrErr              <= VcFrErr or UserEv(NumVc_g-1 downto 0);
-            VcRxFrErr            <= VcRxFrErr or UserEv(2*NumVc_g-1 downto NumVc_g);
-            LaneEvents           <= LaneEvents or LaneEv(4*NumLanes_g-1 downto 0);
+            -- TX_LOST: the transmitters are no longer ready after they were ready (MG-ST-06)
+            DlErrors(12) <= DlErrors(12) or (TxSeen and TxLast and not Phy_TxReady);
+            TxLast       <= Phy_TxReady;
+            if Phy_TxReady = '1' then
+                TxSeen <= '1';
+            end if;
+            VcInOvf    <= VcInOvf or CoreEv(7 + NumVc_g downto 8);
+            VcCrOvf    <= VcCrOvf or CoreEv(7 + 2 * NumVc_g downto 8 + NumVc_g);
+            VcFrErr    <= VcFrErr or UserEv(NumVc_g-1 downto 0);
+            VcRxFrErr  <= VcRxFrErr or UserEv(2*NumVc_g-1 downto NumVc_g);
+            LaneEvents <= LaneEvents or LaneEv(4*NumLanes_g-1 downto 0);
             -- Bandwidth flags once the status crossing has transferred a value after reset
             if StatSettle = 31 then
                 VcBwOver  <= VcBwOver or CoreStat(7 + 2 * NumVc_g downto 8 + NumVc_g);
@@ -403,7 +413,7 @@ begin
                     when RegDlBcInterval_c =>
                         BcInterval <= RbWrData(15 downto 0);
                     when RegDlErrors_c =>
-                        DlErrors <= DlErrors and not RbWrData(11 downto 0);
+                        DlErrors <= DlErrors and not RbWrData(12 downto 0);
                     when RegDlRetries_c =>
                         Retries <= (others => '0');
                     when RegDlCrc16Count_c =>
@@ -540,6 +550,8 @@ begin
                 PrbsCmd      <= (others => '0');
                 IrqMask      <= (others => '0');
                 DlErrors     <= (others => '0');
+                TxLast       <= '0';
+                TxSeen       <= '0';
                 VcInOvf      <= (others => '0');
                 VcCrOvf      <= (others => '0');
                 VcFrErr      <= (others => '0');
@@ -596,8 +608,9 @@ begin
                     Data_v(3 downto 2) := CoreStat(3 downto 2);
                     Data_v(6 downto 4) := CoreStat(6 downto 4);
                     Data_v(8)          := CoreStat(7);
+                    Data_v(9)          := Phy_TxReady;
                 when RegDlErrors_c =>
-                    Data_v(11 downto 0) := DlErrors;
+                    Data_v(12 downto 0) := DlErrors;
                 when RegDlRetries_c =>
                     Data_v := std_logic_vector(Retries);
                 when RegDlCrc16Count_c =>
@@ -695,7 +708,7 @@ begin
             RbRdData <= Data_v;
 
             -- Interrupt
-            Irq_v := or (DlErrors and IrqMask(11 downto 0));
+            Irq_v := or (DlErrors and IrqMask(12 downto 0));
             -- EDAC: uncorrectable error (bit 24), corrected error (bit 25)
             if (or EccDedStk) = '1' and IrqMask(24) = '1' then
                 Irq_v := '1';

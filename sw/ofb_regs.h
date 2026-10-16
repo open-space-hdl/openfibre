@@ -10,7 +10,7 @@
 #define OFB_REGS_H
 
 /* Identification */
-#define OFB_REGMAP_ID 0x0FB10007u
+#define OFB_REGMAP_ID 0x0FB10008u
 
 /* Register addresses */
 #define OFB_ID                  0x000u
@@ -89,6 +89,8 @@
 #define OFB_DL_STATUS_WORD_ID_STATE_MASK  0x7u
 #define OFB_DL_STATUS_ERB_EMPTY_SHIFT     8u
 #define OFB_DL_STATUS_ERB_EMPTY_MASK      0x1u
+#define OFB_DL_STATUS_TX_READY_SHIFT      9u
+#define OFB_DL_STATUS_TX_READY_MASK       0x1u
 
 #define OFB_DL_ERRORS_CRC16_SHIFT              0u
 #define OFB_DL_ERRORS_CRC16_MASK               0x1u
@@ -114,6 +116,8 @@
 #define OFB_DL_ERRORS_RX_ROW_OVERFLOW_MASK     0x1u
 #define OFB_DL_ERRORS_RX_FRAMING_ERROR_SHIFT   11u
 #define OFB_DL_ERRORS_RX_FRAMING_ERROR_MASK    0x1u
+#define OFB_DL_ERRORS_TX_LOST_SHIFT            12u
+#define OFB_DL_ERRORS_TX_LOST_MASK             0x1u
 
 #define OFB_DL_RETRIES_COUNT_SHIFT 0u
 #define OFB_DL_RETRIES_COUNT_MASK  0xFFFFFFFFu
@@ -148,7 +152,7 @@
 #define OFB_ML_STATUS_BYPASS_MASK          0x1u
 
 #define OFB_IRQ_MASK_DL_ERRORS_SHIFT   0u
-#define OFB_IRQ_MASK_DL_ERRORS_MASK    0xFFFu
+#define OFB_IRQ_MASK_DL_ERRORS_MASK    0x1FFFu
 #define OFB_IRQ_MASK_LANE_EVENTS_SHIFT 16u
 #define OFB_IRQ_MASK_LANE_EVENTS_MASK  0xFu
 #define OFB_IRQ_MASK_ECC_DED_SHIFT     24u
