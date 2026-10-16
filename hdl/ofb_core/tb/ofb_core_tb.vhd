@@ -1419,6 +1419,34 @@ begin
 
                 end loop;
 
+            -- TC-CORE-29: the transmitters of A drop while the link waits in Check Far-End Reset (no lane started,
+            -- AutoStart at both cores): A enters Near-End Reset with TX_READY 0 and sets TX_LOST; when they are ready
+            -- again A returns to Check Far-End Reset; B stays there without an error flag
+            elsif run("test_tx_ready_check_far_end") then
+                cycles(500);
+
+                for c in 0 to 1 loop
+                    rd(c, RegDlStatus_c, Data_v);
+                    check_value(Data_v(1 downto 0), "10", error, "Core " & to_string(c) & " in Check Far-End Reset");
+                end loop;
+
+                CoreTxReady(0) <= '0';
+                cycles(100);
+                rd(0, RegDlStatus_c, Data_v);
+                check_value(Data_v(1 downto 0), "01", error, "A in Near-End Reset while its transmitters are not ready");
+                check_value(Data_v(9), '0', error, "TX_READY 0 at A");
+                rd(0, RegDlErrors_c, Data_v);
+                check_value(Data_v, x"00001000", error, "Only TX_LOST at A");
+                CoreTxReady(0) <= '1';
+                cycles(100);
+                rd(0, RegDlStatus_c, Data_v);
+                check_value(Data_v(1 downto 0), "10", error, "A back in Check Far-End Reset");
+                check_value(Data_v(9), '1', error, "TX_READY 1 at A");
+                rd(1, RegDlStatus_c, Data_v);
+                check_value(Data_v(1 downto 0), "10", error, "B in Check Far-End Reset");
+                rd(1, RegDlErrors_c, Data_v);
+                check_value(Data_v, x"00000000", error, "No error flag at B");
+
             -- TC-CORE-26: both cores start as after the power-up of their transceivers, with the MIB running
             -- from the reset on: LaneClk and CoreClk of both cores stand still and the lines carry no signal
             -- until 64.1 us, the transmitters are ready from 64.885 us on. The link comes up and the traffic is
