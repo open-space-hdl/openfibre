@@ -34,6 +34,7 @@ library vunit_lib;
 library work;
     use work.ofb_pkg.all;
     use work.ofb_regs_pkg.all;
+    use work.ofb_lane_pkg.all;
     use work.ofb_tb_pkg.all;
     use work.ofb_tb_pa_pkg.all;
     use work.ofb_core_tb_pkg.all;
@@ -52,7 +53,9 @@ entity ofb_core_tb is
         VcOutDepth_g    : positive               := 128;
         VcInDepth_g     : natural                := 0;    -- 0: 256 x NumLanes_g words
         ErbRows_g       : positive               := 512;
-        InitPrbsWords_g : natural range 0 to 64  := 64
+        InitPrbsWords_g : natural range 0 to 64  := 64;
+        LaneStartA_g    : boolean                := false; -- LaneStart_g of core A (B: false)
+        AutoStart_g     : boolean                := true   -- AutoStart_g of both cores
     );
 end entity;
 
@@ -108,6 +111,7 @@ begin
     -----------------------------------------------------------------------------------------------
     p_main : process is
         variable Data_v : std_logic_vector(31 downto 0);
+        variable Reg_v  : std_logic_vector(31 downto 0);
 
         -- Fault injection campaign
         type CoreEcc_t is array (0 to 1) of std_logic_vector(EccChannels_c-1 downto 0);
@@ -1342,6 +1346,79 @@ begin
                 rd(1, RegDlErrors_c, Data_v);
                 check_value(Data_v, x"00000000", error, "No error flag at B");
 
+            -- TC-CORE-28: LaneStart and AutoStart after the reset from the generics, no write of LANE_CTRL. LANE_CTRL
+            -- of every lane reads the reset value of its core; with LaneStart_g at A and AutoStart at B the link comes
+            -- up and the traffic is delivered; with AutoStart only at both cores (the defaults) the lanes wait in
+            -- Wait, without AutoStart in Disabled: no link in 200 us, no error flag and no lane event
+            elsif run("test_start_generics") then
+
+                for c in 0 to 1 loop
+                    Data_v := x"00000060";
+                    if LaneStartA_g and c = 0 then
+                        Data_v(0) := '1';
+                    end if;
+                    if AutoStart_g then
+                        Data_v(1) := '1';
+                    end if;
+
+                    for l in 0 to NumLanes_g-1 loop
+                        rd(c, RegLaneCtrl_c + 16#20# * l, Reg_v);
+                        check_value(Reg_v, Data_v, error, "LANE_CTRL reset value, core " & to_string(c) & ", lane " &
+                                    to_string(l));
+                    end loop;
+
+                end loop;
+
+                if LaneStartA_g and AutoStart_g then
+                    T0_v := now;
+
+                    loop
+                        rd(0, RegDlStatus_c, Data_v);
+                        rd(1, RegDlStatus_c, Reg_v);
+                        exit when Data_v(1 downto 0) = "11" and Reg_v(1 downto 0) = "11";
+                        cycles(200);
+                        if now - T0_v > 500 us then
+                            alert(error, "Timeout waiting for the link");
+                            exit;
+                        end if;
+                    end loop;
+
+                    sendAll(5);
+                    waitDelivered(2 ms);
+                else
+                    cycles(20000);
+
+                    for c in 0 to 1 loop
+                        rd(c, RegDlStatus_c, Data_v);
+                        check_value(Data_v(1 downto 0) /= "11", error, "No link at core " & to_string(c));
+
+                        for l in 0 to NumLanes_g-1 loop
+                            rd(c, RegLaneStat_c + 16#20# * l, Data_v);
+                            if AutoStart_g then
+                                check_value(Data_v(3 downto 0), LaneStateWait_c, error, "Lane " & to_string(l) &
+                                            " of core " & to_string(c) & " waits for a signal");
+                            else
+                                check_value(Data_v(3 downto 0), LaneStateDisabled_c, error, "Lane " & to_string(l) &
+                                            " of core " & to_string(c) & " disabled");
+                            end if;
+                        end loop;
+
+                    end loop;
+
+                end if;
+
+                for c in 0 to 1 loop
+                    rd(c, RegDlErrors_c, Data_v);
+                    check_value(Data_v, x"00000000", error, "No error flag at core " & to_string(c));
+
+                    for l in 0 to NumLanes_g-1 loop
+                        rd(c, RegLaneEvents_c + 16#20# * l, Data_v);
+                        check_value(Data_v, x"00000000", error, "No event of lane " & to_string(l) & " at core " &
+                                    to_string(c));
+                    end loop;
+
+                end loop;
+
             -- TC-CORE-26: both cores start as after the power-up of their transceivers, with the MIB running
             -- from the reset on: LaneClk and CoreClk of both cores stand still and the lines carry no signal
             -- until 64.1 us, the transmitters are ready from 64.885 us on. The link comes up and the traffic is
@@ -1399,7 +1476,9 @@ begin
             VcOutDepth_g    => VcOutDepth_g,
             VcInDepth_g     => VcInDepth_g,
             ErbRows_g       => ErbRows_g,
-            InitPrbsWords_g => InitPrbsWords_g
+            InitPrbsWords_g => InitPrbsWords_g,
+            LaneStartA_g    => LaneStartA_g,
+            AutoStart_g     => AutoStart_g
         )
         port map (
             MgmtClk => MgmtClk,

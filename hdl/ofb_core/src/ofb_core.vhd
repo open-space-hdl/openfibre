@@ -37,7 +37,10 @@ entity ofb_core is
         VcOutDepth_g     : positive               := 128;
         VcInDepth_g      : positive               := 256;
         ErbRows_g        : positive               := 512;
-        InitPrbsWords_g  : natural range 0 to 64  := 64
+        InitPrbsWords_g  : natural range 0 to 64  := 64;
+        -- Reset values of LaneStart and AutoStart of every lane (LANE_CTRL bits 0 and 1)
+        LaneStart_g      : boolean                := false;
+        AutoStart_g      : boolean                := true
     );
     port (
         -- Asynchronous reset (high active), clocks
@@ -723,8 +726,10 @@ begin
     -----------------------------------------------------------------------------------------------
     i_mib : entity work.ofb_mib
         generic map (
-            NumVc_g    => NumVc_g,
-            NumLanes_g => NumLanes_g
+            NumVc_g     => NumVc_g,
+            NumLanes_g  => NumLanes_g,
+            LaneStart_g => LaneStart_g,
+            AutoStart_g => AutoStart_g
         )
         port map (
             Clk                    => MgmtClk,

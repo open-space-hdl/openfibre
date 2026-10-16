@@ -26,6 +26,7 @@ an interrupt. It contains the crossings between the management clock and the clo
 | MG-PL-02 | The bit synchronisation status of the clock and data recovery of every lane (input from the Physical adapter, lane clock) shall be readable. | 5.4.2e |
 | MG-ML-01 | The Multi-Lane parameters TxEn and RxEn (per lane), the maximum number of data-sending lanes and the bypass shall be passed to the Multi-Lane layer (lane clock), the maximum number of data-sending lanes also to the Data Link layer (core clock); the bypass state and the Misaligned events (counted) of the Multi-Lane layer shall be readable. | 5.6.1p, q, 5.6.3a, Tables 5-36, 5-37 |
 | MG-CF-02 | Link Reset and Interface Reset shall be commands: a write of one sends one pulse to the Data Link layer. | 5.7.1j, Table 5-36 |
+| MG-CF-03 | The reset values of LaneStart and AutoStart of every lane shall be the generics `LaneStart_g` (default false) and `AutoStart_g` (default true), on reset and on Interface Reset; the defaults are the reset values of MG-CF-01. | 5.9.3c, 5.5.2.5, Table 5-36 |
 | MG-ST-01 | Error events shall set sticky flags, cleared by writing one; the Link Reset command shall clear the status of the Data Link, Multi-Lane and Lane layers (sticky flags and counters); the EDAC status shall be kept. | 5.9.4d, e |
 | MG-ST-02 | The number of error recovery attempts shall be counted, and the CRC-16, CRC-8, frame and sequence errors and the lane timeouts in saturating counters; a write clears a counter. | 5.7.7.1k, l, Table 5-37 |
 | MG-ST-04 | A receive row lost in the crossing to the core clock (`Ml_EvRxOverflow`, lane clock) shall set a sticky flag with interrupt. | 5.9.4c |
@@ -50,10 +51,16 @@ See the architecture, section 3.
 | --- | --- | --- |
 | `NumVc_g` | 8 | Number of virtual channels |
 | `NumLanes_g` | 1 | Number of lanes |
+| `LaneStart_g` | false | Reset value of LaneStart of every lane (LANE_CTRL bit 0) |
+| `AutoStart_g` | true | Reset value of AutoStart of every lane (LANE_CTRL bit 1) |
 
 ## 5. Interpretation of the standard
 
 Bandwidth Credit Limit, FCT multiplier and data segment multiplier are fixed by generics (Table 5-36 allows this).
+
+The reset values of LaneStart and AutoStart are generics (MG-CF-03). Their defaults are the reset values of Table
+5-36; another value acts as a management write right after the reset. It lets a node whose MIB can only be reached
+over its own link start that link.
 
 The Link Reset command clears all status parameters of Table 5-37 held in the MIB (5.9.4e): the Data Link flags
 and counters, the flags of bandwidth use, the lane event flags and the additional counters (lane timeouts, Misaligned

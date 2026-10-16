@@ -42,6 +42,8 @@ The sources are VHDL-2008 and use no vendor primitives. `run.py` shows the compl
 | `VcInDepth_g` | 256 | Input VC buffer per VC, in words: `NumLanes_g` times a power of two, at least 64 with one lane and 128 x `NumLanes_g` with several lanes. With three or four lanes the default is too small: set it, reference value 256 x `NumLanes_g` |
 | `ErbRows_g` | 512 | Error recovery buffer, in data rows of `NumLanes_g` words: a power of two, at least 64 |
 | `InitPrbsWords_g` | 64 | PRBS words sent after INIT1 and INIT2 during lane initialisation (0 to 64) |
+| `LaneStart_g` | false | Reset value of LaneStart (LANE_CTRL bit 0) of every lane: true starts the link after the reset without a write of the MIB |
+| `AutoStart_g` | true | Reset value of AutoStart (LANE_CTRL bit 1) of every lane: the lanes start when the far end sends |
 
 A value outside these ranges stops the elaboration with a message that names the rule. Every lane count, 1 and 32
 VCs, a lane clock of 78.125 MHz, the smallest buffers and lane initialisation without PRBS words are simulated; the
@@ -180,7 +182,9 @@ idle.
    - Test modes per lane in LANE_CTRL: near-end and far-end parallel loopback (bits 3, 4, Lane layer), near-end and
      far-end serial loopback (bits 16, 17, Physical adapter).
 3. Start the link: LANE_CTRL of every lane with LaneStart (bit 0) at one end, for example 0x63 (LaneStart, AutoStart,
-   TxEn, RxEn). An end with AutoStart only (the reset value 0x62) starts when the far end sends.
+   TxEn, RxEn). An end with AutoStart only (the reset value 0x62) starts when the far end sends. With `LaneStart_g` =
+   true the reset value is 0x63 and the end starts by itself. Two ends that both only wait never start: a core whose
+   MIB is reachable only over its own link must start the link itself (`LaneStart_g`) or have a far end that starts.
 4. Wait for the link: LANE_STATUS bits 3:0 = 7 (Active) for the lanes, ML_STATUS bits 9:8 = 2 (Both-Ends Ready) with
    several lanes, DL_STATUS bits 1:0 = 3 (link initialised). VC_HAS_CREDIT shows the VCs that may send.
 5. Operation: DL_ERRORS, LANE_EVENTS and ECC_STATUS hold sticky flags (interrupt sources); the counters count retries,
@@ -323,6 +327,7 @@ Where the standard leaves a choice, the section "Interpretation of the standard"
 | Implemented | 5.3.2 to 5.3.10, 5.4.1, 5.4.2, 5.5.2 to 5.5.8, 5.6.1 to 5.6.10, 5.7.2 to 5.7.10, 5.8.3, 5.8.5 to 5.8.7, 5.8.12.1, 5.8.13, 5.9.1 to 5.9.4, 6.2 to 6.5 | Lane, Multi-Lane, Data Link and Network layer of a node, MIB and service interfaces. The Physical layer clauses (5.3.2, 5.4.1, 5.4.2, 6.4) need a Physical adapter: `ofb_pa_gty` for the AMD Versal GTY |
 | Implemented with a restriction | 5.6.2 | 1 to 4 lanes per port (`NumLanes_g`); the standard allows up to 16 lanes (5.6.2c) |
 | Implemented with a restriction | 5.4.2.3 | `ofb_pa_gty` runs at 6.25 Gbit/s (5.4.2.3b) from a 156.25 MHz reference clock. The core itself takes any data signalling rate (`LaneClk` = R / 40) |
+| Implemented with an option | 5.9.3c, Table 5-36 | `LaneStart_g` and `AutoStart_g` set the reset values of LaneStart and AutoStart; the defaults are the reset values of the standard, other values act as a management write right after the reset (MG-CF-03) |
 | Implemented with an interpretation | 5.7.9.3c | The link reset state machine leaves Near-End Reset only while the transmitters of the Physical adapter are ready (`Phy_TxReady`, section 4); the standard leaves it unconditionally. A transmitter that is not ready cannot send the INIT words of the lane initialisation. With `Phy_TxReady` = 1, the default of the port, the behaviour is that of the standard (DL-LR-06) |
 | Outside the scope of a node with one port | 5.8.8 to 5.8.11 | Routing switch, packet addressing, group adaptive routing, packet multicast |
 | Outside the scope of a node with one port | 5.8.12.2 | Acceptance and forwarding of broadcast messages in a routing switch (port of arrival, broadcast time-out) |
