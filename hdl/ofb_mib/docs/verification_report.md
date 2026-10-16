@@ -43,7 +43,8 @@ Transmitter ready (register map version 8, MG-ST-06): TC-MG-03 reads DL_STATUS b
 TC-MG-04 sets DL_ERRORS bit 12 (TX_LOST) with its interrupt and clears it with W1C. The core testbench checks both
 bits with the link held in Near-End Reset (TC-CORE-21 to TC-CORE-25), TC-CORE-24 and TC-CORE-25 also while the
 core and lane clocks of the core stand still; TC-CORE-26 checks that a start of both cores with stopped clocks sets
-no TX_LOST.
+no TX_LOST, and TC-CORE-29 that TX_LOST cleared while the transmitters stay not ready is not set again. TC-CORE-28
+reads the reset values of LaneStart and AutoStart from the generics (MG-CF-03).
 
 Defects found during verification:
 

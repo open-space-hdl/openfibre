@@ -19,17 +19,22 @@ VCs and two lanes in a separate run, commit 0bab3a2, see `docs/coverage.md`). Ru
 transmitter ready input `Phy_TxReady` (TC-CORE-21 to TC-CORE-25, asynchronous input with one reset generator per
 clock domain): 309 of 309 tests pass in GHDL (2026-10-16). Run on 2026-10-16 with one pulse per entry into the
 link reset at the crossing (CORE-PL-06) and the row acceptance of the Multi-Lane layer (ML-BP-04), TC-CORE-26,
-TC-CORE-27 and the configuration `eqclk`: 322 of 322 tests pass in GHDL.
+TC-CORE-27 and the configuration `eqclk`: 322 of 322 tests pass in GHDL; TC-CORE-27 (`ofb_core_cc_tb`) ran in its
+own run, 3 of 3. Run on 2026-10-16 with the generics `LaneStart_g` and `AutoStart_g` (TC-CORE-28): the full
+regression, 332 of 332 tests, passes in GHDL and in QuestaSim with and without coverage (332 of 332 each); TC-CORE-29
+(added afterwards, only the testbench changes, `docs/coverage.md`) passes in GHDL and in both QuestaSim modes, 4 of
+4 each.
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_core_tb` (configurations `lanes1` to `lanes4`) | 26 x 4 | 104 |
+| `ofb_core_tb` (configurations `lanes1` to `lanes4`) | 28 x 4 | 112 |
 | `ofb_core_tb`, configuration `lanes1_slowcore` (TC-CORE-15 only) | 1 | 1 |
 | `ofb_core_tb`, configurations `vc1` and `vc32` (TC-CORE-01, 02, 04) | 3 x 2 | 6 |
 | `ofb_core_tb`, configuration `halfrate` (TC-CORE-01, 04, 21, 23) | 4 | 4 |
 | `ofb_core_tb`, configuration `minbuf` (TC-CORE-01 to 04) | 4 | 4 |
 | `ofb_core_tb`, configuration `noprbs` (TC-CORE-01, 02) | 2 | 2 |
 | `ofb_core_tb`, configuration `eqclk` (TC-CORE-21 to 26) | 6 | 6 |
+| `ofb_core_tb`, configurations `lanestart1`, `lanestart4` and `noauto` (TC-CORE-28) | 1 x 3 | 3 |
 | `ofb_core_cc_tb` (configurations `core_fast`, `equal`, `lane_half`) | 1 x 3 | 3 |
 
 Generic ranges (verification plan, section "Generic ranges"): every value of a generic that changes the structure
@@ -84,6 +89,15 @@ the hold of the lanes as a level and no pulse after it. At the ports of the core
 has no effect that a test could observe: a LaneReset that reaches a lane in ClearLine does not restart its 2 us
 (`ofb_lane_init`, ECSS 5.5.2.4), and a link reset finds no row in the Multi-Lane layer while the lanes are not
 Active (ML-BP-04). TC-CORE-27 is therefore the test of CORE-PL-06.
+
+Reset values of LaneStart and AutoStart (TC-CORE-28, no write of LANE_CTRL): LANE_CTRL of every lane reads 0x62
+with the defaults, 0x63 at A with `LaneStart_g` and 0x60 without `AutoStart_g`. With `LaneStart_g` at A and
+AutoStart at B the link is initialised and the traffic delivered with one and four lanes; with AutoStart only at
+both cores (1 to 4 lanes) every lane stays in Wait and without AutoStart in Disabled, no link in 200 us. No error
+flag and no lane event at either core in any case. TC-CORE-29: with both Data Link layers waiting in Check Far-End
+Reset, the loss of the transmitters of A moves A to Near-End Reset with TX_READY 0 and TX_LOST; TX_LOST cleared
+while they stay not ready is not set again, and A returns to Check Far-End Reset when they are ready (1 to 4
+lanes; without the condition in Check Far-End Reset the test fails).
 
 Mutation checks (one lane): with the Data Link layer ignoring `Phy_TxReady`, TC-CORE-21 to TC-CORE-24 fail (A not
 in Near-End Reset; in TC-CORE-24 a sequence error at A, DL_ERRORS 0x1008); without the hold of the lanes,
