@@ -1420,8 +1420,9 @@ begin
                 end loop;
 
             -- TC-CORE-29: the transmitters of A drop while the link waits in Check Far-End Reset (no lane started,
-            -- AutoStart at both cores): A enters Near-End Reset with TX_READY 0 and sets TX_LOST; when they are ready
-            -- again A returns to Check Far-End Reset; B stays there without an error flag
+            -- AutoStart at both cores): A enters Near-End Reset with TX_READY 0 and sets TX_LOST; TX_LOST cleared while
+            -- the transmitters stay not ready is not set again; when they are ready again A returns to Check Far-End
+            -- Reset; B stays there without an error flag
             elsif run("test_tx_ready_check_far_end") then
                 cycles(500);
 
@@ -1437,11 +1438,17 @@ begin
                 check_value(Data_v(9), '0', error, "TX_READY 0 at A");
                 rd(0, RegDlErrors_c, Data_v);
                 check_value(Data_v, x"00001000", error, "Only TX_LOST at A");
+                wr(0, RegDlErrors_c, x"00001000");
+                cycles(100);
+                rd(0, RegDlErrors_c, Data_v);
+                check_value(Data_v, x"00000000", error, "TX_LOST at A stays clear while the transmitters stay not ready");
                 CoreTxReady(0) <= '1';
                 cycles(100);
                 rd(0, RegDlStatus_c, Data_v);
                 check_value(Data_v(1 downto 0), "10", error, "A back in Check Far-End Reset");
                 check_value(Data_v(9), '1', error, "TX_READY 1 at A");
+                rd(0, RegDlErrors_c, Data_v);
+                check_value(Data_v, x"00000000", error, "No error flag at A after its transmitters are ready again");
                 rd(1, RegDlStatus_c, Data_v);
                 check_value(Data_v(1 downto 0), "10", error, "B in Check Far-End Reset");
                 rd(1, RegDlErrors_c, Data_v);
