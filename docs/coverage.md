@@ -138,8 +138,9 @@ defensive, constant by construction or not executed as a separate statement by t
 | `ofb_multilane/src/ofb_ml_rx.vhd:195` | Branch: shift of the waiting words beyond the accumulator | Constant: `i < NumLanes_g` and `AccSize_c = 2 x NumLanes_g`, so the condition is always true; the guard keeps the index in range for elaboration. |
 
 The condition and expression metrics are reported, not closed. One term of the TX_LOST expression of `ofb_mib.vhd`
-(line 365) cannot be reached: `TxSeen` = 0 while `TxLast` = 1. Both registers take `Phy_TxReady` at the same edge
-(`TxSeen` keeps a 1), and only the reset clears them, so `TxLast` = 1 implies `TxSeen` = 1.
+(line 365) cannot be reached: `TxSeen` = 0 while `TxLast` = 1. Both registers took `Phy_TxReady` at the same edge
+(`TxSeen` kept a 1), and only the reset cleared them, so `TxLast` = 1 implied `TxSeen` = 1. The register `TxSeen` was
+therefore redundant and has been removed after this run; the expression is now the fall of `Phy_TxReady` alone.
 
 ## 5. Reproduction
 

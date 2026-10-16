@@ -208,8 +208,7 @@ architecture rtl of ofb_mib is
 
     -- Sticky flags and counters
     signal DlErrors    : std_logic_vector(12 downto 0);
-    signal TxLast      : std_logic := '0'; -- Phy_TxReady of the previous cycle
-    signal TxSeen      : std_logic := '0'; -- The transmitters were ready since the reset
+    signal TxLast      : std_logic := '0'; -- Phy_TxReady of the previous cycle (0 after the reset)
     signal VcInOvf     : std_logic_vector(NumVc_g-1 downto 0);
     signal VcCrOvf     : std_logic_vector(NumVc_g-1 downto 0);
     signal VcFrErr     : std_logic_vector(NumVc_g-1 downto 0);
@@ -361,17 +360,15 @@ begin
             DlErrors(9)          <= DlErrors(9) or (or UserEv(NumVc_g-1 downto 0));
             DlErrors(10)         <= DlErrors(10) or LaneEv(4*NumLanes_g+1);
             DlErrors(11)         <= DlErrors(11) or (or UserEv(2*NumVc_g-1 downto NumVc_g));
-            -- TX_LOST: the transmitters are no longer ready after they were ready (MG-ST-06)
-            DlErrors(12) <= DlErrors(12) or (TxSeen and TxLast and not Phy_TxReady);
+            -- TX_LOST: the transmitters are no longer ready after they were ready (MG-ST-06): a fall of the level,
+            -- TxLast is 0 after the reset
+            DlErrors(12) <= DlErrors(12) or (TxLast and not Phy_TxReady);
             TxLast       <= Phy_TxReady;
-            if Phy_TxReady = '1' then
-                TxSeen <= '1';
-            end if;
-            VcInOvf    <= VcInOvf or CoreEv(7 + NumVc_g downto 8);
-            VcCrOvf    <= VcCrOvf or CoreEv(7 + 2 * NumVc_g downto 8 + NumVc_g);
-            VcFrErr    <= VcFrErr or UserEv(NumVc_g-1 downto 0);
-            VcRxFrErr  <= VcRxFrErr or UserEv(2*NumVc_g-1 downto NumVc_g);
-            LaneEvents <= LaneEvents or LaneEv(4*NumLanes_g-1 downto 0);
+            VcInOvf      <= VcInOvf or CoreEv(7 + NumVc_g downto 8);
+            VcCrOvf      <= VcCrOvf or CoreEv(7 + 2 * NumVc_g downto 8 + NumVc_g);
+            VcFrErr      <= VcFrErr or UserEv(NumVc_g-1 downto 0);
+            VcRxFrErr    <= VcRxFrErr or UserEv(2*NumVc_g-1 downto NumVc_g);
+            LaneEvents   <= LaneEvents or LaneEv(4*NumLanes_g-1 downto 0);
             -- Bandwidth flags once the status crossing has transferred a value after reset
             if StatSettle = 31 then
                 VcBwOver  <= VcBwOver or CoreStat(7 + 2 * NumVc_g downto 8 + NumVc_g);
@@ -559,7 +556,6 @@ begin
                 IrqMask      <= (others => '0');
                 DlErrors     <= (others => '0');
                 TxLast       <= '0';
-                TxSeen       <= '0';
                 VcInOvf      <= (others => '0');
                 VcCrOvf      <= (others => '0');
                 VcFrErr      <= (others => '0');
