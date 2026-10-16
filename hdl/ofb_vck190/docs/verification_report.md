@@ -9,7 +9,11 @@ with `SyncTmr_g` = true; all checks pass, simulation done at 102.2 us) and on 20
 VCs (the echo connects the received packets to the send ports with `TKEEP`, `TLAST` and the EEP flag; the far end
 sends packets of whole words with `TLAST`; all checks pass, simulation done at 102.2 us), again on 2026-10-14 after
 the change of the continuous mode of the output VC buffers (pass, same results) and with the detection of the
-model power-up error in the runner (pass at the first attempt, same results).
+model power-up error in the runner (pass at the first attempt, same results). Rerun on 2026-10-16 with the
+transmitter ready input of the core: the core is reset by the power-on reset alone and holds the link until
+`Stat_TxReady` of the adapter is 1 (`Phy_TxReady`). Transceivers ready after 64.9 us, link initialised after 94.8 us,
+6 packets on each of the 8 VCs and 4 broadcast messages back, no error and no retry at the far end, LEDs 0 to 3 on
+(pass, simulation done at 98.9 us).
 
 | Test | Result |
 | --- | --- |
