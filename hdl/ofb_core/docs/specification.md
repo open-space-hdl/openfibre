@@ -55,3 +55,4 @@ The core supports 1 to 4 lanes (`NumLanes_g`). The VC ports carry packets of 4 x
 | `VcOutDepth_g`, `VcInDepth_g` | 128, 256 | VC buffers: output in beats, input in words (multiple of 64 x `NumLanes_g`) |
 | `ErbRows_g` | 512 | Error recovery buffer, data rows of `NumLanes_g` words |
 | `InitPrbsWords_g` | 64 | PRBS words after INIT1 / INIT2 |
+| `LaneStart_g`, `AutoStart_g` | false, true | Reset values of LaneStart and AutoStart of every lane (MIB, MG-CF-03) |

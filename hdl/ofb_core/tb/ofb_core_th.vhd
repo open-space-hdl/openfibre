@@ -45,7 +45,9 @@ entity ofb_core_th is
         VcOutDepth_g    : positive               := 128;
         VcInDepth_g     : natural                := 0;    -- 0: 256 x NumLanes_g words
         ErbRows_g       : positive               := 512;
-        InitPrbsWords_g : natural range 0 to 64  := 64
+        InitPrbsWords_g : natural range 0 to 64  := 64;
+        LaneStartA_g    : boolean                := false; -- LaneStart_g of core A (B: false)
+        AutoStart_g     : boolean                := true   -- AutoStart_g of both cores
     );
     port (
         MgmtClk : out   std_logic;
@@ -245,7 +247,9 @@ begin
                 VcOutDepth_g    => VcOutDepth_g,
                 VcInDepth_g     => VcInDepth_c,
                 ErbRows_g       => ErbRows_g,
-                InitPrbsWords_g => InitPrbsWords_g
+                InitPrbsWords_g => InitPrbsWords_g,
+                LaneStart_g     => LaneStartA_g and i = 0,
+                AutoStart_g     => AutoStart_g
             )
             port map (
                 Rst                    => RstI or CoreRstReq(i),

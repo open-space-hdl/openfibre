@@ -36,6 +36,10 @@ RANGE_CONFIGS = (
     ("eqclk", {"NumLanes_g": 1, "CoreHalfPs_g": 3200},
      ("test_tx_ready_late", "test_tx_ready_never", "test_tx_ready_lost", "test_tx_ready_clock_stop",
       "test_tx_ready_pulse", "test_tx_ready_start")),
+    # Reset values of LaneStart and AutoStart (TC-CORE-28): LaneStart_g at A with one and four lanes, no AutoStart
+    ("lanestart1", {"NumLanes_g": 1, "LaneStartA_g": True}, ("test_start_generics",)),
+    ("lanestart4", {"NumLanes_g": 4, "LaneStartA_g": True}, ("test_start_generics",)),
+    ("noauto", {"NumLanes_g": 1, "AutoStart_g": False}, ("test_start_generics",)),
 )
 
 

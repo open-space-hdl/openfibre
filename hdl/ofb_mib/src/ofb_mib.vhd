@@ -31,9 +31,12 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_mib is
     generic (
-        NumVc_g    : positive range 1 to 32 := 8;
-        NumLanes_g : positive range 1 to 4  := 1;
-        NumPrio_g  : positive range 2 to 16 := 4
+        NumVc_g     : positive range 1 to 32 := 8;
+        NumLanes_g  : positive range 1 to 4  := 1;
+        NumPrio_g   : positive range 2 to 16 := 4;
+        -- Reset values of LaneStart and AutoStart of every lane (LANE_CTRL bits 0 and 1)
+        LaneStart_g : boolean                := false;
+        AutoStart_g : boolean                := true
     );
     port (
         -- Management clock domain
@@ -537,8 +540,13 @@ begin
                 MlBypass <= '0';
 
                 for i in 0 to NumLanes_g-1 loop
-                    -- AutoStart, TxEn, RxEn
-                    LaneCtrl(i)(1)  <= '1';
+                    -- LaneStart and AutoStart from the generics (MG-CF-03), TxEn, RxEn
+                    if LaneStart_g then
+                        LaneCtrl(i)(0) <= '1';
+                    end if;
+                    if AutoStart_g then
+                        LaneCtrl(i)(1) <= '1';
+                    end if;
                     LaneCtrl(i)(13) <= '1';
                     LaneCtrl(i)(14) <= '1';
                 end loop;

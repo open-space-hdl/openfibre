@@ -32,22 +32,23 @@ Closure rules:
 
 ## 2. Result
 
-Run on 2026-10-15 with Open Logic 4.7.0-ft.6 and the configurations of the generic ranges: 287 tests, all passed,
-with coverage and without coverage. 284 tests ran in the full regression (about two hours with coverage); the three
-tests of the configuration `vc32` (TC-CORE-01, TC-CORE-02 and TC-CORE-04 with 32 VCs and two lanes, commit 0bab3a2)
-ran in both modes on their own, and their coverage is merged into that of the full regression (`vcover merge`). The
-HDL and the testbenches of the other 284 tests are the same in both states. The merged coverage equals that of the
-earlier run of 232 tests. Numbers are covered/total bins per file; bold marks a metric with misses.
+Run on 2026-10-16 on the main branch with the transmitter ready input, the entry pulses of the link reset crossing,
+the row acceptance of the Multi-Lane layer and the generics `LaneStart_g` and `AutoStart_g` (commit f877460): 332
+tests, all passed with coverage and without coverage (about two and a half hours with coverage). TC-CORE-29 was added
+afterwards (commit 24569e6; `git diff --stat f877460 24569e6`: two files, `ofb_core_tb.vhd` and the verification plan
+of the core, 36 lines added); the other test cases are separate VUnit runs whose behaviour does not change. TC-CORE-29
+ran in both modes on its own (configurations `lanes1` to `lanes4`), and its coverage is merged into that of the full
+regression (`vcover merge`). Numbers are covered/total bins per file; bold marks a metric with misses.
 
 | File | Statements | Branches | FSM States | FSM Transitions | Conditions | Expressions |
 | --- | --- | --- | --- | --- | --- | --- |
-| `ofb_core/src/ofb_core.vhd` | 1/1 |  |  |  |  |  |
-| `ofb_core/src/ofb_core_cc.vhd` | 38/38 | 4/4 |  |  |  | **14/24** |
+| `ofb_core/src/ofb_core.vhd` | 3/3 |  |  |  |  |  |
+| `ofb_core/src/ofb_core_cc.vhd` | 44/44 | 7/7 |  |  |  | **18/28** |
 | `ofb_dl/src/ofb_dl.vhd` | 51/51 | 19/19 |  |  | **6/7** | **15/19** |
 | `ofb_dl/src/ofb_dl_bc_in.vhd` | 12/12 |  |  |  |  | **9/11** |
 | `ofb_dl/src/ofb_dl_bc_out.vhd` | 23/23 | 18/18 |  |  | **8/9** | **4/6** |
 | `ofb_dl/src/ofb_dl_erb.vhd` | 151/151 | 67/67 | 3/3 | 4/4 | **35/37** | **23/41** |
-| `ofb_dl/src/ofb_dl_link_reset.vhd` | 20/20 | 29/29 | 4/4 | 8/8 | **8/10** | 2/2 |
+| `ofb_dl/src/ofb_dl_link_reset.vhd` | 20/20 | 30/30 | 4/4 | 8/8 | **10/12** | 2/2 |
 | `ofb_dl/src/ofb_dl_mac.vhd` | 60/60 | 34/34 |  |  | **13/16** | 2/2 |
 | `ofb_dl/src/ofb_dl_pkg.vhd` | **40/41** | 21/21 |  |  | **8/9** |  |
 | `ofb_dl/src/ofb_dl_qos_regs.vhd` | 19/19 | 15/15 |  |  | **3/4** |  |
@@ -59,25 +60,25 @@ earlier run of 232 tests. Numbers are covered/total bins per file; bold marks a 
 | `ofb_dl/src/ofb_dl_vc_in.vhd` | **170/171** | **63/64** |  |  | **6/11** | **47/50** |
 | `ofb_dl/src/ofb_dl_vc_out.vhd` | 112/112 | **64/65** |  |  | **35/37** | **21/25** |
 | `ofb_lane/src/ofb_lane.vhd` | 9/9 |  |  |  |  | 2/2 |
-| `ofb_lane/src/ofb_lane_init.vhd` | 179/179 | 124/124 | 10/10 | 20/20 | **52/60** | 10/10 |
+| `ofb_lane/src/ofb_lane_init.vhd` | 179/179 | 124/124 | 10/10 | 20/20 | **53/60** | 10/10 |
 | `ofb_lane/src/ofb_lane_loopback.vhd` | 17/17 | 6/6 |  |  |  |  |
-| `ofb_lane/src/ofb_lane_rx.vhd` | 186/186 | 73/73 |  |  | **16/18** | 6/6 |
+| `ofb_lane/src/ofb_lane_rx.vhd` | 186/186 | 73/73 |  |  | 18/18 | 6/6 |
 | `ofb_lane/src/ofb_lane_tx.vhd` | 56/56 | 24/24 |  |  | 2/2 |  |
-| `ofb_mib/src/ofb_mib.vhd` | 288/288 | 145/145 |  |  | **28/32** | **7/12** |
+| `ofb_mib/src/ofb_mib.vhd` | 295/295 | 151/151 |  |  | **28/32** | **10/16** |
 | `ofb_multilane/src/ofb_ml_align.vhd` | 181/181 | **111/112** | 3/3 | 6/6 | **39/42** | 2/2 |
 | `ofb_multilane/src/ofb_ml_col_dec.vhd` | 45/45 | 19/19 |  |  | 3/3 |  |
 | `ofb_multilane/src/ofb_ml_col_enc.vhd` | 60/60 | 23/23 |  |  | 4/4 | **6/7** |
 | `ofb_multilane/src/ofb_ml_lane_mgr.vhd` | 110/110 | 56/56 |  |  | **24/30** | **2/3** |
 | `ofb_multilane/src/ofb_ml_pkg.vhd` | 43/43 | **32/33** |  |  | 8/8 |  |
 | `ofb_multilane/src/ofb_ml_rx.vhd` | 79/79 | **39/41** | 5/5 | 16/16 | 5/5 |  |
-| `ofb_multilane/src/ofb_ml_tx.vhd` | 102/102 | 48/48 |  |  | 17/17 | 5/5 |
-| `ofb_multilane/src/ofb_multilane.vhd` | 36/36 | 10/10 |  |  | 2/2 | 3/3 |
+| `ofb_multilane/src/ofb_ml_tx.vhd` | 102/102 | 48/48 |  |  | 19/19 | 5/5 |
+| `ofb_multilane/src/ofb_multilane.vhd` | 36/36 | 10/10 |  |  | 2/2 | 7/7 |
 | `ofb_ni/src/ofb_ni.vhd` | 12/12 |  |  |  |  |  |
 | `ofb_ni/src/ofb_ni_vc_rx.vhd` | 176/176 | 66/66 |  |  | **21/22** | 13/13 |
 | `ofb_ni/src/ofb_ni_vc_tx.vhd` | 59/59 | 31/31 |  |  | 11/11 | **5/6** |
 | `ofb_pkg/src/ofb_cc_pulse.vhd` | 19/19 | 8/8 |  |  |  |  |
 | `ofb_pkg/src/ofb_pkg.vhd` | 55/55 | 10/10 |  |  | **1/2** |  |
-| Total | 2807/2809 (99.9 %) | 1355/1362 (99.5 %) | 29/29 (100.0 %) | 62/62 (100.0 %) | 419/465 (90.1 %) | 229/280 (81.8 %) |
+| Total | 2822/2824 (99.9 %) | 1365/1372 (99.5 %) | 29/29 (100.0 %) | 62/62 (100.0 %) | 426/469 (90.8 %) | 240/292 (82.2 %) |
 
 ## 3. Gaps found and closed
 
@@ -99,6 +100,8 @@ gaps; all of them passed without a change of the design.
 | MIB: saturation of the event counters (MG-ST-02) | TC-MG-09 |
 | Multi-Lane receiver: packing after frame structure errors (five transitions of the frame state) | TC-ML-47 |
 | Lane alignment: incorrect ALIGN on an active lane that is not data-receiving | TC-ML-42 (extended) |
+| Link reset state machine: transmitters not ready while the link waits in Check Far-End Reset (condition of `ofb_dl_link_reset.vhd` line 86) | TC-CORE-29 (mutation checked: without the condition the test fails) |
+| MIB: TX_LOST cleared while the transmitters stay not ready, not set again (expression of `ofb_mib.vhd` line 365) | TC-CORE-29 |
 
 After the register stages of the input VC buffers and the latch-free pulse crossing, two branches that earlier tests
 had reached only by their timing were no longer covered. Deterministic tests replace the coincidence:
@@ -133,6 +136,10 @@ defensive, constant by construction or not executed as a separate statement by t
 | `ofb_multilane/src/ofb_ml_pkg.vhd:111` | Branch: K28.7 followed by a K character other than K27.7 | Such words are lane control words, which the Lane layer filters (LN-RX-04, TC-LN-44); they do not reach the Multi-Lane layer. |
 | `ofb_multilane/src/ofb_ml_rx.vhd:112` | Branch: output queue full | Defensive, guarded by an assertion of severity error that the regression never raised. |
 | `ofb_multilane/src/ofb_ml_rx.vhd:195` | Branch: shift of the waiting words beyond the accumulator | Constant: `i < NumLanes_g` and `AccSize_c = 2 x NumLanes_g`, so the condition is always true; the guard keeps the index in range for elaboration. |
+
+The condition and expression metrics are reported, not closed. One term of the TX_LOST expression of `ofb_mib.vhd`
+(line 365) cannot be reached: `TxSeen` = 0 while `TxLast` = 1. Both registers take `Phy_TxReady` at the same edge
+(`TxSeen` keeps a 1), and only the reset clears them, so `TxLast` = 1 implies `TxSeen` = 1.
 
 ## 5. Reproduction
 

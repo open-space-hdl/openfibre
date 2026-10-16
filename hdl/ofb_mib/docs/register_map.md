@@ -342,8 +342,8 @@ Address 0x100 + 0x20 i: Lane control.
 | 4 | FAR_LOOPBACK | RW | 0 | Far-end parallel loopback |
 | 3 | NEAR_LOOPBACK | RW | 0 | Near-end parallel loopback |
 | 2 | LANE_RESET | RW | 0 | LaneReset |
-| 1 | AUTO_START | RW | 1 | AutoStart |
-| 0 | LANE_START | RW | 0 | LaneStart |
+| 1 | AUTO_START | RW | 1 | AutoStart (reset value: generic AutoStart_g, default 1) |
+| 0 | LANE_START | RW | 0 | LaneStart (reset value: generic LaneStart_g, default 0) |
 
 ### LANE_STATUS
 

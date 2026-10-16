@@ -28,6 +28,7 @@ CONFIGS = [("ofb_core", {"NumLanes_g": lanes, "VcInDepth_g": 256 * lanes}) for l
     ("ofb_core", {"NumLanes_g": 1, "VcOutDepth_g": 64, "VcInDepth_g": 64, "ErbRows_g": 64}),
     ("ofb_core", {"NumLanes_g": 4, "VcOutDepth_g": 16, "VcInDepth_g": 512, "ErbRows_g": 64}),
     ("ofb_core", {"NumLanes_g": 1, "InitPrbsWords_g": 0}),
+    ("ofb_core", {"NumLanes_g": 2, "LaneStart_g": "true", "AutoStart_g": "false"}),
 ]
 # Values outside the generic ranges and the message of the check that rejects them
 REJECTED = [

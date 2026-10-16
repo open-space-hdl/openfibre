@@ -232,8 +232,8 @@ arrays:
         offset: 0x00
         description: Lane control
         fields:
-          - {name: LANE_START, bits: "0", access: RW, reset: 0, description: LaneStart}
-          - {name: AUTO_START, bits: "1", access: RW, reset: 1, description: AutoStart}
+          - {name: LANE_START, bits: "0", access: RW, reset: 0, description: "LaneStart (reset value: generic LaneStart_g, default 0)"}
+          - {name: AUTO_START, bits: "1", access: RW, reset: 1, description: "AutoStart (reset value: generic AutoStart_g, default 1)"}
           - {name: LANE_RESET, bits: "2", access: RW, reset: 0, description: LaneReset}
           - {name: NEAR_LOOPBACK, bits: "3", access: RW, reset: 0, description: Near-end parallel loopback}
           - {name: FAR_LOOPBACK, bits: "4", access: RW, reset: 0, description: Far-end parallel loopback}

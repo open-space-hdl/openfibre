@@ -51,7 +51,8 @@ buffer covers 112 of 112 statements and 64 of 65 branches (the defensive credit 
 [docs/coverage.md](../../../docs/coverage.md)).
 
 Transmitter ready (DL-LR-06, 2026-10-15): the hold in Near-End Reset is verified with the clock crossings in the core
-testbench (TC-CORE-21 to TC-CORE-26, 1 to 4 lanes); the Data Link testbenches run with `Phy_TxReady` = 1, the default
+testbench (TC-CORE-21 to TC-CORE-26 and TC-CORE-29, 1 to 4 lanes); the Data Link testbenches run with `Phy_TxReady` =
+1, the default
 of the port, and pass unchanged (full regression 322 of 322 in GHDL).
 
 Phase 3 (quality of service, continuous mode): the MAC unit tests and TC-DL-21 / TC-DL-22 passed on the first run;
