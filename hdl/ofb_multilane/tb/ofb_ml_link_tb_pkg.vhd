@@ -74,6 +74,7 @@ package ofb_ml_link_tb_pkg is
         FarEndActive  : std_logic_vector(MaxLanes_c-1 downto 0);
         NearCap0      : Char_t;                                  -- Near-end capability of lane 0
         FarCapability : Char_t;                                  -- Dl_FarCapability
+        RowsTaken     : natural;                                 -- Transmit rows taken by the Multi-Lane layer
         -- Rows passed to the Data Link layer
         Frames        : natural;                                 -- Complete data frames
         CtrlWords     : natural;                                 -- Control words and broadcast words compared

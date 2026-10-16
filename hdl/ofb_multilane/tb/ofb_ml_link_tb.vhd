@@ -508,6 +508,27 @@ begin
                 traffic(20, "Traffic with the bypass of the far end");
                 checkClean("Bypass of the far end");
 
+            -- TC-ML-49: in bypass no row is taken while lane 0 is not Active; a link reset in that time discards
+            -- none of the rows offered, all of them are received at the far end after the start
+            elsif run("test_bypass_not_active") then
+                LinkCfg(0).Bypass    <= '1';
+                LinkCfg(1).Bypass    <= '1';
+                cycles(10);
+                txTraffic(0, N_c, 5, 50);
+                cycles(500);
+                check_value(LinkStat(0).RowsTaken, 0, error, "No row taken before lane 0 is active");
+                LinkCfg(0).LinkReset <= '1';
+                cycles(1);
+                LinkCfg(0).LinkReset <= '0';
+                cycles(500);
+                check_value(LinkStat(0).RowsTaken, 0, error, "No row taken after the link reset");
+                LinkCfg(0).LaneStart <= AllLanes_c;
+                LinkCfg(1).LaneStart <= AllLanes_c;
+                waitAlign(AlignBothEndsReady_c, "Bypass active");
+                waitTraffic("Rows offered before the start");
+                checkClean("Rows offered before the start");
+                check_value(LinkStat(0).RowsTaken > 0, error, "Rows taken after the start");
+
             -- TC-ML-37: RXERR rows
             elsif run("test_rxerr_rows") then
                 startLink;

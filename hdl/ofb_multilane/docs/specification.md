@@ -58,6 +58,7 @@ Data Link clock domain is outside this module (core top level).
 | ML-BP-01 | With one lane, every row (one word) shall be passed to the lane through the column encoder. | 5.6.3, 5.6.4.1c |
 | ML-BP-02 | With one lane, every word received from the lane shall be passed to the Data Link layer through the column decoder, except the Multi-Lane control words PAD, ACTIVE and ALIGN, which shall be discarded. | 5.6.3, 5.6.1d |
 | ML-BP-03 | On link reset, a transmit word held in the Multi-Lane layer shall be discarded. | 5.7.10b.1 |
+| ML-BP-04 | No transmit row shall be taken from the Data Link layer while lane 0 is not Active (alignment state Not Ready, ML-LM-06), also in the bypass of a layer with several lanes (ML-LM-07). A link reset that reaches the Multi-Lane layer after the Data Link layer has left Near-End Reset then finds no row of the new link: every link reset also resets the lanes, and a lane becomes Active only after its initialisation. | 5.6.3, 5.7.10b.1 |
 
 ### 2.4 Column encoder (ML-3)
 

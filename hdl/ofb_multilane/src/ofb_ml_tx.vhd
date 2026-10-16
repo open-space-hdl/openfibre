@@ -260,7 +260,9 @@ begin
 
         -- Take a row from the Data Link layer (registers only, ML-IF-01)
         -- A replicated word sent in this cycle makes room for the next row (no IDLE row in between)
-        if not NotRdy_v and (r.RepValid = '0' or RepFree_v) and r.Cnt <= NumLanes_g then
+        -- Bypass: only while lane 0 is Active (ML-BP-04)
+        if not NotRdy_v and (Bypass = '0' or ActLanes(0) = '1') and (r.RepValid = '0' or RepFree_v) and
+           r.Cnt <= NumLanes_g then
             Ready_v := '1';
         end if;
         if Ready_v = '1' and TxRow_Valid = '1' then

@@ -58,6 +58,7 @@ package ofb_multilane_tb_pkg is
         DataReceiving : std_logic;
         AlignState    : AlignState_t;
         ActiveCnt     : natural;                      -- entries into the Active state of the lane
+        RowsTaken     : natural;                      -- transmit rows taken by the Multi-Lane layer
     end record;
 
     type MlCfgArray_t is array (0 to 1) of MlCfg_t;

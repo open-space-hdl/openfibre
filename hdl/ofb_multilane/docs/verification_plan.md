@@ -48,7 +48,7 @@ Lane clock 156.25 MHz. Simulator: GHDL.
 | `test_scramble_capability` (TC-ML-21) | A scrambles, B does not: both directions correct; a change of DataScrambled in Active takes effect only after a LaneReset | ML-LM-05 |
 | `test_lane_control` (TC-ML-22) | TxOnly, RxOnly and FarEndActive de-asserted; LaneReset from the Data Link layer restarts the lane; lane active, data-sending / receiving lanes and alignment state follow the lane; far-end capability event and value with the MultiLane bit cleared | ML-IF-04 to 06, ML-LM-01 to 04, ML-LM-06 |
 | `test_ml_ctrl_discard` (TC-ML-23) | PAD, ACTIVE and ALIGN sent from A are not passed up at B; the words around them are | ML-BP-02 |
-| `test_link_reset_flush` (TC-ML-24) | A row held while the lane is not Active is discarded by link reset and not received at the far end | ML-BP-03 |
+| `test_link_reset_flush` (TC-ML-24) | Rows offered at A before the lanes start: no row taken (the harness counts the transmit row handshakes), also after a link reset in that time; after the start all rows are received at B in order | ML-BP-04 |
 | `test_capability_hold` (TC-ML-25) | The near-end capability changed while the lane is in Connected: the far end receives the value held in Connected, the new value in the next initialisation | ML-LM-03 |
 
 ### 3.3 Multi-lane link (`ofb_ml_link_tb`, `NumLanes_g` = 2 and 4)
@@ -64,6 +64,7 @@ Lane clock 156.25 MHz. Simulator: GHDL.
 | `test_bypass` (TC-ML-36) | Bypass set at both ends: one lane, no ACTIVE and ALIGN, the other lanes held in LaneReset, Multi-LaneCapable bit clear; bypass at B only: A selects the bypass from the capability of lane 0; traffic correct in both cases | ML-LM-07, ML-LM-08, ML-IF-07 |
 | `test_rxerr_rows` (TC-ML-37) | Bit error on one lane in Both-Ends Ready: one RXERR passed, no Misaligned condition; bit error within 4 us of entering Near-End Ready: Misaligned condition | ML-CO-03, ML-AL-09 |
 | `test_link_reset` (TC-ML-38) | Link reset at A during traffic: words in the distributor discarded, alignment FIFOs flushed, new alignment, traffic correct afterwards | ML-DS-11, ML-AL-07 |
+| `test_bypass_not_active` (TC-ML-49) | Bypass at both ends, rows offered at A before the lanes start: no row taken while lane 0 is not Active (the harness counts the transmit row handshakes), also after a link reset in that time; after the start all rows are received at B | ML-BP-04 |
 
 ### 3.4 Lane alignment and concentration (`ofb_ml_align_tb`)
 

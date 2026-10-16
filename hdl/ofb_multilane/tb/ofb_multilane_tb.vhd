@@ -312,22 +312,22 @@ begin
                 awaitSent;
                 checkRx(1, SA_v, "Multi-Lane control words discarded");
 
-            -- TC-ML-24: link reset discards a row held while the lane is not active
+            -- TC-ML-24: no row is taken while the lane is not Active; a link reset in that time discards none
+            -- of the rows offered, all of them are received at the far end after the start
             elsif run("test_link_reset_flush") then
-                streamClear(SA_v, false);
-                addSdf(SA_v, 9);
-                sendStream(0, SA_v);
-                await_completion(AXISTREAM_VVCT, VvcA_c, 1 us, "SDF taken by the Multi-Lane layer");
-                cycles(2);
-                MlCfg(0).LinkReset <= '1';
-                cycles(1);
-                MlCfg(0).LinkReset <= '0';
-                startLink;
                 streamClear(SA_v, false);
                 addRandomStream(SA_v, 300, false, false);
                 sendStream(0, SA_v);
+                cycles(200);
+                check_value(MlStat(0).RowsTaken, 0, error, "No row taken before the lane is active");
+                MlCfg(0).LinkReset <= '1';
+                cycles(1);
+                MlCfg(0).LinkReset <= '0';
+                cycles(200);
+                check_value(MlStat(0).RowsTaken, 0, error, "No row taken after the link reset");
+                startLink;
                 awaitSent;
-                checkRx(1, SA_v, "Only the rows sent after the link reset");
+                checkRx(1, SA_v, "All rows offered before the start");
 
             end if;
 

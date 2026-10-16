@@ -380,6 +380,7 @@ begin
                                FarEndActive => (others => '0'),
                                NearCap0 => x"00",
                                FarCapability => x"00",
+                               RowsTaken => 0,
                                Frames => 0,
                                CtrlWords => 0,
                                RxErrs => 0,
@@ -495,6 +496,9 @@ begin
                 end if;
                 if Misaligned(e) = '1' then
                     Stat_v.Misaligned := Stat_v.Misaligned + 1;
+                end if;
+                if TxRowValid(e) = '1' and TxRowReady(e) = '1' then
+                    Stat_v.RowsTaken := Stat_v.RowsTaken + 1;
                 end if;
 
                 -- Status
