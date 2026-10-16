@@ -16,17 +16,21 @@ simulator are not affected.
 Run on 2026-10-15 with the configurations of the generic ranges: the full regression `python run.py`, 287 of 287
 tests pass in GHDL and in QuestaSim, with and without coverage (287 of 287 each; the three tests of `vc32` with 32
 VCs and two lanes in a separate run, commit 0bab3a2, see `docs/coverage.md`). Run on 2026-10-15 with the
-transmitter ready input `Phy_TxReady` (TC-CORE-21 to TC-CORE-24, asynchronous input with one reset generator per
-clock domain): 305 of 305 tests pass in GHDL.
+transmitter ready input `Phy_TxReady` (TC-CORE-21 to TC-CORE-25, asynchronous input with one reset generator per
+clock domain): 309 of 309 tests pass in GHDL (2026-10-16). Run on 2026-10-16 with one pulse per entry into the
+link reset at the crossing (CORE-PL-06) and the row acceptance of the Multi-Lane layer (ML-BP-04), TC-CORE-26,
+TC-CORE-27 and the configuration `eqclk`: 322 of 322 tests pass in GHDL.
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_core_tb` (configurations `lanes1` to `lanes4`) | 24 x 4 | 96 |
+| `ofb_core_tb` (configurations `lanes1` to `lanes4`) | 26 x 4 | 104 |
 | `ofb_core_tb`, configuration `lanes1_slowcore` (TC-CORE-15 only) | 1 | 1 |
 | `ofb_core_tb`, configurations `vc1` and `vc32` (TC-CORE-01, 02, 04) | 3 x 2 | 6 |
 | `ofb_core_tb`, configuration `halfrate` (TC-CORE-01, 04, 21, 23) | 4 | 4 |
 | `ofb_core_tb`, configuration `minbuf` (TC-CORE-01 to 04) | 4 | 4 |
 | `ofb_core_tb`, configuration `noprbs` (TC-CORE-01, 02) | 2 | 2 |
+| `ofb_core_tb`, configuration `eqclk` (TC-CORE-21 to 26) | 6 | 6 |
+| `ofb_core_cc_tb` (configurations `core_fast`, `equal`, `lane_half`) | 1 x 3 | 3 |
 
 Generic ranges (verification plan, section "Generic ranges"): every value of a generic that changes the structure
 is simulated, the boundaries of the numeric ranges are simulated or synthesised with GHDL (`lint/synth_check.py`),
@@ -59,11 +63,36 @@ stand still the MIB of A reads TX_READY 0 and TX_LOST 1, 200 ns after LaneClk ru
 the link comes up again with the lanes released 1 us before the Data Link layer (round 0) and with the Data Link
 layer released 1 us before the lanes (round 1); after each round DL_ERRORS of A holds only TX_LOST. TC-CORE-21 and
 TC-CORE-23 also pass with LaneClk at 78.125 MHz (`halfrate`), where the Data Link layer is released first.
+TC-CORE-25: with LaneClk and CoreClk of A standing still from the reset on, `Phy_TxReady` of A 1 from 10 us to
+38 us (a transceiver that still reports the reset done of an earlier start), the clocks of A running from 64 us
+and the transmitters ready from 65 us, the link comes up and the traffic is delivered; A holds only TX_LOST, B no
+error flag (1 to 4 lanes). TC-CORE-26: both cores start with their lane and core clocks standing still until 64.1 us
+and their transmitters ready from 64.885 us while the MIB runs from the reset on (the timeline of the transceiver
+model): the link comes up, the traffic is delivered, and neither core reports an error flag or a retry (1 to 4
+lanes).
+
+First rows of a link (CORE-PL-06, ML-BP-04). With one lane and CoreClk at the frequency of LaneClk (`eqclk`, as in
+the reference design, where both are the transmit clock of the transceiver), TC-CORE-21 and TC-CORE-26 failed before
+the change with a sequence error (DL_ERRORS bit 3) and a retry: the link reset level held by the Data Link layer while
+the transmitters were not ready crossed as a train of pulses, the last pulse reached the Multi-Lane layer a few
+cycles after the Data Link layer had left Near-End Reset and discarded its first two rows, which the single-lane
+bypass had already taken into the column encoder. TC-CORE-21 to TC-CORE-26 pass in `eqclk` with the change.
+TC-CORE-27 checks the crossing at the ports of `ofb_core_cc` with CoreClk faster than, equal to and twice LaneClk:
+no pulse at the release of the resets, one link reset and one LaneReset pulse per entry for levels of 1, 2 and 200
+cycles (one while the long level is still held), none after the release, two for two entries within one transfer,
+the hold of the lanes as a level and no pulse after it. At the ports of the core a pulse after the release of a hold
+has no effect that a test could observe: a LaneReset that reaches a lane in ClearLine does not restart its 2 us
+(`ofb_lane_init`, ECSS 5.5.2.4), and a link reset finds no row in the Multi-Lane layer while the lanes are not
+Active (ML-BP-04). TC-CORE-27 is therefore the test of CORE-PL-06.
 
 Mutation checks (one lane): with the Data Link layer ignoring `Phy_TxReady`, TC-CORE-21 to TC-CORE-24 fail (A not
 in Near-End Reset; in TC-CORE-24 a sequence error at A, DL_ERRORS 0x1008); without the hold of the lanes,
 TC-CORE-21 to TC-CORE-24 fail (lanes of A on during the hold); with the MIB taking `Phy_TxReady` from a register
-of LaneClk, TC-CORE-24 fails (TX_READY 1 while the clocks stand still).
+of LaneClk, TC-CORE-24 fails (TX_READY 1 while the clocks stand still). First rows of a link: without both changes,
+TC-CORE-21 and TC-CORE-26 fail in `eqclk` (DL_ERRORS 0x8 at one or both cores) together with TC-ML-24 and TC-ML-49;
+with the entry pulse alone the core tests pass and TC-ML-24 and TC-ML-49 fail; with the row acceptance alone all
+core tests pass and TC-CORE-27 fails with 14 to 16 pulses while the level is held after the release of the
+resets.
 
 Throughput and latency (TC-CORE-16, lane capacity 5 Gbit/s per lane: 32 bits per 6.4 ns; core clock 166.7 MHz, user
 clock 192.3 MHz; packets of 1 to 1024 bytes on four VCs):
@@ -136,6 +165,7 @@ Defects found during verification:
 
 | Finding | Fix |
 | --- | --- |
+| Simulation of two cores with the AMD transceiver model, one lane (2026-10-16): after the start both ends reported a sequence error (DL_ERRORS bit 3), all traffic was delivered. The Data Link layer held its link reset as a level while the transmitters were not ready, and the pulse crossing repeated it; the last pulse reached the Multi-Lane layer a few cycles after the Data Link layer had left Near-End Reset and discarded the first two rows (an idle frame word and the first FCT), which the single-lane bypass had taken into the column encoder although the lane was not Active. The far end received the second FCT first and requested a retransmission. Reproduced in GHDL with CoreClk at the frequency of LaneClk (TC-CORE-21, TC-CORE-26) | The crossing receives only the entry into the link reset, the lanes get the level from their hold (CORE-PL-06, TC-CORE-27); the Multi-Lane layer takes rows only while lane 0 is Active in the bypass (ML-BP-04, TC-ML-24, TC-ML-49); configuration `eqclk` |
 | Generic ranges (2026-10-15): with more than one lane and an input VC buffer of one flow control unit (`VcInDepth_g` = 64 x `NumLanes_g`, for example the default 256 with four lanes), the traffic of TC-CORE-02 stopped for good. A beat of the input VC buffer is offered when N words are available or one of them ends a packet, so up to N - 1 words of a packet wait for the next words. The FCT counter frees one block per 64 words read and requests an FCT at M free blocks; with M blocks in the buffer, one waiting word keeps the counter at M - 1, no FCT is sent, the far end sends nothing more and the word waits for good. With one lane a beat is one word and nothing waits; with two flow control units the counter reaches M as soon as the credit of the far end is used up. All earlier versions are affected; the hardware builds use 256 x `NumLanes_g` and are not | The elaboration rejects input VC buffers below 128 x `NumLanes_g` words with several lanes (DL-VI-05); the logic is unchanged. Shown with temporary configurations: 2 lanes with 128 words and 4 lanes with 256 words stop, 1 lane with 64 words and two flow control units with 30, 50 and 95 % ready at the receiver pass |
 | Testbench: `CoreClkFreq_g` kept its default of 200 MHz while the harness generated 166.7 MHz, so the scrubbing interval of the error recovery buffer did not match its clock | The harness derives `LaneClkFreq_g` and `CoreClkFreq_g` from the generated periods (CORE-CK-02) |
 | After a Link Reset command the far end did not reset: the lane becomes active a few cycles after the capability event, and the lane active level crossed to the core clock faster than the event, so the link reset state machine saw an active lane | The Multi-Lane layer qualifies the capability event with "no lane active" at the time of the event (`Dl_FarCapabilityIdle`), and both cross in one FIFO word |
