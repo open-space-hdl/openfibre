@@ -645,6 +645,7 @@ begin
         wait for 100 ns;
         PaRstReq(0) <= '0';
         T_v         := now;
+        report "Reset request of the adapter of A from " & time'image(now - 100 ns) & " to " & time'image(now);
 
         loop
             wait for 100 ns;
@@ -782,10 +783,15 @@ begin
 
         PaRst(e) <= Rst or PaRstReq(e);
 
-        -- Last rising edge of the lane clock (the reset controller stops it during a transmitter reset)
+        -- Last rising edge of the lane clock (the reset controller stops it during a transmitter reset); the first edge
+        -- after a stop of more than 1 us is reported
         p_lane_edge : process (LaneClk(e)) is
         begin
             if rising_edge(LaneClk(e)) then
+                if LaneEdge(e) > 0 fs and now - LaneEdge(e) > 1 us then
+                    report "End " & integer'image(e) & ": LaneClk runs again at " & time'image(now) &
+                           " (stopped after " & time'image(LaneEdge(e)) & ")";
+                end if;
                 LaneEdge(e) <= now;
             end if;
         end process;
