@@ -81,7 +81,7 @@ each core runs on the lane clock of its adapter, `Phy_TxReady` comes from `Stat_
 `Stat_Aligned`; the transceivers are reset with the harness reset. Both reference clocks have the same frequency.
 The channel effects of the test cases (bit errors, cut lanes) act on the bit stream through the control record of
 the models. The tests are protocol tests: the clock-data recovery of the models locks 500 ns after a signal appears
-(`CdrLockTime`; the default of the model is the lock time of the transceiver simulation model, 17.1 us).
+(`CdrLockTime`; the default of the model is the lock time of the transceiver simulation model, 16.83 us).
 
 | Test cases | Configuration | Requirements |
 | --- | --- | --- |

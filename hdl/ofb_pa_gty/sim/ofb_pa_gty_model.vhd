@@ -48,6 +48,9 @@ architecture mdl of ofb_pa_gty is
     -- PRBS checker: correct bits in a row for the lock
     constant LockBits_c : positive := 64;
 
+    -- NoSignalSequence: words with code errors at the start of an idle period of the line (transceiver model)
+    constant IdleErrWords_c : positive := 13;
+
     type IntArray_t is array (0 to N_c-1) of natural;
 
     signal RstFree : std_logic                    := '1'; -- Rst stretched to RstPulseCycles_g cycles of FreeRunClk
@@ -58,6 +61,7 @@ architecture mdl of ofb_pa_gty is
     signal TxArmed : std_logic                    := '0'; -- TxDone was 0 since the release of the reset
     signal LaneRsr : std_logic_vector(1 downto 0) := "11"; -- LaneRst: set without a LaneClk edge
     signal RxRdy   : std_logic                    := '0';
+    signal NoSigTo : time                         := time'high; -- NoSignalSequence: Phy_NoSignal 1 until then
     signal Ui      : time                         := 160 ps; -- unit interval: RefClk period / 40
 
     -- Lines: '0' and '1' are the bit value on P, 'Z' is electrical idle (P = N)
@@ -212,15 +216,17 @@ begin
         variable Start_v : time;
         variable Stale_v : time;
     begin
-        ClkRun <= false;
-        TxRdy  <= '0';
-        RxRdy  <= '0';
+        ClkRun  <= false;
+        TxRdy   <= '0';
+        RxRdy   <= '0';
+        NoSigTo <= time'high;
         if RstFree = '1' then
             wait until RstFree = '0';
         end if;
         Ctrl_v  := PaModelCtrl(ModelIdx_g);
         Start_v := maximum(now, Ctrl_v.PowerUpTime);
         Stale_v := minimum(now + Ctrl_v.TxDoneStale, Start_v + Ctrl_v.ClkDelay);
+        NoSigTo <= Start_v + Ctrl_v.NoSignalTime;
         -- Reset done of the previous start, until the master reset of the transceiver starts
         if Stale_v > now then
             TxDone <= '1';
@@ -300,7 +306,7 @@ begin
 
         -- Transmitter: four symbols per LaneClk cycle as 40 bits (symbol 0 first, bit a of a symbol
         -- first), or the PRBS pattern; electrical idle while not ready, disabled or idle by control
-        p_tx : process (LaneClk) is
+        p_tx : process (LaneClk, TxRdy) is
             variable Rd_v     : std_logic                     := '0';
             variable Enc_v    : Encoded_t;
             variable Bits_v   : std_logic_vector(39 downto 0);
@@ -313,9 +319,14 @@ begin
             variable Lane_v   : PaModelLane_t;
             variable Delay_v  : time;
         begin
-            if rising_edge(LaneClk) then
+            if TxRdy = '0' then
+                -- Electrical idle at once when the transmitters are not ready, also when a reset stops LaneClk in the
+                -- same delta cycle (the bits already scheduled are discarded)
+                TxLine(l) <= 'Z';
+                Rd_v      := '0';
+            elsif rising_edge(LaneClk) then
                 Lane_v := PaModelCtrl(ModelIdx_g).Lane(l);
-                if TxRdy = '0' or Phy_TxEnable(l) = '0' or Lane_v.Idle then
+                if Phy_TxEnable(l) = '0' or Lane_v.Idle then
                     TxLine(l) <= 'Z';
                     Rd_v      := '0';
                 else
@@ -590,6 +601,7 @@ begin
             variable Lost_v   : natural := 0;
             variable IsSkip_v : boolean;
             variable Ctrl_v   : PaModelCtrl_t;
+            variable Idle_v   : natural := 0; -- words with code errors delivered in the current idle period
         begin
             if RstFree = '1' then
                 Run_v                           := false;
@@ -641,6 +653,25 @@ begin
                         PhyRx_Valid(l)                  <= '1';
                     end if;
                 end if;
+                -- NoSignalSequence: while the line has been idle for NoSignalDelay, the receiver delivers words as the
+                -- receiver of the transceiver model: IdleErrWords_c words with code errors, then words without errors
+                -- that are not lane words. The Lane layer loses the word synchronisation, counts every word as RXERR
+                -- and detects the loss when its counter overflows
+                if Ctrl_v.NoSignalMode = NoSignalSequence and RxRdy = '1' and Phy_RxEnable(l) = '1' and
+                   Phy_CdrEnable(l) = '1' and RxLine(l) = 'Z' and RxLine(l)'last_event >= Ctrl_v.NoSignalDelay then
+                    PhyRx_Data(32*l+31 downto 32*l) <= (others => '0');
+                    PhyRx_K(4*l+3 downto 4*l)       <= "0000";
+                    if Idle_v < IdleErrWords_c then
+                        PhyRx_CodeErr(4*l+3 downto 4*l) <= "1111";
+                        Idle_v                          := Idle_v + 1;
+                    else
+                        PhyRx_CodeErr(4*l+3 downto 4*l) <= "0000";
+                    end if;
+                    PhyRx_DispErr(4*l+3 downto 4*l) <= "0000";
+                    PhyRx_Valid(l)                  <= '1';
+                else
+                    Idle_v := 0;
+                end if;
                 if RxOverrun(l) /= Lost_v then
                     Stat_RxBufErr(l) <= '1';
                 end if;
@@ -654,8 +685,15 @@ begin
                 end if;
                 Phy_PrbsLocked(l) <= PrbsLock(l);
                 Stat_Aligned(l)   <= Aligned(l);
-                -- No signal: the line has been idle for NoSignalDelay
-                if RxLine(l) = 'Z' and RxLine(l)'last_event >= Ctrl_v.NoSignalDelay then
+                -- No signal: until NoSignalTime after the start of the reset sequence (NoSignalSequence, the
+                -- line is ignored), or while the line has been idle for NoSignalDelay (NoSignalLine)
+                if Ctrl_v.NoSignalMode = NoSignalSequence then
+                    if now < NoSigTo then
+                        Phy_NoSignal(l) <= '1';
+                    else
+                        Phy_NoSignal(l) <= '0';
+                    end if;
+                elsif RxLine(l) = 'Z' and RxLine(l)'last_event >= Ctrl_v.NoSignalDelay then
                     Phy_NoSignal(l) <= '1';
                 else
                     Phy_NoSignal(l) <= '0';

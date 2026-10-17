@@ -40,17 +40,33 @@ package ofb_pa_model_pkg is
 
     type PaModelLaneArray_t is array (0 to PaModelLanes_c-1) of PaModelLane_t;
 
+    -- Behaviour of Phy_NoSignal: NoSignalSequence as the receive electrical idle of the transceiver model in the AMD
+    -- simulator (1 from the start of the reset sequence, 0 from NoSignalTime after it, whatever the line carries);
+    -- NoSignalLine follows the line (1 after the line has been idle for NoSignalDelay)
+    type PaNoSignalMode_t is (NoSignalSequence, NoSignalLine);
+
     -- Times of the reset sequence. A sequence starts at the end of the stretched reset (RstPulseCycles_g), but not
     -- before PowerUpTime after the start of the simulation (power-up of the transceiver)
     type PaModelCtrl_t is record
-        PowerUpTime   : time; -- earliest start of a reset sequence, after the start of the simulation
-        TxDoneStale   : time; -- transmit reset done of the previous start still 1 after the end of the stretched
-        -- reset, at most until LaneClk starts
-        ClkDelay      : time; -- LaneClk starts (transmit PLL locked), after the start of the sequence
-        TxReadyDelay  : time; -- Stat_TxReady, LaneRst released, after the start of the sequence (later than ClkDelay)
-        RxReadyDelay  : time; -- Stat_RxReady, after Stat_TxReady
-        CdrLockTime   : time; -- the receiver decodes this long after the first transition of a signal at its pins
-        NoSignalDelay : time; -- Phy_NoSignal after the line became idle
+        -- Earliest start of a reset sequence, after the start of the simulation
+        PowerUpTime   : time;
+        -- Transmit reset done of the previous start still 1 after the end of the stretched reset, at most until
+        -- LaneClk starts
+        TxDoneStale   : time;
+        -- LaneClk starts (transmit PLL locked), after the start of the sequence
+        ClkDelay      : time;
+        -- Stat_TxReady, LaneRst released, after the start of the sequence (later than ClkDelay)
+        TxReadyDelay  : time;
+        -- Stat_RxReady, after Stat_TxReady
+        RxReadyDelay  : time;
+        -- The receiver decodes this long after the first transition of a signal at its pins
+        CdrLockTime   : time;
+        -- Behaviour of Phy_NoSignal
+        NoSignalMode  : PaNoSignalMode_t;
+        -- NoSignalSequence: Phy_NoSignal falls, after the start of the sequence
+        NoSignalTime  : time;
+        -- NoSignalLine: Phy_NoSignal after the line became idle
+        NoSignalDelay : time;
         Lane          : PaModelLaneArray_t;
     end record;
 
@@ -66,12 +82,14 @@ package ofb_pa_model_pkg is
 
     -- Reset sequence of the transceiver model in the AMD simulator (ofb_pa_gty_core_tb, model.md section 3)
     constant PaModelCtrlDefault_c : PaModelCtrl_t := (
-        PowerUpTime   => 43.745 us,
+        PowerUpTime   => 43.715 us,
         TxDoneStale   => 27.9 us,
-        ClkDelay      => 20.342 us,
-        TxReadyDelay  => 21.13 us,
-        RxReadyDelay  => 3.33 us,
-        CdrLockTime   => 17.1 us,
+        ClkDelay      => 20.381 us,
+        TxReadyDelay  => 21.16 us,
+        RxReadyDelay  => 3.34 us,
+        CdrLockTime   => 16.83 us,
+        NoSignalMode  => NoSignalSequence,
+        NoSignalTime  => 22.755 us,
         NoSignalDelay => 100 ns,
         Lane          => (others => PaModelLaneDefault_c)
     );

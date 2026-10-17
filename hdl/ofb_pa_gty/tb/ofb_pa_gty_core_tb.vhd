@@ -307,6 +307,7 @@ begin
         variable To_v   : NatArray_t;
         variable Ls_v   : DataArray_t;
         variable Dl_v   : DataArray_t;
+        variable Left_v : boolean := false; -- lane 0 of A left Active during the interruption
 
         impure function errorSum (e : natural) return natural is
             variable Sum_v : natural := 0;
@@ -504,6 +505,10 @@ begin
                         Dl_v(e) := B_v;
                     end loop;
 
+                    if Ls_v(0)(3 downto 0) /= "0111" then
+                        Left_v := true;
+                    end if;
+
                     if TxOff(1) = '1' and now - T_v >= CutTime_c then
                         TxOff(1) <= '0';
                         T_v      := now;
@@ -514,6 +519,10 @@ begin
                     exit when TxOff(1) = '0' and now - T_v > RelockMax_c;
                 end loop;
 
+                if not Left_v then
+                    report "FAIL: lane 0 of A did not leave Active during the interruption (no restart)" severity error;
+                    Fail_v := true;
+                end if;
                 if Ls_v(0)(3 downto 0) = "0111" and Ls_v(1)(3 downto 0) = "0111" then
                     report "Lane 0 Active again at both ends at " & time'image(now) & " (" & time'image(now - T_v) &
                            " after the transmitter of B was enabled again)";

@@ -77,10 +77,10 @@ Far end of the link:
   running disparity at the line rate, bit a of symbol 0 first; '0' on both pins is electrical idle.
 
 The default timing is that of the transceiver simulation model. The reset sequence starts at the end of the stretched
-reset, but not before `PowerUpTime` (43.745 us) after the start of the simulation, as the transceiver model completes
+reset, but not before `PowerUpTime` (43.715 us) after the start of the simulation, as the transceiver model completes
 its power-up first: the transmitters are ready 64.885 us after the start of the simulation when the stretched reset
-ends before `PowerUpTime`, and 21.13 us after the end of a later stretched reset (a reset of the adapter in
-operation). A receiver decodes words 17.1 us after the signal of the far end appears (`CdrLockTime`, the lock time of
+ends before `PowerUpTime`, and 21.16 us after the end of a later stretched reset (a reset of the adapter in
+operation). A receiver decodes words 16.83 us after the signal of the far end appears (`CdrLockTime`, the lock time of
 the clock-data recovery of the simulation model, not of the silicon), so the link is initialised about 28 us after the
 transmitters are ready, as with the transceiver model. A system test that does not need this timing shortens it in
 `PaModelCtrl` before the end of the stretched reset, when the model reads the record, for example `PowerUpTime` 0 ns,
@@ -91,18 +91,23 @@ process. Two models with four lanes in both directions cost about 44 s of proces
 GHDL; two cores with traffic cost 1000 to 3000 s.
 
 The model applies `CdrLockTime` after every return of the signal at its pins, also when a lane restarts in operation.
-With the default, a restarted lane is Active again at both ends 26 us after the signal of the far end returns; when one
-end waits longer than about 7 us for that signal, the initialisation timeout expires once at each end and the lane is
-Active again within about 55 us. The error recovery of a link with four lanes under traffic is verified with
-`CdrLockTime` 500 ns; with the default lock time it is not yet verified.
+With the default, a restarted lane is Active again at both ends 26 us after the signal of the far end returns, as with
+the transceiver model; when the signal is away for about 11 us or longer, the initialisation timeout expires once at
+each end and the lane is Active again within about 54 us. The error recovery of a link with four lanes under traffic
+is verified with `CdrLockTime` 500 ns; with the default lock time it is not yet verified.
 
 Differences to the transceiver model that a system test must not rely on (model description, section 5):
 
 - `Stat_Aligned` rises with the first comma decoded after the lock; the transceiver model reports the byte alignment
   earlier, before it delivers valid words. A system test must not depend on the time of `Stat_Aligned` (no effect on
   the link initialisation, PA-MD-10).
-- `Phy_NoSignal` falls with the first transition at the pins; the transceiver model detects the signal about 0.32 us
-  later (no effect on PA-MD-10).
+- `Phy_NoSignal` follows the transceiver model by default (`NoSignalMode`): it falls at a fixed time of the reset
+  sequence and does not show a lost signal, so the Lane layer detects a loss through the overflow of its RXERR counter
+  (about 1.8 us);
+  `NoSignalLine` lets it follow the line. The core works with both; the behaviour of the receive electrical idle on
+  silicon is not yet verified.
+- After a return of the signal the transceiver model delivers valid words before its clock-data recovery has locked;
+  the model does not. A system test must not rely on words before the lock.
 - No analogue effects (equalisation, jitter, attenuation), no lock process of the PLL or the clock-data recovery
   (fixed delays), a datapath latency close to but not equal to the transceiver.
 

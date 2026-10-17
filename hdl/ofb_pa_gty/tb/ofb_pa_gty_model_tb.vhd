@@ -358,6 +358,7 @@ begin
                 PaModelCtrl(e).TxReadyDelay <= 2 us;
                 PaModelCtrl(e).RxReadyDelay <= 200 ns;
                 PaModelCtrl(e).CdrLockTime  <= 500 ns;
+                PaModelCtrl(e).NoSignalTime <= 2.1 us;
             end loop;
 
             wait for 1 ns;
@@ -408,6 +409,16 @@ begin
                             "TX ready of B at the same time, its stretched reset ended 5 us later");
                 wait until LaneRst(0) = '0' for 50 ns;
                 check_value(LaneRst(0), '0', error, "LaneRst released after TX ready");
+                -- Phy_NoSignal (NoSignalSequence): 1 after TX ready, 0 at both ends NoSignalTime after the start of
+                -- the sequence
+                check_value(NoSig(0) = (N_c-1 downto 0 => '1') and NoSig(1) = (N_c-1 downto 0 => '1'), error,
+                            "No signal at both ends after TX ready");
+                wait until NoSig(0) = (N_c-1 downto 0 => '0') for PaModelCtrlDefault_c.NoSignalTime;
+                check_value(now >= PaModelCtrlDefault_c.PowerUpTime + PaModelCtrlDefault_c.NoSignalTime and
+                            now < PaModelCtrlDefault_c.PowerUpTime + PaModelCtrlDefault_c.NoSignalTime + 7 ns,
+                            error, "No signal falls at A NoSignalTime after the start of the sequence");
+                wait for 7 ns;
+                check_value(NoSig(1), (N_c-1 downto 0 => '0'), error, "No signal falls at B at the same time");
                 wait until RxRdy(0) = '1' for PaModelCtrlDefault_c.RxReadyDelay + 1 us;
                 check_value(now - T_v >= PaModelCtrlDefault_c.RxReadyDelay - 20 ns, error,
                             "RX ready after RxReadyDelay");
@@ -533,6 +544,8 @@ begin
             -- TC-PA-15: electrical idle and disabled receivers: no signal after NoSignalDelay, no
             -- words, alignment again when the signal returns
             elsif run("test_idle") then
+                PaModelCtrl(0).NoSignalMode <= NoSignalLine;
+                PaModelCtrl(1).NoSignalMode <= NoSignalLine;
                 fastStart;
                 TxEn(0)(0)                  <= '0';
                 wait until NoSig(1)(0) = '1' for 1 us;
@@ -564,6 +577,23 @@ begin
                 clearCounts;
                 waitUs(10);
                 checkClean(1000, "Signal back");
+                -- NoSignalSequence: the line is ignored after NoSignalTime
+                PaModelCtrl(1).NoSignalMode <= NoSignalSequence;
+                waitUs(1);
+                check_value(NoSig(1)(0), '0', error, "Sequence mode: signal at B");
+                clearCounts;
+                TxEn(0)(0)                  <= '0';
+                waitUs(2);
+                check_value(NoSig(1)(0), '0', error, "Sequence mode: line ignored, A off");
+                -- Idle line: 13 words with code errors, then words without errors (no lane words)
+                check_value(ErrWords(1)(0), 13, error, "Sequence mode: words with code errors at B, line idle");
+                check_value(Good(1)(0) + Bad(1)(0) > 200, error, "Sequence mode: words without errors after them");
+                check_value(Aligned(1)(0), '0', error, "Sequence mode: lane 0 of B not aligned");
+                TxEn(0)(0) <= '1';
+                waitUs(3);
+                clearCounts;
+                waitUs(10);
+                checkClean(1000, "Sequence mode: signal back");
 
             -- TC-PA-16: serial loopbacks: near-end at A (A receives its own words), far-end at B (A
             -- receives its own words through B)

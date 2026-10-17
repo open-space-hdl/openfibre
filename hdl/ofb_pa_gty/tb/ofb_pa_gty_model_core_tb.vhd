@@ -27,6 +27,7 @@ library vunit_lib;
 library work;
     use work.ofb_tb_pkg.all;
     use work.ofb_pa_gty_core_tb_pkg.all;
+    use work.ofb_pa_model_pkg.all;
 
 ---------------------------------------------------------------------------------------------------
 -- Entity
@@ -37,7 +38,8 @@ entity ofb_pa_gty_model_core_tb is
         Lanes_g    : positive range 1 to 4 := 4;
         Short_g    : boolean               := false;
         Relock_g   : boolean               := false;
-        CutNs_g    : positive              := 5000
+        CutNs_g    : positive              := 5000;
+        LineSig_g  : boolean               := false -- Phy_NoSignal of both models follows the line (NoSignalLine)
     );
 end entity;
 
@@ -56,6 +58,16 @@ begin
             CutNs_g  => CutNs_g,
             Finish_g => false
         );
+
+    -- Behaviour of Phy_NoSignal: the transceiver model (default) or the line
+    p_ctrl : process is
+    begin
+        if LineSig_g then
+            PaModelCtrl(0).NoSignalMode <= NoSignalLine;
+            PaModelCtrl(1).NoSignalMode <= NoSignalLine;
+        end if;
+        wait;
+    end process;
 
     p_main : process is
     begin

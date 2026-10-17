@@ -20,3 +20,6 @@ def configure(lib):
         core.add_config(name=f"lanes{lanes}", generics={"Lanes_g": lanes, "Short_g": True})
     core.add_config(name="lanes4", generics={"Lanes_g": 4})
     core.add_config(name="lanes1_relock", generics={"Lanes_g": 1, "Short_g": True, "Relock_g": True})
+    # Lane restart with Phy_NoSignal following the line (loss detected by NoSignal instead of the Lane layer)
+    core.add_config(name="lanes1_relock_line", generics={"Lanes_g": 1, "Short_g": True, "Relock_g": True,
+                                                         "LineSig_g": True})
