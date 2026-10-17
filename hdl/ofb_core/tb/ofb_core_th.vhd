@@ -7,7 +7,9 @@
 -- Description
 ---------------------------------------------------------------------------------------------------
 -- Test harness of the core testbench: two ofb_core (A, B) connected through the behavioural
--- Physical adapter model, AXI4-Lite masters, packet and broadcast generators and receivers.
+-- Physical adapter model, AXI4-Lite masters, packet and broadcast generators and receivers. With
+-- PinModel_g the cores are connected through two ofb_pa_gty with the architecture mdl, pin to pin,
+-- each core on the lane clock of its adapter and with Phy_TxReady from it.
 --
 -- Documentation: hdl/ofb_core/docs/verification_plan.md
 
@@ -31,7 +33,9 @@ library olo;
 library work;
     use work.ofb_pkg.all;
     use work.ofb_tb_pkg.all;
+    use work.ofb_tb_pa_pkg.all;
     use work.ofb_core_tb_pkg.all;
+    use work.ofb_pa_model_pkg.all;
 
 ---------------------------------------------------------------------------------------------------
 -- Entity
@@ -47,7 +51,8 @@ entity ofb_core_th is
         ErbRows_g       : positive               := 512;
         InitPrbsWords_g : natural range 0 to 64  := 64;
         LaneStartA_g    : boolean                := false; -- LaneStart_g of core A (B: false)
-        AutoStart_g     : boolean                := true   -- AutoStart_g of both cores
+        AutoStart_g     : boolean                := true; -- AutoStart_g of both cores
+        PinModel_g      : boolean                := false -- ofb_pa_gty(mdl) pin to pin
     );
     port (
         MgmtClk : out   std_logic;
@@ -154,6 +159,9 @@ architecture sim of ofb_core_th is
     signal ModelClk   : std_logic;
     signal CoreRun    : ClkArray_t := (others => '1');
     signal LaneRun    : ClkArray_t := (others => '1');
+    signal RefClk     : ClkArray_t := (others => '0'); -- reference clocks of the adapter models (PinModel_g)
+    signal GtTxP      : LaneArray_t;
+    signal GtTxN      : LaneArray_t;
     signal PrbsTxSel  : KArray_t;
     signal PrbsRxSel  : KArray_t;
     signal PrbsForce  : LaneArray_t;
@@ -209,19 +217,26 @@ begin
                 RReady  => RReady(i)
             );
 
-        -- Bit synchronisation of the model: signal at the receiver and CDR enabled
-        BitSync(i) <= not NoSignal(i) and CdrEnable(i);
-
         CoreLaneOn(i) <= or (TxEnable(i) or RxEnable(i) or CdrEnable(i));
 
-        -- Transmitters ready from the sequencer, a register of the free-running management clock like
-        -- Stat_TxReady of the adapter (FreeRunClk)
-        p_tx_ready : process (MgmtI) is
-        begin
-            if rising_edge(MgmtI) then
-                TxReady(i) <= CoreTxReady(i);
-            end if;
-        end process;
+        g_word : if not PinModel_g generate
+
+            -- Bit synchronisation of the model: signal at the receiver and CDR enabled
+            BitSync(i) <= not NoSignal(i) and CdrEnable(i);
+
+            -- Transmitters ready from the sequencer, a register of the free-running management clock like
+            -- Stat_TxReady of the adapter (FreeRunClk)
+            p_tx_ready : process (MgmtI) is
+            begin
+                if rising_edge(MgmtI) then
+                    TxReady(i) <= CoreTxReady(i);
+                end if;
+            end process;
+
+            -- The lane clock of the core (with PinModel_g the lane clock of its adapter)
+            LaneClk(i) <= LaneClkG when LaneRun(i) = '1' else '0';
+
+        end generate;
 
         -- Clocks of the core: they stop and start while the generated clock is low (no short pulses)
         p_run : process (CoreClkG, LaneClkG) is
@@ -235,7 +250,6 @@ begin
         end process;
 
         CoreClk(i) <= CoreClkG when CoreRun(i) = '1' else '0';
-        LaneClk(i) <= LaneClkG when LaneRun(i) = '1' else '0';
 
         i_core : entity work.ofb_core
             generic map (
@@ -695,53 +709,143 @@ begin
     -----------------------------------------------------------------------------------------------
     g_pa : for l in 0 to N_c-1 generate
 
-        i_pa : entity work.ofb_tb_pa_model
-            generic map (
-                Instance_g => l
-            )
-            port map (
-                Clk          => ModelClk,
-                A_Tx_Data    => PhyTxData(0)(32*l+31 downto 32*l),
-                A_Tx_K       => PhyTxK(0)(4*l+3 downto 4*l),
-                A_TxEnable   => TxEnable(0)(l),
-                A_RxEnable   => RxEnable(0)(l),
-                A_CdrEnable  => CdrEnable(0)(l),
-                A_RxInvert   => RxInvert(0)(l),
-                A_Rx_Data    => PhyRxData(0)(32*l+31 downto 32*l),
-                A_Rx_K       => PhyRxK(0)(4*l+3 downto 4*l),
-                A_Rx_CodeErr => PhyRxCode(0)(4*l+3 downto 4*l),
-                A_Rx_DispErr => PhyRxDisp(0)(4*l+3 downto 4*l),
-                A_Rx_Valid   => PhyRxValid(0)(l),
-                A_NoSignal   => NoSignal(0)(l),
-                A_NearSerLb  => SerNearLb(0)(l),
-                A_FarSerLb   => SerFarLb(0)(l),
-                A_PrbsTxSel  => PrbsTxSel(0)(4*l+3 downto 4*l),
-                A_PrbsRxSel  => PrbsRxSel(0)(4*l+3 downto 4*l),
-                A_PrbsForce  => PrbsForce(0)(l),
-                A_PrbsCntRst => PrbsCntRst(0)(l),
-                A_PrbsErr    => PrbsErr(0)(l),
-                A_PrbsLocked => PrbsLocked(0)(l),
-                B_Tx_Data    => PhyTxData(1)(32*l+31 downto 32*l),
-                B_Tx_K       => PhyTxK(1)(4*l+3 downto 4*l),
-                B_TxEnable   => TxEnable(1)(l),
-                B_RxEnable   => RxEnable(1)(l),
-                B_CdrEnable  => CdrEnable(1)(l),
-                B_RxInvert   => RxInvert(1)(l),
-                B_Rx_Data    => PhyRxData(1)(32*l+31 downto 32*l),
-                B_Rx_K       => PhyRxK(1)(4*l+3 downto 4*l),
-                B_Rx_CodeErr => PhyRxCode(1)(4*l+3 downto 4*l),
-                B_Rx_DispErr => PhyRxDisp(1)(4*l+3 downto 4*l),
-                B_Rx_Valid   => PhyRxValid(1)(l),
-                B_NoSignal   => NoSignal(1)(l),
-                B_NearSerLb  => SerNearLb(1)(l),
-                B_FarSerLb   => SerFarLb(1)(l),
-                B_PrbsTxSel  => PrbsTxSel(1)(4*l+3 downto 4*l),
-                B_PrbsRxSel  => PrbsRxSel(1)(4*l+3 downto 4*l),
-                B_PrbsForce  => PrbsForce(1)(l),
-                B_PrbsCntRst => PrbsCntRst(1)(l),
-                B_PrbsErr    => PrbsErr(1)(l),
-                B_PrbsLocked => PrbsLocked(1)(l)
-            );
+        g_word : if not PinModel_g generate
+
+            i_pa : entity work.ofb_tb_pa_model
+                generic map (
+                    Instance_g => l
+                )
+                port map (
+                    Clk          => ModelClk,
+                    A_Tx_Data    => PhyTxData(0)(32*l+31 downto 32*l),
+                    A_Tx_K       => PhyTxK(0)(4*l+3 downto 4*l),
+                    A_TxEnable   => TxEnable(0)(l),
+                    A_RxEnable   => RxEnable(0)(l),
+                    A_CdrEnable  => CdrEnable(0)(l),
+                    A_RxInvert   => RxInvert(0)(l),
+                    A_Rx_Data    => PhyRxData(0)(32*l+31 downto 32*l),
+                    A_Rx_K       => PhyRxK(0)(4*l+3 downto 4*l),
+                    A_Rx_CodeErr => PhyRxCode(0)(4*l+3 downto 4*l),
+                    A_Rx_DispErr => PhyRxDisp(0)(4*l+3 downto 4*l),
+                    A_Rx_Valid   => PhyRxValid(0)(l),
+                    A_NoSignal   => NoSignal(0)(l),
+                    A_NearSerLb  => SerNearLb(0)(l),
+                    A_FarSerLb   => SerFarLb(0)(l),
+                    A_PrbsTxSel  => PrbsTxSel(0)(4*l+3 downto 4*l),
+                    A_PrbsRxSel  => PrbsRxSel(0)(4*l+3 downto 4*l),
+                    A_PrbsForce  => PrbsForce(0)(l),
+                    A_PrbsCntRst => PrbsCntRst(0)(l),
+                    A_PrbsErr    => PrbsErr(0)(l),
+                    A_PrbsLocked => PrbsLocked(0)(l),
+                    B_Tx_Data    => PhyTxData(1)(32*l+31 downto 32*l),
+                    B_Tx_K       => PhyTxK(1)(4*l+3 downto 4*l),
+                    B_TxEnable   => TxEnable(1)(l),
+                    B_RxEnable   => RxEnable(1)(l),
+                    B_CdrEnable  => CdrEnable(1)(l),
+                    B_RxInvert   => RxInvert(1)(l),
+                    B_Rx_Data    => PhyRxData(1)(32*l+31 downto 32*l),
+                    B_Rx_K       => PhyRxK(1)(4*l+3 downto 4*l),
+                    B_Rx_CodeErr => PhyRxCode(1)(4*l+3 downto 4*l),
+                    B_Rx_DispErr => PhyRxDisp(1)(4*l+3 downto 4*l),
+                    B_Rx_Valid   => PhyRxValid(1)(l),
+                    B_NoSignal   => NoSignal(1)(l),
+                    B_NearSerLb  => SerNearLb(1)(l),
+                    B_FarSerLb   => SerFarLb(1)(l),
+                    B_PrbsTxSel  => PrbsTxSel(1)(4*l+3 downto 4*l),
+                    B_PrbsRxSel  => PrbsRxSel(1)(4*l+3 downto 4*l),
+                    B_PrbsForce  => PrbsForce(1)(l),
+                    B_PrbsCntRst => PrbsCntRst(1)(l),
+                    B_PrbsErr    => PrbsErr(1)(l),
+                    B_PrbsLocked => PrbsLocked(1)(l)
+                );
+
+        end generate;
+
+    end generate;
+
+    -----------------------------------------------------------------------------------------------
+    -- Physical adapters ofb_pa_gty with the architecture mdl, pin to pin (PinModel_g): reference
+    -- clocks of the same frequency, transceiver reset from the harness reset, the channel effects of
+    -- the word-level model control (PaCtrl) mapped to the control of the adapter models. The tests
+    -- are protocol tests: the clock-data recovery locks 500 ns after a signal appears instead of the
+    -- lock time of the transceiver simulation model (default of the adapter model).
+    -----------------------------------------------------------------------------------------------
+    g_pin : if PinModel_g generate
+
+        RefClk(0) <= not RefClk(0) after LaneHalfPs_g * 1 ps;
+        RefClk(1) <= not RefClk(1) after LaneHalfPs_g * 1 ps;
+
+        -- Direction A to B: transmitter of adapter A (ModelIdx_g 0), B to A: adapter B (1)
+        p_ctrl : process (PaCtrl) is
+            variable Ctrl_v : PaModelCtrlArray_t := (others => PaModelCtrlDefault_c);
+            variable Dir_v  : PaDirCtrl_t;
+        begin
+
+            for e in 0 to 1 loop
+                Ctrl_v(e).CdrLockTime := 500 ns;
+
+                for l in 0 to N_c-1 loop
+                    if e = 0 then
+                        Dir_v := PaCtrl(l).AtoB;
+                    else
+                        Dir_v := PaCtrl(l).BtoA;
+                    end if;
+                    Ctrl_v(e).Lane(l).TxInvert := Dir_v.Invert;
+                    Ctrl_v(e).Lane(l).SkewUi   := 10 * Dir_v.Offset + 40 * Dir_v.Skew;
+                    Ctrl_v(e).Lane(l).Idle     := Dir_v.Cut;
+                    Ctrl_v(e).Lane(l).ErrReq   := Dir_v.Flips;
+                end loop;
+
+            end loop;
+
+            PaModelCtrl <= Ctrl_v;
+        end process;
+
+        g_end : for e in 0 to 1 generate
+
+            i_pa : entity work.ofb_pa_gty(mdl)
+                generic map (
+                    NumLanes_g => N_c,
+                    ModelIdx_g => e
+                )
+                port map (
+                    FreeRunClk             => MgmtI,
+                    Rst                    => RstI,
+                    RefClk                 => RefClk(e),
+                    LaneClk                => LaneClk(e),
+                    LaneRst                => open,
+                    Gt_TxP                 => GtTxP(e),
+                    Gt_TxN                 => GtTxN(e),
+                    Gt_RxP                 => GtTxP(1 - e),
+                    Gt_RxN                 => GtTxN(1 - e),
+                    PhyTx_Data             => PhyTxData(e),
+                    PhyTx_K                => PhyTxK(e),
+                    PhyRx_Data             => PhyRxData(e),
+                    PhyRx_K                => PhyRxK(e),
+                    PhyRx_CodeErr          => PhyRxCode(e),
+                    PhyRx_DispErr          => PhyRxDisp(e),
+                    PhyRx_Valid            => PhyRxValid(e),
+                    Phy_TxEnable           => TxEnable(e),
+                    Phy_RxEnable           => RxEnable(e),
+                    Phy_CdrEnable          => CdrEnable(e),
+                    Phy_RxInvert           => RxInvert(e),
+                    Phy_NoSignal           => NoSignal(e),
+                    Phy_SerialNearLoopback => SerNearLb(e),
+                    Phy_SerialFarLoopback  => SerFarLb(e),
+                    Phy_PrbsTxSel          => PrbsTxSel(e),
+                    Phy_PrbsRxSel          => PrbsRxSel(e),
+                    Phy_PrbsForceErr       => PrbsForce(e),
+                    Phy_PrbsCntReset       => PrbsCntRst(e),
+                    Phy_PrbsErr            => PrbsErr(e),
+                    Phy_PrbsLocked         => PrbsLocked(e),
+                    Stat_TxReady           => TxReady(e),
+                    Stat_RxReady           => open,
+                    Stat_Aligned           => BitSync(e),
+                    Stat_RxBufErr          => open,
+                    Stat_ClkCor            => open
+                );
+
+        end generate;
 
     end generate;
 

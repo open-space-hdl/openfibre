@@ -1,0 +1,4 @@
+tb/ofb_tb_8b10b_pkg.vhd
+hdl/ofb_pa_gty/sim/ofb_pa_model_pkg.vhd
+hdl/ofb_pa_gty/src/ofb_pa_gty.vhd
+hdl/ofb_pa_gty/sim/ofb_pa_gty_model.vhd
