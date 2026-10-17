@@ -25,6 +25,18 @@ regression, 332 of 332 tests, passes in GHDL and in QuestaSim with and without c
 (added afterwards, only the testbench changes, `docs/coverage.md`) passes in GHDL and in both QuestaSim modes, 4 of
 4 each.
 
+Run on 2026-10-17 with the alignment watchdog of the Multi-Lane layer (ML-AL-11, register map version 9): the tests
+TC-CORE-30 to TC-CORE-33 pass in their configurations (5 of 5), with the default bound of 10000 words:
+
+| Test | Result |
+| --- | --- |
+| TC-CORE-30 (`lanes4_wd`, `lanes2_wd`) | Static skew of 4 words; no expiry after the normal link start and after the loss of one word at A (A is Both-Ends Ready again 0.55 us after the loss with four lanes, 0.49 us with two, polled through the MIB: about 85 words against the bound of 10000); after the loss of 4 words A stays in Not Ready until the watchdog expires, the lanes start again, the link aligns without a link reset, every packet is delivered in order without EEP, ML_ALIGN_TIMEOUTS 1 at A and 0 at B |
+| TC-CORE-31 (`lanes4_wd`) | Skew for 10 % less than the bound: no expiry; for 10 % more: one expiry at A, none at B; short alignments of A during the skew (when a SKIP word leaves a gap on all lanes) do not restart the count |
+| TC-CORE-32 (`lanes4_wdoff`) | Watchdog off: A stays in Not Ready and B in Near-End Ready for 192 us, no expiry; a LaneReset through LANE_CTRL recovers the link |
+| TC-CORE-33 (`lanes4_wdfar`) | Watchdog off at B: A in Near-End Ready expires after twice the bound, the lanes of both ends start again, every packet is delivered in order without EEP |
+
+A lane manager that ignores the watchdog fails TC-CORE-30 (mutation check): the link stays stalled.
+
 | Testbench | Tests | Passed |
 | --- | --- | --- |
 | `ofb_core_tb` (configurations `lanes1` to `lanes4`) | 28 x 4 | 112 |

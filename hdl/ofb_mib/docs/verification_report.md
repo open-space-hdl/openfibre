@@ -10,7 +10,9 @@ Run on 2026-10-13 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 
 Full regression of the repository: 227 of 227 tests pass (with the packet ports of the VCs and register map version
 7). VSG reports no errors and no warnings. Run on 2026-10-15 with register map version 8 (transmitter ready): 11 of
-11, full regression 322 of 322.
+11, full regression 322 of 322. Run on 2026-10-17 with register map version 9 (ML_ALIGN_TIMEOUTS, MG-ST-07): 11 of 11;
+TC-MG-06 counts two expiries of the alignment watchdog and clears the counter with a write, TC-MG-01 reads its reset
+value. A MIB that does not count the expiries fails TC-MG-06 (mutation check).
 
 ## 2. Summary
 

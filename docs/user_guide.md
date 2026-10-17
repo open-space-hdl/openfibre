@@ -125,6 +125,7 @@ Differences to the transceiver model that a system test must not rely on (model 
 | `InitPrbsWords_g` | 64 | PRBS words sent after INIT1 and INIT2 during lane initialisation (0 to 64) |
 | `LaneStart_g` | false | Reset value of LaneStart (LANE_CTRL bit 0) of every lane: true starts the link after the reset without a write of the MIB |
 | `AutoStart_g` | true | Reset value of AutoStart (LANE_CTRL bit 1) of every lane: the lanes start when the far end sends |
+| `AlignTimeoutWords_g` | 10000 | Alignment watchdog of the Multi-Lane layer, in lane clock cycles: 0 (off) or 1024 to 1000000. Lower values let the stable time of an eighth span fewer than 16 ALIGN periods of 8 words (section 10) |
 
 A value outside these ranges stops the elaboration with a message that names the rule. Every lane count, 1 and 32
 VCs, a lane clock of 78.125 MHz, the smallest buffers and lane initialisation without PRBS words are simulated; the
@@ -263,7 +264,7 @@ a short QSFP cable) may select LPM (`RX_EQ_MODE` LPM in `tcl/ofb_gtw.tcl`).
 
 ## 6. Programming sequence
 
-1. Release `Rst`. Read ID (0x0FB10008) and GENERICS.
+1. Release `Rst`. Read ID (0x0FB10009) and GENERICS.
 2. Optional configuration before the link start:
    - DL_CTRL bit 8 DataScrambled (set after reset), DL_BC_INTERVAL.
    - Per VC: VC_CFG (priority, continuous mode, virtual network number), VC_BANDWIDTH, VC_SLOTS_LO / HI.
@@ -419,12 +420,30 @@ Where the standard leaves a choice, the section "Interpretation of the standard"
 | Implemented with a restriction | 5.6.2 | 1 to 4 lanes per port (`NumLanes_g`); the standard allows up to 16 lanes (5.6.2c) |
 | Implemented with a restriction | 5.4.2.3 | `ofb_pa_gty` runs at 6.25 Gbit/s (5.4.2.3b) from a 156.25 MHz reference clock. The core itself takes any data signalling rate (`LaneClk` = R / 40) |
 | Implemented with an option | 5.9.3c, Table 5-36 | `LaneStart_g` and `AutoStart_g` set the reset values of LaneStart and AutoStart; the defaults are the reset values of the standard, other values act as a management write right after the reset (MG-CF-03) |
+| Extension outside the standard | 5.6.6.4b, 5.6.7 | Alignment watchdog of the Multi-Lane layer (ML-AL-11, `AlignTimeoutWords_g`): LaneReset of the active lanes when the alignment has been in Not Ready for `AlignTimeoutWords_g` lane clock cycles, or outside Both-Ends Ready for twice as many, since the last stable Both-Ends Ready. It covers two cases the standard leaves without a way out: a lane skew beyond the alignment FIFOs at the own end (5.6.6.4b gives a FIFO of 3 or 4 words and no mechanism for a larger skew, which word losses at comma realignments after bit errors cause), and a far end that stays in Not Ready, for example without such a watchdog. No shall requirement is changed; `AlignTimeoutWords_g` = 0 gives the behaviour of the standard alone (see below) |
 | Implemented with an interpretation | 5.7.9.3c | The link reset state machine leaves Near-End Reset only while the transmitters of the Physical adapter are ready (`Phy_TxReady`, section 4); the standard leaves it unconditionally. A transmitter that is not ready cannot send the INIT words of the lane initialisation. With `Phy_TxReady` = 1, the default of the port, the behaviour is that of the standard (DL-LR-06) |
 | Outside the scope of a node with one port | 5.8.8 to 5.8.11 | Routing switch, packet addressing, group adaptive routing, packet multicast |
 | Outside the scope of a node with one port | 5.8.12.2 | Acceptance and forwarding of broadcast messages in a routing switch (port of arrival, broadcast time-out) |
 | Outside the scope of the core | 5.4.3 to 5.4.6 | Electrical and fibre optic physical layer and media, connectors and cables: properties of the transceiver, the board and the harness |
 | Outside the scope of the core | 5.8.2, 5.8.4, 5.8.14 | Composition of networks, links and units. For a link the user selects at least two VCs (`NumVc_g`, 5.8.4c; one VC for a point-to-point or configuration link, 5.8.4d) and the same VC numbers at both ends (5.8.4e) |
 | Not implemented | none | Every clause that a node with one port needs is implemented |
+
+Alignment watchdog. A bit error that forms a false comma shifts the symbol alignment of a receiver until the next comma,
+and the word being assembled can be lost. Several such losses on one lane give a skew beyond the alignment FIFOs, and
+the alignment then stays in Not Ready: the Data Link layer can send no RETRY, ACK or NACK, and the traffic stops in both
+directions without a link reset. The watchdog sums the cycles in Not Ready, and separately the cycles outside Both-Ends
+Ready, since the last stable Both-Ends Ready (Both-Ends Ready for `AlignTimeoutWords_g / 8` cycles in a row). When the
+first sum reaches `AlignTimeoutWords_g`, or the second twice that value, it resets the active lanes: the lanes of both
+ends start again, the skew is gone, the link aligns and the Data Link layer continues with a RETRY. The error recovery
+buffer is kept (5.7.7i), so no data is lost and no packet ends with an EEP. With two OpenFibre ends the stuck end acts
+first; the bound of twice the value in Near-End Ready also recovers a far end that has no watchdog, because the
+LaneReset restarts its lanes as well. The default of 10000 cycles (64 us at 156.25 MHz) is two SKIP intervals, so that
+the clock correction of a transceiver can restore a skew first, and lies far above the alignment time after a link start
+and after a single comma slip (verification report of `ofb_core`). Each expiry increments ML_ALIGN_TIMEOUTS. Under a
+lasting high bit error rate, when comma slips follow each other faster than the stable time, the times add up and the
+watchdog restarts the lanes repeatedly. This is intended: the error recovery buffer is kept, ML_ALIGN_TIMEOUTS shows the
+restarts, and LANE_TIMEOUT_COUNT and the error counters (DL_ERRORS, RXERR_COUNT of LANE_STATUS) show the cause. With
+`AlignTimeoutWords_g` = 0 such a stall lasts until a LaneReset or a Link Reset through the MIB.
 
 ## 11. Corrected defects
 
@@ -434,4 +453,5 @@ modules describe each finding.
 | Defect | Affected versions | Correction |
 | --- | --- | --- |
 | With more than one lane and an input VC buffer of one flow control unit (`VcInDepth_g` = 64 x `NumLanes_g`, for example the default 256 with four lanes), the traffic of a VC could stop for good: a beat holds back up to `NumLanes_g` - 1 words until the next words arrive, so the buffer never became free for the next FCT | All versions before the check of the generic ranges | The elaboration rejects input VC buffers below 128 x `NumLanes_g` words with several lanes (DL-VI-05); reference value 256 x `NumLanes_g` |
+| With more than one lane, bit errors that formed false commas could stop the traffic in both directions for good while the link stayed initialised: the word losses at the comma realignments gave a lane skew beyond the alignment FIFOs, and the alignment stayed in Not Ready (ML_STATUS bits 9:8 = 0 at one end, 1 at the other, ERB_EMPTY 0); only a Link Reset recovered the link | All versions before the alignment watchdog | Alignment watchdog of the Multi-Lane layer (ML-AL-11, default 10000 cycles): LaneReset of the active lanes, recovery without data loss; ML_ALIGN_TIMEOUTS counts the expiries |
 | After a complete restart of one end while the other end was in Link Initialised, the link could stay down for good: the capability event of a lane that entered Active in the same cycle was evaluated with the lane already Active | All versions before the correction of the Multi-Lane layer (CORE-SY-03) | The lane manager uses the lane states of the cycle before the event (ML-LM-14) |
