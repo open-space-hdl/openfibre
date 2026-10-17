@@ -40,11 +40,14 @@ package ofb_pa_model_pkg is
 
     type PaModelLaneArray_t is array (0 to PaModelLanes_c-1) of PaModelLane_t;
 
-    -- Times of the reset sequence, counted from the end of the stretched reset (RstPulseCycles_g)
+    -- Times of the reset sequence. A sequence starts at the end of the stretched reset (RstPulseCycles_g), but not
+    -- before PowerUpTime after the start of the simulation (power-up of the transceiver)
     type PaModelCtrl_t is record
-        TxDoneStale   : time; -- transmit reset done of the previous start still 1 (not later than ClkDelay)
-        ClkDelay      : time; -- LaneClk starts (transmit PLL locked)
-        TxReadyDelay  : time; -- Stat_TxReady, LaneRst released (not earlier than ClkDelay)
+        PowerUpTime   : time; -- earliest start of a reset sequence, after the start of the simulation
+        TxDoneStale   : time; -- transmit reset done of the previous start still 1 after the end of the stretched
+        -- reset, at most until LaneClk starts
+        ClkDelay      : time; -- LaneClk starts (transmit PLL locked), after the start of the sequence
+        TxReadyDelay  : time; -- Stat_TxReady, LaneRst released, after the start of the sequence (later than ClkDelay)
         RxReadyDelay  : time; -- Stat_RxReady, after Stat_TxReady
         CdrLockTime   : time; -- the receiver decodes this long after the first transition of a signal at its pins
         NoSignalDelay : time; -- Phy_NoSignal after the line became idle
@@ -63,9 +66,10 @@ package ofb_pa_model_pkg is
 
     -- Reset sequence of the transceiver model in the AMD simulator (ofb_pa_gty_core_tb, model.md section 3)
     constant PaModelCtrlDefault_c : PaModelCtrl_t := (
+        PowerUpTime   => 43.745 us,
         TxDoneStale   => 27.9 us,
-        ClkDelay      => 53.88 us,
-        TxReadyDelay  => 54.67 us,
+        ClkDelay      => 20.342 us,
+        TxReadyDelay  => 21.13 us,
         RxReadyDelay  => 3.33 us,
         CdrLockTime   => 17.1 us,
         NoSignalDelay => 100 ns,

@@ -38,9 +38,10 @@ link.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `TxDoneStale` | 27.9 us | The transmit reset done shows 1, the state of the previous start, for this time after the end of the stretched reset, until the master reset of the transceiver starts; `Stat_TxReady` ignores it (not later than `ClkDelay`) |
-| `ClkDelay` | 53.88 us | `LaneClk` starts this long after the end of the stretched reset (transmit PLL locked) |
-| `TxReadyDelay` | 54.67 us | `Stat_TxReady` (register of `FreeRunClk`) after the end of the stretched reset; `LaneRst` is released two `LaneClk` cycles later |
+| `PowerUpTime` | 43.745 us | A reset sequence starts at the end of the stretched reset, but not before this time after the start of the simulation (the transceiver model completes its power-up first) |
+| `TxDoneStale` | 27.9 us | The transmit reset done shows 1, the state of the previous start, for this time after the end of the stretched reset, until the master reset of the transceiver starts and at the latest until `LaneClk` starts; `Stat_TxReady` ignores it |
+| `ClkDelay` | 20.342 us | `LaneClk` starts this long after the start of the sequence (transmit PLL locked) |
+| `TxReadyDelay` | 21.13 us | `Stat_TxReady` (register of `FreeRunClk`) after the start of the sequence, later than `ClkDelay`; `LaneRst` is released two `LaneClk` cycles later |
 | `RxReadyDelay` | 3.33 us | `Stat_RxReady` after `Stat_TxReady`; the receivers decode from then on |
 | `CdrLockTime` | 17.1 us | The receiver decodes words this long after the first transition of a signal at its pins (after electrical idle or a reset of the adapter): the lock time of the clock-data recovery |
 | `NoSignalDelay` | 100 ns | `Phy_NoSignal` after the line became idle |
@@ -52,11 +53,16 @@ link.
 | `Lane(l).ErrEvery` | 0 | One inverted bit every `ErrEvery` transmitted bits (0: off) |
 
 The default reset sequence is that of the transceiver model in the AMD simulator, measured with
-`ofb_pa_gty_core_tb` (four lanes, the reset of the adapter released at 200 ns, the stretched reset of 1000 cycles of
-`FreeRunClk` ends at about 10.21 us): the reset done of the wizard shows 1 from 10.225 us to 38.135 us
-(`TxDoneStale`), the first `LaneClk` edge comes at 64.097 us (`ClkDelay`), `Stat_TxReady` rises at 64.885 us
-(`TxReadyDelay`) and `Stat_RxReady` at 68.212 us (`RxReadyDelay` after `Stat_TxReady`), at both ends and with one to
-four lanes.
+`ofb_pa_gty_core_tb`. At power-up (four lanes, the reset of the adapter released at 200 ns, the stretched reset of
+1000 cycles of `FreeRunClk` ends at about 10.21 us) the reset done of the wizard shows 1 from 10.225 us to 38.135 us
+(`TxDoneStale`), the first `LaneClk` edge comes at 64.097 us, `Stat_TxReady` rises at 64.885 us and `Stat_RxReady` at
+68.212 us (`RxReadyDelay` after `Stat_TxReady`), at both ends and with one to four lanes. The transceiver model
+completes its power-up first, so these times do not follow the end of the stretched reset: a system testbench whose
+stretched reset ends at 6.0 us reaches TX ready at 64.83 us. A later reset is shorter: the full run of 2026-10-16
+resets the adapter of A in operation with a request of 100 ns; `Stat_TxReady` of A falls at 197.485 us and rises
+again at 228.725 us, 31.15 us after the end of the request, 21.13 us after the end of the stretched reset
+(`TxReadyDelay`). `ClkDelay` keeps the distance of the first `LaneClk` edge to TX ready at power-up (0.788 us), and
+`PowerUpTime` is chosen so that the power-up sequence reaches TX ready at 64.885 us.
 
 `CdrLockTime` is the value of the transceiver simulation model, measured with `ofb_pa_gty_core_tb` (one lane, run of
 2026-10-17, timeline of the receive side at the adapter outputs): the first valid word arrives 17.21 us after the far
@@ -89,7 +95,7 @@ of the signal, also when a lane restarts in operation (run `lanes1_relock` of th
   `FreeRunClk` that takes the transmit reset done only after it was 0 once since the release of the reset, as in
   `struct`), `Stat_RxReady`, `LaneRst` (set without a `LaneClk` edge while the transmitters
   are not ready, released two `LaneClk` cycles after `Stat_TxReady`). A reset through `Rst` stops `LaneClk` until
-  `ClkDelay` has passed again, as the reset controller of the transceiver stops the user clock.
+  `ClkDelay` after the start of the new sequence, as the reset controller of the transceiver stops the user clock.
 - Serial loopbacks: near-end, the receiver gets the own transmitted bits (the pins are still driven); far-end, the
   received bits are sent back on the pins.
 - PRBS test: PRBS-7, -9, -15, -23 and -31 generator and checker per lane on the bit stream (encoding of the
@@ -132,6 +138,7 @@ i_pa_a : entity openfibre.ofb_pa_gty(mdl)
     port map (..., Gt_TxP => LineAtoB_P, Gt_TxN => LineAtoB_N, Gt_RxP => LineBtoA_P, Gt_RxN => LineBtoA_N, ...);
 
 -- In the test sequencer: a shorter reset sequence and a bit error on lane 2 of end A
+PaModelCtrl(0).PowerUpTime       <= 0 ns;
 PaModelCtrl(0).TxReadyDelay      <= 5 us;
 PaModelCtrl(0).ClkDelay          <= 2 us;
 PaModelCtrl(0).Lane(2).ErrReq    <= PaModelCtrl(0).Lane(2).ErrReq + 1;

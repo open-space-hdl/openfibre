@@ -201,12 +201,16 @@ begin
         end if;
     end process;
 
-    -- LaneClk starts when the transmit PLL is locked (ClkDelay), the transmitters are ready after
+    -- The reset sequence starts at the end of the stretched reset, not before PowerUpTime after the
+    -- start of the simulation (the transceiver model completes its power-up first). LaneClk starts when
+    -- the transmit PLL is locked (ClkDelay after the start), the transmitters are ready after
     -- TxReadyDelay, the receivers RxReadyDelay later; the transmit reset done shows the state before
     -- the reset for TxDoneStale after the release, as the reset controller of the wizard before its
-    -- master reset starts
+    -- master reset starts, at the latest until LaneClk starts
     p_seq : process is
-        variable Ctrl_v : PaModelCtrl_t;
+        variable Ctrl_v  : PaModelCtrl_t;
+        variable Start_v : time;
+        variable Stale_v : time;
     begin
         ClkRun <= false;
         TxRdy  <= '0';
@@ -214,18 +218,24 @@ begin
         if RstFree = '1' then
             wait until RstFree = '0';
         end if;
-        Ctrl_v := PaModelCtrl(ModelIdx_g);
+        Ctrl_v  := PaModelCtrl(ModelIdx_g);
+        Start_v := maximum(now, Ctrl_v.PowerUpTime);
+        Stale_v := minimum(now + Ctrl_v.TxDoneStale, Start_v + Ctrl_v.ClkDelay);
         -- Reset done of the previous start, until the master reset of the transceiver starts
-        if Ctrl_v.TxDoneStale > 0 fs then
+        if Stale_v > now then
             TxDone <= '1';
-            wait until RstFree = '1' for Ctrl_v.TxDoneStale;
+            wait until RstFree = '1' for Stale_v - now;
         end if;
         TxDone <= '0';
         if RstFree = '0' then
-            wait until RstFree = '1' for Ctrl_v.ClkDelay - Ctrl_v.TxDoneStale;
+            if Start_v + Ctrl_v.ClkDelay > now then
+                wait until RstFree = '1' for Start_v + Ctrl_v.ClkDelay - now;
+            end if;
             if RstFree = '0' then
                 ClkRun <= true;
-                wait until RstFree = '1' for Ctrl_v.TxReadyDelay - Ctrl_v.ClkDelay;
+                if Start_v + Ctrl_v.TxReadyDelay > now then
+                    wait until RstFree = '1' for Start_v + Ctrl_v.TxReadyDelay - now;
+                end if;
                 if RstFree = '0' then
                     TxRdy <= '1';
                     wait until RstFree = '1' for Ctrl_v.RxReadyDelay;

@@ -55,7 +55,7 @@ All files of `compile_order_sim.txt` analyse strictly (GHDL without `-frelaxed`)
 | Generic | Value for the model |
 | --- | --- |
 | `NumLanes_g` | 1 to 4, the same as `NumLanes_g` of `ofb_core` |
-| `RstPulseCycles_g` | Cycles of `FreeRunClk` of the stretched reset (default 1000); the times of the reset sequence count from its end |
+| `RstPulseCycles_g` | Cycles of `FreeRunClk` of the stretched reset (default 1000); the reset sequence starts at its end, not before `PowerUpTime` |
 | `ModelIdx_g` | 0 to 7, a different value for every instance: the index of its control record `PaModelCtrl(ModelIdx_g)` in `ofb_pa_model_pkg` |
 | `SimDevice_g` | Ignored by the model |
 
@@ -76,16 +76,19 @@ Far end of the link:
 - The model against the model of another SpaceFibre device: that model sends and receives the 8B/10B bit stream with
   running disparity at the line rate, bit a of symbol 0 first; '0' on both pins is electrical idle.
 
-The default timing is that of the transceiver simulation model: the transmitters are ready about 55 us after the end
-of the stretched reset, and a receiver decodes words 17.1 us after the signal of the far end appears (`CdrLockTime`,
-the lock time of the clock-data recovery of the simulation model, not of the silicon), so the link is initialised
-about 28 us after the transmitters are ready, as with the transceiver model. A system test that does not need this
-timing shortens it in `PaModelCtrl` before the end of the stretched reset, when the model reads the record, for
-example `TxDoneStale` 0 ns, `ClkDelay` 1 us, `TxReadyDelay` 2 us, `RxReadyDelay` 200 ns and `CdrLockTime` 500 ns
-(keep `TxDoneStale` <= `ClkDelay` <= `TxReadyDelay`). The same record injects bit
-errors, dropouts, a bit error rate, lane skew, crossed pairs and electrical idle per lane (model description, section
-3). `PaModelCtrl` is an unresolved signal: drive it from one process. Two models with four lanes in both directions
-cost about 44 s of processor time per simulated millisecond in GHDL; two cores with traffic cost 1000 to 3000 s.
+The default timing is that of the transceiver simulation model. The reset sequence starts at the end of the stretched
+reset, but not before `PowerUpTime` (43.745 us) after the start of the simulation, as the transceiver model completes
+its power-up first: the transmitters are ready 64.885 us after the start of the simulation when the stretched reset
+ends before `PowerUpTime`, and 21.13 us after the end of a later stretched reset (a reset of the adapter in
+operation). A receiver decodes words 17.1 us after the signal of the far end appears (`CdrLockTime`, the lock time of
+the clock-data recovery of the simulation model, not of the silicon), so the link is initialised about 28 us after the
+transmitters are ready, as with the transceiver model. A system test that does not need this timing shortens it in
+`PaModelCtrl` before the end of the stretched reset, when the model reads the record, for example `PowerUpTime` 0 ns,
+`TxDoneStale` 0 ns, `ClkDelay` 1 us, `TxReadyDelay` 2 us, `RxReadyDelay` 200 ns and `CdrLockTime` 500 ns (keep
+`ClkDelay` < `TxReadyDelay`). The same record injects bit errors, dropouts, a bit error rate, lane skew, crossed pairs
+and electrical idle per lane (model description, section 3). `PaModelCtrl` is an unresolved signal: drive it from one
+process. Two models with four lanes in both directions cost about 44 s of processor time per simulated millisecond in
+GHDL; two cores with traffic cost 1000 to 3000 s.
 
 The model applies `CdrLockTime` after every return of the signal at its pins, also when a lane restarts in operation.
 With the default, a restarted lane is Active again at both ends 26 us after the signal of the far end returns; when one
