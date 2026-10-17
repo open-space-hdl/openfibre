@@ -126,6 +126,7 @@ entity ofb_mib is
         Ml_AlignState          : in    std_logic_vector(1 downto 0);
         Ml_StatBypass          : in    std_logic                                    := '0';
         Ml_EvMisaligned        : in    std_logic                                    := '0';
+        Ml_EvAlignTimeout      : in    std_logic                                    := '0';
         -- Receive row lost in the crossing to the core clock (lane clock, possible only with CoreClk slower
         -- than LaneClk)
         Ml_EvRxOverflow        : in    std_logic                                    := '0';
@@ -221,6 +222,7 @@ architecture rtl of ofb_mib is
     signal SeqCnt      : unsigned(15 downto 0);
     signal TimeoutCnt  : Cnt16Array_t;
     signal MisalignCnt : unsigned(15 downto 0);
+    signal AlignToCnt  : unsigned(15 downto 0);
     signal StatSettle  : natural range 0 to 31;
 
     -- Crossings
@@ -234,8 +236,8 @@ architecture rtl of ofb_mib is
     signal LaneCfgOut : std_logic_vector(LaneCfgW_c*NumLanes_g-1 downto 0);
     signal LaneStatIn : std_logic_vector(LaneStatW_c*NumLanes_g+2*NumLanes_g+2 downto 0);
     signal LaneStat   : std_logic_vector(LaneStatW_c*NumLanes_g+2*NumLanes_g+2 downto 0);
-    signal LaneEvIn   : std_logic_vector(4*NumLanes_g+1 downto 0);
-    signal LaneEv     : std_logic_vector(4*NumLanes_g+1 downto 0);
+    signal LaneEvIn   : std_logic_vector(4*NumLanes_g+2 downto 0);
+    signal LaneEv     : std_logic_vector(4*NumLanes_g+2 downto 0);
     signal MlCfgIn    : std_logic_vector(3 downto 0);
     signal MlCfgOut   : std_logic_vector(3 downto 0);
     signal PrbsCmdOut : std_logic_vector(2*NumLanes_g-1 downto 0);
@@ -401,6 +403,9 @@ begin
             if LaneEv(4*NumLanes_g) = '1' then
                 MisalignCnt <= satInc(MisalignCnt);
             end if;
+            if LaneEv(4*NumLanes_g+2) = '1' then
+                AlignToCnt <= satInc(AlignToCnt);
+            end if;
 
             -- Writes
             if RbWr = '1' then
@@ -447,6 +452,8 @@ begin
                         MlBypass <= RbWrData(8);
                     when RegMlMisaligned_c =>
                         MisalignCnt <= (others => '0');
+                    when RegMlAlignTimeouts_c =>
+                        AlignToCnt <= (others => '0');
                     when RegEccStatus_c =>
                         EccSecStk <= '0';
                     when RegEccSelect_c =>
@@ -512,6 +519,7 @@ begin
                 LaneEvents  <= (others => '0');
                 TimeoutCnt  <= (others => (others => '0'));
                 MisalignCnt <= (others => '0');
+                AlignToCnt  <= (others => '0');
             end if;
             if Rst = '1' or (RbWr = '1' and Addr_v = RegDlCtrl_c and RbWrData(DlCtrlInterfaceReset_c) = '1') then
                 DataScrambled <= '1';
@@ -569,6 +577,7 @@ begin
                 SeqCnt       <= (others => '0');
                 TimeoutCnt   <= (others => (others => '0'));
                 MisalignCnt  <= (others => '0');
+                AlignToCnt   <= (others => '0');
                 EccSel       <= (others => '0');
                 EccSecStk    <= '0';
                 StatSettle   <= 0;
@@ -658,6 +667,8 @@ begin
                     Data_v(8)          := MlBypass;
                 when RegMlMisaligned_c =>
                     Data_v(15 downto 0) := std_logic_vector(MisalignCnt);
+                when RegMlAlignTimeouts_c =>
+                    Data_v(15 downto 0) := std_logic_vector(AlignToCnt);
                 when RegEccStatus_c =>
                     Data_v(Ch_c-1 downto 0) := EccDedStk;
                     Data_v(16)              := EccSecStk;
@@ -931,6 +942,7 @@ begin
                                                                      Ml_DataSending;
         LaneEvIn(4*NumLanes_g)                                    <= Ml_EvMisaligned;
         LaneEvIn(4*NumLanes_g+1)                                  <= Ml_EvRxOverflow;
+        LaneEvIn(4*NumLanes_g+2)                                  <= Ml_EvAlignTimeout;
     end process;
 
     i_lane_cfg : entity olo.olo_base_cc_bits
@@ -963,7 +975,7 @@ begin
 
     i_lane_ev : entity work.ofb_cc_pulse
         generic map (
-            NumPulses_g => 4 * NumLanes_g + 2
+            NumPulses_g => 4 * NumLanes_g + 3
         )
         port map (
             In_Clk    => LaneClk,

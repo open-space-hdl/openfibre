@@ -135,6 +135,7 @@ active lanes with TxEn set; _active receiving lanes_ are active lanes with RxEn 
 | ML-AL-08 | The alignment state machine shall implement Figure 5-37: Not Ready on link reset and on the Misaligned condition; Not Ready to Near-End Ready when the lanes are aligned and the far-end active lanes equal the near-end active lanes; Near-End Ready to Both-Ends Ready when a data word is received and the Misaligned condition does not occur; Both-Ends Ready to Near-End Ready when an ACTIVE word is received. | 5.6.7 |
 | ML-AL-09 | The Misaligned condition shall arise when the near-end active lanes change, the far-end active lanes change, an alignment FIFO overflows, a correct but invalid ALIGN word is received, an invalid receiving row is received, an RXERR is passed to the Data Link layer within 4 us of entering Near-End Ready, the data-receiving lanes change, or a row is read with a valid ALIGN word held in some lanes after the lanes were aligned. | 5.6.7.1c |
 | ML-AL-10 | The Misaligned condition shall clear the aligned state of the lanes. | 5.6.6.4g |
+| ML-AL-11 | The Multi-Lane layer shall sum the lane clock cycles that the alignment state machine spends in Not Ready and, separately, the cycles it spends outside Both-Ends Ready, both since the last stable Both-Ends Ready (Both-Ends Ready for at least `AlignTimeoutWords_g / 8` cycles in a row). When the first sum reaches `AlignTimeoutWords_g` or the second reaches twice that value, LaneReset shall be asserted on every active lane and the expiry reported. Both sums shall restart after a stable Both-Ends Ready, after an expiry, on link reset, in the bypass and while no receiving lane is active. `AlignTimeoutWords_g` = 0 disables the watchdog; otherwise it is at least 1024, so that the stable time spans at least 16 ALIGN periods of 8 words. | none (extension, section 5) |
 
 ### 2.9 Row concentrator (ML-6)
 
@@ -155,6 +156,7 @@ active lanes with TxEn set; _active receiving lanes_ are active lanes with RxEn 
 | EDF without SDF | Passed with the CRC error flag set (ML-DEC-03) |
 | RXERR, RETRY or SIF inside a data frame | Data frame ended in the column codec (ML-ENC-01, ML-DEC-01); the Data Link layer handles the error |
 | Invalid receiving row, alignment FIFO overflow, invalid ALIGN, change of the active lanes | Misaligned condition: Not Ready and realignment (ML-AL-09); RXERR to the Data Link layer (ML-CO-03, ML-CO-04) |
+| Lane skew beyond the alignment FIFOs, or a far end that does not leave Not Ready | Alignment watchdog (ML-AL-11): LaneReset of the active lanes after `AlignTimeoutWords_g` cycles in Not Ready or twice as many outside Both-Ends Ready; the error recovery buffer of the Data Link layer is kept |
 | RXERR word in a receiving row | Row replaced by one RXERR (ML-CO-03); within 4 us of entering Near-End Ready also Misaligned |
 
 ## 4. Configuration parameters
@@ -164,6 +166,7 @@ active lanes with TxEn set; _active receiving lanes_ are active lanes with RxEn 
 | `NumLanes_g` | 1 | Number of lanes, 1 to 4; also the row width of the Data Link layer |
 | `ClkFrequency_g` | 156.25e6 | Lane clock frequency in Hz (4 us window of ML-AL-09) |
 | `SkipIntervalWords_g` | 5000 | SKIP interval in words (ML-DS-05) |
+| `AlignTimeoutWords_g` | 10000 | Alignment watchdog (ML-AL-11): lane clock cycles in Not Ready before a LaneReset of the active lanes, twice as many outside Both-Ends Ready; 0 (off) or 1024 to 1000000 (the stable time of an eighth spans at least 16 ALIGN periods) |
 
 | Management input | Reset value | Description |
 | --- | --- | --- |
@@ -189,5 +192,6 @@ The multi-lane clauses leave the following points open; OpenFibre resolves them 
 | Partial reads before alignment (Figure 5-36) | Rows read while a valid ALIGN word is held in some lanes are not receiving rows and are discarded silently before the lanes are aligned; after alignment they cause the Misaligned condition | Figure 5-36 reads them as part of the alignment; after alignment such a row is evidence of a lane slip |
 | RXERR in Not Ready (5.6.7.2b.2) | Only rows with words other than ACTIVE and ALIGN are replaced by RXERR; one RXERR when Not Ready is entered from an aligned state | Rows of Multi-Lane control words carry no Data Link information; the extra RXERR tells the Data Link layer that words may have been lost, as the Lane layer does when Active is left (5.5.2.11e.7) |
 | Data-receiving lanes changed | Misaligned condition | The row composition changes; 5.6.10l note 2 states that a new alignment occurs |
+| Lane skew beyond the alignment FIFOs (5.6.6.4b) | Alignment watchdog (ML-AL-11), an extension outside the standard: after `AlignTimeoutWords_g` cycles in Not Ready, or twice as many outside Both-Ends Ready, LaneReset of the active lanes | The alignment FIFOs hold a skew of up to 3 words (5.6.6.4b notes 1 or 2 words as typical); the standard gives no mechanism for a larger skew, which word losses at comma realignments after bit errors can cause, so the alignment stays in Not Ready as long as the skew lasts. A LaneReset starts the lanes of both ends again, which removes the skew, and keeps the error recovery buffer (5.7.7i), so the Data Link layer continues with a RETRY and loses no data. In Near-End Ready the far end may be the one that cannot align; the bound of twice the value lets a stuck end act first and recovers a far end without such a watchdog. The default of 10000 words is two SKIP intervals, so that the clock correction of a transceiver can restore a skew first |
 | Multi-LaneCapable bit (5.3.3.8i) | A far end that is not Multi-Lane capable on lane 0 selects the bypass | Interoperation with single-lane devices; the standard defines the flag but no reaction |
 | Data words around FCT, ACK, NACK, FULL and broadcast frames | Data words that wait for a complete sending row (or a complete row to the Data Link layer) may follow such a word | 5.6.4.2b allows PAD only at the end of a data frame; these words are processed independently of the data frame content, so the order of data words relative to them carries no information |

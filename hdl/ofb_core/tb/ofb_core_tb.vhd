@@ -55,8 +55,10 @@ entity ofb_core_tb is
         ErbRows_g       : positive               := 512;
         InitPrbsWords_g : natural range 0 to 64  := 64;
         LaneStartA_g    : boolean                := false; -- LaneStart_g of core A (B: false)
-        AutoStart_g     : boolean                := true; -- AutoStart_g of both cores
-        PinModel_g      : boolean                := false -- ofb_pa_gty(mdl) pin to pin
+        AutoStart_g     : boolean                := true;  -- AutoStart_g of both cores
+        AlignTimeoutA_g : natural                := 10000; -- Alignment watchdog of core A (words, 0: off)
+        AlignTimeoutB_g : natural                := 10000; -- Alignment watchdog of core B (words, 0: off)
+        PinModel_g      : boolean                := false  -- ofb_pa_gty(mdl) pin to pin
     );
 end entity;
 
@@ -88,6 +90,7 @@ architecture sim of ofb_core_tb is
     constant RegTimeSlot_c  : natural := 16#054#;
     constant RegMlCtrl_c    : natural := 16#058#;
     constant RegMlMisal_c   : natural := 16#05C#;
+    constant RegMlAlignTo_c : natural := 16#078#;
     constant RegEccStatus_c : natural := 16#060#;
     constant RegEccSelect_c : natural := 16#064#;
     constant RegEccCount_c  : natural := 16#068#;
@@ -104,6 +107,9 @@ architecture sim of ofb_core_tb is
 
     -- TKEEP of a full beat
     constant AllKeep_c : std_logic_vector(4*NumLanes_g-1 downto 0) := (others => '1');
+
+    -- One word on a lane (LaneClk period)
+    constant Word_c : time := 2 * LaneHalfPs_g * 1 ps;
 
 begin
 
@@ -281,6 +287,43 @@ begin
 
         end procedure;
 
+        -- Static skew of n words on every lane in both directions (set before the link starts)
+        procedure setSkew (n : natural) is
+        begin
+
+            for l in 0 to NumLanes_g-1 loop
+                PaCtrl(l).AtoB.Skew <= n;
+                PaCtrl(l).BtoA.Skew <= n;
+            end loop;
+
+            cycles(1);
+        end procedure;
+
+        -- Expiries of the alignment watchdog of A and B (ML_ALIGN_TIMEOUTS, cleared by the read)
+        procedure checkAlignTimeouts (
+            a   : natural;
+            b   : natural;
+            msg : string) is
+        begin
+            rd(0, RegMlAlignTo_c, Data_v);
+            check_value(to_integer(unsigned(Data_v(15 downto 0))), a, error, msg & ": alignment watchdog of A");
+            rd(1, RegMlAlignTo_c, Data_v);
+            check_value(to_integer(unsigned(Data_v(15 downto 0))), b, error, msg & ": alignment watchdog of B");
+        end procedure;
+
+        -- The link stayed initialised: no Far-End Link Reset and no protocol error at either end
+        procedure checkNoLinkReset is
+        begin
+
+            for c in 0 to 1 loop
+                rd(c, RegDlStatus_c, Data_v);
+                check_value(Data_v(1 downto 0), "11", error, "Link initialised at core " & to_string(c));
+                rd(c, RegDlErrors_c, Data_v);
+                check_value(Data_v(5 downto 4), "00", error, "No link reset at core " & to_string(c));
+            end loop;
+
+        end procedure;
+
         -- DED into the input VC buffers of A (TC-CORE-14): injected with no traffic in flight, it goes into the
         -- next word written into bank 0 of every input VC buffer, a word of the packets that B sends afterwards
         -- (packets of minLen to maxLen bytes per VC; the caller restores the lengths after the delivery)
@@ -408,7 +451,7 @@ begin
                 check_value(to_integer(unsigned(Data_v(7 downto 0))), NumVc_g, error, "NUM_VC of A");
                 check_value(to_integer(unsigned(Data_v(11 downto 8))), NumLanes_g, error, "NUM_LANES of A");
                 rd(0, RegId_c, Data_v);
-                check_value(Data_v, x"0FB10008", error, "ID of A");
+                check_value(Data_v, x"0FB10009", error, "ID of A");
                 linkUp(500 us);
                 rd(1, RegDlErrors_c, Data_v);
                 check_value(Data_v, x"00000000", error, "No error at B");
@@ -1489,6 +1532,112 @@ begin
                     check_value(Data_v, x"00000000", error, "No retry at core " & to_string(c));
                 end loop;
 
+            -- TC-CORE-30: alignment watchdog (ML-AL-11). Static skew of 4 words on every lane in both
+            -- directions (no skew between the lanes), so that a receiver can lose up to 4 words. A normal link
+            -- start and the loss of one word on lane 0 at A (skew within the alignment FIFOs) do not expire the
+            -- watchdog; the loss of 4 words keeps A in Not Ready until its watchdog expires: LaneReset of the
+            -- active lanes, the receivers start again, the link aligns without a link reset and every packet is
+            -- delivered in order, without EEP
+            elsif run("test_align_watchdog") then
+                setSkew(4);
+                linkUp(500 us);
+                allLanes(100 us);
+                checkAlignTimeouts(0, 0, "Normal link start");
+                sendAll(100);
+                PaCtrl(0).BtoA.Slips <= PaCtrl(0).BtoA.Slips + 1;
+                -- Realignment of A after the loss of one word, polled through the MIB
+                T0_v := now;
+                N_v  := 0;
+
+                loop
+                    rd(0, RegMlStatus_c, Data_v);
+                    if Data_v(9 downto 8) /= "10" then
+                        N_v := 1;
+                    end if;
+                    exit when (N_v = 1 and Data_v(9 downto 8) = "10") or now - T0_v > 50 us;
+                end loop;
+
+                log(ID_LOG_HDR, "Loss of one word at A: Both-Ends Ready again " & to_string(now - T0_v) &
+                    " after the loss (polled)");
+                waitDelivered(2 ms);
+                wait for 2 * AlignTimeoutA_g * Word_c;
+                allLanes(100 us);
+                checkAlignTimeouts(0, 0, "Loss of one word at A");
+                sendAll(100);
+                cycles(200);
+                PaCtrl(0).BtoA.Slips <= PaCtrl(0).BtoA.Slips + 4;
+                waitDelivered(2 ms);
+                allLanes(200 us);
+                checkAlignTimeouts(1, 0, "Loss of four words at A");
+                checkNoLinkReset;
+
+            -- TC-CORE-31: bound of the watchdog. Lane 0 at A delayed by 4 words (skew beyond the alignment FIFOs)
+            -- for 10 % less than the bound: no expiry; after Both-Ends Ready for longer than an eighth of the bound
+            -- (the count restarts), for 10 % more than the bound: one expiry at A, none at B (Near-End Ready counts
+            -- twice the bound); the link aligns again when the skew is gone. Short alignments of A while the skew
+            -- lasts (when a SKIP word leaves a gap on all lanes) do not restart the count
+            elsif run("test_align_watchdog_bound") then
+                linkUp(500 us);
+                allLanes(100 us);
+                PaCtrl(0).BtoA.Skew <= 4;
+                wait for (AlignTimeoutA_g - AlignTimeoutA_g / 10) * Word_c;
+                PaCtrl(0).BtoA.Skew <= 0;
+                allLanes(200 us);
+                checkAlignTimeouts(0, 0, "Skew for 10 % less than the bound");
+                wait for (AlignTimeoutA_g / 8 + 500) * Word_c;
+                PaCtrl(0).BtoA.Skew <= 4;
+                wait for (AlignTimeoutA_g + AlignTimeoutA_g / 10) * Word_c;
+                PaCtrl(0).BtoA.Skew <= 0;
+                allLanes(200 us);
+                checkAlignTimeouts(1, 0, "Skew for 10 % more than the bound");
+                checkNoLinkReset;
+                sendAll(20);
+                waitDelivered(1 ms);
+
+            -- TC-CORE-32: watchdog off at both ends: after the loss of 4 words at A the alignment of A stays in Not
+            -- Ready and B in Near-End Ready for three times the default bound, no expiry; a LaneReset through
+            -- LANE_CTRL at A starts the lanes again and the link aligns
+            elsif run("test_align_watchdog_off") then
+                setSkew(4);
+                linkUp(500 us);
+                allLanes(100 us);
+                PaCtrl(0).BtoA.Slips <= PaCtrl(0).BtoA.Slips + 4;
+                wait for 3 * 10000 * Word_c;
+                rd(0, RegMlStatus_c, Data_v);
+                check_value(Data_v(9 downto 8), "00", error, "Watchdog off: A in Not Ready");
+                rd(1, RegMlStatus_c, Data_v);
+                check_value(Data_v(9 downto 8), "01", error, "Watchdog off: B in Near-End Ready");
+                checkAlignTimeouts(0, 0, "Watchdog off");
+
+                for l in 0 to NumLanes_g-1 loop
+                    wr(0, RegLaneCtrl_c + 16#20# * l, x"00000067");
+                end loop;
+
+                cycles(100);
+
+                for l in 0 to NumLanes_g-1 loop
+                    wr(0, RegLaneCtrl_c + 16#20# * l, x"00000063");
+                end loop;
+
+                allLanes(500 us);
+                sendAll(20);
+                waitDelivered(1 ms);
+
+            -- TC-CORE-33: far end without watchdog (B) stays in Not Ready after the loss of 4 words at B; A in
+            -- Near-End Ready expires its watchdog after twice the bound: LaneReset of the lanes of A, the lanes of
+            -- both ends start again, the link aligns and every packet is delivered in order, without EEP
+            elsif run("test_align_watchdog_far") then
+                setSkew(4);
+                linkUp(500 us);
+                allLanes(100 us);
+                sendAll(100);
+                cycles(200);
+                PaCtrl(0).AtoB.Slips <= PaCtrl(0).AtoB.Slips + 4;
+                waitDelivered(2 ms);
+                allLanes(200 us);
+                checkAlignTimeouts(1, 0, "Far end in Not Ready without watchdog");
+                checkNoLinkReset;
+
             end if;
 
         end loop;
@@ -1515,6 +1664,8 @@ begin
             InitPrbsWords_g => InitPrbsWords_g,
             LaneStartA_g    => LaneStartA_g,
             AutoStart_g     => AutoStart_g,
+            AlignTimeoutA_g => AlignTimeoutA_g,
+            AlignTimeoutB_g => AlignTimeoutB_g,
             PinModel_g      => PinModel_g
         )
         port map (

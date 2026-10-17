@@ -63,15 +63,15 @@ the standard" of the module specifications.
 | 5.7.6.5 | CRC for broadcast frame, FCT, ACK, NACK, SIF | DT-8 (send), DR-2 (check) | DL-SQ-03, DL-SR-02, PKG-07, PKG-08 | TC-DL-10, TC-DL-12, TC-DL-14, TC-PKG-03, TC-PKG-04 | Verified |
 | 5.7.6.6 | Idle frames | DT-6 | DL-FA-03, DL-TS-03 | TC-DL-10 | Verified |
 | 5.7.6.7 | Frame reception | DR-5 | DL-BI-01, DL-WI-02, DL-WI-03, DL-WI-04 | TC-DL-02, TC-DL-03, TC-DL-11, TC-DL-12, TC-DL-13, TC-DL-24, TC-DL-29 | Verified |
-| 5.7.7.1 | Error recovery buffer | DT-7 | CORE-FT-01, DL-ER-01, DL-ER-03, DL-ER-05, DL-ER-06, DL-ER-07, DL-ER-08, DL-TS-04, DL-TS-06, MG-ST-02 | TC-CORE-01, TC-CORE-02, TC-CORE-03, TC-CORE-04, TC-CORE-07, TC-CORE-13, TC-DL-05, TC-DL-06, TC-DL-07, TC-DL-10, TC-DL-15, TC-DL-17, TC-DL-23, TC-MG-04, TC-MG-08, TC-MG-09 | Verified |
+| 5.7.7.1 | Error recovery buffer | DT-7 | CORE-FT-01, DL-ER-01, DL-ER-03, DL-ER-05, DL-ER-06, DL-ER-07, DL-ER-08, DL-TS-04, DL-TS-06, MG-ST-02 | `test_align_watchdog` (TC-CORE-30, configurations `lanes4_wd`, `lanes2_wd`), TC-CORE-01, TC-CORE-02, TC-CORE-03, TC-CORE-04, TC-CORE-07, TC-CORE-13, TC-DL-05, TC-DL-06, TC-DL-07, TC-DL-10, TC-DL-15, TC-DL-17, TC-DL-23, TC-MG-04, TC-MG-08, TC-MG-09 | Verified |
 | 5.7.7.2.1, 5.7.7.2.2 | Sending ACKs and NACKs | DR-3 | CORE-ED-02, DL-RE-02, DL-RE-03, DL-TS-05 | TC-CORE-13, TC-DL-02, TC-DL-05, TC-DL-11, TC-DL-12, TC-DL-26, TC-DL-27 | Verified |
 | 5.7.7.2.3, 5.7.7.2.4 | Receiving ACKs and NACKs | DT-7 | CORE-FT-01, DL-ER-02, DL-ER-03, DL-ER-04, DL-SQ-02, DL-SR-03 | TC-CORE-03, TC-CORE-07, TC-CORE-13, TC-DL-01, TC-DL-05, TC-DL-06, TC-DL-15, TC-DL-16 | Verified |
 | 5.7.7.3 | Receive error state machine | DR-3 | CORE-FT-01, DL-RE-01, DL-RE-03 | TC-CORE-13, TC-DL-05, TC-DL-12, TC-DL-26, TC-DL-27 | Verified |
 | 5.7.8 | Data word identification state machine | DR-1 | DL-RW-03, DL-RW-05, DL-WI-01, ML-DEC-01, ML-ENC-01 | TC-CORE-02, TC-CORE-08, TC-DL-13, TC-DL-27, TC-ML-03, TC-ML-05, TC-ML-08, TC-ML-09 | Verified |
 | 5.7.9 | Link reset state machine | DC-1 | CORE-CC-01, CORE-PL-04, CORE-PL-05, CORE-PL-06, CORE-RS-01, CORE-SY-03, DL-LR-01, DL-LR-02, DL-LR-03, DL-LR-05, DL-LR-06, MG-CF-01, ML-LM-02, ML-LM-03, ML-LM-14 | TC-CORE-01, TC-CORE-02, TC-CORE-03, TC-CORE-04, TC-CORE-14, TC-CORE-16, TC-CORE-17, TC-CORE-19, TC-CORE-21, TC-CORE-22, TC-CORE-23, TC-CORE-24, TC-CORE-25, TC-CORE-26, TC-CORE-27, TC-CORE-28, TC-CORE-29, TC-DL-01, TC-DL-06, TC-DL-07, TC-DL-16, TC-DL-28, TC-MG-01, TC-MG-02, TC-MG-05, TC-MG-06, `test_far_reset_idle` (TC-ML-48, `ofb_ml_lane_mgr_tb`), TC-ML-22, TC-ML-25, TC-ML-30, TC-PA-02 | Verified |
-| 5.7.10a1 to a3 | Link reset, output VC side | DT-1 | CORE-CC-01, DL-ED-01, DL-ER-06, DL-FA-05, DL-LR-04, DL-LR-05, DL-LR-06, DL-VI-04, DL-VO-02, ML-BP-03, ML-BP-04, ML-DS-11 | TC-CORE-02, TC-CORE-04, TC-CORE-14, TC-CORE-17, TC-CORE-21, TC-CORE-22, TC-CORE-23, TC-CORE-24, TC-CORE-26, TC-CORE-29, TC-DL-06, TC-DL-07, TC-DL-18, TC-DL-25, TC-DL-29, TC-ML-05, TC-ML-24, TC-ML-38, TC-ML-49 | Verified |
-| 5.7.10a4 to a7 | Link reset, input VC side (EEP rules) | DR-6 | CORE-CC-01, DL-ED-01, DL-ER-06, DL-FA-05, DL-LR-04, DL-LR-05, DL-LR-06, DL-VI-04, DL-VO-02, ML-BP-03, ML-BP-04, ML-DS-11 | TC-CORE-02, TC-CORE-04, TC-CORE-14, TC-CORE-17, TC-CORE-21, TC-CORE-22, TC-CORE-23, TC-CORE-24, TC-CORE-26, TC-CORE-29, TC-DL-06, TC-DL-07, TC-DL-18, TC-DL-25, TC-DL-29, TC-ML-05, TC-ML-24, TC-ML-38, TC-ML-49 | Verified |
-| 5.7.10b | Link reset, Data Link actions | DC-1 | CORE-CC-01, DL-ED-01, DL-ER-06, DL-FA-05, DL-LR-04, DL-LR-05, DL-LR-06, DL-VI-04, DL-VO-02, ML-BP-03, ML-BP-04, ML-DS-11 | TC-CORE-02, TC-CORE-04, TC-CORE-14, TC-CORE-17, TC-CORE-21, TC-CORE-22, TC-CORE-23, TC-CORE-24, TC-CORE-26, TC-CORE-29, TC-DL-06, TC-DL-07, TC-DL-18, TC-DL-25, TC-DL-29, TC-ML-05, TC-ML-24, TC-ML-38, TC-ML-49 | Verified |
+| 5.7.10a1 to a3 | Link reset, output VC side | DT-1 | CORE-CC-01, DL-ED-01, DL-ER-06, DL-FA-05, DL-LR-04, DL-LR-05, DL-LR-06, DL-VI-04, DL-VO-02, ML-BP-03, ML-BP-04, ML-DS-11 | `test_align_watchdog` (TC-CORE-30, configurations `lanes4_wd`, `lanes2_wd`), TC-CORE-02, TC-CORE-04, TC-CORE-14, TC-CORE-17, TC-CORE-21, TC-CORE-22, TC-CORE-23, TC-CORE-24, TC-CORE-26, TC-CORE-29, TC-DL-06, TC-DL-07, TC-DL-18, TC-DL-25, TC-DL-29, TC-ML-05, TC-ML-24, TC-ML-38, TC-ML-49 | Verified |
+| 5.7.10a4 to a7 | Link reset, input VC side (EEP rules) | DR-6 | CORE-CC-01, DL-ED-01, DL-ER-06, DL-FA-05, DL-LR-04, DL-LR-05, DL-LR-06, DL-VI-04, DL-VO-02, ML-BP-03, ML-BP-04, ML-DS-11 | `test_align_watchdog` (TC-CORE-30, configurations `lanes4_wd`, `lanes2_wd`), TC-CORE-02, TC-CORE-04, TC-CORE-14, TC-CORE-17, TC-CORE-21, TC-CORE-22, TC-CORE-23, TC-CORE-24, TC-CORE-26, TC-CORE-29, TC-DL-06, TC-DL-07, TC-DL-18, TC-DL-25, TC-DL-29, TC-ML-05, TC-ML-24, TC-ML-38, TC-ML-49 | Verified |
+| 5.7.10b | Link reset, Data Link actions | DC-1 | CORE-CC-01, DL-ED-01, DL-ER-06, DL-FA-05, DL-LR-04, DL-LR-05, DL-LR-06, DL-VI-04, DL-VO-02, ML-BP-03, ML-BP-04, ML-DS-11 | `test_align_watchdog` (TC-CORE-30, configurations `lanes4_wd`, `lanes2_wd`), TC-CORE-02, TC-CORE-04, TC-CORE-14, TC-CORE-17, TC-CORE-21, TC-CORE-22, TC-CORE-23, TC-CORE-24, TC-CORE-26, TC-CORE-29, TC-DL-06, TC-DL-07, TC-DL-18, TC-DL-25, TC-DL-29, TC-ML-05, TC-ML-24, TC-ML-38, TC-ML-49 | Verified |
 | 5.8.3 | Virtual networks | NI-2 | MG-VN-01 | TC-MG-05 | Verified |
 | 5.8.5 to 5.8.7, 5.8.13 | Packet format, sending and receiving packets, nodes | NI-1 | NI-IF-01 | TC-CORE-02, TC-CORE-17, TC-NI-01, TC-NI-03 | Verified |
 | 5.8.12 | Broadcast messages | NI-3 | NI-IF-02, NI-RX-04 | TC-CORE-02, TC-CORE-17 | Verified |
@@ -95,11 +95,11 @@ reference included).
 | `ofb_core` | 21 | 21 | - |
 | `ofb_dl` | 78 | 78 | - |
 | `ofb_lane` | 32 | 32 | - |
-| `ofb_mib` | 22 | 22 | - |
-| `ofb_multilane` | 70 | 70 | - |
+| `ofb_mib` | 23 | 23 | - |
+| `ofb_multilane` | 71 | 71 | - |
 | `ofb_ni` | 12 | 12 | - |
 | `ofb_pa_gty` | 25 | 25 | - |
 | `ofb_pkg` | 11 | 11 | - |
 | `ofb_vck190` | 8 | 8 | - |
 
-Requirements: 279; without a test case: 0; test cases of the plans not run by a testbench: 0.
+Requirements: 281; without a test case: 0; test cases of the plans not run by a testbench: 0.

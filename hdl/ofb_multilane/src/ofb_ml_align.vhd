@@ -7,8 +7,8 @@
 -- Description
 ---------------------------------------------------------------------------------------------------
 -- Lane alignment of the Multi-Lane layer (ML-5): reception of ACTIVE and ALIGN words, data-
--- receiving lanes, alignment FIFOs, reading and classification of the receiving rows and the
--- alignment state machine (ECSS 5.6.5 to 5.6.7).
+-- receiving lanes, alignment FIFOs, reading and classification of the receiving rows, the
+-- alignment state machine (ECSS 5.6.5 to 5.6.7) and the alignment watchdog (ML-AL-11).
 --
 -- Documentation: hdl/ofb_multilane/docs/architecture.md (section 2.7)
 
@@ -29,38 +29,44 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_ml_align is
     generic (
-        NumLanes_g     : positive range 1 to 4 := 2;
-        ClkFrequency_g : real                  := 156.25e6
+        NumLanes_g          : positive range 1 to 4      := 2;
+        ClkFrequency_g      : real                       := 156.25e6;
+        -- Alignment watchdog: clock cycles in Not Ready (twice as many outside Both-Ends Ready) before a
+        -- LaneReset of the active lanes is requested; 0: off, else at least 1024, so that the stable time
+        -- of an eighth spans at least 16 ALIGN periods of 8 words
+        AlignTimeoutWords_g : natural range 0 to 1000000 := 10000
     );
     port (
         -- Control Ports
-        Clk            : in    std_logic;
-        Rst            : in    std_logic;
-        Ctrl_Flush     : in    std_logic; -- Link reset
+        Clk             : in    std_logic;
+        Rst             : in    std_logic;
+        Ctrl_Flush      : in    std_logic; -- Link reset
         -- Lane sets
-        Bypass         : in    std_logic;
-        ActLanes       : in    std_logic_vector(NumLanes_g-1 downto 0);
-        RxLanes        : in    std_logic_vector(NumLanes_g-1 downto 0);
-        NumRxLanes     : in    std_logic_vector(3 downto 0);
+        Bypass          : in    std_logic;
+        ActLanes        : in    std_logic_vector(NumLanes_g-1 downto 0);
+        RxLanes         : in    std_logic_vector(NumLanes_g-1 downto 0);
+        NumRxLanes      : in    std_logic_vector(3 downto 0);
         -- Words of the column decoders
-        In_Data        : in    std_logic_vector(32*NumLanes_g-1 downto 0);
-        In_K           : in    std_logic_vector(4*NumLanes_g-1 downto 0);
-        In_CrcErr      : in    std_logic_vector(NumLanes_g-1 downto 0);
-        In_Valid       : in    std_logic_vector(NumLanes_g-1 downto 0);
+        In_Data         : in    std_logic_vector(32*NumLanes_g-1 downto 0);
+        In_K            : in    std_logic_vector(4*NumLanes_g-1 downto 0);
+        In_CrcErr       : in    std_logic_vector(NumLanes_g-1 downto 0);
+        In_Valid        : in    std_logic_vector(NumLanes_g-1 downto 0);
         -- Receiving rows (data words compacted from word 0, or one control word in word 0)
-        Row_Data       : out   std_logic_vector(32*NumLanes_g-1 downto 0);
-        Row_K          : out   std_logic_vector(4*NumLanes_g-1 downto 0);
-        Row_Count      : out   std_logic_vector(2 downto 0); -- Data rows: number of data words
-        Row_Data_Row   : out   std_logic;                    -- 1: data row, 0: control word
-        Row_CrcErr     : out   std_logic;
-        Row_Valid      : out   std_logic;
+        Row_Data        : out   std_logic_vector(32*NumLanes_g-1 downto 0);
+        Row_K           : out   std_logic_vector(4*NumLanes_g-1 downto 0);
+        Row_Count       : out   std_logic_vector(2 downto 0); -- Data rows: number of data words
+        Row_Data_Row    : out   std_logic;                    -- 1: data row, 0: control word
+        Row_CrcErr      : out   std_logic;
+        Row_Valid       : out   std_logic;
         -- Far-end active lanes (valid ACTIVE word)
-        FarAct         : out   std_logic_vector(15 downto 0);
-        FarActValid    : out   std_logic;
+        FarAct          : out   std_logic_vector(15 downto 0);
+        FarActValid     : out   std_logic;
         -- Status
-        RecvLanes      : out   std_logic_vector(NumLanes_g-1 downto 0);
-        AlignState     : out   AlignState_t;
-        Ev_Misaligned  : out   std_logic
+        RecvLanes       : out   std_logic_vector(NumLanes_g-1 downto 0);
+        AlignState      : out   AlignState_t;
+        Ev_Misaligned   : out   std_logic;
+        -- Alignment watchdog expired: LaneReset of the active lanes (one-cycle pulse)
+        Ev_AlignTimeout : out   std_logic
     );
 end entity;
 
@@ -71,6 +77,9 @@ architecture rtl of ofb_ml_align is
 
     constant FifoDepth_c : positive := 4;
     constant Timer_c     : positive := integer(ceil(4.0e-6 * ClkFrequency_g));
+    constant WdMax_c     : positive := 2 * AlignTimeoutWords_g + 1;
+    -- Both-Ends Ready held this long restarts the watchdog (an eighth of the bound)
+    constant WdStable_c  : natural := AlignTimeoutWords_g / 8;
 
     type FifoData_t is array (0 to FifoDepth_c-1) of Word_t;
     type FifoK_t is array (0 to FifoDepth_c-1) of WordK_t;
@@ -104,6 +113,11 @@ architecture rtl of ofb_ml_align is
         State       : AlignState_t;
         Timer       : natural range 0 to Timer_c;
         Misaligned  : std_logic;
+        -- Alignment watchdog: cycles in Not Ready, cycles in Not Ready or Near-End Ready
+        WdNr        : natural range 0 to WdMax_c;
+        WdAll       : natural range 0 to WdMax_c;
+        WdStable    : natural range 0 to WdStable_c;
+        WdTimeout   : std_logic;
         -- Receiving row
         RowData     : RowData_t;
         RowK        : RowK_t;
@@ -116,6 +130,10 @@ architecture rtl of ofb_ml_align is
     signal r, r_next : TwoProcess_r;
 
 begin
+
+    assert AlignTimeoutWords_g = 0 or AlignTimeoutWords_g >= 1024
+        report "ofb_ml_align: AlignTimeoutWords_g must be 0 (off) or at least 1024"
+        severity failure;
 
     -----------------------------------------------------------------------------------------------
     -- Combinational Process
@@ -447,6 +465,41 @@ begin
             end case;
 
         end if;
+        -------------------------------------------------------------------------------------------
+        -- Alignment watchdog (ML-AL-11): the standard has no mechanism for a lane skew beyond the
+        -- alignment FIFOs (5.6.6.4b), so the alignment would stay in Not Ready as long as the skew
+        -- lasts. After AlignTimeoutWords_g cycles in Not Ready, or twice as many cycles outside
+        -- Both-Ends Ready (a far end that stays in Not Ready), LaneReset of the active lanes is
+        -- requested: the lanes of both ends restart and the skew is gone. The error recovery buffer
+        -- is kept (5.7.7i). Both counts run since the last Both-Ends Ready that held for an eighth
+        -- of the bound, so that short alignments between misalignments do not restart them.
+        -------------------------------------------------------------------------------------------
+        v.WdTimeout := '0';
+        if AlignTimeoutWords_g = 0 or Bypass = '1' or Ctrl_Flush = '1' or
+           RxLanes = (RxLanes'range => '0') then
+            v.WdNr     := 0;
+            v.WdAll    := 0;
+            v.WdStable := 0;
+        elsif r.State = AlignBothEndsReady_c then
+            if r.WdStable = WdStable_c then
+                v.WdNr  := 0;
+                v.WdAll := 0;
+            else
+                v.WdStable := r.WdStable + 1;
+            end if;
+        else
+            v.WdStable := 0;
+            if r.State = AlignNotReady_c then
+                v.WdNr := r.WdNr + 1;
+            end if;
+            v.WdAll := r.WdAll + 1;
+            if v.WdNr >= AlignTimeoutWords_g or v.WdAll >= 2 * AlignTimeoutWords_g then
+                v.WdTimeout := '1';
+                v.WdNr      := 0;
+                v.WdAll     := 0;
+            end if;
+        end if;
+
         if Bypass = '1' then
             v.State   := AlignBothEndsReady_c;
             v.Aligned := '1';
@@ -487,15 +540,16 @@ begin
         Row_K(4*i+3 downto 4*i)       <= r.RowK(i);
     end generate;
 
-    Row_Count     <= std_logic_vector(to_unsigned(r.RowCount, 3));
-    Row_Data_Row  <= r.RowDataRow;
-    Row_CrcErr    <= r.RowCrcErr;
-    Row_Valid     <= r.RowValid;
-    FarAct        <= r.FarAct;
-    FarActValid   <= r.FarActValid;
-    RecvLanes     <= r.Recv;
-    AlignState    <= r.State;
-    Ev_Misaligned <= r.Misaligned;
+    Row_Count       <= std_logic_vector(to_unsigned(r.RowCount, 3));
+    Row_Data_Row    <= r.RowDataRow;
+    Row_CrcErr      <= r.RowCrcErr;
+    Row_Valid       <= r.RowValid;
+    FarAct          <= r.FarAct;
+    FarActValid     <= r.FarActValid;
+    RecvLanes       <= r.Recv;
+    AlignState      <= r.State;
+    Ev_Misaligned   <= r.Misaligned;
+    Ev_AlignTimeout <= r.WdTimeout;
 
     -----------------------------------------------------------------------------------------------
     -- Sequential Process
@@ -517,6 +571,10 @@ begin
                 r.State       <= AlignNotReady_c;
                 r.Timer       <= 0;
                 r.Misaligned  <= '0';
+                r.WdNr        <= 0;
+                r.WdAll       <= 0;
+                r.WdStable    <= 0;
+                r.WdTimeout   <= '0';
                 r.RowValid    <= '0';
             end if;
         end if;
