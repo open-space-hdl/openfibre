@@ -12,7 +12,9 @@ Full regression of the repository: 227 of 227 tests pass (with the packet ports 
 7). VSG reports no errors and no warnings. Run on 2026-10-15 with register map version 8 (transmitter ready): 11 of
 11, full regression 322 of 322. Run on 2026-10-17 with register map version 9 (ML_ALIGN_TIMEOUTS, MG-ST-07): 11 of 11;
 TC-MG-06 counts two expiries of the alignment watchdog and clears the counter with a write, TC-MG-01 reads its reset
-value. A MIB that does not count the expiries fails TC-MG-06 (mutation check).
+value. A MIB that does not count the expiries fails TC-MG-06 (mutation check). Run on 2026-10-18: 11 of 11; TC-MG-04
+also counts one Misaligned condition and one expiry of the alignment watchdog and checks that the Link Reset command
+clears ML_MISALIGNED and ML_ALIGN_TIMEOUTS (MG-ST-07).
 
 ## 2. Summary
 

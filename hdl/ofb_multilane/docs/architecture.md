@@ -334,6 +334,7 @@ Vectors of lanes or row words hold lane / word `i` at bits `(i+1)*w-1 downto i*w
 | `Stat_AlignState` | out | 2 | Alignment state: Not Ready 0, Near-End Ready 1, Both-Ends Ready 2 |
 | `Stat_Bypass` | out | 1 | The bypass is selected |
 | `Ev_Misaligned` | out | 1 | One-cycle event: the Misaligned condition occurred in Near-End Ready or Both-Ends Ready |
+| `Ev_AlignTimeout` | out | 1 | One-cycle event: the alignment watchdog expired and restarts the active lanes (ML-AL-11) |
 
 ## 4. Configuration parameters
 

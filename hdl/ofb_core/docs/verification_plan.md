@@ -66,7 +66,7 @@ ranges are simulated and synthesised. The configurations below run the named tes
 configurations; `python lint/synth_check.py` synthesises the same boundaries with GHDL and checks that every value
 outside the ranges is rejected at elaboration with the message of its check (`VcOutDepth_g` 32 with one lane, 16
 with two lanes, 96; `VcInDepth_g` 96 and 192 with one lane, 128 with two lanes, 256 with four lanes; `ErbRows_g` 32
-and 96).
+and 96; `AlignTimeoutWords_g` 1023 with one and with two lanes).
 
 | Test cases | Configuration | Requirements |
 | --- | --- | --- |
@@ -74,6 +74,7 @@ and 96).
 | TC-CORE-01, TC-CORE-04, TC-CORE-21, TC-CORE-23 (`halfrate`) | Two lanes with `LaneClk` at 78.125 MHz (half the data signalling rate) and `LaneClkFreq_g` to match: TC-CORE-04 measures ClearLine (2 us) at the lanes of A after the Link Reset command; with TC-CORE-21 and TC-CORE-23 the hold of the Data Link layer is released clearly before the hold of the lanes | CORE-CK-02, LN-INIT-02, CORE-PL-05 |
 | TC-CORE-01, TC-CORE-02, TC-CORE-03, TC-CORE-04 (`minbuf`) | Two lanes with the smallest buffers: output VC buffer 64 words, input VC buffer 128 words per lane (two flow control units), error recovery buffer 64 rows | DL-VO-05, DL-VI-05, DL-ER-08 |
 | TC-CORE-01, TC-CORE-02 (`noprbs`) | One lane, lane initialisation without PRBS words after INIT1 and INIT2 (`InitPrbsWords_g` = 0) | LN-TX-01 |
+| TC-CORE-30 to TC-CORE-33 (`lanes4_wd`, `lanes2_wd`, `lanes4_wdoff`, `lanes4_wdfar`) | `AlignTimeoutWords_g`: the default of 10000 words at both cores with four and with two lanes, 0 (off) at both cores, 0 at B only. The lowest value 1024 is simulated in the testbench of `ofb_multilane` (TC-ML-50); `lint/synth_check.py` synthesises 0 and 1024 with two lanes and 1000000 (counters of 21 bits) with four lanes | ML-AL-11 |
 | TC-CORE-28 (`lanestart1`, `lanestart4`, `noauto`) | `LaneStart_g` at A with one and four lanes (B with AutoStart); `AutoStart_g` false at both cores with one lane | MG-CF-03 |
 | TC-CORE-21 to TC-CORE-26 (`eqclk`) | One lane with CoreClk at the frequency of LaneClk (both 156.25 MHz), as when both are the transmit clock of the transceiver: the first rows of the Data Link layer after the release of a hold reach the Multi-Lane layer within a few cycles of the entry pulse | CORE-PL-06, ML-BP-04, CORE-CK-01 |
 

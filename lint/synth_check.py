@@ -3,7 +3,8 @@
 # Authors: Julian Schneider
 # ---------------------------------------------------------------------------------------------------
 """Synthesis check of OpenFibre with GHDL: elaborates ofb_core into a netlist for 1 to 4 lanes and for the boundaries
-of its other generic ranges (1 and 32 VCs, the smallest buffers, no PRBS words in the lane initialisation).
+of its other generic ranges (1 and 32 VCs, the smallest buffers, no PRBS words in the lane initialisation, the
+alignment watchdog off and at the bounds of its range).
 
 Usage: python lint/synth_check.py
 Uses the libraries compiled by the regression runner (run `python run.py --compile` first).
@@ -29,6 +30,10 @@ CONFIGS = [("ofb_core", {"NumLanes_g": lanes, "VcInDepth_g": 256 * lanes}) for l
     ("ofb_core", {"NumLanes_g": 4, "VcOutDepth_g": 16, "VcInDepth_g": 512, "ErbRows_g": 64}),
     ("ofb_core", {"NumLanes_g": 1, "InitPrbsWords_g": 0}),
     ("ofb_core", {"NumLanes_g": 2, "LaneStart_g": "true", "AutoStart_g": "false"}),
+    # Alignment watchdog off and at the bounds of its range (the counters of the upper bound are 21 bits wide)
+    ("ofb_core", {"NumLanes_g": 2, "VcInDepth_g": 512, "AlignTimeoutWords_g": 0}),
+    ("ofb_core", {"NumLanes_g": 2, "VcInDepth_g": 512, "AlignTimeoutWords_g": 1024}),
+    ("ofb_core", {"NumLanes_g": 4, "VcInDepth_g": 1024, "AlignTimeoutWords_g": 1000000}),
 ]
 # Values outside the generic ranges and the message of the check that rejects them
 REJECTED = [
@@ -41,6 +46,10 @@ REJECTED = [
     ("ofb_core", {"NumLanes_g": 1, "VcOutDepth_g": 96}, "Depth_g must be a power of two"),
     ("ofb_core", {"NumLanes_g": 1, "ErbRows_g": 32}, "Rows_g must be at least 64"),
     ("ofb_core", {"NumLanes_g": 1, "ErbRows_g": 96}, "Rows_g must be a power of two"),
+    ("ofb_core", {"NumLanes_g": 1, "AlignTimeoutWords_g": 1023},
+     "AlignTimeoutWords_g must be 0 (off) or at least 1024"),
+    ("ofb_core", {"NumLanes_g": 2, "VcInDepth_g": 512, "AlignTimeoutWords_g": 1023},
+     "AlignTimeoutWords_g must be 0 (off) or at least 1024"),
 ]
 
 

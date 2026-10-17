@@ -131,10 +131,6 @@ architecture rtl of ofb_ml_align is
 
 begin
 
-    assert AlignTimeoutWords_g = 0 or AlignTimeoutWords_g >= 1024
-        report "ofb_ml_align: AlignTimeoutWords_g must be 0 (off) or at least 1024"
-        severity failure;
-
     -----------------------------------------------------------------------------------------------
     -- Combinational Process
     -----------------------------------------------------------------------------------------------

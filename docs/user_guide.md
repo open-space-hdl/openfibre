@@ -125,7 +125,7 @@ Differences to the transceiver model that a system test must not rely on (model 
 | `InitPrbsWords_g` | 64 | PRBS words sent after INIT1 and INIT2 during lane initialisation (0 to 64) |
 | `LaneStart_g` | false | Reset value of LaneStart (LANE_CTRL bit 0) of every lane: true starts the link after the reset without a write of the MIB |
 | `AutoStart_g` | true | Reset value of AutoStart (LANE_CTRL bit 1) of every lane: the lanes start when the far end sends |
-| `AlignTimeoutWords_g` | 10000 | Alignment watchdog of the Multi-Lane layer, in lane clock cycles: 0 (off) or 1024 to 1000000. Lower values let the stable time of an eighth span fewer than 16 ALIGN periods of 8 words (section 10) |
+| `AlignTimeoutWords_g` | 10000 | Alignment watchdog of the Multi-Lane layer, in lane clock cycles: 0 (off) or 1024 to 1000000. The lower bound makes the stable time (an eighth of the value, at least 128 words) span at least 16 ALIGN periods of 8 words, so that a stable Both-Ends Ready cannot come from a single ALIGN that happens to arrive aligned (behaviour in section 10) |
 
 A value outside these ranges stops the elaboration with a message that names the rule. Every lane count, 1 and 32
 VCs, a lane clock of 78.125 MHz, the smallest buffers and lane initialisation without PRBS words are simulated; the

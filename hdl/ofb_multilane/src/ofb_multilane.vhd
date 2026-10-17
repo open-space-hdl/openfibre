@@ -135,6 +135,12 @@ architecture rtl of ofb_multilane is
 
 begin
 
+    -- Bound of the alignment watchdog (ML-AL-11): an eighth of it spans at least 16 ALIGN periods; checked for every
+    -- number of lanes, also where the watchdog is not built
+    assert AlignTimeoutWords_g = 0 or AlignTimeoutWords_g >= 1024
+        report "ofb_multilane: AlignTimeoutWords_g must be 0 (off) or at least 1024"
+        severity failure;
+
     -----------------------------------------------------------------------------------------------
     -- Lane manager (ML-1)
     -----------------------------------------------------------------------------------------------

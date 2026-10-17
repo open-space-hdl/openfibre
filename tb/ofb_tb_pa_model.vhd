@@ -223,6 +223,10 @@ architecture sim of ofb_tb_pa_model is
         end loop;
 
         dly(0)    := Rx_v;
+        assert adv <= ctrl.Skew
+            report "ofb_tb_pa_model: Skew " & integer'image(ctrl.Skew) & " is less than the " & integer'image(adv) &
+                   " words lost by Slips; disable the receiver before Skew is reduced"
+            severity failure;
         Rx_v      := dly(ctrl.Skew - adv);
         rx_data   <= Rx_v.Data;
         rx_k      <= Rx_v.K;

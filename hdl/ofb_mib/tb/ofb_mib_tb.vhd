@@ -476,11 +476,17 @@ begin
                 wait until rising_edge(LaneClk);
                 LaneEv(1) <= '1';
                 RxOvfEv   <= '1';
+                MlMisEv   <= '1';
+                MlAtoEv   <= '1';
                 wait until rising_edge(LaneClk);
                 LaneEv(1) <= '0';
                 RxOvfEv   <= '0';
+                MlMisEv   <= '0';
+                MlAtoEv   <= '0';
                 cycles(20);
                 chk(16#014#, x"00000691", "Sticky Data Link errors, receive row overflow");
+                chk(16#05C#, x"00000001", "Misaligned counter");
+                chk(16#078#, x"00000001", "Alignment watchdog counter");
                 chk(16#01C#, x"00000002", "CRC-16 counter");
                 chk(16#018#, x"00000003", "Retries");
                 chk(16#034#, x"00000002", "Input overflow VC 1");
@@ -530,6 +536,8 @@ begin
                 chk(16#03C#, x"00000000", "Framing error flags cleared by Link Reset");
                 chk(16#108#, x"00000000", "Lane flags cleared by Link Reset");
                 chk(16#110#, x"00000000", "Lane timeout counter cleared by Link Reset");
+                chk(16#05C#, x"00000000", "Misaligned counter cleared by Link Reset");
+                chk(16#078#, x"00000000", "Alignment watchdog counter cleared by Link Reset");
                 cycles(3);
                 check_value(Irq, '0', error, "No interrupt after the Link Reset command");
 

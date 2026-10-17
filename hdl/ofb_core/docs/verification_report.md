@@ -26,7 +26,9 @@ regression, 332 of 332 tests, passes in GHDL and in QuestaSim with and without c
 4 each.
 
 Run on 2026-10-17 with the alignment watchdog of the Multi-Lane layer (ML-AL-11, register map version 9): the tests
-TC-CORE-30 to TC-CORE-33 pass in their configurations (5 of 5), with the default bound of 10000 words:
+TC-CORE-30 to TC-CORE-33 pass in their configurations (5 of 5), with the default bound of 10000 words. The full
+regression at commit bd02e25 passes in GHDL (CI workflow, 343 of 343 tests, 146 of them of `ofb_core_tb` and
+`ofb_core_cc_tb`):
 
 | Test | Result |
 | --- | --- |
@@ -47,6 +49,7 @@ A lane manager that ignores the watchdog fails TC-CORE-30 (mutation check): the 
 | `ofb_core_tb`, configuration `noprbs` (TC-CORE-01, 02) | 2 | 2 |
 | `ofb_core_tb`, configuration `eqclk` (TC-CORE-21 to 26) | 6 | 6 |
 | `ofb_core_tb`, configurations `lanestart1`, `lanestart4` and `noauto` (TC-CORE-28) | 1 x 3 | 3 |
+| `ofb_core_tb`, configurations `lanes4_wd` (TC-CORE-30, 31), `lanes2_wd` (TC-CORE-30), `lanes4_wdoff` (TC-CORE-32) and `lanes4_wdfar` (TC-CORE-33) | 2 + 1 + 1 + 1 | 5 |
 | `ofb_core_cc_tb` (configurations `core_fast`, `equal`, `lane_half`) | 1 x 3 | 3 |
 
 Generic ranges (verification plan, section "Generic ranges"): every value of a generic that changes the structure
@@ -64,6 +67,7 @@ The frequency generics of the testbench are derived from the generated clock per
 | `VcInDepth_g` | `NumLanes_g` x power of two; >= 64 with one lane, >= 128 x `NumLanes_g` with several lanes | 256 x `NumLanes_g`; 256 with two lanes (`minbuf`) | 64 with one lane, 512 with four lanes, 256 x `NumLanes_g` | 96 and 192 with one lane, 128 with two lanes, 256 with four lanes |
 | `ErbRows_g` | power of two, >= 64 | 512; 64 (`minbuf`) | 64, 512 | 32, 96 |
 | `InitPrbsWords_g` | 0 to 64 | 64; 0 (`noprbs`) | 0, 64 | outside the subtype |
+| `AlignTimeoutWords_g` | 0, or 1024 to 1000000 | 10000 (`lanes4_wd`, `lanes2_wd`), 0 (`lanes4_wdoff`, and at B in `lanes4_wdfar`); 1024 in the testbench of `ofb_multilane` (TC-ML-50) | 0 and 1024 with two lanes, 1000000 with four lanes (`lint/synth_check.py`, 2026-10-18) | 1023 with one and with two lanes |
 
 Packets of 65542 bytes (TC-CORE-20, the largest Space Packet) pass with 1 to 4 lanes: one from A to B and two at the
 same time from B to A, every byte compared.

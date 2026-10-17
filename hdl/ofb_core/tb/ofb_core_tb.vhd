@@ -299,7 +299,7 @@ begin
             cycles(1);
         end procedure;
 
-        -- Expiries of the alignment watchdog of A and B (ML_ALIGN_TIMEOUTS, cleared by the read)
+        -- Expiries of the alignment watchdog of A and B (ML_ALIGN_TIMEOUTS, cleared by a write)
         procedure checkAlignTimeouts (
             a   : natural;
             b   : natural;
