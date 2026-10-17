@@ -27,8 +27,81 @@ Not part of the core:
 | --- | --- |
 | `component_list.txt` | OpenFibre modules in compile order; every `hdl/<module>/src/*.vhd` goes into one library (`openfibre` in the regression) |
 | `open-logic/` (submodule) | Open Logic with the fault-tolerant entities (`olo_ft_*`); the areas `base`, `axi`, `intf` and `ft` are compiled into the library `olo` in the order of `open-logic/compile_order.txt` |
+| `hdl/ofb_pa_gty/compile_order.txt` | Physical adapter for the AMD Versal GTY for synthesis and the AMD simulator: the entity `ofb_pa_gty` and the architecture `struct` with the transceiver wizard |
+| `hdl/ofb_pa_gty/compile_order_sim.txt` | The same adapter for GHDL and QuestaSim without the AMD libraries: the entity with the behavioural architecture `mdl` (serial pins with the 8B/10B bit stream, [model description](../hdl/ofb_pa_gty/docs/model.md)). Compile exactly one of the two lists into a library |
 
 The sources are VHDL-2008 and use no vendor primitives. `run.py` shows the complete compile flow.
+
+### System simulation with the behavioural adapter
+
+A system simulation in GHDL or QuestaSim replaces the GTY wrapper by the architecture `mdl` of `ofb_pa_gty`: the same
+entity, ports and generics, the 8B/10B bit stream on the serial pins and the reset sequence and status of the
+transceiver ([model description](../hdl/ofb_pa_gty/docs/model.md)). The design above the adapter stays unchanged.
+
+Compile order (VHDL-2008):
+
+1. Open Logic into the library `olo`, as above.
+2. Into one library for OpenFibre (`openfibre` in the regression): the files of `compile_order.txt` of the repository
+   (the core), then the files of `hdl/ofb_pa_gty/compile_order_sim.txt` in their order: `tb/ofb_tb_8b10b_pkg.vhd`,
+   `hdl/ofb_pa_gty/sim/ofb_pa_model_pkg.vhd`, `hdl/ofb_pa_gty/src/ofb_pa_gty.vhd`,
+   `hdl/ofb_pa_gty/sim/ofb_pa_gty_model.vhd`. The model uses `ofb_pkg` of the core through `work` and must be in the
+   library of the core.
+3. Never compile `hdl/ofb_pa_gty/compile_order.txt` (architecture `struct`, AMD libraries) into the same library.
+   With only `mdl` analysed, the default binding of `ofb_pa_gty` is the model; `entity openfibre.ofb_pa_gty(mdl)`
+   binds it explicitly.
+
+All files of `compile_order_sim.txt` analyse strictly (GHDL without `-frelaxed`).
+
+| Generic | Value for the model |
+| --- | --- |
+| `NumLanes_g` | 1 to 4, the same as `NumLanes_g` of `ofb_core` |
+| `RstPulseCycles_g` | Cycles of `FreeRunClk` of the stretched reset (default 1000); the times of the reset sequence count from its end |
+| `ModelIdx_g` | 0 to 7, a different value for every instance: the index of its control record `PaModelCtrl(ModelIdx_g)` in `ofb_pa_model_pkg` |
+| `SimDevice_g` | Ignored by the model |
+
+Clocks and connections of each adapter:
+
+- `RefClk`: 156.25 MHz (6.4 ns) for 6.25 Gbit/s; the unit interval of the serial pins is the `RefClk` period / 40.
+- `FreeRunClk`: any free-running clock (the regression uses 100 MHz); `Rst`: asynchronous, any pulse width.
+- `LaneClk` (output) is `RefClk` once the transmit clock runs: drive `LaneClk` of `ofb_core` with it, and `CoreClk`
+  as well where the design runs the Data Link layer on the transmit clock (as `ofb_vck190`).
+- `Phy_TxReady` of `ofb_core` from `Stat_TxReady`, `Phy_BitSync` from `Stat_Aligned`; the symbol streams, lane
+  controls, serial loopbacks and PRBS ports one to one as with `struct` (section 5.5).
+
+Far end of the link:
+
+- Two adapters back to back: per lane `Gt_TxP` and `Gt_TxN` of one end to `Gt_RxP` and `Gt_RxN` of the other, in
+  both directions, each adapter with its own `ModelIdx_g`. The reference clocks of the two ends may differ (the
+  regression uses 200 ppm and 1000 ppm); the receive buffers compensate with SKIP words.
+- The model against the model of another SpaceFibre device: that model sends and receives the 8B/10B bit stream with
+  running disparity at the line rate, bit a of symbol 0 first; '0' on both pins is electrical idle.
+
+The default timing is that of the transceiver simulation model: the transmitters are ready about 55 us after the end
+of the stretched reset, and a receiver decodes words 17.1 us after the signal of the far end appears (`CdrLockTime`,
+the lock time of the clock-data recovery of the simulation model, not of the silicon), so the link is initialised
+about 28 us after the transmitters are ready, as with the transceiver model. A system test that does not need this
+timing shortens it in `PaModelCtrl` before the end of the stretched reset, when the model reads the record, for
+example `TxDoneStale` 0 ns, `ClkDelay` 1 us, `TxReadyDelay` 2 us, `RxReadyDelay` 200 ns and `CdrLockTime` 500 ns
+(keep `TxDoneStale` <= `ClkDelay` <= `TxReadyDelay`). The same record injects bit
+errors, dropouts, a bit error rate, lane skew, crossed pairs and electrical idle per lane (model description, section
+3). `PaModelCtrl` is an unresolved signal: drive it from one process. Two models with four lanes in both directions
+cost about 44 s of processor time per simulated millisecond in GHDL; two cores with traffic cost 1000 to 3000 s.
+
+The model applies `CdrLockTime` after every return of the signal at its pins, also when a lane restarts in operation.
+With the default, a restarted lane is Active again at both ends 26 us after the signal of the far end returns; when one
+end waits longer than about 7 us for that signal, the initialisation timeout expires once at each end and the lane is
+Active again within about 55 us. The error recovery of a link with four lanes under traffic is verified with
+`CdrLockTime` 500 ns; with the default lock time it is not yet verified.
+
+Differences to the transceiver model that a system test must not rely on (model description, section 5):
+
+- `Stat_Aligned` rises with the first comma decoded after the lock; the transceiver model reports the byte alignment
+  earlier, before it delivers valid words. A system test must not depend on the time of `Stat_Aligned` (no effect on
+  the link initialisation, PA-MD-10).
+- `Phy_NoSignal` falls with the first transition at the pins; the transceiver model detects the signal about 0.32 us
+  later (no effect on PA-MD-10).
+- No analogue effects (equalisation, jitter, attenuation), no lock process of the PLL or the clock-data recovery
+  (fixed delays), a datapath latency close to but not equal to the transceiver.
 
 ## 3. Generics
 
@@ -169,6 +242,16 @@ per `LaneClk` cycle without gaps. For the AMD Versal GTY, `ofb_pa_gty` connects 
 `NumLanes_g` of `ofb_pa_gty` defaults to 4 (one GTY quad) and that of `ofb_core` to 1: set both to the same value.
 The adapter is verified with the transceiver model for 1 to 4 lanes; the unused channels of the quad send electrical
 idle.
+
+Receiver equalisation of `ofb_pa_gty`: `tcl/ofb_gtw.tcl` selects `RX_EQ_MODE` AUTO with the default channel insertion
+loss of the wizard (`INS_LOSS_NYQ` 20 dB at the Nyquist frequency), which the wizard resolves to the decision feedback
+equaliser (DFE, `RXLPMEN` tied to 0). The clock-data recovery lock time `TDLOCK` of the Versal AI Core data sheet
+(DS957) ranges from 50,000 UI to 37 x 10^6 UI with DFE and from 50,000 UI to 2.3 x 10^6 UI in low-power mode (LPM); the
+lane initialisation timeout of ECSS-E-ST-50-11C (the time to send 5000 words) is 200,000 UI. A lane locks within the
+timeout only when the clock-data recovery locks in less than about 22 us at 6.25 Gbit/s (lock time, 1023 words without
+error and the INIT2/INIT3 handshake within 32 us). The GTY architecture manual (AM002, LPM use mode) recommends LPM for
+short, low-reflection channels with up to 15 dB loss at the Nyquist frequency; a system on such a channel (for example
+a short QSFP cable) may select LPM (`RX_EQ_MODE` LPM in `tcl/ofb_gtw.tcl`).
 
 ## 6. Programming sequence
 
