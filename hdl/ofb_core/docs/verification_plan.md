@@ -5,13 +5,15 @@
 The core is verified with two cores connected through the behavioural Physical adapter model, with all four clock
 domains at different frequencies (user 192 MHz, core 166.7 MHz, lane 156.25 MHz, management 100 MHz). The cores are
 configured and monitored through the MIB with the UVVM AXI-Lite VVC; packets and broadcast messages are random and
-checked with scoreboards. The final end-to-end test with the transceiver model follows in phase 5.
+checked with scoreboards. The configuration `lanes4_pin` connects the cores through two `ofb_pa_gty` with the
+architecture mdl at the serial pins; the test with the transceiver model of the GTY is `ofb_pa_gty_core_tb`
+([ofb_pa_gty verification plan](../../ofb_pa_gty/docs/verification_plan.md)).
 
 ## 2. Test configuration
 
 | Testbench | Harness | DUT and environment |
 | --- | --- | --- |
-| `ofb_core_tb` | `ofb_core_th` | Two `ofb_core` (4 VCs) A and B with `NumLanes_g` = 1 to 4 (VUnit configurations `lanes1` to `lanes4`), `LaneClkFreq_g` and `CoreClkFreq_g` derived from the generated clock periods, one `ofb_tb_pa_model` per lane, one `ofb_tb_axilite_master` per core, packet generator and receiver per VC (random length and bytes, beats of 4 x `NumLanes_g` bytes with `TKEEP` and `TLAST`, receiver back-pressure; the receiver checks the `TKEEP` format and compares the packets as words of four bytes with a last word of the remaining bytes, the end marker (EOP, or EEP from `TUSER`) and Fills), broadcast generator and receiver (channel, B_TYPE and DELAYED compared; LATE depends on the error recovery), SCHEDULE.request strobe per core, raw beat queue for VC 0 of A (bytes, `TKEEP`, `TLAST`, `TUSER`) |
+| `ofb_core_tb` | `ofb_core_th` | Two `ofb_core` (4 VCs) A and B with `NumLanes_g` = 1 to 4 (VUnit configurations `lanes1` to `lanes4`), `LaneClkFreq_g` and `CoreClkFreq_g` derived from the generated clock periods, one `ofb_tb_pa_model` per lane (in `lanes4_pin` two `ofb_pa_gty` with the architecture mdl, see below), one `ofb_tb_axilite_master` per core, packet generator and receiver per VC (random length and bytes, beats of 4 x `NumLanes_g` bytes with `TKEEP` and `TLAST`, receiver back-pressure; the receiver checks the `TKEEP` format and compares the packets as words of four bytes with a last word of the remaining bytes, the end marker (EOP, or EEP from `TUSER`) and Fills), broadcast generator and receiver (channel, B_TYPE and DELAYED compared; LATE depends on the error recovery), SCHEDULE.request strobe per core, raw beat queue for VC 0 of A (bytes, `TKEEP`, `TLAST`, `TUSER`) |
 | `ofb_core_cc_tb` | none | `ofb_core_cc` with one lane: the sequencer drives the link reset and LaneReset levels of the Data Link layer (one signal) and the hold of the lanes; a monitor counts the pulses of `Ml_LinkReset` and `Ml_LaneReset` outside the hold in LaneClk and checks that each lasts one cycle. CoreClk faster than LaneClk (3 ns and 3.2 ns half periods, `core_fast`), equal (`equal`) and LaneClk at half the rate (`lane_half`) |
 
 ## 3. Test cases
@@ -70,6 +72,20 @@ and 96).
 | TC-CORE-01, TC-CORE-02 (`noprbs`) | One lane, lane initialisation without PRBS words after INIT1 and INIT2 (`InitPrbsWords_g` = 0) | LN-TX-01 |
 | TC-CORE-28 (`lanestart1`, `lanestart4`, `noauto`) | `LaneStart_g` at A with one and four lanes (B with AutoStart); `AutoStart_g` false at both cores with one lane | MG-CF-03 |
 | TC-CORE-21 to TC-CORE-26 (`eqclk`) | One lane with CoreClk at the frequency of LaneClk (both 156.25 MHz), as when both are the transmit clock of the transceiver: the first rows of the Data Link layer after the release of a hold reach the Multi-Lane layer within a few cycles of the entry pulse | CORE-PL-06, ML-BP-04, CORE-CK-01 |
+
+### Bit-level Physical adapter
+
+The configuration `lanes4_pin` replaces the word-level channel model with two `ofb_pa_gty` with the architecture
+`mdl` ([model description](../../ofb_pa_gty/docs/model.md)), connected pin to pin. As in the reference design,
+each core runs on the lane clock of its adapter, `Phy_TxReady` comes from `Stat_TxReady` and `Phy_BitSync` from
+`Stat_Aligned`; the transceivers are reset with the harness reset. Both reference clocks have the same frequency.
+The channel effects of the test cases (bit errors, cut lanes) act on the bit stream through the control record of
+the models. The tests are protocol tests: the clock-data recovery of the models locks 500 ns after a signal appears
+(`CdrLockTime`; the default of the model is the lock time of the transceiver simulation model, 17.1 us).
+
+| Test cases | Configuration | Requirements |
+| --- | --- | --- |
+| TC-CORE-01, TC-CORE-02, TC-CORE-03, TC-CORE-16 (`lanes4_pin`) | Four lanes through two adapter models: link start once the transmitters are ready, traffic on all VCs, bit errors as code and disparity errors of the bit stream, throughput | CORE-PL-04, PA-MD-02, PA-MD-03, PA-MD-05, PA-MD-07 |
 
 ## 4. Functional coverage
 

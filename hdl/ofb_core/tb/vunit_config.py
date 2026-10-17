@@ -2,9 +2,10 @@
 # Copyright (c) 2026 by Julian Schneider
 # Authors: Julian Schneider
 # ---------------------------------------------------------------------------------------------------
-"""VUnit configurations of the core testbench: one to four lanes with all tests, and the boundaries of the other
-generic ranges with the tests of link start, traffic and link reset. The link reset crossing of ofb_core_cc runs with
-a core clock faster than, equal to and twice the lane clock.
+"""VUnit configurations of the core testbench: one to four lanes with all tests, the boundaries of the other
+generic ranges with the tests of link start, traffic and link reset, and four lanes through two ofb_pa_gty with the
+architecture mdl (lanes4_pin). The link reset crossing of ofb_core_cc runs with a core clock faster than, equal to and
+twice the lane clock.
 
 The fault injection campaign (test_fault_campaign, TC-CORE-13) runs with seed 1 in the regression. More seeds for an
 extended campaign: OFB_CAMPAIGN_SEEDS="2,3,4" python run.py "*test_fault_campaign*".
@@ -40,6 +41,10 @@ RANGE_CONFIGS = (
     ("lanestart1", {"NumLanes_g": 1, "LaneStartA_g": True}, ("test_start_generics",)),
     ("lanestart4", {"NumLanes_g": 4, "LaneStartA_g": True}, ("test_start_generics",)),
     ("noauto", {"NumLanes_g": 1, "AutoStart_g": False}, ("test_start_generics",)),
+    # Two ofb_pa_gty with the architecture mdl pin to pin instead of the word-level channel model: the bit-level
+    # model under the full protocol stack (link start, traffic, bit errors, throughput)
+    ("lanes4_pin", {"NumLanes_g": 4, "PinModel_g": True},
+     ("test_link_up", "test_traffic", "test_error_recovery", "test_throughput")),
 )
 
 
