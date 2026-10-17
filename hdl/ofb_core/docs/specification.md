@@ -56,3 +56,4 @@ The core supports 1 to 4 lanes (`NumLanes_g`). The VC ports carry packets of 4 x
 | `ErbRows_g` | 512 | Error recovery buffer, data rows of `NumLanes_g` words |
 | `InitPrbsWords_g` | 64 | PRBS words after INIT1 / INIT2 |
 | `LaneStart_g`, `AutoStart_g` | false, true | Reset values of LaneStart and AutoStart of every lane (MIB, MG-CF-03) |
+| `AlignTimeoutWords_g` | 10000 | Alignment watchdog of the Multi-Lane layer (ML-AL-11), lane clock cycles; 0 (off) or 1024 to 1000000 |

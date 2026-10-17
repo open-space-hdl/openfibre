@@ -30,17 +30,21 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_core is
     generic (
-        NumVc_g          : positive range 1 to 32 := 8;
-        NumLanes_g       : positive range 1 to 4  := 1;
-        LaneClkFreq_g    : real                   := 156.25e6;
-        CoreClkFreq_g    : real                   := 200.0e6;
-        VcOutDepth_g     : positive               := 128;
-        VcInDepth_g      : positive               := 256;
-        ErbRows_g        : positive               := 512;
-        InitPrbsWords_g  : natural range 0 to 64  := 64;
+        NumVc_g             : positive range 1 to 32     := 8;
+        NumLanes_g          : positive range 1 to 4      := 1;
+        LaneClkFreq_g       : real                       := 156.25e6;
+        CoreClkFreq_g       : real                       := 200.0e6;
+        VcOutDepth_g        : positive                   := 128;
+        VcInDepth_g         : positive                   := 256;
+        ErbRows_g           : positive                   := 512;
+        InitPrbsWords_g     : natural range 0 to 64      := 64;
         -- Reset values of LaneStart and AutoStart of every lane (LANE_CTRL bits 0 and 1)
-        LaneStart_g      : boolean                := false;
-        AutoStart_g      : boolean                := true
+        LaneStart_g         : boolean                    := false;
+        AutoStart_g         : boolean                    := true;
+        -- Alignment watchdog of the Multi-Lane layer (ML-AL-11): lane clock cycles in Not Ready (twice as
+        -- many outside Both-Ends Ready) before a LaneReset of the active lanes; 0: off, else 1024 to 1000000
+        -- (the stable time of an eighth spans at least 16 ALIGN periods of 8 words)
+        AlignTimeoutWords_g : natural range 0 to 1000000 := 10000
     );
     port (
         -- Asynchronous reset (high active), clocks
@@ -234,6 +238,7 @@ architecture rtl of ofb_core is
     signal AlignState  : AlignState_t;
     signal MlBypass    : std_logic;
     signal MlMisalign  : std_logic;
+    signal MlAlignTo   : std_logic;
     signal RxRowOvf    : std_logic;
     signal SkipReq     : std_logic;
     signal CfgTxEn     : std_logic_vector(NumLanes_g-1 downto 0);
@@ -606,8 +611,9 @@ begin
     -----------------------------------------------------------------------------------------------
     i_ml : entity work.ofb_multilane
         generic map (
-            NumLanes_g     => NumLanes_g,
-            ClkFrequency_g => LaneClkFreq_g
+            NumLanes_g          => NumLanes_g,
+            ClkFrequency_g      => LaneClkFreq_g,
+            AlignTimeoutWords_g => AlignTimeoutWords_g
         )
         port map (
             Clk                     => LaneClk,
@@ -655,7 +661,8 @@ begin
             Stat_DataReceivingLanes => DataRecv,
             Stat_AlignState         => AlignState,
             Stat_Bypass             => MlBypass,
-            Ev_Misaligned           => MlMisalign
+            Ev_Misaligned           => MlMisalign,
+            Ev_AlignTimeout         => MlAlignTo
         );
 
     -----------------------------------------------------------------------------------------------
@@ -814,6 +821,7 @@ begin
             Ml_AlignState          => AlignState,
             Ml_StatBypass          => MlBypass,
             Ml_EvMisaligned        => MlMisalign,
+            Ml_EvAlignTimeout      => MlAlignTo,
             Ml_EvRxOverflow        => RxRowOvf,
             Ml_TxEn                => CfgTxEn,
             Ml_RxEn                => CfgRxEn,

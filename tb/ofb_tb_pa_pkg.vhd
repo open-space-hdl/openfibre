@@ -30,7 +30,11 @@ package ofb_tb_pa_pkg is
         Flips  : natural;              -- Number of single bit errors requested so far; every
         -- increment flips one bit of the next symbol
         Skew   : natural range 0 to 7; -- Additional delay in words (lane skew); a change while
-    -- words flow drops or repeats words (lane slip)
+        -- words flow drops or repeats words (lane slip)
+        Slips  : natural;              -- Number of words lost by the receiver so far; every increment
+    -- loses one word (the receiver runs ahead by one word, at most Skew words), until the receiver
+    -- is disabled (receive or CDR enable low, a restart of the lane), as a receive buffer that is
+    -- set up again
     end record;
 
     type PaCtrl_t is record
@@ -38,7 +42,8 @@ package ofb_tb_pa_pkg is
         BtoA : PaDirCtrl_t;
     end record;
 
-    constant PaDirCtrlDefault_c : PaDirCtrl_t := (Cut => false, Invert => false, Offset => 0, Flips => 0, Skew => 0);
+    constant PaDirCtrlDefault_c : PaDirCtrl_t := (Cut => false, Invert => false, Offset => 0, Flips => 0, Skew => 0,
+                                                  Slips => 0);
     constant PaCtrlDefault_c    : PaCtrl_t    := (AtoB => PaDirCtrlDefault_c, BtoA => PaDirCtrlDefault_c);
 
     type PaCtrlArray_t is array (natural range <>) of PaCtrl_t;

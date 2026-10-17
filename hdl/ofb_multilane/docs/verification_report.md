@@ -9,9 +9,14 @@ Run on 2026-10-06 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 | --- | --- | --- |
 | `ofb_ml_codec_tb` (ML-3, ML-4) | 10 | 10 |
 | `ofb_multilane_tb` (layer, one lane) | 6 | 6 |
-| `ofb_ml_align_tb` (ML-5, ML-6, four lanes) | 5 | 5 |
+| `ofb_ml_align_tb` (ML-5, ML-6, four lanes; TC-ML-50 in the configurations `wd1024` and `wdoff`) | 7 | 7 |
 | `ofb_ml_link_tb` (multi-lane link, configurations `lanes2` to `lanes4`) | 12 x 3 | 36 |
 | `ofb_ml_lane_mgr_tb` (ML-1, capability event and transition to Active in the same cycle) | 1 | 1 |
+
+Alignment watchdog (ML-AL-11, 2026-10-17): TC-ML-50 passes with the lowest bound of 1024 cycles and with the
+watchdog off; the other tests of `ofb_ml_align_tb` pass unchanged (7 of 7). Mutation checks: a watchdog that restarts
+its counts at once in Both-Ends Ready, and one that uses the single bound outside Both-Ends Ready, both fail TC-ML-50; a
+lane manager that ignores the watchdog fails TC-CORE-30 (verification report of `ofb_core`).
 
 Row acceptance in the bypass (ML-BP-04, 2026-10-16): 58 of 58 tests of the layer pass, among them the rewritten
 TC-ML-24 and the new TC-ML-49 with two to four lanes.

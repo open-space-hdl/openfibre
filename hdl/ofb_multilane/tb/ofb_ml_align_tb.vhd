@@ -35,7 +35,9 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_ml_align_tb is
     generic (
-        runner_cfg : string
+        runner_cfg     : string;
+        -- Alignment watchdog of the DUT (short for the test; 0: off)
+        AlignTimeout_g : natural := 1024
     );
 end entity;
 
@@ -178,6 +180,8 @@ architecture sim of ofb_ml_align_tb is
     signal RecvLanes  : std_logic_vector(N_c-1 downto 0);
     signal AlignState : AlignState_t;
     signal Misaligned : std_logic;
+    signal AlTimeout  : std_logic;
+    signal Bypass     : std_logic                           := '0';
     signal RxData     : std_logic_vector(32*N_c-1 downto 0);
     signal RxK        : std_logic_vector(4*N_c-1 downto 0);
     signal RxMask     : std_logic_vector(N_c-1 downto 0);
@@ -187,6 +191,7 @@ architecture sim of ofb_ml_align_tb is
     -- Event counters of the monitor
     signal MisCnt    : natural := 0;
     signal FarActCnt : natural := 0;
+    signal WdCnt     : natural := 0; -- expiries of the alignment watchdog
 
     -- Skew of each lane in words; a change while words flow drops or repeats words (slip)
     type Skew_t is array (0 to N_c-1) of natural range 0 to 7;
@@ -217,9 +222,10 @@ begin
     -- Test sequencer
     -----------------------------------------------------------------------------------------------
     p_main : process is
-        variable Read_v : natural := 0; -- Next row of the log to check
-        variable Row_v  : Row_t;
-        variable Num_v  : natural;
+        variable Read_v  : natural := 0; -- Next row of the log to check
+        variable Start_v : time;
+        variable Row_v   : Row_t;
+        variable Num_v   : natural;
 
         procedure cycles (n : natural) is
         begin
@@ -440,6 +446,18 @@ begin
             Read_v := RowLog_v.count;
         end procedure;
 
+        -- Watchdog expiries within the next n cycles, checked against the expected number
+        procedure expectWd (
+            n   : natural;
+            exp : natural;
+            msg : string) is
+            variable Start_v : natural;
+        begin
+            Start_v := WdCnt;
+            cycles(n);
+            check_value(WdCnt - Start_v, exp, error, msg);
+        end procedure;
+
     -- Test cases
     begin
         test_runner_setup(runner, runner_cfg);
@@ -517,6 +535,77 @@ begin
                 dataRow(1000);
                 drain;
                 expectData(1000, 4, "Row after the new alignment");
+
+            -- TC-ML-50: alignment watchdog (ML-AL-11). Expiry after AlignTimeout_g cycles in Not Ready
+            -- with active receiving lanes, again after as many cycles, after twice as many cycles outside
+            -- Both-Ends Ready (Near-End Ready); never in Both-Ends Ready, without an active receiving lane
+            -- or in the bypass; a link reset restarts the counts, Both-Ends Ready restarts them only when
+            -- it holds for an eighth of the bound; never with AlignTimeout_g = 0
+            elsif run("test_align_watchdog") then
+                if AlignTimeout_g = 0 then
+                    -- Off: no expiry in Not Ready, Near-End Ready or Both-Ends Ready
+                    linkReset;
+                    expectWd(1000, 0, "Watchdog off: no expiry in Not Ready");
+                    alignSeq(3);
+                    drain;
+                    check_value(AlignState, AlignNearEndReady_c, error, "Near-End Ready");
+                    expectWd(1000, 0, "Watchdog off: no expiry in Near-End Ready");
+                else
+                    -- Not Ready: expiry after AlignTimeout_g cycles, then periodically
+                    linkReset;
+                    expectWd(AlignTimeout_g - 4, 0, "Not Ready: no expiry before the bound");
+                    expectWd(6, 1, "Not Ready: expiry at the bound");
+                    expectWd(AlignTimeout_g - 6, 0, "Not Ready: no second expiry before the bound");
+                    expectWd(6, 1, "Not Ready: second expiry at the bound");
+                    -- No active receiving lane: no count
+                    RxLanes <= "0000";
+                    expectWd(3 * AlignTimeout_g, 0, "No active receiving lane: no expiry");
+                    RxLanes <= "1111";
+                    cycles(2);
+                    -- Bypass: always Both-Ends Ready, no count
+                    Bypass <= '1';
+                    expectWd(3 * AlignTimeout_g, 0, "Bypass: no expiry");
+                    Bypass <= '0';
+                    cycles(2);
+                    -- Near-End Ready: expiry at twice the bound after the link reset (the cycles of the
+                    -- alignment in Not Ready stay below the bound)
+                    linkReset;
+                    Start_v := now;
+                    alignSeq(3);
+                    drain;
+                    check_value(AlignState, AlignNearEndReady_c, error, "Near-End Ready");
+                    expectWd((2 * AlignTimeout_g * ClkPeriod_c - (now - Start_v)) / ClkPeriod_c - 20, 0,
+                             "Near-End Ready: no expiry before twice the bound");
+                    expectWd(40, 1, "Near-End Ready: expiry at twice the bound");
+                    check_value(AlignState, AlignNearEndReady_c, error, "Still Near-End Ready at the expiry");
+                    -- Both-Ends Ready held for an eighth of the bound restarts the count: half the bound in Not
+                    -- Ready, alignment, Both-Ends Ready for longer than an eighth, Misaligned: the next expiry
+                    -- comes a full bound later
+                    linkReset;
+                    cycles(AlignTimeout_g / 2);
+                    align;
+                    cycles(AlignTimeout_g / 8 + 20);
+                    ActLanes <= "0111";
+                    cycles(2);
+                    ActLanes <= "1111";
+                    check_value(AlignState, AlignNotReady_c, error, "Not Ready after the change of the active lanes");
+                    expectWd(AlignTimeout_g - 20, 0, "Stable Both-Ends Ready: count restarted");
+                    expectWd(40, 1, "Stable Both-Ends Ready: expiry a full bound later");
+                    -- Both-Ends Ready shorter than an eighth of the bound keeps the count: the next expiry comes
+                    -- when the cycles in Not Ready before and after it reach the bound
+                    linkReset;
+                    cycles(AlignTimeout_g / 2);
+                    align;
+                    ActLanes <= "0111";
+                    cycles(2);
+                    ActLanes <= "1111";
+                    check_value(AlignState, AlignNotReady_c, error, "Not Ready after the short Both-Ends Ready");
+                    expectWd(AlignTimeout_g / 4, 0, "Short Both-Ends Ready: no early expiry");
+                    expectWd(AlignTimeout_g / 2, 1, "Short Both-Ends Ready: count kept");
+                    -- Both-Ends Ready: no count
+                    align;
+                    expectWd(3 * AlignTimeout_g, 0, "Both-Ends Ready: no expiry");
+                end if;
 
             -- TC-ML-41: row classification
             elsif run("test_row_rules") then
@@ -831,6 +920,9 @@ begin
             if Misaligned = '1' then
                 MisCnt <= MisCnt + 1;
             end if;
+            if AlTimeout = '1' then
+                WdCnt <= WdCnt + 1;
+            end if;
             if FarActV = '1' then
                 FarActCnt <= FarActCnt + 1;
             end if;
@@ -842,32 +934,34 @@ begin
     -----------------------------------------------------------------------------------------------
     i_align : entity work.ofb_ml_align
         generic map (
-            NumLanes_g     => N_c,
-            ClkFrequency_g => 156.25e6
+            NumLanes_g          => N_c,
+            ClkFrequency_g      => 156.25e6,
+            AlignTimeoutWords_g => AlignTimeout_g
         )
         port map (
-            Clk           => Clk,
-            Rst           => Rst,
-            Ctrl_Flush    => Flush,
-            Bypass        => '0',
-            ActLanes      => ActLanes,
-            RxLanes       => RxLanes,
-            NumRxLanes    => NumRxLanes,
-            In_Data       => InData,
-            In_K          => InK,
-            In_CrcErr     => InCrcErr,
-            In_Valid      => InValid,
-            Row_Data      => RowData,
-            Row_K         => RowK,
-            Row_Count     => RowCount,
-            Row_Data_Row  => RowIsData,
-            Row_CrcErr    => RowCrcErr,
-            Row_Valid     => RowValid,
-            FarAct        => FarAct,
-            FarActValid   => FarActV,
-            RecvLanes     => RecvLanes,
-            AlignState    => AlignState,
-            Ev_Misaligned => Misaligned
+            Clk             => Clk,
+            Rst             => Rst,
+            Ctrl_Flush      => Flush,
+            Bypass          => Bypass,
+            ActLanes        => ActLanes,
+            RxLanes         => RxLanes,
+            NumRxLanes      => NumRxLanes,
+            In_Data         => InData,
+            In_K            => InK,
+            In_CrcErr       => InCrcErr,
+            In_Valid        => InValid,
+            Row_Data        => RowData,
+            Row_K           => RowK,
+            Row_Count       => RowCount,
+            Row_Data_Row    => RowIsData,
+            Row_CrcErr      => RowCrcErr,
+            Row_Valid       => RowValid,
+            FarAct          => FarAct,
+            FarActValid     => FarActV,
+            RecvLanes       => RecvLanes,
+            AlignState      => AlignState,
+            Ev_Misaligned   => Misaligned,
+            Ev_AlignTimeout => AlTimeout
         );
 
     i_rx : entity work.ofb_ml_rx
