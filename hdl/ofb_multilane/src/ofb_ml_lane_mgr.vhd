@@ -59,6 +59,7 @@ entity ofb_ml_lane_mgr is
         -- Valid ACTIVE word received (lane alignment)
         Al_FarAct               : in    std_logic_vector(15 downto 0) := (others => '0');
         Al_FarActValid          : in    std_logic                     := '0';
+        Al_Timeout              : in    std_logic                     := '0'; -- alignment watchdog
         -- Lane sets for the distributor and the alignment
         Bypass                  : out   std_logic;
         ActLanes                : out   std_logic_vector(NumLanes_g-1 downto 0);
@@ -193,8 +194,9 @@ begin
                 v.FarActive(i) := '0';
             end if;
 
-            -- LaneReset (ECSS 5.6.9.5): request until the lane is in ClearLine
-            Cond_v(i) := Dl_LaneReset;
+            -- LaneReset (ECSS 5.6.9.5): request until the lane is in ClearLine; also of every active
+            -- lane when the alignment watchdog expires (ML-AL-11)
+            Cond_v(i) := Dl_LaneReset or (Al_Timeout and Active_v(i));
             if Active_v(i) = '1' and TxOnly_v(i) = '1' and (r.FarActive(i) = '0' or not BidirAct_v) then
                 Cond_v(i) := '1';
             end if;

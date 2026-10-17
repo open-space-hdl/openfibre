@@ -47,7 +47,9 @@ entity ofb_core_th is
         ErbRows_g       : positive               := 512;
         InitPrbsWords_g : natural range 0 to 64  := 64;
         LaneStartA_g    : boolean                := false; -- LaneStart_g of core A (B: false)
-        AutoStart_g     : boolean                := true   -- AutoStart_g of both cores
+        AutoStart_g     : boolean                := true;  -- AutoStart_g of both cores
+        AlignTimeoutA_g : natural                := 10000; -- AlignTimeoutWords_g of core A
+        AlignTimeoutB_g : natural                := 10000  -- AlignTimeoutWords_g of core B
     );
     port (
         MgmtClk : out   std_logic;
@@ -239,17 +241,18 @@ begin
 
         i_core : entity work.ofb_core
             generic map (
-                NumVc_g         => NumVc_g,
-                NumLanes_g      => N_c,
+                NumVc_g             => NumVc_g,
+                NumLanes_g          => N_c,
                 -- The frequency generics match the generated clocks
-                LaneClkFreq_g   => 1.0e12 / real(2 * LaneHalfPs_g),
-                CoreClkFreq_g   => 1.0e12 / real(2 * CoreHalfPs_g),
-                VcOutDepth_g    => VcOutDepth_g,
-                VcInDepth_g     => VcInDepth_c,
-                ErbRows_g       => ErbRows_g,
-                InitPrbsWords_g => InitPrbsWords_g,
-                LaneStart_g     => LaneStartA_g and i = 0,
-                AutoStart_g     => AutoStart_g
+                LaneClkFreq_g       => 1.0e12 / real(2 * LaneHalfPs_g),
+                CoreClkFreq_g       => 1.0e12 / real(2 * CoreHalfPs_g),
+                VcOutDepth_g        => VcOutDepth_g,
+                VcInDepth_g         => VcInDepth_c,
+                ErbRows_g           => ErbRows_g,
+                InitPrbsWords_g     => InitPrbsWords_g,
+                LaneStart_g         => LaneStartA_g and i = 0,
+                AutoStart_g         => AutoStart_g,
+                AlignTimeoutWords_g => choose(i = 0, AlignTimeoutA_g, AlignTimeoutB_g)
             )
             port map (
                 Rst                    => RstI or CoreRstReq(i),

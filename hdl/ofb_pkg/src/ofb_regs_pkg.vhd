@@ -25,7 +25,7 @@ package ofb_regs_pkg is
     -----------------------------------------------------------------------------------------------
     -- Identification
     -----------------------------------------------------------------------------------------------
-    constant RegMapId_c : std_logic_vector(31 downto 0) := x"0FB10008";
+    constant RegMapId_c : std_logic_vector(31 downto 0) := x"0FB10009";
 
     -----------------------------------------------------------------------------------------------
     -- Register addresses (byte addresses)
@@ -59,6 +59,7 @@ package ofb_regs_pkg is
     constant RegEccInject_c        : natural := 16#06C#;
     constant RegVcRxFramingError_c : natural := 16#070#;
     constant RegNiRxEmptyCount_c   : natural := 16#074#;
+    constant RegMlAlignTimeouts_c  : natural := 16#078#;
 
     -----------------------------------------------------------------------------------------------
     -- LANE registers: address of instance n = Reg<Name>_c + n * RegLaneStride_c
@@ -214,6 +215,9 @@ package ofb_regs_pkg is
     constant NiRxEmptyCountCountLo_c : natural := 0;
     constant NiRxEmptyCountCountHi_c : natural := 15;
 
+    constant MlAlignTimeoutsCountLo_c : natural := 0;
+    constant MlAlignTimeoutsCountHi_c : natural := 15;
+
     constant LaneCtrlLaneStart_c          : natural := 0;
     constant LaneCtrlAutoStart_c          : natural := 1;
     constant LaneCtrlLaneReset_c          : natural := 2;
@@ -298,6 +302,7 @@ package ofb_regs_pkg is
     constant RegEccCountReset_c         : std_logic_vector(31 downto 0) := x"00000000";
     constant RegEccInjectReset_c        : std_logic_vector(31 downto 0) := x"00000000";
     constant RegNiRxEmptyCountReset_c   : std_logic_vector(31 downto 0) := x"00000000";
+    constant RegMlAlignTimeoutsReset_c  : std_logic_vector(31 downto 0) := x"00000000";
     constant RegLaneCtrlReset_c         : std_logic_vector(31 downto 0) := x"00000062";
     constant RegLaneEventsReset_c       : std_logic_vector(31 downto 0) := x"00000000";
     constant RegLaneTimeoutCountReset_c : std_logic_vector(31 downto 0) := x"00000000";

@@ -29,6 +29,7 @@ an interrupt. It contains the crossings between the management clock and the clo
 | MG-CF-03 | The reset values of LaneStart and AutoStart of every lane shall be the generics `LaneStart_g` (default false) and `AutoStart_g` (default true), on reset and on Interface Reset; the defaults are the reset values of MG-CF-01. | 5.9.3c, 5.5.2.5, Table 5-36 |
 | MG-ST-01 | Error events shall set sticky flags, cleared by writing one; the Link Reset command shall clear the status of the Data Link, Multi-Lane and Lane layers (sticky flags and counters); the EDAC status shall be kept. | 5.9.4d, e |
 | MG-ST-02 | The number of error recovery attempts shall be counted, and the CRC-16, CRC-8, frame and sequence errors and the lane timeouts in saturating counters; a write clears a counter. | 5.7.7.1k, l, Table 5-37 |
+| MG-ST-07 | The expiries of the alignment watchdog of the Multi-Lane layer (`Ml_EvAlignTimeout`, lane clock, ML-AL-11) shall be counted in a saturating counter (ML_ALIGN_TIMEOUTS); a write and the Link Reset command clear it. | none (extension, ML-AL-11) |
 | MG-ST-04 | A receive row lost in the crossing to the core clock (`Ml_EvRxOverflow`, lane clock) shall set a sticky flag with interrupt. | 5.9.4c |
 | MG-ST-03 | An interrupt output shall be asserted while a sticky flag enabled in the interrupt mask is set. | none (implementation) |
 | MG-ST-05 | The receive framing errors of the Network interface (user clock) shall set a sticky flag per VC and a common sticky flag with interrupt; the received packets of zero length discarded by the Network interface shall be counted in a saturating 16-bit counter without losing events of consecutive cycles or of several VCs in one cycle; a write and the Link Reset command shall clear the counter. | 5.9.4a, c, d, e, 5.3.9h |
@@ -62,8 +63,8 @@ The reset values of LaneStart and AutoStart are generics (MG-CF-03). Their defau
 5-36; another value acts as a management write right after the reset. It lets a node whose MIB can only be reached
 over its own link start that link.
 
-The Link Reset command clears all status parameters of Table 5-37 held in the MIB (5.9.4e): the Data Link flags
-and counters, the flags of bandwidth use, the lane event flags and the additional counters (lane timeouts, Misaligned
-conditions). The RXERR counter of a lane is cleared by the LaneReset that the link reset asserts. The EDAC status
-describes the memories, not the link, and is kept. The virtual network number of a VC is a
-configuration register only: a node has one end-point per VC (ECSS 5.8.3h, i).
+The Link Reset command clears all status parameters of Table 5-37 held in the MIB (5.9.4e): the Data Link flags and
+counters, the flags of bandwidth use, the lane event flags and the additional counters (lane timeouts, Misaligned
+conditions, expiries of the alignment watchdog). The RXERR counter of a lane is cleared by the LaneReset that the link
+reset asserts. The EDAC status describes the memories, not the link, and is kept. The virtual network number of a VC is
+a configuration register only: a node has one end-point per VC (ECSS 5.8.3h, i).
