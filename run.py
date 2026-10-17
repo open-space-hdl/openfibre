@@ -105,6 +105,49 @@ def read_component_list():
     return modules
 
 
+# Physical adapter ofb_pa_gty: entity with the architecture struct for synthesis and the AMD simulator
+# (compile_order.txt), with the architecture mdl for GHDL and QuestaSim (compile_order_sim.txt). A flow analyses
+# exactly one of the two architectures.
+PA_DIR = ROOT / "hdl" / "ofb_pa_gty"
+PA_LISTS = {"compile_order.txt": "ofb_pa_gty_struct.vhd", "compile_order_sim.txt": "ofb_pa_gty_model.vhd"}
+
+
+def read_list(path):
+    return [line.strip() for line in path.read_text().splitlines() if line.strip() and not line.startswith("#")]
+
+
+def check_pa_lists():
+    """Each adapter list has the entity and exactly its own architecture, never both."""
+    errors = []
+    for name, own in PA_LISTS.items():
+        files = read_list(PA_DIR / name)
+        names = [Path(f).name for f in files]
+        other = [arch for arch in PA_LISTS.values() if arch != own][0]
+        if "ofb_pa_gty.vhd" not in names or own not in names:
+            errors.append(f"hdl/ofb_pa_gty/{name}: entity or {own} missing")
+        if other in names:
+            errors.append(f"hdl/ofb_pa_gty/{name}: contains both architectures ({other})")
+        errors += [f"hdl/ofb_pa_gty/{name}: {f} does not exist" for f in files if not (ROOT / f).exists()]
+    if errors:
+        sys.exit("\n".join(errors))
+
+
+def add_pa_model(lib):
+    """The simulation list of the adapter (files not yet in the library) and the testbenches of the model. Returns
+    the files of the simulation list, which are analysed as strict VHDL-2008 like the synthesis sources."""
+    present = {Path(f.name).resolve() for f in lib.get_source_files()}
+    files = [ROOT / f for f in read_list(PA_DIR / "compile_order_sim.txt")]
+    added = lib.add_source_files([f for f in files if f.resolve() not in present])
+    if COVERAGE:
+        added.add_compile_option("modelsim.vcom_flags", ["+cover=sbcef"])
+    # The model testbenches and the end-to-end testbench with its package (wrapped by ofb_pa_gty_model_core_tb)
+    tbs = sorted((PA_DIR / "tb").glob("ofb_pa_gty_model*.vhd"))
+    tbs += sorted((PA_DIR / "tb").glob("ofb_pa_gty_core_tb*.vhd"))
+    if tbs:
+        lib.add_source_files(tbs)
+    return [lib.get_source_file(str(f)) for f in files]
+
+
 def add_openfibre(vu):
     lib = vu.add_library("openfibre")
     shared_tb = sorted((ROOT / "tb").glob("*.vhd"))
@@ -137,10 +180,11 @@ def apply_module_configs(lib, modules):
 
 def set_simulator_options(vu, synthesis_sources):
     # UVVM uses shared variables of non-protected types; GHDL accepts them with -frelaxed. The synthesis sources of
-    # OpenFibre are analysed as strict VHDL-2008.
+    # OpenFibre and the simulation list of the adapter model are analysed as strict VHDL-2008.
     vu.add_compile_option("ghdl.a_flags", ["-frelaxed", "-Wno-hide", "-Wno-shared"])
     for files in synthesis_sources:
-        files.set_compile_option("ghdl.a_flags", [])
+        for source in files if isinstance(files, list) else [files]:
+            source.set_compile_option("ghdl.a_flags", [])
     vu.set_sim_option("ghdl.elab_flags", ["-frelaxed"])
     # Large word arrays in testbench processes exceed the default stack limit of GHDL. Extra simulation flags for
     # debugging, for example a waveform: OFB_GHDL_SIM_FLAGS="--vcd=D:/tmp/wave.vcd --read-wave-opt=D:/tmp/wave.opt"
@@ -185,11 +229,13 @@ def main():
     add_open_logic(vu)
     add_uvvm(vu)
     lib, modules, synthesis_sources = add_openfibre(vu)
+    check_pa_lists()
     if COMPILE_ORDER:
         write_compile_order(vu)
         return
-    apply_module_configs(lib, modules)
-    set_simulator_options(vu, synthesis_sources)
+    pa_sim_sources = add_pa_model(lib)
+    apply_module_configs(lib, modules + ["hdl/ofb_pa_gty"])
+    set_simulator_options(vu, synthesis_sources + [pa_sim_sources])
     if COVERAGE:
         vu.set_sim_option("enable_coverage", True)
     vu.main(post_run=merge_coverage)

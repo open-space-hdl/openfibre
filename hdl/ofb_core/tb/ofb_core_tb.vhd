@@ -55,7 +55,8 @@ entity ofb_core_tb is
         ErbRows_g       : positive               := 512;
         InitPrbsWords_g : natural range 0 to 64  := 64;
         LaneStartA_g    : boolean                := false; -- LaneStart_g of core A (B: false)
-        AutoStart_g     : boolean                := true   -- AutoStart_g of both cores
+        AutoStart_g     : boolean                := true; -- AutoStart_g of both cores
+        PinModel_g      : boolean                := false -- ofb_pa_gty(mdl) pin to pin
     );
 end entity;
 
@@ -1513,7 +1514,8 @@ begin
             ErbRows_g       => ErbRows_g,
             InitPrbsWords_g => InitPrbsWords_g,
             LaneStartA_g    => LaneStartA_g,
-            AutoStart_g     => AutoStart_g
+            AutoStart_g     => AutoStart_g,
+            PinModel_g      => PinModel_g
         )
         port map (
             MgmtClk => MgmtClk,

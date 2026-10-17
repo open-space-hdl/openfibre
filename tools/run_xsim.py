@@ -43,6 +43,8 @@ TESTBENCHES = {
     "ofb_pa_gty_core_tb.lanes1": ("ofb_pa_gty_core_tb", {"Lanes_g": "1", "Short_g": "true"}),
     "ofb_pa_gty_core_tb.lanes2": ("ofb_pa_gty_core_tb", {"Lanes_g": "2", "Short_g": "true"}),
     "ofb_pa_gty_core_tb.lanes3": ("ofb_pa_gty_core_tb", {"Lanes_g": "3", "Short_g": "true"}),
+    # One lane: restart of the lane by an interruption of the far-end transmitter after the first burst
+    "ofb_pa_gty_core_tb.relock": ("ofb_pa_gty_core_tb", {"Lanes_g": "1", "Short_g": "true", "Relock_g": "true"}),
     "ofb_vck190_tb": ("ofb_vck190_tb", {}),
 }
 
@@ -184,6 +186,10 @@ def compile_all(export, entities):
         if not found:
             raise SystemExit(f"testbench {tb} not found")
         files.append(str(found[0]))
+        # Package of the testbench (for example the result signals of ofb_pa_gty_core_tb)
+        pkg = found[0].with_name(f"{tb}_pkg.vhd")
+        if pkg.exists():
+            files.append(str(pkg))
     compile_vhdl(export, "xil_defaultlib", dependency_order(files), "compile_ofb.log")
 
 
