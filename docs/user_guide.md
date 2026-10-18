@@ -37,6 +37,8 @@ The sources are VHDL-2008 and use no vendor primitives. `run.py` shows the compl
 A system simulation in GHDL or QuestaSim replaces the GTY wrapper by the architecture `mdl` of `ofb_pa_gty`: the same
 entity, ports and generics, the 8B/10B bit stream on the serial pins and the reset sequence and status of the
 transceiver ([model description](../hdl/ofb_pa_gty/docs/model.md)). The design above the adapter stays unchanged.
+QuestaSim needs a time resolution of 1 fs (`vsim -t fs`) when the reference clocks differ by fractions of a
+picosecond, for example a few hundred ppm.
 
 Compile order (VHDL-2008):
 

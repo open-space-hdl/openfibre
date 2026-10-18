@@ -146,6 +146,10 @@ GHDL 6.0 (mcode), 6.25 Gbit/s: the serial path of four lanes in both directions 
 simulated millisecond (two models). Two cores `ofb_core` with traffic cost about 1000 to 3000 s per simulated
 millisecond, so the model adds a few percent to a system simulation.
 
+QuestaSim runs the model at a time resolution of 1 fs (`vsim -t fs`, as `run.py` does), as GHDL: the unit interval
+is a fortieth of the reference clock period, and reference clocks a few hundred ppm apart differ by less than 1 ps
+per half period, which a resolution of 1 ps truncates.
+
 ## 7. Use in a system testbench
 
 ```vhdl
