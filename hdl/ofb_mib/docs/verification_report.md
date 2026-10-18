@@ -14,7 +14,8 @@ Full regression of the repository: 227 of 227 tests pass (with the packet ports 
 TC-MG-06 counts two expiries of the alignment watchdog and clears the counter with a write, TC-MG-01 reads its reset
 value. A MIB that does not count the expiries fails TC-MG-06 (mutation check). Run on 2026-10-18: 11 of 11; TC-MG-04
 also counts one Misaligned condition and one expiry of the alignment watchdog and checks that the Link Reset command
-clears ML_MISALIGNED and ML_ALIGN_TIMEOUTS (MG-ST-07).
+clears ML_MISALIGNED and ML_ALIGN_TIMEOUTS (MG-ST-07). QuestaSim on 2026-10-18: 11 of 11 with coverage (commit
+b6242a2) and without coverage (commit 9dff622, the tree of main 77f4eea).
 
 ## 2. Summary
 

@@ -11,11 +11,13 @@ python run.py --questa --coverage -p 1
 
 The sources of `hdl/<module>/src` are compiled with `+cover=sbcef`: statements, branches, conditions, expressions
 (focused expression coverage) and state machines. Open Logic, UVVM and the testbenches are not instrumented; Open Logic
-is verified by its own regression. The transceiver wrapper `ofb_pa_gty` and the VCK190 top level need the transceiver
-model and run in the AMD Vivado simulator (`tools/run_xsim.py`); they are not part of this measurement. `run.py` merges
-the coverage of all tests into `coverage/coverage.ucdb` and writes the reports `coverage/coverage_report.txt` (details
-per instance) and `coverage/coverage_byfile.txt`; a design unit is covered when any of its instances in any test
-covers it.
+is verified by its own regression. The behavioural model of the Physical adapter (architecture `mdl` of `ofb_pa_gty`
+and its package, `hdl/ofb_pa_gty/sim`) runs in the regression and is instrumented as well. The transceiver wrapper
+(architecture `struct`) and the VCK190 top level need the transceiver model and run in the AMD Vivado simulator
+(`tools/run_xsim.py`); they are not part of this measurement. QuestaSim runs at a time resolution of 1 fs, as GHDL.
+`run.py` merges the coverage of all tests into `coverage/coverage.ucdb` and writes the reports
+`coverage/coverage_report.txt` (details per instance) and `coverage/coverage_byfile.txt`; a design unit is covered
+when any of its instances in any test covers it.
 
 Closure rules:
 
@@ -32,13 +34,28 @@ Closure rules:
 
 ## 2. Result
 
-Run on 2026-10-16 on the main branch with the transmitter ready input, the entry pulses of the link reset crossing,
-the row acceptance of the Multi-Lane layer and the generics `LaneStart_g` and `AutoStart_g` (commit f877460): 332
-tests, all passed with coverage and without coverage (about two and a half hours with coverage). TC-CORE-29 was added
-afterwards (commit 24569e6; `git diff --stat f877460 24569e6`: two files, `ofb_core_tb.vhd` and the verification plan
-of the core, 36 lines added); the other test cases are separate VUnit runs whose behaviour does not change. TC-CORE-29
-ran in both modes on its own (configurations `lanes1` to `lanes4`), and its coverage is merged into that of the full
-regression (`vcover merge`). Numbers are covered/total bins per file; bold marks a metric with misses.
+Runs on 2026-10-18 on the main branch with the behavioural model of the Physical adapter, the alignment watchdog of
+the Multi-Lane layer and the MIB without the redundant transmitter register:
+
+- Without coverage: the full regression at commit 9dff622 at a time resolution of 1 fs, 396 tests, all passed. The
+  tree of 9dff622 is the tree of main 77f4eea (71b4665, `git rev-parse 9dff622^{tree}` and
+  `git rev-parse 77f4eea^{tree}`).
+- With coverage: the full regression at commit b6242a2 at the default resolution of 1 ps, 396 tests, 395 passed.
+  `ofb_pa_gty_model_core_tb.lanes4` failed its check of the clock corrections: the reference clock of B, 200 ppm
+  slower than that of A, toggles after 3200.64 ps, which 1 ps truncates to 3200 ps, so both ends ran at the same
+  frequency. Since 9dff622 `run.py` runs QuestaSim at 1 fs. The 50 tests whose clocks have fractions of a picosecond
+  ran again with coverage at 9dff622 (1 fs), all passed: `ofb_pa_gty_model_tb` 40, `ofb_pa_gty_model_core_tb` 6,
+  `ofb_cc_pulse_tb` configuration `near` 4. The design sources are identical in both commits
+  (`git diff --stat b6242a2 9dff622 -- 'hdl/*/src'` is empty).
+- The coverage below merges 396 per-test databases (`vcover merge`). From b6242a2 (1 ps), the 346 tests whose time
+  values are whole picoseconds: `ofb_core_tb` 150, `ofb_ml_link_tb` 36, `ofb_ni_tb` 28, `ofb_dl_row_tb` 22,
+  `ofb_lane_init_tb` 14, `ofb_lane_tb` 14, `ofb_mib_tb` 11, `ofb_ml_codec_tb` 10, `ofb_cc_pulse_tb` 8 (configurations
+  `in_fast` and `out_fast`), `ofb_lane_rx_tb` 8, `ofb_dl_mac_tb` 7, `ofb_dl_tb` 7, `ofb_ml_align_tb` 7,
+  `ofb_multilane_tb` 6, `ofb_pkg_tb` 6, `ofb_lane_tx_tb` 4, `ofb_tb_8b10b_tb` 4, `ofb_core_cc_tb` 3,
+  `ofb_ml_lane_mgr_tb` 1. From 9dff622 (1 fs), the 50 tests above. The merged coverage equals the coverage of all
+  396 tests of b6242a2 in every file and metric.
+
+Numbers are covered/total bins per file; bold marks a metric with misses.
 
 | File | Statements | Branches | FSM States | FSM Transitions | Conditions | Expressions |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -64,21 +81,23 @@ regression (`vcover merge`). Numbers are covered/total bins per file; bold marks
 | `ofb_lane/src/ofb_lane_loopback.vhd` | 17/17 | 6/6 |  |  |  |  |
 | `ofb_lane/src/ofb_lane_rx.vhd` | 186/186 | 73/73 |  |  | 18/18 | 6/6 |
 | `ofb_lane/src/ofb_lane_tx.vhd` | 56/56 | 24/24 |  |  | 2/2 |  |
-| `ofb_mib/src/ofb_mib.vhd` | 295/295 | 151/151 |  |  | **28/32** | **10/16** |
-| `ofb_multilane/src/ofb_ml_align.vhd` | 181/181 | **111/112** | 3/3 | 6/6 | **39/42** | 2/2 |
+| `ofb_mib/src/ofb_mib.vhd` | 299/299 | 153/153 |  |  | **28/32** | **10/15** |
+| `ofb_multilane/src/ofb_ml_align.vhd` | 199/199 | **120/121** | 3/3 | 6/6 | **45/48** | 2/2 |
 | `ofb_multilane/src/ofb_ml_col_dec.vhd` | 45/45 | 19/19 |  |  | 3/3 |  |
 | `ofb_multilane/src/ofb_ml_col_enc.vhd` | 60/60 | 23/23 |  |  | 4/4 | **6/7** |
-| `ofb_multilane/src/ofb_ml_lane_mgr.vhd` | 110/110 | 56/56 |  |  | **24/30** | **2/3** |
+| `ofb_multilane/src/ofb_ml_lane_mgr.vhd` | 110/110 | 56/56 |  |  | **24/30** | **5/6** |
 | `ofb_multilane/src/ofb_ml_pkg.vhd` | 43/43 | **32/33** |  |  | 8/8 |  |
 | `ofb_multilane/src/ofb_ml_rx.vhd` | 79/79 | **39/41** | 5/5 | 16/16 | 5/5 |  |
 | `ofb_multilane/src/ofb_ml_tx.vhd` | 102/102 | 48/48 |  |  | 19/19 | 5/5 |
-| `ofb_multilane/src/ofb_multilane.vhd` | 36/36 | 10/10 |  |  | 2/2 | 7/7 |
+| `ofb_multilane/src/ofb_multilane.vhd` | 38/38 | 10/10 |  |  | 2/2 | 7/7 |
 | `ofb_ni/src/ofb_ni.vhd` | 12/12 |  |  |  |  |  |
 | `ofb_ni/src/ofb_ni_vc_rx.vhd` | 176/176 | 66/66 |  |  | **21/22** | 13/13 |
 | `ofb_ni/src/ofb_ni_vc_tx.vhd` | 59/59 | 31/31 |  |  | 11/11 | **5/6** |
+| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd` | **237/239** | **139/147** |  |  | **37/40** | **11/14** |
+| `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd` | 11/11 | **1/2** |  |  |  |  |
 | `ofb_pkg/src/ofb_cc_pulse.vhd` | 19/19 | 8/8 |  |  |  |  |
 | `ofb_pkg/src/ofb_pkg.vhd` | 55/55 | 10/10 |  |  | **1/2** |  |
-| Total | 2822/2824 (99.9 %) | 1365/1372 (99.5 %) | 29/29 (100.0 %) | 62/62 (100.0 %) | 426/469 (90.8 %) | 240/292 (82.2 %) |
+| Total | 3094/3098 (99.9 %) | 1516/1532 (99.0 %) | 29/29 (100.0 %) | 62/62 (100.0 %) | 469/515 (91.1 %) | 254/308 (82.5 %) |
 
 ## 3. Gaps found and closed
 
@@ -123,24 +142,35 @@ register). The design closes both:
 
 ## 4. Remaining misses
 
-Seven branches and two statements remain uncovered. None of them is behaviour that a requirement asks for; each is
-defensive, constant by construction or not executed as a separate statement by the simulator:
+In the design sources, seven branches and two statements remain uncovered. None of them is behaviour that a
+requirement asks for; each is defensive, constant by construction or not executed as a separate statement by the
+simulator:
 
 | Location | Item not covered | Justification |
 | --- | --- | --- |
-| `ofb_dl/src/ofb_dl_pkg.vhd:235` | Statement: body of `segmentRows` | The call on line 373 of `ofb_dl.vhd` is covered; QuestaSim evaluates the call without executing the body as a statement (also with `vopt -O0`). The result, the segment length of 64 x N words, is checked by TC-CORE-02 and TC-CORE-08. |
-| `ofb_dl/src/ofb_dl_tx_admit.vhd:166` | Branch: segment of zero rows | Defensive. A segment is taken only when the output VC buffer is ready (credit and data of at least one row, `ofb_dl_vc_out.vhd` line 424) and the error recovery buffer has free rows (line 141). |
-| `ofb_dl/src/ofb_dl_vc_in.vhd:542`, statement 543 | Branch: FCT request and FCT sent in the same cycle | Coincidence of two independent events that the testbenches do not force; the update is the sum of the single-event branches on lines 538 and 540, which are covered (TC-DL-20 checks the FCT count). |
-| `ofb_dl/src/ofb_dl_vc_out.vhd:356` | Branch: credit below one row when a row is read | Defensive. A segment never exceeds the credit (ECSS 5.7.3.1f, line 422), checked by TC-DL-19. |
-| `ofb_multilane/src/ofb_ml_align.vhd:336` | Branch: ALIGN held in a lane while the state machine is in Not Ready after an alignment | The Misaligned condition of this case is covered; the branch only suppresses the output error, and Not Ready passes no words. |
+| `ofb_dl/src/ofb_dl_pkg.vhd:235` | Statement: body of `segmentRows` | The call on line 377 of `ofb_dl.vhd` is covered; QuestaSim evaluates the call without executing the body as a statement (also with `vopt -O0`). The result, the segment length of 64 x N words, is checked by TC-CORE-02 and TC-CORE-08. |
+| `ofb_dl/src/ofb_dl_tx_admit.vhd:166` | Branch: segment of zero rows | Defensive. A segment is taken only when the output VC buffer is ready (credit and data of at least one row, `ofb_dl_vc_out.vhd` line 433) and the error recovery buffer has free rows (line 141). |
+| `ofb_dl/src/ofb_dl_vc_in.vhd:554`, statement 555 | Branch: FCT request and FCT sent in the same cycle | Coincidence of two independent events that the testbenches do not force; the update is the sum of the single-event branches on lines 550 and 552, which are covered (TC-DL-20 checks the FCT count). |
+| `ofb_dl/src/ofb_dl_vc_out.vhd:365` | Branch: credit below one row when a row is read | Defensive. A segment never exceeds the credit (ECSS 5.7.3.1f, line 431), checked by TC-DL-19. |
+| `ofb_multilane/src/ofb_ml_align.vhd:350` | Branch: ALIGN held in a lane while the state machine is in Not Ready after an alignment | The Misaligned condition of this case is covered; the branch only suppresses the output error, and Not Ready passes no words. |
 | `ofb_multilane/src/ofb_ml_pkg.vhd:111` | Branch: K28.7 followed by a K character other than K27.7 | Such words are lane control words, which the Lane layer filters (LN-RX-04, TC-LN-44); they do not reach the Multi-Lane layer. |
 | `ofb_multilane/src/ofb_ml_rx.vhd:112` | Branch: output queue full | Defensive, guarded by an assertion of severity error that the regression never raised. |
 | `ofb_multilane/src/ofb_ml_rx.vhd:195` | Branch: shift of the waiting words beyond the accumulator | Constant: `i < NumLanes_g` and `AccSize_c = 2 x NumLanes_g`, so the condition is always true; the guard keeps the index in range for elaboration. |
 
-The condition and expression metrics are reported, not closed. One term of the TX_LOST expression of `ofb_mib.vhd`
-(line 365) cannot be reached: `TxSeen` = 0 while `TxLast` = 1. Both registers took `Phy_TxReady` at the same edge
-(`TxSeen` kept a 1), and only the reset cleared them, so `TxLast` = 1 implied `TxSeen` = 1. The register `TxSeen` was
-therefore redundant and has been removed after this run; the expression is now the fall of `Phy_TxReady` alone.
+In the behavioural model of the Physical adapter, nine branches and two statements remain uncovered. The model is
+a verification model; none of the items is behaviour that the model description or a test relies on:
+
+| Location | Item not covered | Justification |
+| --- | --- | --- |
+| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:223` | Branch: the reset sequence starts while the stretched reset is already released | The process starts at time 0 and after every sequence when the stretched reset rises, so the reset is always active when it reaches this line. |
+| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:236`, `242` | Branches: `LaneClk` or TX ready already due when the wait begins | Constant by construction: the reset done of the previous start ends at the latest when `LaneClk` starts (line 228), and `ClkDelay` < `TxReadyDelay` (model description, section 3). |
+| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:231`, `240`, `245`, `248` | Branches: a reset of the adapter during the reset sequence (before `LaneClk` starts, before TX ready, before RX ready) | The testbenches reset the adapter at power-up and in operation, after RX ready (TC-PA-10, TC-PA-02). The sequence then starts again from the top of the process. |
+| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:390`, statements 391 and 392 | Branch: reset of the PRBS generator inside the `LaneClk` branch of the transmitter | Not reachable: `LaneClk` stops in the delta cycle in which the stretched reset rises, and the transmitter takes the reset through TX ready (line 322). The PRBS generator keeps its state over a reset; its checker synchronises itself (TC-PA-17). |
+| `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd:149` | Branch: word pushed into a full receive buffer | Defensive. The receiver checks the level before it pushes and counts the lost word (`ofb_pa_gty_model.vhd` line 544, TC-PA-18). |
+
+The condition and expression metrics are reported, not closed. The redundant register `TxSeen` of the MIB, whose term
+of the TX_LOST expression could not be reached, has been removed; the expression of `ofb_mib.vhd` is the fall of
+`Phy_TxReady` alone.
 
 ## 5. Reproduction
 

@@ -16,7 +16,8 @@ Run on 2026-10-06 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 Alignment watchdog (ML-AL-11, 2026-10-17): TC-ML-50 passes with the lowest bound of 1024 cycles and with the
 watchdog off; the other tests of `ofb_ml_align_tb` pass unchanged (7 of 7). Mutation checks: a watchdog that restarts
 its counts at once in Both-Ends Ready, and one that uses the single bound outside Both-Ends Ready, both fail TC-ML-50; a
-lane manager that ignores the watchdog fails TC-CORE-30 (verification report of `ofb_core`).
+lane manager that ignores the watchdog fails TC-CORE-30 (verification report of `ofb_core`). QuestaSim on
+2026-10-18: 7 of 7 with coverage (commit b6242a2) and without coverage (commit 9dff622, the tree of main 77f4eea).
 
 Row acceptance in the bypass (ML-BP-04, 2026-10-16): 58 of 58 tests of the layer pass, among them the rewritten
 TC-ML-24 and the new TC-ML-49 with two to four lanes.
