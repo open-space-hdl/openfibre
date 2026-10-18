@@ -45,13 +45,34 @@ RANGE_CONFIGS = (
     # model under the full protocol stack (link start, traffic, bit errors, throughput)
     ("lanes4_pin", {"NumLanes_g": 4, "PinModel_g": True},
      ("test_link_up", "test_traffic", "test_error_recovery", "test_throughput")),
+    # Error recovery through the models with the lock time of the transceiver model (16.83 us) and near the ends of the
+    # interval that bounds it: the word losses at comma realignments are recovered by the alignment watchdog
+    ("lanes4_pin_lock16650", {"NumLanes_g": 4, "PinModel_g": True, "PinLockNs_g": 16650}, ("test_error_recovery",)),
+    ("lanes4_pin_lock16830", {"NumLanes_g": 4, "PinModel_g": True, "PinLockNs_g": 16830}, ("test_error_recovery",)),
+    ("lanes4_pin_lock17000", {"NumLanes_g": 4, "PinModel_g": True, "PinLockNs_g": 17000}, ("test_error_recovery",)),
+)
+
+
+# Alignment watchdog (TC-CORE-30 to 33): several lanes, the watchdog of A and B as the test needs it; these tests do
+# not run in the configurations lanes1 to lanes4
+WATCHDOG_CONFIGS = (
+    ("lanes4_wd", {"NumLanes_g": 4}, ("test_align_watchdog", "test_align_watchdog_bound")),
+    ("lanes2_wd", {"NumLanes_g": 2}, ("test_align_watchdog",)),
+    ("lanes4_wdoff", {"NumLanes_g": 4, "AlignTimeoutA_g": 0, "AlignTimeoutB_g": 0}, ("test_align_watchdog_off",)),
+    ("lanes4_wdfar", {"NumLanes_g": 4, "AlignTimeoutB_g": 0}, ("test_align_watchdog_far",)),
 )
 
 
 def configure(lib):
     tb = lib.test_bench("ofb_core_tb")
-    for lanes in (1, 2, 3, 4):
-        tb.add_config(name=f"lanes{lanes}", generics={"NumLanes_g": lanes})
+    watchdog_tests = {test for _, _, tests in WATCHDOG_CONFIGS for test in tests}
+    for test in tb.get_tests():
+        if test.name not in watchdog_tests:
+            for lanes in (1, 2, 3, 4):
+                test.add_config(name=f"lanes{lanes}", generics={"NumLanes_g": lanes})
+    for name, generics, tests in WATCHDOG_CONFIGS:
+        for test in tests:
+            tb.test(test).add_config(name=name, generics=generics)
     # Receive row overflow with CoreClk slower than LaneClk (TC-CORE-15)
     tb.test("test_row_overflow").add_config(name="lanes1_slowcore", generics={"NumLanes_g": 1, "CoreHalfPs_g": 4000})
     for name, generics, tests in RANGE_CONFIGS:

@@ -34,6 +34,10 @@ architecture mdl at the serial pins; the test with the transceiver model of the 
 | `test_tx_ready_pulse` (TC-CORE-25) | A false transmitter ready pulse before the lane clock of A runs, as a transceiver shows it when it still reports the reset done of an earlier start: LaneClk and CoreClk of A stand still from the reset on and the lines from A carry no signal; `Phy_TxReady` of A is 1 from 10 us to 38 us, the clocks of A run from 64 us on, the transmitters are ready from 65 us on: link initialised, traffic delivered, DL_ERRORS of A only TX_LOST, no error flag at B | CORE-PL-04, CORE-PL-05, MG-ST-06 |
 | `test_tx_ready_start` (TC-CORE-26) | Both cores start as after the power-up of their transceivers, with the MIB running from the reset on: LaneClk and CoreClk of both cores stand still and the lines carry no signal until 64.1 us, the transmitters of both are ready from 64.885 us on (the timeline of the transceiver model); link initialised, traffic delivered, no error flag and no retry at either core | CORE-PL-04, CORE-PL-06, ML-BP-04 |
 | `test_start_generics` (TC-CORE-28) | No write of LANE_CTRL: LANE_CTRL of every lane reads the reset value of its core (0x62 with the defaults, 0x63 at A with `LaneStart_g`, 0x60 without `AutoStart_g`). With `LaneStart_g` at A and `AutoStart_g` at B (`lanestart1`, `lanestart4`): link initialised, traffic delivered. With AutoStart only at both cores (lane configurations): every lane in Wait, without AutoStart (`noauto`) in Disabled, no link in 200 us. No error flag, no lane event | MG-CF-03, MG-CF-01 |
+| `test_align_watchdog` (TC-CORE-30, configurations `lanes4_wd`, `lanes2_wd`) | Static skew of 4 words on every lane in both directions; normal link start and the loss of one word on lane 0 at A (realignment within the alignment FIFOs): no expiry of the alignment watchdog at either end, the realignment time is reported; the loss of 4 words on lane 0 at A: A stays in Not Ready until its watchdog expires, LaneReset of the active lanes, the link aligns again without a link reset (DL_STATUS Link Initialised, no Far-End Link Reset and no protocol error), every packet delivered in order without EEP, ML_ALIGN_TIMEOUTS 1 at A and 0 at B | ML-AL-11, MG-ST-07, DL-ER-06 |
+| `test_align_watchdog_bound` (TC-CORE-31, configuration `lanes4_wd`) | Lane 0 at A delayed by 4 words for 10 % less than the bound: no expiry; after Both-Ends Ready for longer than an eighth of the bound, for 10 % more than the bound: one expiry at A, none at B (Near-End Ready counts twice the bound); short alignments of A during the skew do not restart the count; the link aligns when the skew is gone, no link reset, traffic afterwards | ML-AL-11, MG-ST-07 |
+| `test_align_watchdog_off` (TC-CORE-32, configuration `lanes4_wdoff`) | Watchdog off at both ends: after the loss of 4 words at A, A stays in Not Ready and B in Near-End Ready for three times the default bound, no expiry; a LaneReset through LANE_CTRL at A starts the lanes again, the link aligns, traffic afterwards | ML-AL-11 |
+| `test_align_watchdog_far` (TC-CORE-33, configuration `lanes4_wdfar`) | Watchdog off at B: after the loss of 4 words at B, B stays in Not Ready; A in Near-End Ready expires its watchdog after twice the bound, LaneReset of its lanes restarts the lanes of both ends, the link aligns without a link reset, every packet delivered in order without EEP, ML_ALIGN_TIMEOUTS 1 at A | ML-AL-11, MG-ST-07 |
 | `test_tx_ready_check_far_end` (TC-CORE-29) | No lane started, AutoStart at both cores: both Data Link layers wait in Check Far-End Reset (DL_STATUS bits 1:0 = 2); `Phy_TxReady` of A falls: A in Near-End Reset with TX_READY 0 and only TX_LOST set; TX_LOST cleared while the transmitters stay not ready is not set again; `Phy_TxReady` rises: A back in Check Far-End Reset with TX_READY 1; B in Check Far-End Reset without an error flag | DL-LR-06, MG-ST-06, CORE-PL-04 |
 | `test_link_reset` (TC-CORE-04) | Link Reset command at A through the MIB: both ends reset, Far-End Link Reset at B only, link up again, traffic | CORE-SY-01, CORE-CC-01 |
 | `test_qos_config` (TC-CORE-06) | Bandwidth of VC 3 of A set to zero through the MIB: its packets wait; with a bandwidth they are delivered. VC 3 of A excluded from time-slot 5, SCHEDULE.request to slot 5 at the Network interface: current time-slot 5 in the MIB, the packets of VC 3 wait; SCHEDULE.request to slot 0: delivered | CORE-IF-01, CORE-SY-01, NI-SC-01 |
@@ -62,7 +66,7 @@ ranges are simulated and synthesised. The configurations below run the named tes
 configurations; `python lint/synth_check.py` synthesises the same boundaries with GHDL and checks that every value
 outside the ranges is rejected at elaboration with the message of its check (`VcOutDepth_g` 32 with one lane, 16
 with two lanes, 96; `VcInDepth_g` 96 and 192 with one lane, 128 with two lanes, 256 with four lanes; `ErbRows_g` 32
-and 96).
+and 96; `AlignTimeoutWords_g` 1023 with one and with two lanes).
 
 | Test cases | Configuration | Requirements |
 | --- | --- | --- |
@@ -70,6 +74,7 @@ and 96).
 | TC-CORE-01, TC-CORE-04, TC-CORE-21, TC-CORE-23 (`halfrate`) | Two lanes with `LaneClk` at 78.125 MHz (half the data signalling rate) and `LaneClkFreq_g` to match: TC-CORE-04 measures ClearLine (2 us) at the lanes of A after the Link Reset command; with TC-CORE-21 and TC-CORE-23 the hold of the Data Link layer is released clearly before the hold of the lanes | CORE-CK-02, LN-INIT-02, CORE-PL-05 |
 | TC-CORE-01, TC-CORE-02, TC-CORE-03, TC-CORE-04 (`minbuf`) | Two lanes with the smallest buffers: output VC buffer 64 words, input VC buffer 128 words per lane (two flow control units), error recovery buffer 64 rows | DL-VO-05, DL-VI-05, DL-ER-08 |
 | TC-CORE-01, TC-CORE-02 (`noprbs`) | One lane, lane initialisation without PRBS words after INIT1 and INIT2 (`InitPrbsWords_g` = 0) | LN-TX-01 |
+| TC-CORE-30 to TC-CORE-33 (`lanes4_wd`, `lanes2_wd`, `lanes4_wdoff`, `lanes4_wdfar`) | `AlignTimeoutWords_g`: the default of 10000 words at both cores with four and with two lanes, 0 (off) at both cores, 0 at B only. The lowest value 1024 is simulated in the testbench of `ofb_multilane` (TC-ML-50); `lint/synth_check.py` synthesises 0 and 1024 with two lanes and 1000000 (counters of 21 bits) with four lanes | ML-AL-11 |
 | TC-CORE-28 (`lanestart1`, `lanestart4`, `noauto`) | `LaneStart_g` at A with one and four lanes (B with AutoStart); `AutoStart_g` false at both cores with one lane | MG-CF-03 |
 | TC-CORE-21 to TC-CORE-26 (`eqclk`) | One lane with CoreClk at the frequency of LaneClk (both 156.25 MHz), as when both are the transmit clock of the transceiver: the first rows of the Data Link layer after the release of a hold reach the Multi-Lane layer within a few cycles of the entry pulse | CORE-PL-06, ML-BP-04, CORE-CK-01 |
 
@@ -81,11 +86,15 @@ each core runs on the lane clock of its adapter, `Phy_TxReady` comes from `Stat_
 `Stat_Aligned`; the transceivers are reset with the harness reset. Both reference clocks have the same frequency.
 The channel effects of the test cases (bit errors, cut lanes) act on the bit stream through the control record of
 the models. The tests are protocol tests: the clock-data recovery of the models locks 500 ns after a signal appears
-(`CdrLockTime`; the default of the model is the lock time of the transceiver simulation model, 16.83 us).
+(`CdrLockTime`, generic `PinLockNs_g`; the default of the model is the lock time of the transceiver simulation model,
+16.83 us). The error recovery also runs with the lock time of the transceiver model and near the ends of the interval
+that bounds it (16.65 us and 17.0 us): with these lock times, bit errors that form false commas cost words at the
+comma realignments, and the lanes recover through the alignment watchdog of the Multi-Lane layer.
 
 | Test cases | Configuration | Requirements |
 | --- | --- | --- |
 | TC-CORE-01, TC-CORE-02, TC-CORE-03, TC-CORE-16 (`lanes4_pin`) | Four lanes through two adapter models: link start once the transmitters are ready, traffic on all VCs, bit errors as code and disparity errors of the bit stream, throughput | CORE-PL-04, PA-MD-02, PA-MD-03, PA-MD-05, PA-MD-07 |
+| TC-CORE-03 (`lanes4_pin_lock16650`, `lanes4_pin_lock16830`, `lanes4_pin_lock17000`) | Error recovery with bit errors through two adapter models with `CdrLockTime` 16.65 us, 16.83 us and 17.0 us: every packet delivered in order, the checks of TC-CORE-03 | ML-AL-11, DL-ER-06, PA-MD-10 |
 
 ## 4. Functional coverage
 

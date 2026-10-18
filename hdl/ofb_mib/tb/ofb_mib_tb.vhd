@@ -115,6 +115,7 @@ architecture sim of ofb_mib_tb is
     signal MlStat    : std_logic_vector(3 downto 0)  := "0000";
     signal MlBypStat : std_logic                     := '0';
     signal MlMisEv   : std_logic                     := '0';
+    signal MlAtoEv   : std_logic                     := '0';
     signal RxOvfEv   : std_logic                     := '0';
     signal MlTxEn    : std_logic_vector(0 downto 0);
     signal MlRxEn    : std_logic_vector(0 downto 0);
@@ -221,7 +222,7 @@ begin
 
             -- TC-MG-01: identification and reset values
             if run("test_reset_values") then
-                chk(16#000#, x"0FB10008", "ID");
+                chk(16#000#, x"0FB10009", "ID");
                 chk(16#004#, x"00000104", "Generics");
                 chk(16#008#, x"00000100", "DataScrambled set");
                 chk(16#00C#, x"00000028", "Broadcast interval 40");
@@ -245,6 +246,7 @@ begin
                 chk(RegIrqMask_c, RegIrqMaskReset_c, "IRQ_MASK");
                 chk(RegVcIdleLimit_c, RegVcIdleLimitReset_c, "VC_IDLE_LIMIT");
                 chk(RegMlMisaligned_c, RegMlMisalignedReset_c, "ML_MISALIGNED");
+                chk(RegMlAlignTimeouts_c, RegMlAlignTimeoutsReset_c, "ML_ALIGN_TIMEOUTS");
                 chk(RegEccStatus_c, RegEccStatusReset_c, "ECC_STATUS");
                 chk(RegEccSelect_c, RegEccSelectReset_c, "ECC_SELECT");
                 chk(RegEccCount_c, RegEccCountReset_c, "ECC_COUNT");
@@ -370,6 +372,19 @@ begin
                 chk(16#05C#, x"00000003", "Misaligned conditions counted");
                 wr(16#05C#, x"00000000");
                 chk(16#05C#, x"00000000", "Misaligned counter cleared");
+
+                -- Expiries of the alignment watchdog (ML-AL-11)
+                for i in 1 to 2 loop
+                    wait until rising_edge(LaneClk);
+                    MlAtoEv <= '1';
+                    wait until rising_edge(LaneClk);
+                    MlAtoEv <= '0';
+                    cycles(5);
+                end loop;
+
+                chk(16#078#, x"00000002", "Alignment watchdog expiries counted");
+                wr(16#078#, x"00000000");
+                chk(16#078#, x"00000000", "Alignment watchdog counter cleared");
                 wr(16#008#, x"00000002");
                 chk(16#058#, x"00000001", "Interface Reset restores ML_CTRL");
                 chk(16#100#, x"00000062", "Interface Reset restores TxEn and RxEn");
@@ -461,11 +476,17 @@ begin
                 wait until rising_edge(LaneClk);
                 LaneEv(1) <= '1';
                 RxOvfEv   <= '1';
+                MlMisEv   <= '1';
+                MlAtoEv   <= '1';
                 wait until rising_edge(LaneClk);
                 LaneEv(1) <= '0';
                 RxOvfEv   <= '0';
+                MlMisEv   <= '0';
+                MlAtoEv   <= '0';
                 cycles(20);
                 chk(16#014#, x"00000691", "Sticky Data Link errors, receive row overflow");
+                chk(16#05C#, x"00000001", "Misaligned counter");
+                chk(16#078#, x"00000001", "Alignment watchdog counter");
                 chk(16#01C#, x"00000002", "CRC-16 counter");
                 chk(16#018#, x"00000003", "Retries");
                 chk(16#034#, x"00000002", "Input overflow VC 1");
@@ -515,6 +536,8 @@ begin
                 chk(16#03C#, x"00000000", "Framing error flags cleared by Link Reset");
                 chk(16#108#, x"00000000", "Lane flags cleared by Link Reset");
                 chk(16#110#, x"00000000", "Lane timeout counter cleared by Link Reset");
+                chk(16#05C#, x"00000000", "Misaligned counter cleared by Link Reset");
+                chk(16#078#, x"00000000", "Alignment watchdog counter cleared by Link Reset");
                 cycles(3);
                 check_value(Irq, '0', error, "No interrupt after the Link Reset command");
 
@@ -898,6 +921,7 @@ begin
             Ml_AlignState          => MlStat(3 downto 2),
             Ml_StatBypass          => MlBypStat,
             Ml_EvMisaligned        => MlMisEv,
+            Ml_EvAlignTimeout      => MlAtoEv,
             Ml_EvRxOverflow        => RxOvfEv,
             Ml_TxEn                => MlTxEn,
             Ml_RxEn                => MlRxEn,

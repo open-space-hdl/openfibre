@@ -121,6 +121,8 @@ architecture sim of ofb_tb_pa_model is
         variable enc_rd   : inout std_logic;
         variable dec_rd   : inout std_logic;
         variable flips    : inout natural;
+        variable slips    : inout natural;
+        variable adv      : inout natural;
         variable buf      : inout Symbols_t;
         variable present  : inout Present_t;
         variable dly      : inout Delay_t;
@@ -203,13 +205,29 @@ architecture sim of ofb_tb_pa_model is
             Rx_v.Disp  := (others => '0');
         end if;
 
-        -- Skew: delay line of words, the output is taken at the current skew
+        -- Word loss of the receiver: every requested slip advances the output by one word, until the
+        -- receiver is disabled
+        if rx_enable = '0' or cdr_enable = '0' then
+            adv   := 0;
+            slips := ctrl.Slips;
+        elsif slips < ctrl.Slips then
+            slips := slips + 1;
+            if adv < ctrl.Skew then
+                adv := adv + 1;
+            end if;
+        end if;
+
+        -- Skew: delay line of words, the output is taken at the current skew less the words lost
         for i in 7 downto 1 loop
             dly(i) := dly(i-1);
         end loop;
 
         dly(0)    := Rx_v;
-        Rx_v      := dly(ctrl.Skew);
+        assert adv <= ctrl.Skew
+            report "ofb_tb_pa_model: Skew " & integer'image(ctrl.Skew) & " is less than the " & integer'image(adv) &
+                   " words lost by Slips; disable the receiver before Skew is reduced"
+            severity failure;
+        Rx_v      := dly(ctrl.Skew - adv);
         rx_data   <= Rx_v.Data;
         rx_k      <= Rx_v.K;
         rx_code   <= Rx_v.Code;
@@ -275,13 +293,15 @@ begin
         variable EncRd_v   : std_logic := '0';
         variable DecRd_v   : std_logic := '0';
         variable Flips_v   : natural   := 0;
+        variable Slips_v   : natural   := 0;
+        variable Adv_v     : natural   := 0;
         variable Buf_v     : Symbols_t := (others => (others => '0'));
         variable Present_v : Present_t := (others => false);
         variable Dly_v     : Delay_t   := (others => RxIdle_c);
     begin
         if rising_edge(Clk) then
             direction(AtoB_Data, AtoB_K, AtoB_En, B_RxEnable, B_CdrEnable, B_RxInvert,
-                      PaCtrl(Instance_g).AtoB, EncRd_v, DecRd_v, Flips_v, Buf_v, Present_v, Dly_v,
+                      PaCtrl(Instance_g).AtoB, EncRd_v, DecRd_v, Flips_v, Slips_v, Adv_v, Buf_v, Present_v, Dly_v,
                       B_Rx_Data, B_Rx_K, B_Rx_CodeErr, B_Rx_DispErr, B_Rx_Valid, B_NoSignal);
         end if;
     end process;
@@ -290,13 +310,15 @@ begin
         variable EncRd_v   : std_logic := '0';
         variable DecRd_v   : std_logic := '0';
         variable Flips_v   : natural   := 0;
+        variable Slips_v   : natural   := 0;
+        variable Adv_v     : natural   := 0;
         variable Buf_v     : Symbols_t := (others => (others => '0'));
         variable Present_v : Present_t := (others => false);
         variable Dly_v     : Delay_t   := (others => RxIdle_c);
     begin
         if rising_edge(Clk) then
             direction(BtoA_Data, BtoA_K, BtoA_En, A_RxEnable, A_CdrEnable, A_RxInvert,
-                      PaCtrl(Instance_g).BtoA, EncRd_v, DecRd_v, Flips_v, Buf_v, Present_v, Dly_v,
+                      PaCtrl(Instance_g).BtoA, EncRd_v, DecRd_v, Flips_v, Slips_v, Adv_v, Buf_v, Present_v, Dly_v,
                       A_Rx_Data, A_Rx_K, A_Rx_CodeErr, A_Rx_DispErr, A_Rx_Valid, A_NoSignal);
         end if;
     end process;

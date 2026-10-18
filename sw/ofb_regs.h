@@ -10,7 +10,7 @@
 #define OFB_REGS_H
 
 /* Identification */
-#define OFB_REGMAP_ID 0x0FB10008u
+#define OFB_REGMAP_ID 0x0FB10009u
 
 /* Register addresses */
 #define OFB_ID                  0x000u
@@ -42,6 +42,7 @@
 #define OFB_ECC_INJECT          0x06Cu
 #define OFB_VC_RX_FRAMING_ERROR 0x070u
 #define OFB_NI_RX_EMPTY_COUNT   0x074u
+#define OFB_ML_ALIGN_TIMEOUTS   0x078u
 
 /* Registers of lane i at address + i x 0x20 */
 #define OFB_LANE_STRIDE           0x020u
@@ -201,6 +202,9 @@
 #define OFB_NI_RX_EMPTY_COUNT_COUNT_SHIFT 0u
 #define OFB_NI_RX_EMPTY_COUNT_COUNT_MASK  0xFFFFu
 
+#define OFB_ML_ALIGN_TIMEOUTS_COUNT_SHIFT 0u
+#define OFB_ML_ALIGN_TIMEOUTS_COUNT_MASK  0xFFFFu
+
 #define OFB_LANE_CTRL_LANE_START_SHIFT           0u
 #define OFB_LANE_CTRL_LANE_START_MASK            0x1u
 #define OFB_LANE_CTRL_AUTO_START_SHIFT           1u
@@ -304,6 +308,7 @@
 #define OFB_ECC_COUNT_RESET          0x00000000u
 #define OFB_ECC_INJECT_RESET         0x00000000u
 #define OFB_NI_RX_EMPTY_COUNT_RESET  0x00000000u
+#define OFB_ML_ALIGN_TIMEOUTS_RESET  0x00000000u
 #define OFB_LANE_CTRL_RESET          0x00000062u
 #define OFB_LANE_EVENTS_RESET        0x00000000u
 #define OFB_LANE_TIMEOUT_COUNT_RESET 0x00000000u

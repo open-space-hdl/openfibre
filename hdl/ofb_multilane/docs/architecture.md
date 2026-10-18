@@ -232,6 +232,16 @@ in Near-End Ready or Both-Ends Ready, one RXERR is passed (ML-CO-04).
 
 The timer counts `ceil(4 us x ClkFrequency_g)` cycles.
 
+**Alignment watchdog (ML-AL-11).** Two counters of lane clock cycles run while at least one receiving lane is active and
+the bypass is off: one counts the cycles in Not Ready, one the cycles in every state except Both-Ends Ready. When the
+first reaches `AlignTimeoutWords_g` or the second twice that value, `Ev_AlignTimeout` pulses for one cycle and both
+counters restart; `ofb_ml_lane_mgr` asserts LaneReset on every active lane as on the LaneReset request of the Data Link
+layer (until the lane is in ClearLine), and the MIB counts the expiry (ML_ALIGN_TIMEOUTS). Both-Ends Ready clears the
+counters only when it holds for `AlignTimeoutWords_g / 8` cycles in a row (third counter), so that short alignments
+between misalignments, as with a skew of four words when a SKIP word leaves a gap on all lanes, do not restart the
+watchdog. A link reset, the bypass and the loss of all active receiving lanes clear all counters; with
+`AlignTimeoutWords_g` = 0 they stay at zero.
+
 ### 2.8 ofb_ml_rx (ML-6)
 
 **Bypass.** The decoder output of lane 0 is the row (word 0, mask `0..01`); PAD, ACTIVE and ALIGN are not passed
@@ -324,6 +334,7 @@ Vectors of lanes or row words hold lane / word `i` at bits `(i+1)*w-1 downto i*w
 | `Stat_AlignState` | out | 2 | Alignment state: Not Ready 0, Near-End Ready 1, Both-Ends Ready 2 |
 | `Stat_Bypass` | out | 1 | The bypass is selected |
 | `Ev_Misaligned` | out | 1 | One-cycle event: the Misaligned condition occurred in Near-End Ready or Both-Ends Ready |
+| `Ev_AlignTimeout` | out | 1 | One-cycle event: the alignment watchdog expired and restarts the active lanes (ML-AL-11) |
 
 ## 4. Configuration parameters
 

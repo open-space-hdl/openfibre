@@ -28,9 +28,12 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_multilane is
     generic (
-        NumLanes_g          : positive range 1 to 4 := 1;
-        ClkFrequency_g      : real                  := 156.25e6;
-        SkipIntervalWords_g : positive              := 5000
+        NumLanes_g          : positive range 1 to 4      := 1;
+        ClkFrequency_g      : real                       := 156.25e6;
+        SkipIntervalWords_g : positive                   := 5000;
+        -- Alignment watchdog (ML-AL-11): cycles in Not Ready before a LaneReset of the active lanes
+        -- (twice as many outside Both-Ends Ready); 0: off, else 1024 to 1000000
+        AlignTimeoutWords_g : natural range 0 to 1000000 := 10000
     );
     port (
         -- Control Ports
@@ -88,7 +91,8 @@ entity ofb_multilane is
         Stat_DataReceivingLanes : out   std_logic_vector(NumLanes_g-1 downto 0);
         Stat_AlignState         : out   AlignState_t;
         Stat_Bypass             : out   std_logic;
-        Ev_Misaligned           : out   std_logic
+        Ev_Misaligned           : out   std_logic;
+        Ev_AlignTimeout         : out   std_logic
     );
 end entity;
 
@@ -104,6 +108,7 @@ architecture rtl of ofb_multilane is
     signal DataLanes  : std_logic_vector(NumLanes_g-1 downto 0);
     signal HotLanes   : std_logic_vector(NumLanes_g-1 downto 0);
     signal RxLanes    : std_logic_vector(NumLanes_g-1 downto 0);
+    signal AlTimeout  : std_logic;
     signal NumTxLanes : std_logic_vector(3 downto 0);
     signal NumRxLanes : std_logic_vector(3 downto 0);
     signal Scramble   : std_logic_vector(NumLanes_g-1 downto 0);
@@ -130,9 +135,17 @@ architecture rtl of ofb_multilane is
 
 begin
 
+    -- Bound of the alignment watchdog (ML-AL-11): an eighth of it spans at least 16 ALIGN periods; checked for every
+    -- number of lanes, also where the watchdog is not built
+    assert AlignTimeoutWords_g = 0 or AlignTimeoutWords_g >= 1024
+        report "ofb_multilane: AlignTimeoutWords_g must be 0 (off) or at least 1024"
+        severity failure;
+
     -----------------------------------------------------------------------------------------------
     -- Lane manager (ML-1)
     -----------------------------------------------------------------------------------------------
+    Ev_AlignTimeout <= AlTimeout;
+
     i_lane_mgr : entity work.ofb_ml_lane_mgr
         generic map (
             NumLanes_g => NumLanes_g
@@ -160,6 +173,7 @@ begin
             Lane_FarCapabilityValid => Lane_FarCapabilityValid,
             Al_FarAct               => FarAct,
             Al_FarActValid          => FarActV,
+            Al_Timeout              => AlTimeout,
             Bypass                  => Bypass,
             ActLanes                => ActLanes,
             TxLanes                 => TxLanes,
@@ -249,6 +263,7 @@ begin
         AlignState    <= AlignBothEndsReady_c when Lane0Act = '1' else AlignNotReady_c;
         RecvLanes     <= ActLanes;
         Ev_Misaligned <= '0';
+        AlTimeout     <= '0';
         FarAct        <= (others => '0');
         FarActV       <= '0';
 
@@ -304,32 +319,34 @@ begin
 
         i_align : entity work.ofb_ml_align
             generic map (
-                NumLanes_g     => NumLanes_g,
-                ClkFrequency_g => ClkFrequency_g
+                NumLanes_g          => NumLanes_g,
+                ClkFrequency_g      => ClkFrequency_g,
+                AlignTimeoutWords_g => AlignTimeoutWords_g
             )
             port map (
-                Clk           => Clk,
-                Rst           => Rst,
-                Ctrl_Flush    => Dl_LinkReset,
-                Bypass        => Bypass,
-                ActLanes      => ActLanes,
-                RxLanes       => RxLanes,
-                NumRxLanes    => NumRxLanes,
-                In_Data       => DecData,
-                In_K          => DecK,
-                In_CrcErr     => DecCrcErr,
-                In_Valid      => DecValid,
-                Row_Data      => RowData,
-                Row_K         => RowK,
-                Row_Count     => RowCount,
-                Row_Data_Row  => RowIsDat,
-                Row_CrcErr    => RowCrc,
-                Row_Valid     => RowValid,
-                FarAct        => FarAct,
-                FarActValid   => FarActV,
-                RecvLanes     => AlRecv,
-                AlignState    => AlState,
-                Ev_Misaligned => AlMis
+                Clk             => Clk,
+                Rst             => Rst,
+                Ctrl_Flush      => Dl_LinkReset,
+                Bypass          => Bypass,
+                ActLanes        => ActLanes,
+                RxLanes         => RxLanes,
+                NumRxLanes      => NumRxLanes,
+                In_Data         => DecData,
+                In_K            => DecK,
+                In_CrcErr       => DecCrcErr,
+                In_Valid        => DecValid,
+                Row_Data        => RowData,
+                Row_K           => RowK,
+                Row_Count       => RowCount,
+                Row_Data_Row    => RowIsDat,
+                Row_CrcErr      => RowCrc,
+                Row_Valid       => RowValid,
+                FarAct          => FarAct,
+                FarActValid     => FarActV,
+                RecvLanes       => AlRecv,
+                AlignState      => AlState,
+                Ev_Misaligned   => AlMis,
+                Ev_AlignTimeout => AlTimeout
             );
 
         i_rx : entity work.ofb_ml_rx
