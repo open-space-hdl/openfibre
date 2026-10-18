@@ -177,6 +177,10 @@ the second reset request, the full delays after the end of the second stretched 
 Mutation checks: a model that continues its sequence after a reset in one of the four phases fails TC-PA-10, for each
 phase.
 
+Run on 2026-10-18 with GHDL 6.0.0 (mcode): TC-PA-17 also resets A twice with PRBS-31 selected; the first 256 bits on
+the pins of lane 0 of A are the same after both resets (PA-MD-09), 4 of 4 configurations. Mutation check: a model
+whose PRBS generator is not reset with the transmitters fails TC-PA-17.
+
 TC-PA-10 with the default reset sequence: the stretched reset of B ends 5 us after that of A, both before
 `PowerUpTime`; `LaneClk` starts at 64.099 us, both ends are TX ready at 64.885 us, `Phy_NoSignal` falls on every lane
 of both ends at 66.474 us and the lanes of B align 16.833 us after TX ready. After the reset of A in operation
