@@ -310,11 +310,34 @@ begin
     -- Sequencer
     -----------------------------------------------------------------------------------------------
     p_main : process is
-        variable T_v : time;
+        variable T_v      : time;
+        variable First_v  : std_logic_vector(255 downto 0);
+        variable Second_v : std_logic_vector(255 downto 0);
 
         procedure waitUs (n : natural) is
         begin
             wait for n * 1 us;
+        end procedure;
+
+        -- Reset of A, then the first 256 bits on the pins of lane 0 of A after its transmitters are ready, sampled in
+        -- the middle of each unit interval from the first bit on
+        procedure capturePrbs (bits : out std_logic_vector(255 downto 0)) is
+        begin
+            RstEnd(0) <= '1';
+            wait for 100 ns;
+            RstEnd(0) <= '0';
+            wait for 100 ns;
+            if TxP(0)(0) = TxN(0)(0) then
+                wait until TxP(0)(0) /= TxN(0)(0) for 10 us;
+            end if;
+            check_value(TxP(0)(0) /= TxN(0)(0), error, "Transmitter of lane 0 of A active after the reset");
+            wait for RefHalf_c / 40;
+
+            for b in 0 to 255 loop
+                bits(b) := TxP(0)(0);
+                wait for RefHalf_c / 20;
+            end loop;
+
         end procedure;
 
         -- Reset of A while its reset sequence runs (TC-PA-10): a first reset request, a second one offset after the end
@@ -726,6 +749,14 @@ begin
                     check_value(PrbsLock(1), (N_c-1 downto 0 => '1'), error, "PRBS " & to_string(p) &
                                 " locked after the checker reset");
                 end loop;
+
+                -- A reset of the transmitters restarts the generator from its seed: with PRBS-31 the first bits on
+                -- the pins of lane 0 of A are the same after two resets of A
+                capturePrbs(First_v);
+                capturePrbs(Second_v);
+                check_value(First_v = Second_v, error, "PRBS-31 restarts from its seed after a reset of A");
+                check_value(First_v /= (First_v'range => '0') and First_v /= (First_v'range => '1'), error,
+                            "PRBS-31 bits captured");
 
             -- TC-PA-18: receive buffer error: without SKIP words the buffer of the faster end overflows
             -- or the slower runs empty (configurations ppm)
