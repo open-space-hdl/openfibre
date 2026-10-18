@@ -45,6 +45,11 @@ RANGE_CONFIGS = (
     # model under the full protocol stack (link start, traffic, bit errors, throughput)
     ("lanes4_pin", {"NumLanes_g": 4, "PinModel_g": True},
      ("test_link_up", "test_traffic", "test_error_recovery", "test_throughput")),
+    # Error recovery through the models with the lock time of the transceiver model (16.83 us) and near the ends of the
+    # interval that bounds it: the word losses at comma realignments are recovered by the alignment watchdog
+    ("lanes4_pin_lock16650", {"NumLanes_g": 4, "PinModel_g": True, "PinLockNs_g": 16650}, ("test_error_recovery",)),
+    ("lanes4_pin_lock16830", {"NumLanes_g": 4, "PinModel_g": True, "PinLockNs_g": 16830}, ("test_error_recovery",)),
+    ("lanes4_pin_lock17000", {"NumLanes_g": 4, "PinModel_g": True, "PinLockNs_g": 17000}, ("test_error_recovery",)),
 )
 
 

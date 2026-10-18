@@ -54,7 +54,8 @@ entity ofb_core_th is
         AutoStart_g     : boolean                := true;  -- AutoStart_g of both cores
         AlignTimeoutA_g : natural                := 10000; -- AlignTimeoutWords_g of core A
         AlignTimeoutB_g : natural                := 10000; -- AlignTimeoutWords_g of core B
-        PinModel_g      : boolean                := false  -- ofb_pa_gty(mdl) pin to pin
+        PinModel_g      : boolean                := false; -- ofb_pa_gty(mdl) pin to pin
+        PinLockNs_g     : positive               := 500    -- CdrLockTime of the models with PinModel_g (ns)
     );
     port (
         MgmtClk : out   std_logic;
@@ -785,7 +786,7 @@ begin
         begin
 
             for e in 0 to 1 loop
-                Ctrl_v(e).CdrLockTime := 500 ns;
+                Ctrl_v(e).CdrLockTime := PinLockNs_g * 1 ns;
 
                 for l in 0 to N_c-1 loop
                     if e = 0 then

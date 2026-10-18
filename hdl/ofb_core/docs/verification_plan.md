@@ -86,11 +86,15 @@ each core runs on the lane clock of its adapter, `Phy_TxReady` comes from `Stat_
 `Stat_Aligned`; the transceivers are reset with the harness reset. Both reference clocks have the same frequency.
 The channel effects of the test cases (bit errors, cut lanes) act on the bit stream through the control record of
 the models. The tests are protocol tests: the clock-data recovery of the models locks 500 ns after a signal appears
-(`CdrLockTime`; the default of the model is the lock time of the transceiver simulation model, 16.83 us).
+(`CdrLockTime`, generic `PinLockNs_g`; the default of the model is the lock time of the transceiver simulation model,
+16.83 us). The error recovery also runs with the lock time of the transceiver model and near the ends of the interval
+that bounds it (16.65 us and 17.0 us): with these lock times, bit errors that form false commas cost words at the
+comma realignments, and the lanes recover through the alignment watchdog of the Multi-Lane layer.
 
 | Test cases | Configuration | Requirements |
 | --- | --- | --- |
 | TC-CORE-01, TC-CORE-02, TC-CORE-03, TC-CORE-16 (`lanes4_pin`) | Four lanes through two adapter models: link start once the transmitters are ready, traffic on all VCs, bit errors as code and disparity errors of the bit stream, throughput | CORE-PL-04, PA-MD-02, PA-MD-03, PA-MD-05, PA-MD-07 |
+| TC-CORE-03 (`lanes4_pin_lock16650`, `lanes4_pin_lock16830`, `lanes4_pin_lock17000`) | Error recovery with bit errors through two adapter models with `CdrLockTime` 16.65 us, 16.83 us and 17.0 us: every packet delivered in order, the checks of TC-CORE-03 | ML-AL-11, DL-ER-06, PA-MD-10 |
 
 ## 4. Functional coverage
 

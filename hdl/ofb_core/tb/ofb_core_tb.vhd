@@ -58,7 +58,8 @@ entity ofb_core_tb is
         AutoStart_g     : boolean                := true;  -- AutoStart_g of both cores
         AlignTimeoutA_g : natural                := 10000; -- Alignment watchdog of core A (words, 0: off)
         AlignTimeoutB_g : natural                := 10000; -- Alignment watchdog of core B (words, 0: off)
-        PinModel_g      : boolean                := false  -- ofb_pa_gty(mdl) pin to pin
+        PinModel_g      : boolean                := false; -- ofb_pa_gty(mdl) pin to pin
+        PinLockNs_g     : positive               := 500    -- CdrLockTime of the models with PinModel_g (ns)
     );
 end entity;
 
@@ -507,6 +508,11 @@ begin
                 check_value(unsigned(Data_v) > 0, error, "Retries counted at B");
                 rd(0, RegDlStatus_c, Data_v);
                 check_value(Data_v(1 downto 0), "11", error, "No link reset at A");
+                -- Expiries of the alignment watchdog (word losses at comma realignments beyond the alignment FIFOs)
+                rd(0, RegMlAlignTo_c, Data_v);
+                log(ID_LOG_HDR, "ML_ALIGN_TIMEOUTS of A: " & to_string(to_integer(unsigned(Data_v(15 downto 0)))));
+                rd(1, RegMlAlignTo_c, Data_v);
+                log(ID_LOG_HDR, "ML_ALIGN_TIMEOUTS of B: " & to_string(to_integer(unsigned(Data_v(15 downto 0)))));
 
             -- TC-CORE-04: Link Reset through the MIB resets both ends. The lanes of A pass ClearLine,
             -- which lasts 2 us counted in LaneClk cycles of LaneClkFreq_g (ECSS 5.5.2.4)
@@ -1666,7 +1672,8 @@ begin
             AutoStart_g     => AutoStart_g,
             AlignTimeoutA_g => AlignTimeoutA_g,
             AlignTimeoutB_g => AlignTimeoutB_g,
-            PinModel_g      => PinModel_g
+            PinModel_g      => PinModel_g,
+            PinLockNs_g     => PinLockNs_g
         )
         port map (
             MgmtClk => MgmtClk,

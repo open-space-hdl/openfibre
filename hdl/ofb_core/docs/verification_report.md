@@ -39,6 +39,14 @@ regression at commit bd02e25 passes in GHDL (CI workflow, 343 of 343 tests, 146 
 
 A lane manager that ignores the watchdog fails TC-CORE-30 (mutation check): the link stays stalled.
 
+Run on 2026-10-18 with the behavioural adapter model, two cores pin to pin through two `ofb_pa_gty` with the
+architecture `mdl`: TC-CORE-03 passes with `CdrLockTime` 500 ns (`lanes4_pin`, no expiry of the alignment watchdog)
+and with the lock time of the transceiver model and near the ends of the interval that bounds it, 16.65 us, 16.83 us
+and 17.0 us (`lanes4_pin_lock16650`, `lanes4_pin_lock16830`, `lanes4_pin_lock17000`). In each of the three runs with
+these lock times the alignment watchdog of A expires once (ML_ALIGN_TIMEOUTS 1 at A, 0 at B), the lanes start again,
+the link stays initialised and every packet is delivered in order. Without the watchdog the error recovery with the
+lock time of the transceiver model stalled with A in Not Ready (the defect in section 2).
+
 | Testbench | Tests | Passed |
 | --- | --- | --- |
 | `ofb_core_tb` (configurations `lanes1` to `lanes4`) | 28 x 4 | 112 |
@@ -212,3 +220,4 @@ Defects found during verification:
 | TC-CORE-03 (4 lanes) after the input stage of the column encoder: no retry at A. The 20 packets per VC were sent within about 200 cycles, while the bit errors are spread over 2740 cycles; with the one cycle of additional transmit latency the only bit errors of the A to B direction that had hit a data frame hit idle words, which with several lanes are lane slips with a realignment and no retry (Multi-Lane report) | Testbench: 200 packets per VC and end, so that the traffic lasts over most of the bit errors with every lane configuration |
 | TC-CORE-19 (all configurations, found while testing the transmitter ready input): after a complete restart of one end while the other end was in Link Initialised, the link stayed down for good. The end in Link Initialised received the far-end capability with INIT3LinkResetFlag set, but the Multi-Lane layer reported that a lane was Active: the lane enters Active in the same cycle in which it passes the capability when it has already sent its three INIT3 words, and the lane states of that cycle were used. The end therefore did not reset, and the restarted end waited in Check Far-End Reset | The Multi-Lane layer uses the lane states of the cycle before the capability event: the capability belongs to the Connected state (ECSS 5.7.9 Near-End Reset a.3, ML-LM-14, TC-ML-48) |
 | TC-CORE-14 with the packet ports of the VCs: a DED in the first beat of a packet in the input VC buffer leaves a packet without data (the EEP that replaces the beat); the Network interface discards it as a packet of zero length, so it no longer arrives as a packet ended with EEP | The test counts the packets ended with EEP and the packets of zero length at A (NI_RX_EMPTY_COUNT); the second error (packets of one word) gives exactly one packet of zero length per VC |
+| Four-lane error recovery through the adapter models with the lock time of the transceiver model (17.1 us, 2026-10-17): bit errors that formed false commas cost words at the comma realignments of one lane of A, the lane skew exceeded the alignment FIFOs, A stayed in Not Ready and the Data Link layer could send no RETRY, ACK or NACK; the traffic stopped in both directions while the link stayed initialised, only a Link Reset recovered it | Alignment watchdog of the Multi-Lane layer (ML-AL-11, `AlignTimeoutWords_g`): LaneReset of the active lanes when the alignment stays in Not Ready; TC-CORE-30 to TC-CORE-33, TC-CORE-03 with `lanes4_pin_lock16650`, `lanes4_pin_lock16830` and `lanes4_pin_lock17000` |
