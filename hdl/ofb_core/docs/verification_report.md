@@ -63,6 +63,10 @@ of them of `ofb_core_tb` and `ofb_core_cc_tb`:
 | `ofb_core_tb`, configurations `lanes4_pin_lock16650`, `lanes4_pin_lock16830` and `lanes4_pin_lock17000` (TC-CORE-03) | 1 x 3 | 3 |
 | `ofb_core_cc_tb` (configurations `core_fast`, `equal`, `lane_half`) | 1 x 3 | 3 |
 
+QuestaSim on 2026-10-18 ([coverage record](../../../docs/coverage.md)): the full regression at commit 9dff622 (the
+tree of main 77f4eea) passes without coverage at a time resolution of 1 fs, 396 of 396; with coverage, every test of
+`ofb_core_tb` and `ofb_core_cc_tb` passes at commit b6242a2 (153 of 153, identical design sources).
+
 Generic ranges (verification plan, section "Generic ranges"): every value of a generic that changes the structure
 is simulated, the boundaries of the numeric ranges are simulated or synthesised with GHDL (`lint/synth_check.py`),
 and every value outside a range stops the elaboration with the message of its check (synth_check, rejected values).

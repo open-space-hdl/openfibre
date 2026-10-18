@@ -165,6 +165,11 @@ checks: a model whose `Stat_TxReady` takes the reset done without the arming of 
 from the reset done of the previous start); a model whose lane clock domain changes its outputs in the delta cycle of
 the `LaneClk` edge (PA-MD-11) fails TC-PA-10.
 
+QuestaSim on 2026-10-18 at a time resolution of 1 fs (commit 9dff622, the tree of main 77f4eea): the 46 tests pass
+with and without coverage ([coverage record](../../../docs/coverage.md)). The full run with four lanes gives the same
+times as GHDL to the femtosecond: first clock correction at both ends at 353.205 us, first burst complete at
+96.649726 us, link initialised again after the reset of A at 450.205 us.
+
 TC-PA-10 with the default reset sequence: the stretched reset of B ends 5 us after that of A, both before
 `PowerUpTime`; `LaneClk` starts at 64.099 us, both ends are TX ready at 64.885 us, `Phy_NoSignal` falls on every lane
 of both ends at 66.474 us and the lanes of B align 16.833 us after TX ready. After the reset of A in operation
@@ -282,6 +287,7 @@ Findings during verification:
 
 | Finding | Fix |
 | --- | --- |
+| QuestaSim at its default time resolution of 1 ps (2026-10-18): `ofb_pa_gty_model_core_tb.lanes4` saw no clock correction at either end by 1001 us (GHDL: one at each end at 353.2 us). The reference clock of B, 200 ppm slower than that of A, toggles after 3200.64 ps, which 1 ps truncates to 3200 ps: both ends ran at the same frequency | `run.py` runs QuestaSim at 1 fs, as GHDL; the model description states the resolution (section 6) |
 | No clock correction: the receive buffers overflowed and underflowed (data words lost or repeated, TC-PA-03). The combined fields `RX_CC_K` and `RX_CC_VAL` of the wizard are not derived from the per-character keys when the settings are set by Tcl | `tcl/ofb_gtw.tcl` sets the combined fields in the format of the Gigabit Ethernet preset of the wizard (K flags in `RX_CC_K`, values in `RX_CC_VAL`) and `RX_PPM_OFFSET` 200 |
 | The receive buffers output zero words for a few hundred cycles after the receivers are ready (TC-PA-03) | `PhyRx_Valid` from the first K character of the lane after the receivers are ready |
 | Far-end serial loopback at B with the reference clock of B 1000 ppm slower: 1 or 2 errors per lane in 3000 words at A (the loopback retimes the bits with the transmit clock of B) | Property of the transceiver loopback, documented in the specification (section 5); TC-PA-05 runs with equal reference clock frequencies |
