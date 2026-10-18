@@ -317,6 +317,51 @@ begin
             wait for n * 1 us;
         end procedure;
 
+        -- Reset of A while its reset sequence runs (TC-PA-10): a first reset request, a second one offset after the end
+        -- of the first stretched reset, in the given phase (1: reset done of the previous start shown, 2: before
+        -- LaneClk, 3: before TX ready, 4: before RX ready). The sequence starts again from its top: LaneClk, TX ready
+        -- and RX ready follow the end of the second stretched reset with the full delays
+        procedure resetInPhase (offset : time; phase : positive; name : string) is
+            variable T1_v : time;
+            variable T2_v : time;
+            variable Tx_v : time;
+        begin
+            RstEnd(0) <= '1';
+            wait for 100 ns;
+            RstEnd(0) <= '0';
+            T1_v      := now;
+            wait for RstCyc_c * 2 * FreeHalf_c + offset;
+
+            case phase is
+                when 1 | 2 =>
+                    check_value(ClkRestart < T1_v, error, name & ": LaneClk of A still stopped");
+                when 3 =>
+                    check_value(ClkRestart > T1_v and TxRdy(0) = '0', error, name & ": LaneClk of A runs, TX ready 0");
+                when others =>
+                    check_value(TxRdy(0) = '1' and RxRdy(0) = '0', error, name & ": TX ready of A 1, RX ready 0");
+            end case;
+
+            RstEnd(0) <= '1';
+            wait for 100 ns;
+            RstEnd(0) <= '0';
+            T2_v      := now;
+            wait until TxRdy(0) = '1' for RstCyc_c * 2 * FreeHalf_c + PaModelCtrlDefault_c.TxReadyDelay + 1 us;
+            Tx_v      := now;
+            log(ID_LOG_HDR, name & ": LaneClk again " & to_string(ClkRestart - T2_v) & ", TX ready " &
+                to_string(Tx_v - T2_v) & " after the second reset request");
+            check_value(ClkRestart - T2_v >= RstCyc_c * 2 * FreeHalf_c + PaModelCtrlDefault_c.ClkDelay and
+                        ClkRestart - T2_v < (RstCyc_c + 2) * 2 * FreeHalf_c + PaModelCtrlDefault_c.ClkDelay + 7 ns,
+                        error, name & ": LaneClk restarts ClkDelay after the end of the second stretched reset");
+            check_value(TxRdy(0) = '1' and
+                        Tx_v - T2_v >= RstCyc_c * 2 * FreeHalf_c + PaModelCtrlDefault_c.TxReadyDelay and
+                        Tx_v - T2_v < (RstCyc_c + 2) * 2 * FreeHalf_c + PaModelCtrlDefault_c.TxReadyDelay + 20 ns,
+                        error, name & ": TX ready TxReadyDelay after the end of the second stretched reset");
+            wait until RxRdy(0) = '1' for PaModelCtrlDefault_c.RxReadyDelay + 1 us;
+            check_value(RxRdy(0) = '1' and now - Tx_v >= PaModelCtrlDefault_c.RxReadyDelay - 20 ns and
+                        now - Tx_v < PaModelCtrlDefault_c.RxReadyDelay + 20 ns, error,
+                        name & ": RX ready RxReadyDelay after TX ready");
+        end procedure;
+
         procedure clearCounts is
         begin
             ClrReq <= ClrReq + 1;
@@ -459,6 +504,23 @@ begin
                 clearCounts;
                 waitUs(20);
                 checkClean(2000, "Link after the reset of A");
+                -- Resets of A during its reset sequence. In operation the reset done of the previous start lasts until
+                -- LaneClk starts; a short TxDoneStale lets the sequence wait for LaneClk after it
+                PaModelCtrl(0).TxDoneStale <= 1 us;
+                resetInPhase(500 ns, 1, "Reset while the reset done of the previous start shows");
+                resetInPhase(10 us, 2, "Reset before LaneClk starts");
+                resetInPhase((PaModelCtrlDefault_c.ClkDelay + PaModelCtrlDefault_c.TxReadyDelay) / 2, 3,
+                             "Reset before TX ready");
+                resetInPhase(PaModelCtrlDefault_c.TxReadyDelay + PaModelCtrlDefault_c.RxReadyDelay / 2, 4,
+                             "Reset before RX ready");
+                PaModelCtrl(0).TxDoneStale <= PaModelCtrlDefault_c.TxDoneStale;
+                wait until Aligned(1) = (N_c-1 downto 0 => '1') for PaModelCtrlDefault_c.CdrLockTime + 3 us;
+                check_value(Aligned(1), (N_c-1 downto 0 => '1'), error,
+                            "Every lane aligned at B after the resets during the sequence");
+                waitUs(5);
+                clearCounts;
+                waitUs(20);
+                checkClean(2000, "Link after the resets during the sequence");
 
             -- TC-PA-11: clock correction with different reference clocks (configurations ppm), no word
             -- lost or repeated
