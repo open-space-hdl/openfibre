@@ -90,6 +90,8 @@ its own unit testbench. `hdl/<module>/README.md` links the four documents and ex
 - `run.py` gives every GHDL simulation its own copy of the option `ghdl.sim_flags` and stops when a GHDL command does
   not carry exactly the generics of its configuration: VUnit 5.0.0.dev7 appends the generics of a test to that list in
   place, and configurations that share the list pass their generics on to later simulations.
+- QuestaSim runs at a time resolution of 1 fs, as GHDL (`run.py`), so that clock periods and offsets of fractions
+  of a picosecond are kept.
 - GHDL is the default simulator. Only the tests that instantiate the vendor transceiver model (PA-1 wrapper test and
   the end-to-end test of two cores over the transceivers) run in the AMD Vivado simulator
   (`tools/run_xsim.py`); their testbenches use plain VHDL checks evaluated from the log. The transceiver model (secure
