@@ -170,6 +170,13 @@ with and without coverage ([coverage record](../../../docs/coverage.md)). The fu
 times as GHDL to the femtosecond: first clock correction at both ends at 353.205 us, first burst complete at
 96.649726 us, link initialised again after the reset of A at 450.205 us.
 
+Run on 2026-10-18 with GHDL 6.0.0 (mcode): TC-PA-10 also resets A a second time in each phase of its reset sequence
+(while the reset done of the previous start shows, before `LaneClk` starts, before TX ready, before RX ready;
+`TxDoneStale` 1 us). In every phase `LaneClk` runs again 20.48 to 20.49 us and TX ready rises 21.27 to 21.28 us after
+the second reset request, the full delays after the end of the second stretched reset; `ofb_pa_gty_model*` 46 of 46.
+Mutation checks: a model that continues its sequence after a reset in one of the four phases fails TC-PA-10, for each
+phase.
+
 TC-PA-10 with the default reset sequence: the stretched reset of B ends 5 us after that of A, both before
 `PowerUpTime`; `LaneClk` starts at 64.099 us, both ends are TX ready at 64.885 us, `Phy_NoSignal` falls on every lane
 of both ends at 66.474 us and the lanes of B align 16.833 us after TX ready. After the reset of A in operation
