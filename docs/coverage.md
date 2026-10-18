@@ -40,7 +40,8 @@ the Multi-Lane layer and the MIB without the redundant transmitter register:
 - Without coverage: the full regression at commit 9dff622 at a time resolution of 1 fs, 396 tests, all passed. The
   tree of 9dff622 is the tree of main 77f4eea (71b4665, `git rev-parse 9dff622^{tree}` and
   `git rev-parse 77f4eea^{tree}`).
-- With coverage: the full regression at commit b6242a2 at the default resolution of 1 ps, 396 tests, 395 passed.
+- With coverage: the full regression at commit b6242a2 at the resolution of 1 ps that VUnit sets for QuestaSim, 396
+  tests, 395 passed.
   `ofb_pa_gty_model_core_tb.lanes4` failed its check of the clock corrections: the reference clock of B, 200 ppm
   slower than that of A, toggles after 3200.64 ps, which 1 ps truncates to 3200 ps, so both ends ran at the same
   frequency. Since 9dff622 `run.py` runs QuestaSim at 1 fs. The 50 tests whose clocks have fractions of a picosecond
