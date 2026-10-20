@@ -110,12 +110,14 @@ of the signal, also when a lane restarts in operation (run `lanes1_relock` of th
   `struct`), `Stat_RxReady`, `LaneRst` (set without a `LaneClk` edge while the transmitters
   are not ready, released two `LaneClk` cycles after `Stat_TxReady`). A reset through `Rst` stops `LaneClk` until
   `ClkDelay` after the start of the new sequence, as the reset controller of the transceiver stops the user clock.
+  A reset during the reset sequence starts the sequence again from its beginning.
 - Serial loopbacks: near-end, the receiver gets the own transmitted bits (the pins are still driven); far-end, the
   received bits are sent back on the pins.
 - PRBS test: PRBS-7, -9, -15, -23 and -31 generator and checker per lane on the bit stream (encoding of the
   transceiver, 1 to 5), bypassing 8B/10B; force error inverts one bit; the self-synchronising checker locks after 64
   correct bits and counts an error per wrong bit while locked (a forced error is seen at the bit and at the two taps
-  that use it); `Phy_PrbsErr` per `LaneClk` cycle with an error.
+  that use it); `Phy_PrbsErr` per `LaneClk` cycle with an error. The generator restarts from its seed after a reset
+  of the transmitters, as the transmit PCS of the transceiver.
 
 ## 5. Limits
 

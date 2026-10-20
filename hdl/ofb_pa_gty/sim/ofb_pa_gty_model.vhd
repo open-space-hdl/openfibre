@@ -321,9 +321,11 @@ begin
         begin
             if TxRdy = '0' then
                 -- Electrical idle at once when the transmitters are not ready, also when a reset stops LaneClk in the
-                -- same delta cycle (the bits already scheduled are discarded)
+                -- same delta cycle (the bits already scheduled are discarded); the reset of the transmitters also
+                -- resets the running disparity and the PRBS generator, as the transmit PCS of the transceiver
                 TxLine(l) <= 'Z';
                 Rd_v      := '0';
+                Lfsr_v    := (others => '1');
             elsif rising_edge(LaneClk) then
                 Lane_v := PaModelCtrl(ModelIdx_g).Lane(l);
                 if Phy_TxEnable(l) = '0' or Lane_v.Idle then
@@ -387,10 +389,6 @@ begin
                 end if;
                 ErrReq_v := Lane_v.ErrReq;
                 BurstR_v := Lane_v.BurstReq;
-                if RstFree = '1' then
-                    Rd_v   := '0';
-                    Lfsr_v := (others => '1');
-                end if;
             end if;
         end process;
 

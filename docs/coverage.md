@@ -40,7 +40,8 @@ the Multi-Lane layer and the MIB without the redundant transmitter register:
 - Without coverage: the full regression at commit 9dff622 at a time resolution of 1 fs, 396 tests, all passed. The
   tree of 9dff622 is the tree of main 77f4eea (71b4665, `git rev-parse 9dff622^{tree}` and
   `git rev-parse 77f4eea^{tree}`).
-- With coverage: the full regression at commit b6242a2 at the default resolution of 1 ps, 396 tests, 395 passed.
+- With coverage: the full regression at commit b6242a2 at the resolution of 1 ps that VUnit sets for QuestaSim, 396
+  tests, 395 passed.
   `ofb_pa_gty_model_core_tb.lanes4` failed its check of the clock corrections: the reference clock of B, 200 ppm
   slower than that of A, toggles after 3200.64 ps, which 1 ps truncates to 3200 ps, so both ends ran at the same
   frequency. Since 9dff622 `run.py` runs QuestaSim at 1 fs. The 50 tests whose clocks have fractions of a picosecond
@@ -163,8 +164,8 @@ a verification model; none of the items is behaviour that the model description 
 | Location | Item not covered | Justification |
 | --- | --- | --- |
 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:223` | Branch: the reset sequence starts while the stretched reset is already released | The process starts at time 0 and after every sequence when the stretched reset rises, so the reset is always active when it reaches this line. |
-| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:236`, `242` | Branches: `LaneClk` or TX ready already due when the wait begins | Constant by construction: the reset done of the previous start ends at the latest when `LaneClk` starts (line 228), and `ClkDelay` < `TxReadyDelay` (model description, section 3). |
-| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:231`, `240`, `245`, `248` | Branches: a reset of the adapter during the reset sequence (before `LaneClk` starts, before TX ready, before RX ready) | The testbenches reset the adapter at power-up and in operation, after RX ready (TC-PA-10, TC-PA-02). The sequence then starts again from the top of the process. |
+| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:231`, `242` | Branches: no reset done of the previous start, TX ready already due when the wait begins | Constant by construction: `TxDoneStale` and `ClkDelay` are positive, so the reset done of the previous start lasts beyond the start of the sequence (line 228), and `ClkDelay` < `TxReadyDelay` (model description, section 3). |
+| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:236`, `240`, `245`, `248` | Branches: a reset of the adapter during the reset sequence (while the reset done of the previous start shows, before `LaneClk` starts, before TX ready, before RX ready) | The testbenches reset the adapter at power-up and in operation, after RX ready (TC-PA-10, TC-PA-02). The sequence then starts again from the top of the process. |
 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:390`, statements 391 and 392 | Branch: reset of the PRBS generator inside the `LaneClk` branch of the transmitter | Not reachable: `LaneClk` stops in the delta cycle in which the stretched reset rises, and the transmitter takes the reset through TX ready (line 322). The PRBS generator keeps its state over a reset; its checker synchronises itself (TC-PA-17). |
 | `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd:149` | Branch: word pushed into a full receive buffer | Defensive. The receiver checks the level before it pushes and counts the lost word (`ofb_pa_gty_model.vhd` line 544, TC-PA-18). |
 
