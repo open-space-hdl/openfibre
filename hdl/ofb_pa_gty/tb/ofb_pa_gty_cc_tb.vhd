@@ -11,6 +11,9 @@
 -- order. With the reference clock of B slower than that of A (RefPpmB_g), the receive elastic
 -- buffers insert SKIP words at A and remove SKIP words at B (clock correction). With FarLoopback_g,
 -- B then enables the far-end serial loopback of every lane and A receives its own words in order.
+-- With SkipPeriod_g = 0 no SKIP words are sent: the receive elastic buffers overflow or run empty, and
+-- every buffer error must be followed by a reset of the buffer (PA-RS-03), after which the words arrive in
+-- order again; the receivers stay ready.
 --
 -- Documentation: hdl/ofb_pa_gty/docs/verification_plan.md
 
@@ -30,7 +33,8 @@ library std;
 entity ofb_pa_gty_cc_tb is
     generic (
         RefPpmB_g     : natural := 1000;  -- reference clock of B slower by this many ppm
-        FarLoopback_g : boolean := false  -- second phase: far-end serial loopback at B
+        FarLoopback_g : boolean := false; -- second phase: far-end serial loopback at B
+        SkipPeriod_g  : natural := 16     -- SKIP word every SkipPeriod_g words; 0: none (buffer errors)
     );
 end entity;
 
@@ -39,11 +43,16 @@ end entity;
 ---------------------------------------------------------------------------------------------------
 architecture sim of ofb_pa_gty_cc_tb is
 
-    constant Lanes_c      : positive := 4;
-    constant FreePeriod_c : time     := 10 ns;
-    constant Words_c      : positive := 3000;  -- data words checked per lane and end
-    constant ClkCors_c    : natural  := 4 * boolean'pos(RefPpmB_g > 0); -- clock corrections expected per end
-    constant Timeout_c    : time     := 300 us;
+    constant Lanes_c       : positive := 4;
+    constant FreePeriod_c  : time     := 10 ns;
+    constant Words_c       : positive := 3000;  -- data words checked per lane and end
+    constant ClkCors_c     : natural  := 4 * boolean'pos(RefPpmB_g > 0); -- clock corrections expected per end
+    constant Timeout_c     : time     := 300 us;
+    -- Without SKIP words: run time after the receivers are ready, longest buffer error indication (LaneClk
+    -- cycles), words with errors allowed per buffer error and lane (the words around the reset of the buffer)
+    constant BufTime_c     : time     := 250 us;
+    constant BufLongMax_c  : positive := 1000;
+    constant BufErrWords_c : positive := 8;
 
     -- SpaceFibre characters
     constant K28_7_c    : std_logic_vector(7 downto 0)  := x"FC";
@@ -91,6 +100,10 @@ architecture sim of ofb_pa_gty_cc_tb is
     signal Errors    : Cnt2_t := (others => (others => 0));
     signal ClkCorCnt : Nat2_t := (others => 0);
     signal BufErrCnt : Nat2_t := (others => 0);
+    -- Buffer errors without SKIP words: events, longest event (LaneClk cycles), drops of RxReady
+    signal BufEvents : Nat2_t := (others => 0);
+    signal BufLong   : Nat2_t := (others => 0);
+    signal RdyDrops  : Nat2_t := (others => 0);
 
 begin
 
@@ -115,6 +128,42 @@ begin
         Rst <= '0';
         wait until RxReady(0) = '1' and RxReady(1) = '1' for Timeout_c;
         report "Receivers ready at " & time'image(now);
+
+        -- Without SKIP words: buffer errors, each followed by a buffer reset (PA-RS-03)
+        if SkipPeriod_g = 0 then
+            wait for BufTime_c;
+            Done_v := BufEvents(0) + BufEvents(1) > 0;
+
+            for e in 0 to 1 loop
+                report "End " & integer'image(e) & ": " & integer'image(BufEvents(e)) & " buffer errors, longest " &
+                       integer'image(BufLong(e)) & " LaneClk cycles, " & integer'image(RdyDrops(e)) &
+                       " drops of RxReady";
+                if BufLong(e) > BufLongMax_c or RdyDrops(e) /= 0 then
+                    report "FAIL: buffer error not cleared or receivers not ready" severity error;
+                    Fail_v := true;
+                end if;
+
+                for l in 0 to Lanes_c-1 loop
+                    report "End " & integer'image(e) & " lane " & integer'image(l) & ": " &
+                           integer'image(Checked(e, l)) & " data words checked, " & integer'image(Errors(e, l)) &
+                           " errors";
+                    if Checked(e, l) < Words_c or Errors(e, l) > BufErrWords_c * (BufEvents(e) + 1) then
+                        report "FAIL: words after buffer errors" severity error;
+                        Fail_v := true;
+                    end if;
+                end loop;
+
+            end loop;
+
+            if not Done_v then
+                report "FAIL: no buffer error without SKIP words" severity error;
+                Fail_v := true;
+            end if;
+            if not Fail_v then
+                report "Simulation done at " & time'image(now);
+            end if;
+            finish;
+        end if;
 
         loop
             wait for 2 us;
@@ -245,7 +294,7 @@ begin
                 Cnt_v := Cnt_v + 1;
 
                 for l in 0 to Lanes_c-1 loop
-                    if Cnt_v mod 16 = 0 then
+                    if SkipPeriod_g > 0 and Cnt_v mod SkipPeriod_g = 0 then
                         TxData(e)(32*l+31 downto 32*l) <= WordSkip_c;
                         TxK(e)(4*l+3 downto 4*l)       <= "0001";
                     elsif Cnt_v mod 8 = 0 then
@@ -265,8 +314,29 @@ begin
         -- Clock corrections and buffer errors of the receivers
         -------------------------------------------------------------------------------------------
         p_stat : process (LaneClk(e)) is
+            variable Any_v  : boolean;
+            variable Last_v : boolean   := false;
+            variable Len_v  : natural   := 0;
+            variable Rdy_v  : std_logic := '0';
         begin
             if rising_edge(LaneClk(e)) then
+                Any_v := RxBufErr(e) /= (RxBufErr(e)'range => '0') and RxReady(e) = '1';
+                if Any_v and not Last_v then
+                    BufEvents(e) <= BufEvents(e) + 1;
+                end if;
+                if Any_v then
+                    Len_v := Len_v + 1;
+                    if Len_v > BufLong(e) then
+                        BufLong(e) <= Len_v;
+                    end if;
+                else
+                    Len_v := 0;
+                end if;
+                Last_v := Any_v;
+                if Rdy_v = '1' and RxReady(e) = '0' then
+                    RdyDrops(e) <= RdyDrops(e) + 1;
+                end if;
+                Rdy_v := RxReady(e);
 
                 for l in 0 to Lanes_c-1 loop
                     if ClkCor(e)(l) = '1' then

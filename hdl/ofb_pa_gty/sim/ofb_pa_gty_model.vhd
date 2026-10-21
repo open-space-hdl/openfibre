@@ -676,6 +676,12 @@ begin
                 end if;
                 if RxOverrun(l) /= Lost_v then
                     Stat_RxBufErr(l) <= '1';
+                    -- PA-RS-03: the buffer is reset and starts again at the start level (an underflow already
+                    -- restarts it there)
+                    if RxBufReset_g then
+                        RxBuf_v.clear(l);
+                        Run_v := false;
+                    end if;
                 end if;
                 Lost_v := RxOverrun(l);
                 if PrbsErrs(l) /= Errs_v then

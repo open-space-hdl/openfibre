@@ -103,7 +103,8 @@ of the signal, also when a lane restarts in operation (run `lanes1_relock` of th
   following word as RXERR and enters LossOfSignal when the RXERR counter overflows (255 words, 1.6 us).
 - Receive buffer: 64 words per lane into `LaneClk`. The output starts at 16 words; above 24 words a SKIP word is
   removed, below 8 words a SKIP word is repeated (`Stat_ClkCor`, one pulse per correction). A full or empty buffer
-  sets `Stat_RxBufErr`.
+  sets `Stat_RxBufErr`; after an underflow, and with `RxBufReset_g` (default) also after an overflow, the buffer starts
+  again at 16 words, as `struct` resets the receive elastic buffer (PA-RS-03).
 - Status: `Stat_Aligned` per lane, `Phy_NoSignal` as selected by `NoSignalMode`, `Stat_TxReady` (register of
   `FreeRunClk` that takes the transmit reset done only after it was 0 once since the release of the reset, as in
   `struct`), `Stat_RxReady`, `LaneRst` (set without a `LaneClk` edge while the transmitters

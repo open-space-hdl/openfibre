@@ -38,6 +38,8 @@ TESTBENCHES = {
     "ofb_pa_gty_tb": ("ofb_pa_gty_tb", {}),
     "ofb_pa_gty_cc_tb.cc": ("ofb_pa_gty_cc_tb", {"RefPpmB_g": "1000"}),
     "ofb_pa_gty_cc_tb.far": ("ofb_pa_gty_cc_tb", {"RefPpmB_g": "0", "FarLoopback_g": "true"}),
+    # No SKIP words: receive buffer errors, each followed by a reset of the buffer (PA-RS-03)
+    "ofb_pa_gty_cc_tb.buferr": ("ofb_pa_gty_cc_tb", {"RefPpmB_g": "1000", "SkipPeriod_g": "0"}),
     "ofb_pa_gty_core_tb": ("ofb_pa_gty_core_tb", {}),
     # One to three lanes of the quad: link initialisation and the first burst
     "ofb_pa_gty_core_tb.lanes1": ("ofb_pa_gty_core_tb", {"Lanes_g": "1", "Short_g": "true"}),
