@@ -41,7 +41,8 @@ entity ofb_vck190_top is
         IncludeCips_g : boolean                := false -- CIPS block design of tcl/build.tcl (simulation: clock models)
     );
     port (
-        -- Transceiver reference clock, 156.25 MHz (MGTREFCLK1 of quad 200)
+        -- Transceiver reference clock: 100 MHz from the Si570 (GTY_REFCLK0 of quad 201) or 156.25 MHz from the
+        -- 8A34001 (MGTREFCLK1 of quad 200), selected by tcl/build.tcl
         GtRefClk_P  : in    std_logic;
         GtRefClk_N  : in    std_logic;
         -- QSFP1, lanes 0 to 3
