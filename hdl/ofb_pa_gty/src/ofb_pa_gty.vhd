@@ -28,6 +28,9 @@ entity ofb_pa_gty is
         NumLanes_g       : positive range 1 to 4             := 4;
         SimDevice_g      : string                            := "VERSAL_AI_CORE"; -- SIM_DEVICE of BUFG_GT (device family)
         RstPulseCycles_g : positive range 3 to positive'high := 1000; -- Minimum reset of the transceivers (FreeRunClk)
+        -- Reset of the receive elastic buffer of a lane after a buffer error and after the first comma alignment of
+        -- a lane start (PA-RS-03); false leaves the buffers to the transceiver
+        RxBufReset_g     : boolean                           := true;
         -- Architecture mdl only: index of the control record of the instance (ofb_pa_model_pkg); struct
         -- ignores it
         ModelIdx_g       : natural                           := 0

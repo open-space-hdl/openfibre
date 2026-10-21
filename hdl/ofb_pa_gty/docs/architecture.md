@@ -42,6 +42,7 @@ transceivers completely (PA-RS-02).
 | `Phy_PrbsErr(l)`, `Phy_PrbsLocked(l)` | `ch_rxprbserr`, `ch_rxprbslocked` (receive user clock = `LaneClk`) |
 | `Stat_ClkCor(l)` | `ch_rxclkcorcnt` /= 0 (a SKIP word inserted or removed in this cycle) |
 | `Stat_RxBufErr(l)` | `ch_rxbufstatus(2)` (receive elastic buffer overflow or underflow) |
+| (receive elastic buffer reset, section 5) | `ch_gtrxreset`, `ch_rxresetmode`, `ch_rxpcsresetmask`, `ch_rxpmaresetmask` of channel l; requests from `ch_rxbufstatus(2)`, `ch_rxbyteisaligned` and `ch_rxbyterealign` |
 
 Channels without a lane (`NumLanes_g` < 4) send electrical idle; their receive outputs are not used.
 
@@ -60,7 +61,33 @@ ready status without a lane clock. `LaneRst` comes from an `olo_base_reset_gen` 
 `SyncTmr_g` = true) with `Stat_TxReady` as input: set without a clock edge while the transmitters are not ready,
 released synchronously.
 
-## 5. Transceiver configuration
+## 5. Receive elastic buffer reset
+
+With `RxBufReset_g` (default) the adapter resets the receive elastic buffer of a lane alone (PA-RS-03). The
+transceiver documentation (AM002, recommended receiver resets) asks for such a reset after an overflow or underflow of
+the buffer, after a comma alignment and after the recovered clock becomes stable on new data; without it the content
+of the buffer stays invalid. In a lane start the receiver reset completes before the far end sends, so the recovered
+clock becomes stable only later.
+
+- Requests, per lane in `LaneClk`: `ch_rxbufstatus(2)` (overflow or underflow) at any time, and one alignment request
+  per lane start. The start arms the alignment request when the receivers become ready or line receiver enable rises;
+  the first comma alignment after it (`ch_rxbyteisaligned` rising, synchronised, or a `ch_rxbyterealign` pulse)
+  requests the reset and disarms it. Further realignments do not request a reset, so a reset cannot start the next one
+  through the comma aligner (the PRBS test, for example, realigns all the time on the random data).
+- A request is stretched to 16 `LaneClk` cycles and crosses to `FreeRunClk` in an `olo_intf_sync` with
+  `SyncTmr_g` = true.
+- Sequencer, per lane in `FreeRunClk`: `ch_rxresetmode` = 11 (single mode), `ch_rxpmaresetmask` = 0000000 and
+  `ch_rxpcsresetmask` = 00100 (RX elastic buffer) for 8 cycles, then `ch_gtrxreset` for 16 cycles (at least one
+  reference clock period), the masks held for 128 more cycles (single mode reports no reset done), then the values of
+  the master reset again (sequential mode, all masks set, `ch_gtrxreset` low, the values the wizard ties these ports to
+  when they are not used) and a holdoff of 256 cycles before the next reset. A request during the hold or the holdoff
+  is served after the holdoff. While the receivers are not ready (`rst_rx_done` low) or the free-running reset is
+  active, the sequencer stays idle with the master reset values.
+
+With `RxBufReset_g` = false the ports keep the master reset values: the behaviour is that of the transceiver without
+the reset.
+
+## 6. Transceiver configuration
 
 `tcl/ofb_gtw.tcl` sets the line rate settings `LR0_SETTINGS` of interface 0 (`INTF0_GT_SETTINGS`) and the optional
 ports (`INTF0_OPTIONAL_PORTS`, the dictionary of all ports with the used ones enabled). The settings are listed in the
