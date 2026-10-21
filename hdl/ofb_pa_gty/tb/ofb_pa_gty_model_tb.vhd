@@ -657,6 +657,18 @@ begin
                 clearCounts;
                 waitUs(10);
                 checkClean(1000, "Signal back");
+                -- NoSignalLine during a reset of the adapter of B: no signal on every lane of B while it is in reset
+                RstEnd(1) <= '1';
+                wait for 100 ns;
+                check_value(NoSig(1), (N_c-1 downto 0 => '1'), error, "Line mode: no signal at B during its reset");
+                RstEnd(1) <= '0';
+                wait until RxRdy(1) = '1' for 20 us;
+                wait until Aligned(1) = (N_c-1 downto 0 => '1') for 5 us;
+                check_value(Aligned(1), (N_c-1 downto 0 => '1'), error, "Line mode: lanes of B aligned after its reset");
+                waitUs(3);
+                clearCounts;
+                waitUs(10);
+                checkClean(1000, "Line mode: after the reset of B");
                 -- NoSignalNever (default, as struct): Phy_NoSignal stays 0, an idle line gives the idle line words
                 PaModelCtrl(1).NoSignalMode <= NoSignalNever;
                 waitUs(1);
