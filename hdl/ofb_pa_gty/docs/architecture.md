@@ -83,6 +83,10 @@ clock becomes stable only later.
   when they are not used) and a holdoff of 256 cycles before the next reset. A request during the hold or the holdoff
   is served after the holdoff. While the receivers are not ready (`rst_rx_done` low) or the free-running reset is
   active, the sequencer stays idle with the master reset values.
+- Received words: during the reset the buffer delivers words of value 0. The reset window (setup, pulse and hold)
+  crosses back to `LaneClk` (`olo_intf_sync`, `SyncTmr_g` = true); while it is active `PhyRx_Valid` of the lane is
+  low, and afterwards the words are valid again from the first K character, as after the start of the receivers. The
+  words of the reset window are missing, not replaced: a frame across it fails its CRC in the Data Link layer.
 
 With `RxBufReset_g` = false the ports keep the master reset values: the behaviour is that of the transceiver without
 the reset.

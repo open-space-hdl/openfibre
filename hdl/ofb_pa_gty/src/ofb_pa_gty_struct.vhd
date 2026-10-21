@@ -294,21 +294,25 @@ architecture struct of ofb_pa_gty is
     type BufRstCnts_t is array (0 to NumLanes_g-1) of natural range 0 to BufHoldoffCycles_c-1;
     type BufReqCnts_t is array (0 to NumLanes_g-1) of natural range 0 to 15;
 
-    signal RxGtReset  : std_logic_vector(Ch_c-1 downto 0)       := (others => '0');
-    signal RxRstMode  : Status2_t                               := (others => RstModeSeq_c);
-    signal RxPcsMask  : Status5_t                               := (others => PcsMaskAll_c);
-    signal RxPmaMask  : Status7_t                               := (others => PmaMaskAll_c);
-    signal RxRealign  : std_logic_vector(Ch_c-1 downto 0);
-    signal ReadyLast  : std_logic                               := '0';
-    signal RxEnLast   : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
-    signal AlignLast  : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
-    signal AlignArmed : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
-    signal BufReqCnt  : BufReqCnts_t                            := (others => 0);
-    signal BufReqLane : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
-    signal BufReqFree : std_logic_vector(NumLanes_g-1 downto 0);
-    signal BufPend    : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
-    signal BufRstSt   : BufRstStates_t                          := (others => BufIdle_s);
-    signal BufRstCnt  : BufRstCnts_t                            := (others => 0);
+    signal RxGtReset   : std_logic_vector(Ch_c-1 downto 0)       := (others => '0');
+    signal RxRstMode   : Status2_t                               := (others => RstModeSeq_c);
+    signal RxPcsMask   : Status5_t                               := (others => PcsMaskAll_c);
+    signal RxPmaMask   : Status7_t                               := (others => PmaMaskAll_c);
+    signal RxRealign   : std_logic_vector(Ch_c-1 downto 0);
+    signal ReadyLast   : std_logic                               := '0';
+    signal RxEnLast    : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+    signal AlignLast   : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+    signal AlignArmed  : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+    signal BufReqCnt   : BufReqCnts_t                            := (others => 0);
+    signal BufReqLane  : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+    signal BufReqFree  : std_logic_vector(NumLanes_g-1 downto 0);
+    signal BufPend     : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+    signal BufRstSt    : BufRstStates_t                          := (others => BufIdle_s);
+    signal BufRstCnt   : BufRstCnts_t                            := (others => 0);
+    -- Reset window of a lane (setup, pulse, hold) in FreeRunClk and synchronised to LaneClk: the buffer outputs
+    -- no valid words then, so its words are not passed
+    signal BufBusy     : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+    signal BufBusyLane : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
 
 begin
 
@@ -361,6 +365,13 @@ begin
                 end if;
             end loop;
 
+            -- Reset of the receive elastic buffer: words again from the first K character after it
+            for l in 0 to NumLanes_g-1 loop
+                if BufBusyLane(l) = '1' then
+                    RxSeenK(l) <= '0';
+                end if;
+            end loop;
+
             if RxReady = '0' then
                 RxSeenK <= (others => '0');
             end if;
@@ -388,7 +399,8 @@ begin
             PhyRx_CodeErr(4*c+3 downto 4*c) <= RxCtrl3(c)(3 downto 0);
             -- Words are valid from the first K character after the receivers are ready (the receive buffer
             -- outputs zero words while it starts)
-            PhyRx_Valid(c)   <= RxReady and Phy_RxEnable(c) and (RxSeenK(c) or (or RxCtrl0(c)(3 downto 0)));
+            PhyRx_Valid(c)   <= RxReady and Phy_RxEnable(c) and not BufBusyLane(c) and
+                                (RxSeenK(c) or (or RxCtrl0(c)(3 downto 0)));
             Stat_RxBufErr(c) <= RxBufStat(c)(2);
             Stat_ClkCor(c)   <= '1' when RxClkCor(c) /= "00" else '0';
             Loopback(c)      <= LbNearPma_c when Phy_SerialNearLoopback(c) = '1' else
@@ -602,16 +614,19 @@ begin
                             RxPcsMask(l) <= PcsMaskBuf_c;
                             RxPmaMask(l) <= PmaMaskNone_c;
                             RxGtReset(l) <= '0';
+                            BufBusy(l)   <= '1';
                         when BufPulse_s =>
                             RxRstMode(l) <= RstModeSingle_c;
                             RxPcsMask(l) <= PcsMaskBuf_c;
                             RxPmaMask(l) <= PmaMaskNone_c;
                             RxGtReset(l) <= '1';
+                            BufBusy(l)   <= '1';
                         when others =>
                             RxRstMode(l) <= RstModeSeq_c;
                             RxPcsMask(l) <= PcsMaskAll_c;
                             RxPmaMask(l) <= PmaMaskAll_c;
                             RxGtReset(l) <= '0';
+                            BufBusy(l)   <= '0';
                     end case;
 
                     -- A request after the reset pulse (hold or holdoff time) is served after the holdoff
@@ -628,11 +643,23 @@ begin
                         RxPcsMask(l) <= PcsMaskAll_c;
                         RxPmaMask(l) <= PmaMaskAll_c;
                         RxGtReset(l) <= '0';
+                        BufBusy(l)   <= '0';
                     end if;
                 end if;
             end process;
 
         end generate;
+
+        i_bufbusy_sync : entity olo.olo_intf_sync
+            generic map (
+                Width_g   => NumLanes_g,
+                SyncTmr_g => true
+            )
+            port map (
+                Clk       => UsrClk,
+                DataAsync => BufBusy,
+                DataSync  => BufBusyLane
+            );
 
     end generate;
 
@@ -645,6 +672,8 @@ begin
             RxPcsMask(l) <= PcsMaskAll_c;
             RxPmaMask(l) <= PmaMaskAll_c;
         end generate;
+
+        BufBusyLane <= (others => '0');
 
     end generate;
 
