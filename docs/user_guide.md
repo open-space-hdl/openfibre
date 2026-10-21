@@ -103,11 +103,10 @@ Differences to the transceiver model that a system test must not rely on (model 
 - `Stat_Aligned` rises with the first comma decoded after the lock; the transceiver model reports the byte alignment
   earlier, before it delivers valid words. A system test must not depend on the time of `Stat_Aligned` (no effect on
   the link initialisation, PA-MD-10).
-- `Phy_NoSignal` follows the transceiver model by default (`NoSignalMode`): it falls at a fixed time of the reset
-  sequence and does not show a lost signal, so the Lane layer detects a loss through the overflow of its RXERR counter
-  (about 1.8 us);
-  `NoSignalLine` lets it follow the line. The core works with both; the behaviour of the receive electrical idle on
-  silicon is not yet verified.
+- `Phy_NoSignal` is always 0 by default (`NoSignalMode` = `NoSignalNever`), as `ofb_pa_gty` on the transceiver,
+  whose receiver gives no loss of signal indication at 6.25 Gbit/s: the Lane layer detects a loss through the overflow
+  of its RXERR counter (about 1.8 us). `NoSignalLine` lets it follow the line, as a Physical adapter with a loss of
+  signal indication would; the core works with both.
 - After a return of the signal the transceiver model delivers valid words before its clock-data recovery has locked;
   the model does not. A system test must not rely on words before the lock.
 - No analogue effects (equalisation, jitter, attenuation), no lock process of the PLL or the clock-data recovery
@@ -279,6 +278,8 @@ a short QSFP cable) may select LPM (`RX_EQ_MODE` LPM in `tcl/ofb_gtw.tcl`).
    TxEn, RxEn). An end with AutoStart only (the reset value 0x62) starts when the far end sends. With `LaneStart_g` =
    true the reset value is 0x63 and the end starts by itself. Two ends that both only wait never start: a core whose
    MIB is reachable only over its own link must start the link itself (`LaneStart_g`) or have a far end that starts.
+   With `ofb_pa_gty` NoSignal is always de-asserted (the transceiver gives no loss of signal indication, ECSS
+   5.4.2.4b.1), so an end with AutoStart only leaves Wait at once and starts like an end with LaneStart.
 4. Wait for the link: LANE_STATUS bits 3:0 = 7 (Active) for the lanes, ML_STATUS bits 9:8 = 2 (Both-Ends Ready) with
    several lanes, DL_STATUS bits 1:0 = 3 (link initialised). VC_HAS_CREDIT shows the VCs that may send.
 5. Operation: DL_ERRORS, LANE_EVENTS and ECC_STATUS hold sticky flags (interrupt sources); the counters count retries,

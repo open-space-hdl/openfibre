@@ -40,10 +40,11 @@ package ofb_pa_model_pkg is
 
     type PaModelLaneArray_t is array (0 to PaModelLanes_c-1) of PaModelLane_t;
 
-    -- Behaviour of Phy_NoSignal: NoSignalSequence as the receive electrical idle of the transceiver model in the AMD
-    -- simulator (1 from the start of the reset sequence, 0 from NoSignalTime after it, whatever the line carries);
-    -- NoSignalLine follows the line (1 after the line has been idle for NoSignalDelay)
-    type PaNoSignalMode_t is (NoSignalSequence, NoSignalLine);
+    -- Behaviour of Phy_NoSignal: NoSignalNever as struct (always 0: the transceiver gives no loss of signal
+    -- indication; an idle line gives words with code errors and then words that are not lane words, as the receiver
+    -- of the transceiver); NoSignalLine follows the line (1 after the line has been idle for NoSignalDelay), for a
+    -- Physical adapter with a loss of signal indication
+    type PaNoSignalMode_t is (NoSignalNever, NoSignalLine);
 
     -- Times of the reset sequence. A sequence starts at the end of the stretched reset (RstPulseCycles_g), but not
     -- before PowerUpTime after the start of the simulation (power-up of the transceiver)
@@ -63,9 +64,7 @@ package ofb_pa_model_pkg is
         CdrLockTime   : time;
         -- Behaviour of Phy_NoSignal
         NoSignalMode  : PaNoSignalMode_t;
-        -- NoSignalSequence: Phy_NoSignal falls, after the start of the sequence
-        NoSignalTime  : time;
-        -- NoSignalLine: Phy_NoSignal after the line became idle
+        -- NoSignalLine: Phy_NoSignal after the line became idle; NoSignalNever: start of the idle line words
         NoSignalDelay : time;
         Lane          : PaModelLaneArray_t;
     end record;
@@ -88,8 +87,7 @@ package ofb_pa_model_pkg is
         TxReadyDelay  => 21.16 us,
         RxReadyDelay  => 3.34 us,
         CdrLockTime   => 16.83 us,
-        NoSignalMode  => NoSignalSequence,
-        NoSignalTime  => 22.755 us,
+        NoSignalMode  => NoSignalNever,
         NoSignalDelay => 100 ns,
         Lane          => (others => PaModelLaneDefault_c)
     );
