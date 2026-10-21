@@ -44,9 +44,8 @@ link.
 | `TxReadyDelay` | 21.16 us | `Stat_TxReady` (register of `FreeRunClk`) after the start of the sequence, later than `ClkDelay`; `LaneRst` is released two `LaneClk` cycles later |
 | `RxReadyDelay` | 3.34 us | `Stat_RxReady` after `Stat_TxReady`; the receivers decode from then on |
 | `CdrLockTime` | 16.83 us | The receiver decodes words this long after the first transition of a signal at its pins (after electrical idle or a reset of the adapter): the lock time of the clock-data recovery |
-| `NoSignalMode` | `NoSignalSequence` | Behaviour of `Phy_NoSignal`. `NoSignalSequence`: as the receive electrical idle of the transceiver model, 1 from the start of the reset sequence and 0 from `NoSignalTime` after it, whatever the line carries (a lost signal is not shown); while the line has been idle for `NoSignalDelay`, the receiver delivers 13 words with code errors and then words without errors that are not lane words, as the receiver of the transceiver model. `NoSignalLine`: follows the line, no words while it is idle |
-| `NoSignalTime` | 22.755 us | `NoSignalSequence`: `Phy_NoSignal` falls this long after the start of the sequence (1.6 us after `Stat_TxReady`) |
-| `NoSignalDelay` | 100 ns | `NoSignalLine`: `Phy_NoSignal` rises when the line has been idle this long and falls with the next transition |
+| `NoSignalMode` | `NoSignalNever` | Behaviour of `Phy_NoSignal`. `NoSignalNever`: always 0, as `struct` (the transceiver gives no loss of signal indication, PA-IF-03); while the line has been idle for `NoSignalDelay`, the receiver delivers 13 words with code errors and then words without errors that are not lane words, as the receiver of the transceiver model. `NoSignalLine`: follows the line, no words while it is idle (a Physical adapter with a loss of signal indication) |
+| `NoSignalDelay` | 100 ns | `NoSignalLine`: `Phy_NoSignal` rises when the line has been idle this long and falls with the next transition; `NoSignalNever`: the idle line words start this long after the line became idle |
 | `Lane(l).TxInvert` | false | Transmitted pair crossed (P and N swapped) |
 | `Lane(l).SkewUi` | 0 | Additional delay of the transmitted bits in unit intervals (lane skew; a change shifts the bit stream) |
 | `Lane(l).Idle` | false | Electrical idle on the pins (loss of signal) |
@@ -57,15 +56,15 @@ link.
 The default reset sequence is that of the transceiver model in the AMD simulator, measured with
 `ofb_pa_gty_core_tb`. At power-up (four lanes, the reset of the adapter released at 200 ns, the stretched reset of
 1000 cycles of `FreeRunClk` ends at about 10.21 us) the reset done of the wizard shows 1 from 10.225 us to 38.135 us
-(`TxDoneStale`), the first `LaneClk` edge comes at 64.097 us, `Stat_TxReady` rises at 64.885 us, `Phy_NoSignal` falls
-at 66.471 us on every lane (within one `LaneClk` cycle) and `Stat_RxReady` rises at 68.212 us, at both ends and with
-one to four lanes. The transceiver model
-completes its power-up first, so these times do not follow the end of the stretched reset: a system testbench whose
+(`TxDoneStale`), the first `LaneClk` edge comes at 64.097 us, `Stat_TxReady` rises at 64.885 us, the receive
+electrical idle of the transceiver model falls at 66.471 us on every lane and `Stat_RxReady` rises at 68.212 us, at
+both ends and with one to four lanes. The transceiver model completes its power-up first, so these times do not
+follow the end of the stretched reset: a system testbench whose
 stretched reset ends at 6.0 us reaches TX ready at 64.83 us. A later reset is shorter: the full run of 2026-10-17
 resets the adapter of A in operation with a request of 100 ns that ends at 197.545 us. `LaneClk` of A runs again
-30.391 us after the end of the request, `Stat_TxReady` rises after 31.180 us, `Phy_NoSignal` falls after 32.765 us
-and `Stat_RxReady` rises after 34.512 us. The stretched reset of the model ends 10.010 us after the end of the
-request, so the sequence of the model starts there: `ClkDelay`, `TxReadyDelay` and `NoSignalTime` are these times
+30.391 us after the end of the request, `Stat_TxReady` rises after 31.180 us and `Stat_RxReady` rises after
+34.512 us. The stretched reset of the model ends 10.010 us after the end of the
+request, so the sequence of the model starts there: `ClkDelay` and `TxReadyDelay` are these times
 less 10.010 us, `RxReadyDelay` lies between the distances of `Stat_RxReady` to `Stat_TxReady` at power-up (3.327 us)
 and after the reset (3.332 us), and `PowerUpTime` is chosen so that the power-up sequence reaches TX ready at
 64.885 us; the first `LaneClk` edge then comes at 64.096 us.
@@ -96,9 +95,9 @@ of the signal, also when a lane restarts in operation (run `lanes1_relock` of th
 - Receiver: the bits between two transitions are counted in the own unit interval. Symbols align on the 7-bit comma
   (0011111 or 1100000) and realign on a comma in another position; the decoder flags code and disparity errors; a word
   starts with a comma symbol (K28.1, K28.5, K28.7), so the comma is in symbol 0. `Phy_RxInvert` inverts the received
-  bits. Without signal, while the receiver or the clock-data recovery is disabled, or before the receivers are ready,
-  no word is received and the alignment is lost. In `NoSignalSequence`, once the line has been idle for
-  `NoSignalDelay` (receivers ready, receiver and clock-data recovery enabled), the receiver delivers one word per
+  bits. Without signal, while the receiver is disabled, or before the receivers are ready, no word is received and the
+  alignment is lost; `Phy_CdrEnable` has no effect, as in `struct` (PA-IF-02). In `NoSignalNever`, once the line has
+  been idle for `NoSignalDelay` (receivers ready, receiver enabled), the receiver delivers one word per
   `LaneClk` cycle as the receiver of the transceiver model: 13 words with code errors, then words without errors that
   are not lane words. The Lane layer loses the word synchronisation after the errors (ECSS 5.5.8), counts every
   following word as RXERR and enters LossOfSignal when the RXERR counter overflows (255 words, 1.6 us).
@@ -126,11 +125,11 @@ of the signal, also when a lane restarts in operation (run `lanes1_relock` of th
 - `Stat_Aligned` rises with the first comma decoded after the lock; the transceiver model reports the byte alignment
   already about 1.6 us after its transmitters are ready, before it delivers valid words (no effect on PA-MD-10). A
   system test must not depend on the time of `Stat_Aligned`.
-- `Phy_NoSignal` in `NoSignalSequence` (default) does not show a lost signal, as in the transceiver model: the Lane
-  layer of the core detects the loss through the overflow of its RXERR counter: the receiver delivers 13 words with
-  code errors on an idle line, the word synchronisation is lost and every following word counts as RXERR (LOST_SIGNAL
-  1.77 us after the line became idle in the lane restart run of the transceiver model). `NoSignalLine` shows it after
-  `NoSignalDelay`. Whether the receive electrical idle of the transceiver follows the line on silicon is not verified.
+- `Phy_NoSignal` in `NoSignalNever` (default) is always 0, as `struct`: the Lane layer of the core detects a loss
+  through the overflow of its RXERR counter: the receiver delivers 13 words with code errors on an idle line, the word
+  synchronisation is lost and every following word counts as RXERR (LOST_SIGNAL 1.77 us after the line became idle in
+  the lane restart run of the transceiver model). `NoSignalLine` shows it after `NoSignalDelay`, as a Physical adapter
+  with a loss of signal indication would.
 - After a return of the signal the transceiver model delivers valid words without code or disparity errors that are
   not lane words, long before its clock-data recovery has locked (6.5 us after the return against 17.1 us for the first
   lane word); the model delivers no word before the lock. A system test must not rely on words before the lock.

@@ -108,7 +108,6 @@ architecture struct of ofb_pa_gty is
             INTF0_TX3_ch_txprbssel           : in    std_logic_vector(3 downto 0);
             INTF0_TX3_ch_txprbsforceerr      : in    std_logic_vector(0 downto 0);
             INTF0_RX0_ch_rxbufstatus         : out   std_logic_vector(2 downto 0);
-            INTF0_RX0_ch_rxcdrhold           : in    std_logic_vector(0 downto 0);
             INTF0_RX0_ch_rxpolarity          : in    std_logic_vector(0 downto 0);
             INTF0_RX0_ch_rxrate              : in    std_logic_vector(7 downto 0);
             INTF0_RX0_ch_rxdata              : out   std_logic_vector(127 downto 0);
@@ -120,14 +119,12 @@ architecture struct of ofb_pa_gty is
             INTF0_RX0_ch_rxctrl1             : out   std_logic_vector(15 downto 0);
             INTF0_RX0_ch_rxctrl2             : out   std_logic_vector(7 downto 0);
             INTF0_RX0_ch_rxctrl3             : out   std_logic_vector(7 downto 0);
-            INTF0_RX0_ch_rxelecidle          : out   std_logic_vector(0 downto 0);
             INTF0_RX0_ch_rxresetdone         : out   std_logic_vector(0 downto 0);
             INTF0_RX0_ch_rxprbssel           : in    std_logic_vector(3 downto 0);
             INTF0_RX0_ch_rxprbscntreset      : in    std_logic_vector(0 downto 0);
             INTF0_RX0_ch_rxprbserr           : out   std_logic_vector(0 downto 0);
             INTF0_RX0_ch_rxprbslocked        : out   std_logic_vector(0 downto 0);
             INTF0_RX1_ch_rxbufstatus         : out   std_logic_vector(2 downto 0);
-            INTF0_RX1_ch_rxcdrhold           : in    std_logic_vector(0 downto 0);
             INTF0_RX1_ch_rxpolarity          : in    std_logic_vector(0 downto 0);
             INTF0_RX1_ch_rxrate              : in    std_logic_vector(7 downto 0);
             INTF0_RX1_ch_rxdata              : out   std_logic_vector(127 downto 0);
@@ -139,14 +136,12 @@ architecture struct of ofb_pa_gty is
             INTF0_RX1_ch_rxctrl1             : out   std_logic_vector(15 downto 0);
             INTF0_RX1_ch_rxctrl2             : out   std_logic_vector(7 downto 0);
             INTF0_RX1_ch_rxctrl3             : out   std_logic_vector(7 downto 0);
-            INTF0_RX1_ch_rxelecidle          : out   std_logic_vector(0 downto 0);
             INTF0_RX1_ch_rxresetdone         : out   std_logic_vector(0 downto 0);
             INTF0_RX1_ch_rxprbssel           : in    std_logic_vector(3 downto 0);
             INTF0_RX1_ch_rxprbscntreset      : in    std_logic_vector(0 downto 0);
             INTF0_RX1_ch_rxprbserr           : out   std_logic_vector(0 downto 0);
             INTF0_RX1_ch_rxprbslocked        : out   std_logic_vector(0 downto 0);
             INTF0_RX2_ch_rxbufstatus         : out   std_logic_vector(2 downto 0);
-            INTF0_RX2_ch_rxcdrhold           : in    std_logic_vector(0 downto 0);
             INTF0_RX2_ch_rxpolarity          : in    std_logic_vector(0 downto 0);
             INTF0_RX2_ch_rxrate              : in    std_logic_vector(7 downto 0);
             INTF0_RX2_ch_rxdata              : out   std_logic_vector(127 downto 0);
@@ -158,14 +153,12 @@ architecture struct of ofb_pa_gty is
             INTF0_RX2_ch_rxctrl1             : out   std_logic_vector(15 downto 0);
             INTF0_RX2_ch_rxctrl2             : out   std_logic_vector(7 downto 0);
             INTF0_RX2_ch_rxctrl3             : out   std_logic_vector(7 downto 0);
-            INTF0_RX2_ch_rxelecidle          : out   std_logic_vector(0 downto 0);
             INTF0_RX2_ch_rxresetdone         : out   std_logic_vector(0 downto 0);
             INTF0_RX2_ch_rxprbssel           : in    std_logic_vector(3 downto 0);
             INTF0_RX2_ch_rxprbscntreset      : in    std_logic_vector(0 downto 0);
             INTF0_RX2_ch_rxprbserr           : out   std_logic_vector(0 downto 0);
             INTF0_RX2_ch_rxprbslocked        : out   std_logic_vector(0 downto 0);
             INTF0_RX3_ch_rxbufstatus         : out   std_logic_vector(2 downto 0);
-            INTF0_RX3_ch_rxcdrhold           : in    std_logic_vector(0 downto 0);
             INTF0_RX3_ch_rxpolarity          : in    std_logic_vector(0 downto 0);
             INTF0_RX3_ch_rxrate              : in    std_logic_vector(7 downto 0);
             INTF0_RX3_ch_rxdata              : out   std_logic_vector(127 downto 0);
@@ -177,7 +170,6 @@ architecture struct of ofb_pa_gty is
             INTF0_RX3_ch_rxctrl1             : out   std_logic_vector(15 downto 0);
             INTF0_RX3_ch_rxctrl2             : out   std_logic_vector(7 downto 0);
             INTF0_RX3_ch_rxctrl3             : out   std_logic_vector(7 downto 0);
-            INTF0_RX3_ch_rxelecidle          : out   std_logic_vector(0 downto 0);
             INTF0_RX3_ch_rxresetdone         : out   std_logic_vector(0 downto 0);
             INTF0_RX3_ch_rxprbssel           : in    std_logic_vector(3 downto 0);
             INTF0_RX3_ch_rxprbscntreset      : in    std_logic_vector(0 downto 0);
@@ -209,12 +201,10 @@ architecture struct of ofb_pa_gty is
     signal TxCtrl2    : Ctrl8_t;
     signal TxElecIdle : std_logic_vector(Ch_c-1 downto 0);
     signal RxPolarity : std_logic_vector(Ch_c-1 downto 0);
-    signal RxCdrHold  : std_logic_vector(Ch_c-1 downto 0);
     signal RxData     : Data128_t;
     signal RxCtrl0    : Ctrl16_t;
     signal RxCtrl1    : Ctrl16_t;
     signal RxCtrl3    : Ctrl8_t;
-    signal RxElecIdle : std_logic_vector(Ch_c-1 downto 0);
     signal RxAligned  : std_logic_vector(Ch_c-1 downto 0);
     signal RxBufStat  : Status3_t;
     signal RxClkCor   : Status2_t;
@@ -240,8 +230,8 @@ architecture struct of ofb_pa_gty is
     signal TxArmed    : std_logic := '0'; -- rst_tx_done was 0 since the release of the reset
 
     -- Status synchronised to LaneClk
-    signal SyncIn  : std_logic_vector(2*NumLanes_g downto 0);
-    signal SyncOut : std_logic_vector(2*NumLanes_g downto 0);
+    signal SyncIn  : std_logic_vector(NumLanes_g downto 0);
+    signal SyncOut : std_logic_vector(NumLanes_g downto 0);
     signal RxReady : std_logic;
     signal RxSeenK : std_logic_vector(Ch_c-1 downto 0) := (others => '0');
 
@@ -333,7 +323,6 @@ begin
             TxCtrl2(c)    <= "0000" & PhyTx_K(4*c+3 downto 4*c);
             TxElecIdle(c) <= not Phy_TxEnable(c);
             RxPolarity(c) <= Phy_RxInvert(c);
-            RxCdrHold(c)  <= not Phy_CdrEnable(c);
 
             PhyRx_Data(32*c+31 downto 32*c) <= RxData(c)(31 downto 0);
             PhyRx_K(4*c+3 downto 4*c)       <= RxCtrl0(c)(3 downto 0);
@@ -363,7 +352,6 @@ begin
             TxCtrl2(c)    <= (others => '0');
             TxElecIdle(c) <= '1';
             RxPolarity(c) <= '0';
-            RxCdrHold(c)  <= '0';
             PrbsTxSel(c)  <= "0000";
             PrbsRxSel(c)  <= "0000";
             PrbsForce(c)  <= '0';
@@ -373,14 +361,12 @@ begin
     end generate;
 
     -----------------------------------------------------------------------------------------------
-    -- Status to LaneClk: receive reset done (FreeRunClk), electrical idle and comma alignment
-    -- (asynchronous)
+    -- Status to LaneClk: receive reset done (FreeRunClk) and comma alignment (asynchronous)
     -----------------------------------------------------------------------------------------------
     SyncIn(0) <= RxDone;
 
     g_sync : for l in 0 to NumLanes_g-1 generate
-        SyncIn(1 + l)              <= RxElecIdle(l);
-        SyncIn(1 + NumLanes_g + l) <= RxAligned(l);
+        SyncIn(1 + l) <= RxAligned(l);
     end generate;
 
     -- The far-end loopback enables come from logic of the lane clock domain (the voters of the MIB
@@ -427,7 +413,7 @@ begin
 
     i_sync : entity olo.olo_intf_sync
         generic map (
-            Width_g   => 2*NumLanes_g+1,
+            Width_g   => NumLanes_g+1,
             SyncTmr_g => true
         )
         port map (
@@ -475,8 +461,12 @@ begin
 
     RxReady      <= SyncOut(0);
     Stat_RxReady <= SyncOut(0);
-    Phy_NoSignal <= SyncOut(NumLanes_g downto 1);
-    Stat_Aligned <= SyncOut(2*NumLanes_g downto NumLanes_g+1);
+    Stat_Aligned <= SyncOut(NumLanes_g downto 1);
+
+    -- No loss of signal indication (PA-IF-03, ECSS 5.4.2b.1): the receive electrical idle of the transceiver is a
+    -- static 0 in this configuration (AM002: OOB detection off, no data detection above 2.5 Gbit/s). A lost signal
+    -- shows as words with errors, which the Lane layer counts as RXERR (ECSS 5.5.8, 5.5.2.11e.3).
+    Phy_NoSignal <= (others => '0');
 
     -----------------------------------------------------------------------------------------------
     -- Transceiver wizard instance
@@ -550,7 +540,6 @@ begin
             INTF0_TX3_ch_txprbssel             => PrbsTxSel(3),
             INTF0_TX3_ch_txprbsforceerr(0)     => PrbsForce(3),
             INTF0_RX0_ch_rxbufstatus           => RxBufStat(0),
-            INTF0_RX0_ch_rxcdrhold(0)          => RxCdrHold(0),
             INTF0_RX0_ch_rxpolarity(0)         => RxPolarity(0),
             INTF0_RX0_ch_rxrate                => x"00",
             INTF0_RX0_ch_rxdata                => RxData(0),
@@ -562,14 +551,12 @@ begin
             INTF0_RX0_ch_rxctrl1               => RxCtrl1(0),
             INTF0_RX0_ch_rxctrl2               => open,
             INTF0_RX0_ch_rxctrl3               => RxCtrl3(0),
-            INTF0_RX0_ch_rxelecidle(0)         => RxElecIdle(0),
             INTF0_RX0_ch_rxresetdone           => open,
             INTF0_RX0_ch_rxprbssel             => PrbsRxSel(0),
             INTF0_RX0_ch_rxprbscntreset(0)     => PrbsCntRst(0),
             INTF0_RX0_ch_rxprbserr(0)          => PrbsErr(0),
             INTF0_RX0_ch_rxprbslocked(0)       => PrbsLocked(0),
             INTF0_RX1_ch_rxbufstatus           => RxBufStat(1),
-            INTF0_RX1_ch_rxcdrhold(0)          => RxCdrHold(1),
             INTF0_RX1_ch_rxpolarity(0)         => RxPolarity(1),
             INTF0_RX1_ch_rxrate                => x"00",
             INTF0_RX1_ch_rxdata                => RxData(1),
@@ -581,14 +568,12 @@ begin
             INTF0_RX1_ch_rxctrl1               => RxCtrl1(1),
             INTF0_RX1_ch_rxctrl2               => open,
             INTF0_RX1_ch_rxctrl3               => RxCtrl3(1),
-            INTF0_RX1_ch_rxelecidle(0)         => RxElecIdle(1),
             INTF0_RX1_ch_rxresetdone           => open,
             INTF0_RX1_ch_rxprbssel             => PrbsRxSel(1),
             INTF0_RX1_ch_rxprbscntreset(0)     => PrbsCntRst(1),
             INTF0_RX1_ch_rxprbserr(0)          => PrbsErr(1),
             INTF0_RX1_ch_rxprbslocked(0)       => PrbsLocked(1),
             INTF0_RX2_ch_rxbufstatus           => RxBufStat(2),
-            INTF0_RX2_ch_rxcdrhold(0)          => RxCdrHold(2),
             INTF0_RX2_ch_rxpolarity(0)         => RxPolarity(2),
             INTF0_RX2_ch_rxrate                => x"00",
             INTF0_RX2_ch_rxdata                => RxData(2),
@@ -600,14 +585,12 @@ begin
             INTF0_RX2_ch_rxctrl1               => RxCtrl1(2),
             INTF0_RX2_ch_rxctrl2               => open,
             INTF0_RX2_ch_rxctrl3               => RxCtrl3(2),
-            INTF0_RX2_ch_rxelecidle(0)         => RxElecIdle(2),
             INTF0_RX2_ch_rxresetdone           => open,
             INTF0_RX2_ch_rxprbssel             => PrbsRxSel(2),
             INTF0_RX2_ch_rxprbscntreset(0)     => PrbsCntRst(2),
             INTF0_RX2_ch_rxprbserr(0)          => PrbsErr(2),
             INTF0_RX2_ch_rxprbslocked(0)       => PrbsLocked(2),
             INTF0_RX3_ch_rxbufstatus           => RxBufStat(3),
-            INTF0_RX3_ch_rxcdrhold(0)          => RxCdrHold(3),
             INTF0_RX3_ch_rxpolarity(0)         => RxPolarity(3),
             INTF0_RX3_ch_rxrate                => x"00",
             INTF0_RX3_ch_rxdata                => RxData(3),
@@ -619,7 +602,6 @@ begin
             INTF0_RX3_ch_rxctrl1               => RxCtrl1(3),
             INTF0_RX3_ch_rxctrl2               => open,
             INTF0_RX3_ch_rxctrl3               => RxCtrl3(3),
-            INTF0_RX3_ch_rxelecidle(0)         => RxElecIdle(3),
             INTF0_RX3_ch_rxresetdone           => open,
             INTF0_RX3_ch_rxprbssel             => PrbsRxSel(3),
             INTF0_RX3_ch_rxprbscntreset(0)     => PrbsCntRst(3),
