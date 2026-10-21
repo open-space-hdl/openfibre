@@ -288,11 +288,15 @@ architecture struct of ofb_pa_gty is
     constant BufPulseCycles_c   : positive := 16;
     constant BufHoldCycles_c    : positive := 128;
     constant BufHoldoffCycles_c : positive := 256;
+    -- LaneClk cycles after a lane start in which its first comma alignment requests a buffer reset (52 us at
+    -- 156.25 MHz: the initialisation timeout of 5000 words and the lock of the clock-data recovery)
+    constant AlignWinCycles_c   : positive := 8192;
 
     type BufRstState_t is (BufIdle_s, BufSetup_s, BufPulse_s, BufHold_s, BufHoldoff_s);
     type BufRstStates_t is array (0 to NumLanes_g-1) of BufRstState_t;
     type BufRstCnts_t is array (0 to NumLanes_g-1) of natural range 0 to BufHoldoffCycles_c-1;
     type BufReqCnts_t is array (0 to NumLanes_g-1) of natural range 0 to 15;
+    type AlignWins_t is array (0 to NumLanes_g-1) of natural range 0 to AlignWinCycles_c-1;
 
     signal RxGtReset   : std_logic_vector(Ch_c-1 downto 0)       := (others => '0');
     signal RxRstMode   : Status2_t                               := (others => RstModeSeq_c);
@@ -303,6 +307,7 @@ architecture struct of ofb_pa_gty is
     signal RxEnLast    : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
     signal AlignLast   : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
     signal AlignArmed  : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+    signal AlignWin    : AlignWins_t                             := (others => 0);
     signal BufReqCnt   : BufReqCnts_t                            := (others => 0);
     signal BufReqLane  : std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
     signal BufReqFree  : std_logic_vector(NumLanes_g-1 downto 0);
@@ -499,9 +504,10 @@ begin
     -----------------------------------------------------------------------------------------------
     -- Receive elastic buffer reset (PA-RS-03). A request of a lane comes from an overflow or underflow of its
     -- buffer (RXBUFSTATUS[2]) and, once per lane start (receivers ready or line receiver enable rising), from
-    -- the first comma alignment after it (RXBYTEISALIGNED rising or an RXBYTEREALIGN pulse): the recovered
-    -- clock is then stable on the new signal. Further realignments do not request a reset, so a reset can
-    -- never start the next one through the comma aligner. The request is stretched in LaneClk and synchronised
+    -- the first comma alignment within AlignWinCycles_c after it (RXBYTEISALIGNED rising or an RXBYTEREALIGN
+    -- pulse): the recovered clock is then stable on the new signal. Further realignments, and a realignment
+    -- during traffic of a lane that was already aligned when it started, do not request a reset: a reset can
+    -- neither start the next one through the comma aligner nor drop words of a running link. The request is stretched in LaneClk and synchronised
     -- to FreeRunClk; the buffer of that lane alone is reset, at most once per holdoff time.
     -----------------------------------------------------------------------------------------------
     g_bufrst : if RxBufReset_g generate
@@ -524,17 +530,24 @@ begin
                     else
                         BufReqLane(l) <= '0';
                     end if;
-                    -- One alignment request per lane start
+                    -- One alignment request per lane start, within AlignWinCycles_c after it: a realignment
+                    -- later in operation (a lane already aligned when it started) requests no reset
                     if AlignEv_v then
+                        AlignArmed(l) <= '0';
+                    elsif AlignWin(l) /= 0 then
+                        AlignWin(l) <= AlignWin(l) - 1;
+                    else
                         AlignArmed(l) <= '0';
                     end if;
                     if (RxReady = '1' and ReadyLast = '0') or (Phy_RxEnable(l) = '1' and RxEnLast(l) = '0') then
                         AlignArmed(l) <= '1';
+                        AlignWin(l)   <= AlignWinCycles_c - 1;
                     end if;
                 end loop;
 
                 if RxReady = '0' then
                     AlignArmed <= (others => '0');
+                    AlignWin   <= (others => 0);
                     BufReqCnt  <= (others => 0);
                     BufReqLane <= (others => '0');
                 end if;

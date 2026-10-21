@@ -71,9 +71,13 @@ clock becomes stable only later.
 
 - Requests, per lane in `LaneClk`: `ch_rxbufstatus(2)` (overflow or underflow) at any time, and one alignment request
   per lane start. The start arms the alignment request when the receivers become ready or line receiver enable rises;
-  the first comma alignment after it (`ch_rxbyteisaligned` rising, synchronised, or a `ch_rxbyterealign` pulse)
-  requests the reset and disarms it. Further realignments do not request a reset, so a reset cannot start the next one
-  through the comma aligner (the PRBS test, for example, realigns all the time on the random data).
+  the first comma alignment within 8192 `LaneClk` cycles (52 us, the initialisation timeout and the lock of the
+  clock-data recovery) after it (`ch_rxbyteisaligned` rising, synchronised, or a `ch_rxbyterealign` pulse) requests
+  the reset and disarms it, and the end of the window disarms it as well. A lane that was already aligned when it
+  started (the comma aligner locked before the receivers were ready) has no alignment event in its start; without the
+  window, a realignment during traffic would reset its buffer and drop words of the running link. Further
+  realignments do not request a reset, so a reset cannot start the next one through the comma aligner (the PRBS
+  test, for example, realigns all the time on the random data).
 - A request is stretched to 16 `LaneClk` cycles and crosses to `FreeRunClk` in an `olo_intf_sync` with
   `SyncTmr_g` = true.
 - Sequencer, per lane in `FreeRunClk`: `ch_rxresetmode` = 11 (single mode), `ch_rxpmaresetmask` = 0000000 and
