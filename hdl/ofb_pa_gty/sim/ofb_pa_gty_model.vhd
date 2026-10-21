@@ -612,7 +612,12 @@ begin
                 Phy_PrbsErr(l)                  <= '0';
                 Phy_PrbsLocked(l)               <= '0';
                 Stat_Aligned(l)                 <= '0';
-                Phy_NoSignal(l)                 <= '1';
+                -- NoSignalNever: 0 also in reset, as struct
+                if PaModelCtrl(ModelIdx_g).NoSignalMode = NoSignalNever then
+                    Phy_NoSignal(l) <= '0';
+                else
+                    Phy_NoSignal(l) <= '1';
+                end if;
             elsif rising_edge(LaneClk) then
                 Ctrl_v           := PaModelCtrl(ModelIdx_g);
                 PhyRx_Valid(l)   <= '0';
