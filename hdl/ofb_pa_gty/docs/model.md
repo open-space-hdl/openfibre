@@ -58,7 +58,8 @@ The default reset sequence is that of the transceiver model in the AMD simulator
 1000 cycles of `FreeRunClk` ends at about 10.21 us) the reset done of the wizard shows 1 from 10.225 us to 38.135 us
 (`TxDoneStale`), the first `LaneClk` edge comes at 64.097 us, `Stat_TxReady` rises at 64.885 us, the receive
 electrical idle of the transceiver model falls at 66.471 us on every lane and `Stat_RxReady` rises at 68.212 us, at
-both ends and with one to four lanes. The transceiver model completes its power-up first, so these times do not follow the end of the stretched reset: a system testbench whose
+both ends and with one to four lanes. The transceiver model completes its power-up first, so these times do not
+follow the end of the stretched reset: a system testbench whose
 stretched reset ends at 6.0 us reaches TX ready at 64.83 us. A later reset is shorter: the full run of 2026-10-17
 resets the adapter of A in operation with a request of 100 ns that ends at 197.545 us. `LaneClk` of A runs again
 30.391 us after the end of the request, `Stat_TxReady` rises after 31.180 us and `Stat_RxReady` rises after
