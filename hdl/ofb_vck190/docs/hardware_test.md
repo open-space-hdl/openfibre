@@ -38,6 +38,11 @@ git -c protocol.file.allow=always submodule update --init
 vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl
 ```
 
+The default reference clock is the Si570 at 100 MHz, the frequency it runs at after every power-up (nothing to
+program on the board). `-tclargs 8a34001` builds for the clock generator 8A34001 at 156.25 MHz instead (section 5);
+`-tclargs rtl` only elaborates the design and writes `results/invalid_constraints.xdc` and `results/build_info.txt`;
+in this step the wizard and the CIPS are black boxes, so the quad location and the clock constraints of
+`ofb_vck190.xdc` (seven lines) appear as invalid there, while after a complete build the file holds only its header.
 The script creates the project in `vivado_out/ofb_vck190` with the transceiver wizard instance, the CIPS block design
 (`ofb_cips`, JTAG boot, clocks of the programmable logic), the sources and the constraints, and runs synthesis,
 implementation and the device image. On Windows the project path must not be longer than about 40 characters: the
@@ -48,10 +53,12 @@ short project directory (for example `C:/ofb`); the paths below are then relativ
 
 | Item | Where | Expected |
 | --- | --- | --- |
-| Device image | `vivado_out/ofb_vck190/ofb_vck190.runs/impl_1/*.pdi` | Present |
-| Timing | `vivado_out/ofb_vck190/timing_summary.rpt` | WNS and WHS of all clocks at least 0 ns (`clk_pl_0` 100 MHz, `clk_pl_1` 150 MHz, lane clock 156.25 MHz) |
-| Resources | `vivado_out/ofb_vck190/utilization.rpt` | LUT, register, block RAM and URAM count of `i_core` |
-| Methodology and DRC | `report_methodology`, `report_drc` on the implemented design | No critical item about clock domain crossings or the transceivers |
+| Device image | `vivado_out/ofb_vck190/results/*.pdi` | Present |
+| Build information | `vivado_out/ofb_vck190/results/build_info.txt` | Reference clock and frequency as intended (`si570` at 100 MHz by default, pins AB11 / AB10), commits of the repository and its submodules |
+| Timing | `vivado_out/ofb_vck190/results/timing_summary.rpt` | WNS and WHS of all clocks at least 0 ns (`clk_pl_0` 100 MHz, `clk_pl_1` 150 MHz, lane clock 156.25 MHz, `gt_refclk` at the selected frequency) |
+| Constraints | `vivado_out/ofb_vck190/results/invalid_constraints.xdc` | Only the header (every constraint applies) |
+| Resources | `vivado_out/ofb_vck190/results/utilization.rpt`, `utilization_hierarchical.rpt` | LUT, register, block RAM and URAM count of `i_core` |
+| Methodology and DRC | `vivado_out/ofb_vck190/results/methodology.rpt`, `drc.rpt` | No critical item about clock domain crossings or the transceivers |
 
 A timing violation in a crossing between `clk_pl_0`, `clk_pl_1` and the lane clock points to a missing clock pair
 constraint (section 4 of [architecture.md](architecture.md)). Expected warnings are listed in the verification
@@ -60,9 +67,11 @@ report, section 3.
 ## 5. Board set-up
 
 1. Boot mode switch SW1 to JTAG (UG1366).
-2. Reference clock: program the clock generator 8A34001 (U219) so that its output Q1, which drives MGTREFCLK1 of GTY
-   quad 200, runs at 156.25 MHz. Use the clock tool of the system controller of the board (UG1366, Board Evaluation and
-   Management Tool or system controller command line).
+2. Reference clock: with the default image (`si570`, 100 MHz) power-cycle the board before programming the image, so
+   that the Si570 runs at its power-up frequency of 100.000 MHz; header J306 stays off (the clock buffer SI53340
+   passes the Si570). With an image built with `8a34001`, program the clock generator 8A34001 (U219) so that its
+   output Q1, which drives MGTREFCLK1 of GTY quad 200, runs at 156.25 MHz, with the clock tool of the system controller
+   of the board (UG1366, Board Evaluation and Management Tool or system controller command line).
 3. QSFP cable from QSFP1 of the VCK190 to the far end. Lane `i` of the design is channel `i` of quad 200.
 
 ## 6. Far-end configuration
@@ -72,7 +81,7 @@ report, section 3.
 | Line rate | 6.25 Gbit/s, 8B/10B, four lanes |
 | Data scrambling | On (reset value of the design) |
 | Virtual channels | 0 to 7 (the design has eight) |
-| Link start | The far end starts its lanes (LaneStart); the design starts with AutoStart |
+| Link start | Either: the design starts by itself. Its lanes have AutoStart, and NoSignal of the GTY adapter is always de-asserted (ECSS-E-ST-50-11C 5.4.2.4b.1), so they leave Wait at once; the far end may use AutoStart or LaneStart |
 | Broadcast messages | Allowed on any channel |
 
 ## 7. Register access

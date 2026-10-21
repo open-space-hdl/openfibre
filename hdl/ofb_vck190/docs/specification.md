@@ -30,5 +30,7 @@ four lanes and eight virtual channels on the QSFP1 cage. Received packets and br
 ## 4. Board set-up
 
 - QSFP1 (J288) carries the lanes 0 to 3 (GTY quad 200, channels 0 to 3, UG1366).
-- The clock generator 8A34001 (U219) drives MGTREFCLK1 of quad 200 with its output Q1; it is programmed to
+- Transceiver reference clock, selected when the image is built: the programmable oscillator Si570 (U205) through
+  the clock buffer SI53340 (U206) on GTY_REFCLK0 of quad 201 (default; 100 MHz after every power-up, no programming
+  needed), or the clock generator 8A34001 (U219) with its output Q1 on MGTREFCLK1 of quad 200, programmed to
   156.25 MHz through the system controller of the board (UG1366).
