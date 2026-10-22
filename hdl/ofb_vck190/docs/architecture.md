@@ -45,8 +45,11 @@ simulation (`IncludeCips_g` = false) the poller drives the MIB port directly.
 
 ## 4. Constraints (`constr/ofb_vck190.xdc`)
 
-- Transceiver reference clock on AD11 / AD10 (MGTREFCLK1_200); the clocks of the CIPS are created by its IP
-  constraints (`clk_pl_0`, `clk_pl_1`).
+- Transceiver reference clock `gt_refclk`, selected by `tcl/build.tcl`: Si570 (default, 100 MHz after power-up) on
+  AB11 / AB10 (GTY_REFCLK0 of quad 201, used by quad 200, `constr/ofb_vck190_refclk_si570.xdc`) or 8A34001 output Q1
+  (156.25 MHz) on AD11 / AD10 (MGTREFCLK1 of quad 200, `constr/ofb_vck190_refclk_8a34001.xdc`); `tcl/build.tcl`
+  writes the clock constraint at the selected frequency into the project directory. The clocks of the CIPS are
+  created by its IP constraints (`clk_pl_0`, `clk_pl_1`).
 - Quad location GTY_QUAD_X1Y0 (quad 200) and the serial pins of channels 0 to 3.
 - LEDs on H34, J33, K36, L35 (LVCMOS18), false path.
 - Crossings between `clk_pl_0`, `clk_pl_1` and the lane clock: `set_max_delay -datapath_only` with the period of
@@ -65,11 +68,13 @@ external ports of the block design, and whose master port M_AXI_FPD reaches the 
 wrapper and sets `IncludeCips_g` = true, so that the top instantiates it. The simulations keep the default false and
 use clock models instead.
 
-`vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl [-tclargs project | synth | impl | all]` creates the
-project in `vivado_out/ofb_vck190` or in the directory of the environment variable `OFB_VIVADO_OUT` (on Windows at
-most about 40 characters, see the hardware test procedure) (Open Logic in the library `olo`, OpenFibre in the default
-library, VHDL-2008, all files of one library with one `add_files` call),
-creates the transceiver wizard instance with `hdl/ofb_pa_gty/tcl/ofb_gtw.tcl`, adds the constraints and runs the
-requested steps up to the device image. The implementation run uses the strategy
+`vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl [-tclargs <step> <refclk> <frequency>]` (step `project`,
+`rtl`, `synth`, `impl` or `all`, default `all`; reference clock `si570` (default) or `8a34001`; frequency 100 or 156.25
+MHz, default 100 with `si570` and 156.25 with `8a34001`) creates the project in `vivado_out/ofb_vck190` or in the
+directory of the environment variable `OFB_VIVADO_OUT` (on Windows at most about 40 characters, see the hardware test
+procedure) (Open Logic in the library `olo`, OpenFibre in the default library, VHDL-2008, all files of one library
+with one `add_files` call), creates the transceiver wizard instance at the frequency of the reference clock with
+`hdl/ofb_pa_gty/tcl/ofb_gtw.tcl`, adds the constraints and runs the requested steps up to the device image; the
+results of a complete build go to `results` in the project directory. The implementation run uses the strategy
 `Performance_ExplorePostRoutePhysOpt` (several placement and routing directives, physical optimization also after
 routing).

@@ -48,7 +48,7 @@ architecture mdl of ofb_pa_gty is
     -- PRBS checker: correct bits in a row for the lock
     constant LockBits_c : positive := 64;
 
-    -- NoSignalSequence: words with code errors at the start of an idle period of the line (transceiver model)
+    -- NoSignalNever: words with code errors at the start of an idle period of the line (transceiver)
     constant IdleErrWords_c : positive := 13;
 
     type IntArray_t is array (0 to N_c-1) of natural;
@@ -61,7 +61,6 @@ architecture mdl of ofb_pa_gty is
     signal TxArmed : std_logic                    := '0'; -- TxDone was 0 since the release of the reset
     signal LaneRsr : std_logic_vector(1 downto 0) := "11"; -- LaneRst: set without a LaneClk edge
     signal RxRdy   : std_logic                    := '0';
-    signal NoSigTo : time                         := time'high; -- NoSignalSequence: Phy_NoSignal 1 until then
     signal Ui      : time                         := 160 ps; -- unit interval: RefClk period / 40
 
     -- Lines: '0' and '1' are the bit value on P, 'Z' is electrical idle (P = N)
@@ -216,17 +215,15 @@ begin
         variable Start_v : time;
         variable Stale_v : time;
     begin
-        ClkRun  <= false;
-        TxRdy   <= '0';
-        RxRdy   <= '0';
-        NoSigTo <= time'high;
+        ClkRun <= false;
+        TxRdy  <= '0';
+        RxRdy  <= '0';
         if RstFree = '1' then
             wait until RstFree = '0';
         end if;
         Ctrl_v  := PaModelCtrl(ModelIdx_g);
         Start_v := maximum(now, Ctrl_v.PowerUpTime);
         Stale_v := minimum(now + Ctrl_v.TxDoneStale, Start_v + Ctrl_v.ClkDelay);
-        NoSigTo <= Start_v + Ctrl_v.NoSignalTime;
         -- Reset done of the previous start, until the master reset of the transceiver starts
         if Stale_v > now then
             TxDone <= '1';
@@ -475,7 +472,7 @@ begin
             if RstFree = '1' or In_v = 'Z' or Level_v = 'Z' then
                 LockAt_v := now + PaModelCtrl(ModelIdx_g).CdrLockTime;
             end if;
-            if RstFree = '1' or RxRdy = '0' or Phy_CdrEnable(l) = '0' or Phy_RxEnable(l) = '0' or
+            if RstFree = '1' or RxRdy = '0' or Phy_RxEnable(l) = '0' or
                In_v = 'Z' or now < LockAt_v then
                 -- No data: alignment lost, buffer cleared
                 Align_v := false;
@@ -613,7 +610,12 @@ begin
                 Phy_PrbsErr(l)                  <= '0';
                 Phy_PrbsLocked(l)               <= '0';
                 Stat_Aligned(l)                 <= '0';
-                Phy_NoSignal(l)                 <= '1';
+                -- NoSignalNever: 0 also in reset, as struct
+                if PaModelCtrl(ModelIdx_g).NoSignalMode = NoSignalNever then
+                    Phy_NoSignal(l) <= '0';
+                else
+                    Phy_NoSignal(l) <= '1';
+                end if;
             elsif rising_edge(LaneClk) then
                 Ctrl_v           := PaModelCtrl(ModelIdx_g);
                 PhyRx_Valid(l)   <= '0';
@@ -651,12 +653,12 @@ begin
                         PhyRx_Valid(l)                  <= '1';
                     end if;
                 end if;
-                -- NoSignalSequence: while the line has been idle for NoSignalDelay, the receiver delivers words as the
+                -- NoSignalNever: while the line has been idle for NoSignalDelay, the receiver delivers words as the
                 -- receiver of the transceiver model: IdleErrWords_c words with code errors, then words without errors
                 -- that are not lane words. The Lane layer loses the word synchronisation, counts every word as RXERR
                 -- and detects the loss when its counter overflows
-                if Ctrl_v.NoSignalMode = NoSignalSequence and RxRdy = '1' and Phy_RxEnable(l) = '1' and
-                   Phy_CdrEnable(l) = '1' and RxLine(l) = 'Z' and RxLine(l)'last_event >= Ctrl_v.NoSignalDelay then
+                if Ctrl_v.NoSignalMode = NoSignalNever and RxRdy = '1' and Phy_RxEnable(l) = '1' and
+                   RxLine(l) = 'Z' and RxLine(l)'last_event >= Ctrl_v.NoSignalDelay then
                     PhyRx_Data(32*l+31 downto 32*l) <= (others => '0');
                     PhyRx_K(4*l+3 downto 4*l)       <= "0000";
                     if Idle_v < IdleErrWords_c then
@@ -683,14 +685,10 @@ begin
                 end if;
                 Phy_PrbsLocked(l) <= PrbsLock(l);
                 Stat_Aligned(l)   <= Aligned(l);
-                -- No signal: until NoSignalTime after the start of the reset sequence (NoSignalSequence, the
-                -- line is ignored), or while the line has been idle for NoSignalDelay (NoSignalLine)
-                if Ctrl_v.NoSignalMode = NoSignalSequence then
-                    if now < NoSigTo then
-                        Phy_NoSignal(l) <= '1';
-                    else
-                        Phy_NoSignal(l) <= '0';
-                    end if;
+                -- No signal: never (NoSignalNever, as struct), or while the line has been idle for NoSignalDelay
+                -- (NoSignalLine)
+                if Ctrl_v.NoSignalMode = NoSignalNever then
+                    Phy_NoSignal(l) <= '0';
                 elsif RxLine(l) = 'Z' and RxLine(l)'last_event >= Ctrl_v.NoSignalDelay then
                     Phy_NoSignal(l) <= '1';
                 else

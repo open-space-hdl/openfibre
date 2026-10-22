@@ -62,6 +62,13 @@ WATCHDOG_CONFIGS = (
     ("lanes4_wdfar", {"NumLanes_g": 4, "AlignTimeoutB_g": 0}, ("test_align_watchdog_far",)),
 )
 
+# Join hold (TC-CORE-34, 35): without the hold the late lane costs a retry; a lane that never joins ends the hold at
+# the bound (shorter than the initialisation timeout of the lane) or with the timeout of the lane (default bound)
+JOIN_CONFIGS = (
+    ("lanes4_nohold", {"NumLanes_g": 4, "LaneJoinHold_g": 0}, ("test_lane_join",)),
+    ("lanes4_hold1024", {"NumLanes_g": 4, "LaneJoinHold_g": 1024}, ("test_lane_join_bound",)),
+)
+
 
 def configure(lib):
     tb = lib.test_bench("ofb_core_tb")
@@ -75,7 +82,7 @@ def configure(lib):
             tb.test(test).add_config(name=name, generics=generics)
     # Receive row overflow with CoreClk slower than LaneClk (TC-CORE-15)
     tb.test("test_row_overflow").add_config(name="lanes1_slowcore", generics={"NumLanes_g": 1, "CoreHalfPs_g": 4000})
-    for name, generics, tests in RANGE_CONFIGS:
+    for name, generics, tests in RANGE_CONFIGS + JOIN_CONFIGS:
         for test in tests:
             tb.test(test).add_config(name=name, generics=generics)
     cc = lib.test_bench("ofb_core_cc_tb")

@@ -56,6 +56,8 @@ entity ofb_pa_gty is
         PhyRx_CodeErr          : out   std_logic_vector(4*NumLanes_g-1 downto 0);
         PhyRx_DispErr          : out   std_logic_vector(4*NumLanes_g-1 downto 0);
         PhyRx_Valid            : out   std_logic_vector(NumLanes_g-1 downto 0);
+        -- Lane control and NoSignal (LaneClk). The receiver CDR runs in every lane state, so Phy_CdrEnable has no
+        -- effect (PA-IF-02); the transceiver gives no loss of signal indication, so Phy_NoSignal is 0 (PA-IF-03)
         Phy_TxEnable           : in    std_logic_vector(NumLanes_g-1 downto 0);
         Phy_RxEnable           : in    std_logic_vector(NumLanes_g-1 downto 0);
         Phy_CdrEnable          : in    std_logic_vector(NumLanes_g-1 downto 0);

@@ -58,6 +58,7 @@ entity ofb_core_tb is
         AutoStart_g     : boolean                := true;  -- AutoStart_g of both cores
         AlignTimeoutA_g : natural                := 10000; -- Alignment watchdog of core A (words, 0: off)
         AlignTimeoutB_g : natural                := 10000; -- Alignment watchdog of core B (words, 0: off)
+        LaneJoinHold_g  : natural                := 8192;  -- Join hold of both cores (words, 0: off)
         PinModel_g      : boolean                := false; -- ofb_pa_gty(mdl) pin to pin
         PinLockNs_g     : positive               := 500    -- CdrLockTime of the models with PinModel_g (ns)
     );
@@ -1577,6 +1578,85 @@ begin
                 checkAlignTimeouts(1, 0, "Loss of four words at A");
                 checkNoLinkReset;
 
+            -- TC-CORE-34: join hold (ML-LM-17). Packets wait on every VC before the start; at A the last lane is
+            -- started 3 us after the others (B follows with AutoStart), so it enters Active after the alignment of
+            -- the other lanes. The Data Link layer sends only after the last lane has joined: all packets are
+            -- delivered, no error flag, no retry. With the hold off (LaneJoinHold_g = 0) the realignment when the
+            -- last lane joins replaces the words in flight by RXERR, and the retry is seen
+            elsif run("test_lane_join") then
+                sendAll(10);
+
+                for l in 0 to NumLanes_g-2 loop
+                    wr(0, RegLaneCtrl_c + 16#20# * l, x"00000063");
+                end loop;
+
+                wait for 3 us;
+                wr(0, RegLaneCtrl_c + 16#20# * (NumLanes_g-1), x"00000063");
+                waitDelivered(2 ms);
+                allLanes(1 ms);
+                N_v := 0;
+
+                for c in 0 to 1 loop
+                    rd(c, RegDlRetries_c, Data_v);
+                    N_v := N_v + to_integer(unsigned(Data_v));
+                    rd(c, RegDlErrors_c, Data_v);
+                    if LaneJoinHold_g > 0 or NumLanes_g = 1 then
+                        check_value(Data_v(12 downto 0), "0000000000000", error,
+                                    "No error flag at end " & to_string(c));
+                    end if;
+                end loop;
+
+                log(ID_LOG_HDR, "Retries at both ends: " & to_string(N_v));
+                if LaneJoinHold_g > 0 or NumLanes_g = 1 then
+                    check_value(N_v, 0, error, "No retry when the last lane joins");
+                else
+                    check_value(N_v > 0, error, "Retry when the last lane joins without the hold");
+                end if;
+
+            -- TC-CORE-35: bound of the join hold (ML-LM-17). The last lane is cut in both directions and never
+            -- joins: at A it stays in Started until the initialisation timeout (5000 words), at B in Wait (no
+            -- signal, no hold). B reaches Both-Ends Ready with the first data word of A, i.e. when the hold of A
+            -- ends: after LaneJoinHold_g words when that is shorter than the timeout of the lane, else when the
+            -- lane times out
+            elsif run("test_lane_join_bound") then
+                if NumLanes_g > 1 then
+                    PaCtrl(NumLanes_g-1).AtoB.Cut <= true;
+                    PaCtrl(NumLanes_g-1).BtoA.Cut <= true;
+                    sendAll(10);
+
+                    for l in 0 to NumLanes_g-1 loop
+                        wr(0, RegLaneCtrl_c + 16#20# * l, x"00000063");
+                    end loop;
+
+                    -- First lane in Active at A
+                    T0_v := now;
+
+                    loop
+                        rd(0, RegLaneStat_c, Data_v);
+                        exit when Data_v(3 downto 0) = x"7" or now - T0_v > 500 us;
+                    end loop;
+
+                    T0_v := now;
+
+                    loop
+                        rd(1, RegMlStatus_c, Data_v);
+                        exit when Data_v(9 downto 8) = "10" or now - T0_v > 200 us;
+                    end loop;
+
+                    N_v := (now - T0_v) / Word_c;
+                    log(ID_LOG_HDR, "Both-Ends Ready at B " & to_string(N_v) & " words after lane 0 of A entered Active");
+                    if LaneJoinHold_g < 4000 then
+                        check_value(N_v >= LaneJoinHold_g - 100 and N_v <= LaneJoinHold_g + 1500, error,
+                                    "Hold of A ends at the bound");
+                    else
+                        check_value(N_v >= 2000 and N_v <= 6500, error,
+                                    "Hold of A ends with the initialisation timeout of the cut lane");
+                    end if;
+                    waitDelivered(2 ms);
+                    rd(0, RegLaneStat_c + 16#20# * (NumLanes_g-1), Data_v);
+                    check_value(Data_v(3 downto 0) /= x"7", error, "Cut lane not Active at A");
+                end if;
+
             -- TC-CORE-31: bound of the watchdog. Lane 0 at A delayed by 4 words (skew beyond the alignment FIFOs)
             -- for 10 % less than the bound: no expiry; after Both-Ends Ready for longer than an eighth of the bound
             -- (the count restarts), for 10 % more than the bound: one expiry at A, none at B (Near-End Ready counts
@@ -1672,6 +1752,7 @@ begin
             AutoStart_g     => AutoStart_g,
             AlignTimeoutA_g => AlignTimeoutA_g,
             AlignTimeoutB_g => AlignTimeoutB_g,
+            LaneJoinHold_g  => LaneJoinHold_g,
             PinModel_g      => PinModel_g,
             PinLockNs_g     => PinLockNs_g
         )
