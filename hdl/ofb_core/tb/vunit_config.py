@@ -44,7 +44,9 @@ RANGE_CONFIGS = (
     # Two ofb_pa_gty with the architecture mdl pin to pin instead of the word-level channel model: the bit-level
     # model under the full protocol stack (link start, traffic, bit errors, throughput)
     ("lanes4_pin", {"NumLanes_g": 4, "PinModel_g": True},
-     ("test_link_up", "test_traffic", "test_error_recovery", "test_throughput")),
+     ("test_link_up", "test_traffic", "test_error_recovery", "test_throughput", "test_buffer_reset")),
+    # One lane through the pin model: a forced error of the receive buffer during traffic (TC-CORE-36)
+    ("lanes1_pin", {"NumLanes_g": 1, "PinModel_g": True}, ("test_buffer_reset",)),
     # Error recovery through the models with the lock time of the transceiver model (16.83 us) and near the ends of the
     # interval that bounds it: the word losses at comma realignments are recovered by the alignment watchdog
     ("lanes4_pin_lock16650", {"NumLanes_g": 4, "PinModel_g": True, "PinLockNs_g": 16650}, ("test_error_recovery",)),

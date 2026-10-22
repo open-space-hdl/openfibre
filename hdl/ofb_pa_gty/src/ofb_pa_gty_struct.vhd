@@ -370,13 +370,6 @@ begin
                 end if;
             end loop;
 
-            -- Reset of the receive elastic buffer: words again from the first K character after it
-            for l in 0 to NumLanes_g-1 loop
-                if BufBusyLane(l) = '1' then
-                    RxSeenK(l) <= '0';
-                end if;
-            end loop;
-
             if RxReady = '0' then
                 RxSeenK <= (others => '0');
             end if;
@@ -403,7 +396,8 @@ begin
             PhyRx_DispErr(4*c+3 downto 4*c) <= RxCtrl1(c)(3 downto 0);
             PhyRx_CodeErr(4*c+3 downto 4*c) <= RxCtrl3(c)(3 downto 0);
             -- Words are valid from the first K character after the receivers are ready (the receive buffer
-            -- outputs zero words while it starts)
+            -- outputs zero words while it starts), and not during the reset window of the receive buffer; after
+            -- the window they pass as without the reset, so an idle line still reaches the Lane layer (PA-RS-03)
             PhyRx_Valid(c)   <= RxReady and Phy_RxEnable(c) and not BufBusyLane(c) and
                                 (RxSeenK(c) or (or RxCtrl0(c)(3 downto 0)));
             Stat_RxBufErr(c) <= RxBufStat(c)(2);

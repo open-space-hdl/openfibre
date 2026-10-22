@@ -675,9 +675,10 @@ begin
                 check_value(NoSig(1)(0), '0', error, "Never mode: no signal 0 at B");
                 clearCounts;
                 TxEn(0)(0)                  <= '0';
-                waitUs(2);
+                waitUs(4);
                 check_value(NoSig(1)(0), '0', error, "Never mode: line ignored, A off");
-                -- Idle line: 13 words with code errors, then words without errors (no lane words)
+                -- Idle line: 13 words with code errors, then words without errors (no lane words); the buffer
+                -- error of the idle line withholds the words of the reset window (238 words, PA-RS-03) first
                 check_value(ErrWords(1)(0), 13, error, "Never mode: words with code errors at B, line idle");
                 check_value(Good(1)(0) + Bad(1)(0) > 200, error, "Never mode: words without errors after them");
                 check_value(Aligned(1)(0), '0', error, "Never mode: lane 0 of B not aligned");

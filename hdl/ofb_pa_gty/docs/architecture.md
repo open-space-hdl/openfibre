@@ -87,10 +87,20 @@ clock becomes stable only later.
   when they are not used) and a holdoff of 256 cycles before the next reset. A request during the hold or the holdoff
   is served after the holdoff. While the receivers are not ready (`rst_rx_done` low) or the free-running reset is
   active, the sequencer stays idle with the master reset values.
-- Received words: during the reset the buffer delivers words of value 0. The reset window (setup, pulse and hold)
-  crosses back to `LaneClk` (`olo_intf_sync`, `SyncTmr_g` = true); while it is active `PhyRx_Valid` of the lane is
-  low, and afterwards the words are valid again from the first K character, as after the start of the receivers. The
-  words of the reset window are missing, not replaced: a frame across it fails its CRC in the Data Link layer.
+- Received words: during the reset the buffer delivers words of value 0. The reset window (setup, pulse and hold,
+  152 cycles of `FreeRunClk`, 1.52 us at 100 MHz, about 238 words) crosses back to `LaneClk` (`olo_intf_sync`,
+  `SyncTmr_g` = true); while it is active `PhyRx_Valid` of the lane is low, and after it the words are valid as
+  without the reset. The words of the window are missing, not replaced and not counted as RXERR: a frame across it
+  fails in the Data Link layer, and the retry recovers it. The zero words of the reset last about 0.3 us on the
+  transceiver model, so they lie inside the window with a margin of a factor of 5; the hardware test confirms it.
+  A word after the window that is wrong but correctly coded (for example a shifted word until the next K character)
+  reaches the Data Link layer, whose CRC rejects the frame, and the retry recovers it; the word synchronisation check
+  of the Lane layer catches a lost alignment at the next K character.
+- Idle line: the buffer reports an error when the line becomes idle, and the reset follows. The window has a fixed
+  length, and after it the receiver delivers words again (code errors, then words without lane meaning), so the
+  RXERR counter of the Lane layer overflows and the lane detects the lost signal (PA-IF-03); resets are at least
+  the holdoff apart, so each gap carries more than 400 words. Withholding the words until the first K character
+  instead would hide the idle line, which delivers none: the lane would stay Active through an interruption.
 
 With `RxBufReset_g` = false the ports keep the master reset values: the behaviour is that of the transceiver without
 the reset.
