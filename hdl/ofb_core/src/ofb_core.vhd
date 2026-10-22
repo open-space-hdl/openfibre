@@ -44,7 +44,11 @@ entity ofb_core is
         -- Alignment watchdog of the Multi-Lane layer (ML-AL-11): lane clock cycles in Not Ready (twice as
         -- many outside Both-Ends Ready) before a LaneReset of the active lanes; 0: off, else 1024 to 1000000
         -- (the stable time of an eighth spans at least 16 ALIGN periods of 8 words)
-        AlignTimeoutWords_g : natural range 0 to 1000000 := 10000
+        AlignTimeoutWords_g : natural range 0 to 1000000 := 10000;
+        -- Join hold of the Multi-Lane layer (ML-LM-17): lane clock cycles after the first lane entered
+        -- Active during which no row of the Data Link layer is sent while another enabled lane is
+        -- initialising; 0: off. The default covers one initialisation attempt (5000 words) with margin
+        LaneJoinHoldWords_g : natural range 0 to 1000000 := 8192
     );
     port (
         -- Asynchronous reset (high active), clocks
@@ -613,7 +617,8 @@ begin
         generic map (
             NumLanes_g          => NumLanes_g,
             ClkFrequency_g      => LaneClkFreq_g,
-            AlignTimeoutWords_g => AlignTimeoutWords_g
+            AlignTimeoutWords_g => AlignTimeoutWords_g,
+            LaneJoinHoldWords_g => LaneJoinHoldWords_g
         )
         port map (
             Clk                     => LaneClk,

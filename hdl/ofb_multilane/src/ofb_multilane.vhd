@@ -33,7 +33,10 @@ entity ofb_multilane is
         SkipIntervalWords_g : positive                   := 5000;
         -- Alignment watchdog (ML-AL-11): cycles in Not Ready before a LaneReset of the active lanes
         -- (twice as many outside Both-Ends Ready); 0: off, else 1024 to 1000000
-        AlignTimeoutWords_g : natural range 0 to 1000000 := 10000
+        AlignTimeoutWords_g : natural range 0 to 1000000 := 10000;
+        -- Join hold (ML-LM-17): cycles after the first lane entered Active during which no row of the
+        -- Data Link layer is taken while another enabled lane is initialising; 0: off
+        LaneJoinHoldWords_g : natural range 0 to 1000000 := 8192
     );
     port (
         -- Control Ports
@@ -109,6 +112,7 @@ architecture rtl of ofb_multilane is
     signal HotLanes   : std_logic_vector(NumLanes_g-1 downto 0);
     signal RxLanes    : std_logic_vector(NumLanes_g-1 downto 0);
     signal AlTimeout  : std_logic;
+    signal TxHold     : std_logic;
     signal NumTxLanes : std_logic_vector(3 downto 0);
     signal NumRxLanes : std_logic_vector(3 downto 0);
     signal Scramble   : std_logic_vector(NumLanes_g-1 downto 0);
@@ -141,6 +145,12 @@ begin
         report "ofb_multilane: AlignTimeoutWords_g must be 0 (off) or at least 1024"
         severity failure;
 
+    -- Join hold (ML-LM-17): it ends before the watchdog of the far end, which counts the cycles outside Both-Ends
+    -- Ready against twice its bound, can expire
+    assert AlignTimeoutWords_g = 0 or LaneJoinHoldWords_g <= AlignTimeoutWords_g
+        report "ofb_multilane: LaneJoinHoldWords_g must not exceed AlignTimeoutWords_g"
+        severity failure;
+
     -----------------------------------------------------------------------------------------------
     -- Lane manager (ML-1)
     -----------------------------------------------------------------------------------------------
@@ -148,7 +158,8 @@ begin
 
     i_lane_mgr : entity work.ofb_ml_lane_mgr
         generic map (
-            NumLanes_g => NumLanes_g
+            NumLanes_g          => NumLanes_g,
+            LaneJoinHoldWords_g => LaneJoinHoldWords_g
         )
         port map (
             Clk                     => Clk,
@@ -182,6 +193,7 @@ begin
             RxLanes                 => RxLanes,
             NumTxLanes              => NumTxLanes,
             NumRxLanes              => NumRxLanes,
+            Tx_Hold                 => TxHold,
             Enc_Scramble            => Scramble,
             Dec_Unscramble          => Unscramble
         );
@@ -297,6 +309,7 @@ begin
                 Ctrl_Flush      => Dl_LinkReset,
                 Bypass          => Bypass,
                 AlignState      => AlState,
+                Ctrl_Hold       => TxHold,
                 ActLanes        => ActLanes,
                 TxLanes         => TxLanes,
                 DataLanes       => DataLanes,
