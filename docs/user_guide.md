@@ -103,11 +103,10 @@ Differences to the transceiver model that a system test must not rely on (model 
 - `Stat_Aligned` rises with the first comma decoded after the lock; the transceiver model reports the byte alignment
   earlier, before it delivers valid words. A system test must not depend on the time of `Stat_Aligned` (no effect on
   the link initialisation, PA-MD-10).
-- `Phy_NoSignal` follows the transceiver model by default (`NoSignalMode`): it falls at a fixed time of the reset
-  sequence and does not show a lost signal, so the Lane layer detects a loss through the overflow of its RXERR counter
-  (about 1.8 us);
-  `NoSignalLine` lets it follow the line. The core works with both; the behaviour of the receive electrical idle on
-  silicon is not yet verified.
+- `Phy_NoSignal` is always 0 by default (`NoSignalMode` = `NoSignalNever`), as `ofb_pa_gty` on the transceiver,
+  whose receiver gives no loss of signal indication at 6.25 Gbit/s: the Lane layer detects a loss through the overflow
+  of its RXERR counter (about 1.8 us). `NoSignalLine` lets it follow the line, as a Physical adapter with a loss of
+  signal indication would; the core works with both.
 - After a return of the signal the transceiver model delivers valid words before its clock-data recovery has locked;
   the model does not. A system test must not rely on words before the lock.
 - No analogue effects (equalisation, jitter, attenuation), no lock process of the PLL or the clock-data recovery
@@ -128,6 +127,7 @@ Differences to the transceiver model that a system test must not rely on (model 
 | `LaneStart_g` | false | Reset value of LaneStart (LANE_CTRL bit 0) of every lane: true starts the link after the reset without a write of the MIB |
 | `AutoStart_g` | true | Reset value of AutoStart (LANE_CTRL bit 1) of every lane: the lanes start when the far end sends |
 | `AlignTimeoutWords_g` | 10000 | Alignment watchdog of the Multi-Lane layer, in lane clock cycles: 0 (off) or 1024 to 1000000. The lower bound makes the stable time (an eighth of the value, at least 128 words) span at least 16 ALIGN periods of 8 words, so that a stable Both-Ends Ready cannot come from a single ALIGN that happens to arrive aligned (behaviour in section 10) |
+| `LaneJoinHoldWords_g` | 8192 | Join hold of the Multi-Lane layer, in lane clock cycles: 0 (off) to 1000000, at most `AlignTimeoutWords_g` when the watchdog is on. After the first lane entered Active, the Data Link layer sends nothing while another enabled lane is still initialising, for at most this time (section 10) |
 
 A value outside these ranges stops the elaboration with a message that names the rule. Every lane count, 1 and 32
 VCs, a lane clock of 78.125 MHz, the smallest buffers and lane initialisation without PRBS words are simulated; the
@@ -279,6 +279,8 @@ a short QSFP cable) may select LPM (`RX_EQ_MODE` LPM in `tcl/ofb_gtw.tcl`).
    TxEn, RxEn). An end with AutoStart only (the reset value 0x62) starts when the far end sends. With `LaneStart_g` =
    true the reset value is 0x63 and the end starts by itself. Two ends that both only wait never start: a core whose
    MIB is reachable only over its own link must start the link itself (`LaneStart_g`) or have a far end that starts.
+   With `ofb_pa_gty` NoSignal is always de-asserted (the transceiver gives no loss of signal indication, ECSS
+   5.4.2.4b.1), so an end with AutoStart only leaves Wait at once and starts like an end with LaneStart.
 4. Wait for the link: LANE_STATUS bits 3:0 = 7 (Active) for the lanes, ML_STATUS bits 9:8 = 2 (Both-Ends Ready) with
    several lanes, DL_STATUS bits 1:0 = 3 (link initialised). VC_HAS_CREDIT shows the VCs that may send.
 5. Operation: DL_ERRORS, LANE_EVENTS and ECC_STATUS hold sticky flags (interrupt sources); the counters count retries,
@@ -423,6 +425,7 @@ Where the standard leaves a choice, the section "Interpretation of the standard"
 | Implemented with a restriction | 5.4.2.3 | `ofb_pa_gty` runs at 6.25 Gbit/s (5.4.2.3b) from a 156.25 MHz reference clock. The core itself takes any data signalling rate (`LaneClk` = R / 40) |
 | Implemented with an option | 5.9.3c, Table 5-36 | `LaneStart_g` and `AutoStart_g` set the reset values of LaneStart and AutoStart; the defaults are the reset values of the standard, other values act as a management write right after the reset (MG-CF-03) |
 | Extension outside the standard | 5.6.6.4b, 5.6.7 | Alignment watchdog of the Multi-Lane layer (ML-AL-11, `AlignTimeoutWords_g`): LaneReset of the active lanes when the alignment has been in Not Ready for `AlignTimeoutWords_g` lane clock cycles, or outside Both-Ends Ready for twice as many, since the last stable Both-Ends Ready. It covers two cases the standard leaves without a way out: a lane skew beyond the alignment FIFOs at the own end (5.6.6.4b gives a FIFO of 3 or 4 words and no mechanism for a larger skew, which word losses at comma realignments after bit errors cause), and a far end that stays in Not Ready, for example without such a watchdog. No shall requirement is changed; `AlignTimeoutWords_g` = 0 gives the behaviour of the standard alone (see below) |
+| Extension outside the standard | 5.6.7.1c.1, 5.6.7.3b | Join hold of the Multi-Lane layer (ML-LM-17, `LaneJoinHoldWords_g`): when the link starts, the words of the Data Link layer wait while a lane is still initialising, so that the realignment when that lane enters Active loses no word of the Data Link layer (see below). No shall requirement is changed: the Multi-Lane layer sends IDLE rows as when the Data Link layer has nothing to send; `LaneJoinHoldWords_g` = 0 gives the behaviour of the standard alone |
 | Implemented with an interpretation | 5.7.9.3c | The link reset state machine leaves Near-End Reset only while the transmitters of the Physical adapter are ready (`Phy_TxReady`, section 4); the standard leaves it unconditionally. A transmitter that is not ready cannot send the INIT words of the lane initialisation. With `Phy_TxReady` = 1, the default of the port, the behaviour is that of the standard (DL-LR-06) |
 | Outside the scope of a node with one port | 5.8.8 to 5.8.11 | Routing switch, packet addressing, group adaptive routing, packet multicast |
 | Outside the scope of a node with one port | 5.8.12.2 | Acceptance and forwarding of broadcast messages in a routing switch (port of arrival, broadcast time-out) |
@@ -447,6 +450,19 @@ watchdog restarts the lanes repeatedly. This is intended: the error recovery buf
 restarts, and LANE_TIMEOUT_COUNT and the error counters (DL_ERRORS, RXERR_COUNT of LANE_STATUS) show the cause. With
 `AlignTimeoutWords_g` = 0 such a stall lasts until a LaneReset or a Link Reset through the MIB.
 
+Join hold. The lanes of a link complete their initialisation at different times: every lane has its own handshake, CDR
+lock and comma alignment, and lanes in different transceiver quads or duals differ more. When the first lanes are
+aligned, the Data Link layer starts to send; a lane that enters Active afterwards changes the active lanes (5.6.7.1c.1),
+both ends realign, and the words in flight are replaced by RXERR (5.6.7.2b.2). The Data Link layer recovers them with a
+retry, which shows as a sequence error (DL_ERRORS bit 3) and in DL_RETRIES. The join hold avoids this at the start of
+the link: after the first lane entered Active, no word of the Data Link layer is sent while another enabled lane is in
+Started, InvertRxPolarity, Connecting or Connected. It ends when every such lane has entered Active or left the
+initialisation (a timeout of its initialisation, 5000 words), at the latest after `LaneJoinHoldWords_g` cycles; the
+default of 8192 cycles (52 us at 156.25 MHz) covers one initialisation attempt with margin. The hold is armed again when
+no lane is Active (link start, Link Reset, LaneReset of all lanes, loss of all lanes). A lane that joins later, for
+example after a restart while the other lanes carry traffic, is not held: words are in flight, and the realignment costs
+a retry without data loss, as the standard foresees.
+
 ## 11. Corrected defects
 
 Defects of earlier versions that a user of the core can meet, with their correction. The verification reports of the
@@ -457,3 +473,4 @@ modules describe each finding.
 | With more than one lane and an input VC buffer of one flow control unit (`VcInDepth_g` = 64 x `NumLanes_g`, for example the default 256 with four lanes), the traffic of a VC could stop for good: a beat holds back up to `NumLanes_g` - 1 words until the next words arrive, so the buffer never became free for the next FCT | All versions before the check of the generic ranges | The elaboration rejects input VC buffers below 128 x `NumLanes_g` words with several lanes (DL-VI-05); reference value 256 x `NumLanes_g` |
 | With more than one lane, bit errors that formed false commas could stop the traffic in both directions for good while the link stayed initialised: the word losses at the comma realignments gave a lane skew beyond the alignment FIFOs, and the alignment stayed in Not Ready (ML_STATUS bits 9:8 = 0 at one end, 1 at the other, ERB_EMPTY 0); only a Link Reset recovered the link | All versions before the alignment watchdog | Alignment watchdog of the Multi-Lane layer (ML-AL-11, default 10000 cycles): LaneReset of the active lanes, recovery without data loss; ML_ALIGN_TIMEOUTS counts the expiries |
 | After a complete restart of one end while the other end was in Link Initialised, the link could stay down for good: the capability event of a lane that entered Active in the same cycle was evaluated with the lane already Active | All versions before the correction of the Multi-Lane layer (CORE-SY-03) | The lane manager uses the lane states of the cycle before the event (ML-LM-14) |
+| With more than one lane, a lane that entered Active after the other lanes when the link started caused a realignment after the Data Link layer had started to send: the words in flight were lost and recovered by a retry (sequence error, DL_ERRORS bit 3, and DL_RETRIES at both ends). With the transceiver model of the AMD simulator it occurred with three and four lanes | 0.1.0 | Join hold of the Multi-Lane layer (ML-LM-17, `LaneJoinHoldWords_g`, default 8192 cycles) |

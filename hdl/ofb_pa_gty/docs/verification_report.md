@@ -155,6 +155,34 @@ FAR_LOST_SIGNAL at B). After the return of the signal the receiver delivers vali
 clock-data recovery has locked: the run of 1023 such words ends 6.54 us after the return, the first lane word comes
 17.12 us (A) and 17.18 us (B) after it.
 
+### Release 0.1.1
+
+Runs on 2026-10-22 with Vivado 2025.2 (xsim) on the release tree (commit 3b7c60b of hotfix/0.1.1: NoSignal always
+de-asserted, CDR not held, join hold of the Multi-Lane layer, reference clock option of `ofb_vck190`):
+`python tools/run_xsim.py <test run>`, every test run on this tree, none carried over.
+
+| Testbench | Test | Result | Simulated time |
+| --- | --- | --- | --- |
+| `ofb_pa_gty_tb` | TC-PA-01, TC-PA-04, TC-PA-06 | Pass | 132 us |
+| `ofb_pa_gty_cc_tb`, run `cc` | TC-PA-03 | Pass | 94 us |
+| `ofb_pa_gty_core_tb` | TC-PA-02, four lanes, with the reset of the adapter of A | Pass | 295 us |
+| `ofb_pa_gty_core_tb`, runs `lanes1` to `lanes3` | TC-PA-02 with 1 to 3 lanes | Pass (`lanes1` attempt 2) | 98 to 103 us |
+| `ofb_pa_gty_core_tb`, run `relock` | TC-PA-02 lane restart | Pass | 147 us |
+| `ofb_vck190_tb` | TC-VCK-01 | Pass | 98 us |
+
+TC-PA-02 with four lanes: link initialised after 93.1 us, first burst delivered after 97.2 us, clock corrections A 4, B
+1; all 24 packets per VC and direction and 4 broadcast messages per direction delivered in order, DL_ERRORS 0 and no
+retry at either end; after the reset of the adapter of A only TX_LOST at A and Far-End Link Reset at B. With one to
+three lanes DL_ERRORS 0 at both ends. Lane restart: lane 0 Active again at both ends 26.04 us after the transmitter of B
+was enabled again, DL_ERRORS 0, second burst delivered. `ofb_vck190_tb`: 6 packets back on every one of the 8 VCs. The
+transceiver model gave its power-up error (DIV_VAL_CHK) in the first attempt of `ofb_pa_gty_core_tb.lanes1`; the runner
+elaborated again and the next attempt passed (section 2).
+
+Before the join hold, `ofb_pa_gty_core_tb` failed with three and four lanes on the tree with NoSignal always
+de-asserted and the CDR not held (2026-10-22): DL_ERRORS 0x8 (sequence error) and one retry at both ends, every packet
+delivered; the same tree with only NoSignal always de-asserted gave the same result, release 0.1.0 alone passed. The
+cause and its correction are recorded in the verification report of `ofb_multilane`.
+
 ### Behavioural model (architecture `mdl`)
 
 Run on 2026-10-17 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7: `python run.py "*ofb_pa_gty_model*"`, 46 of 46 tests
@@ -298,6 +326,8 @@ Findings during verification:
 
 | Finding | Fix |
 | --- | --- |
+| Receive electrical idle of the transceiver (2026-10-21): the generated quad attributes set `RX_ELECIDLE_MODE` 11 and power the OOB circuit down, for which the transceiver documentation (AM002) specifies a static 0; the documentation also limits data detection by the electrical idle to 2.5 Gbit/s with the OOB circuit powered. NoSignal from the electrical idle therefore never showed a lost signal | NoSignal always de-asserted (PA-IF-03, ECSS 5.4.2.4b.1); a lost signal reaches the Lane layer as RXERR words |
+| The CDR hold followed CDR enable of the Lane layer, so every initialisation attempt started with a CDR that had to lock again (data sheet: 50,000 UI at least) | The CDR runs in every lane state (PA-IF-02); the standard only recommends disabling it |
 | QuestaSim at the time resolution of 1 ps that VUnit sets (2026-10-18): `ofb_pa_gty_model_core_tb.lanes4` saw no clock correction at either end by 1001 us (GHDL: one at each end at 353.2 us). The reference clock of B, 200 ppm slower than that of A, toggles after 3200.64 ps, which 1 ps truncates to 3200 ps: both ends ran at the same frequency | `run.py` runs QuestaSim at 1 fs, as GHDL; the model description states the resolution (section 6) |
 | No clock correction: the receive buffers overflowed and underflowed (data words lost or repeated, TC-PA-03). The combined fields `RX_CC_K` and `RX_CC_VAL` of the wizard are not derived from the per-character keys when the settings are set by Tcl | `tcl/ofb_gtw.tcl` sets the combined fields in the format of the Gigabit Ethernet preset of the wizard (K flags in `RX_CC_K`, values in `RX_CC_VAL`) and `RX_PPM_OFFSET` 200 |
 | The receive buffers output zero words for a few hundred cycles after the receivers are ready (TC-PA-03) | `PhyRx_Valid` from the first K character of the lane after the receivers are ready |

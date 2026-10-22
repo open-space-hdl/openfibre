@@ -110,6 +110,7 @@ All outputs are registered unless noted. `Active(i)` is the decoded lane state o
 | `ActLanes` | Active, for the ACT field and the alignment state machine |
 | `Dl_FarCapability*` | Event of the lowest lane with a capability event in this cycle (in bypass lane 0 only), registered; `Dl_FarCapabilityIdle` = no lane was Active in the cycle before the event (a lane can enter Active in the cycle of its own capability event, ML-LM-14) |
 | `Dl_LaneActive` | At least one lane is Active |
+| `Tx_Hold` | Join hold (ML-LM-17), registered: set while `Joining` and not `JoinDone`. `Joining` = some lane with TxEn or RxEn is in Started, InvertRxPolarity, Connecting or Connected (never in bypass or with `LaneJoinHoldWords_g` = 0). `JoinCnt` counts the cycles with a lane Active; `JoinDone` is set when a lane is Active and `Joining` is false or `JoinCnt` = `LaneJoinHoldWords_g`. Both are cleared while no lane is Active |
 
 ### 2.6 ofb_ml_tx (ML-2)
 
@@ -147,12 +148,12 @@ the same cycle, ML-DS-05). The content of the row:
 Rule 3 implements ML-DS-02: a word that ends a data frame waits until the incomplete sending row was sent with PAD
 words. Rule 2 with `RepIl` lets FCT, ACK, NACK, FULL and broadcast words pass waiting data words (ML-DS-03).
 
-`TxRow_Ready = AlignState /= NotReady and Cnt <= N and (not RepValid or Rep sent in this cycle)`. A replicated row
-loads `Rep`; a data row appends its masked words (compacted, word 0 first) at `Cnt` after the shift of this cycle.
-With `Cnt <= N` before the cycle there is always room for N more words (`Q` holds 2N words), and with L = N one row is
-taken and one sent per cycle. Taking a row in the cycle in which `Rep` is sent avoids an IDLE row after every
-replicated word (ECSS 5.6.4.5b); it makes `TxRow_Ready` depend on `Enc_Ready`. A data row taken behind `Rep` is
-never sent before it: it enters `Q` only in the cycle in which `Rep` is sent.
+`TxRow_Ready = AlignState /= NotReady and Cnt <= N and (not RepValid or Rep sent in this cycle) and not Ctrl_Hold`. A
+replicated row loads `Rep`; a data row appends its masked words (compacted, word 0 first) at `Cnt` after the shift of
+this cycle. With `Cnt <= N` before the cycle there is always room for N more words (`Q` holds 2N words), and with L = N
+one row is taken and one sent per cycle. Taking a row in the cycle in which `Rep` is sent avoids an IDLE row after every
+replicated word (ECSS 5.6.4.5b); it makes `TxRow_Ready` depend on `Enc_Ready`. A data row taken behind `Rep` is never
+sent before it: it enters `Q` only in the cycle in which `Rep` is sent.
 
 `Q`, `Cnt` and `RepValid` are cleared on `Ctrl_Flush` (link reset, ML-DS-11). In Not Ready no row is taken and the
 words held stay in `Q` and `Rep`; they are sent after the realignment (ML-DS-12). Discarding them would lose words
@@ -161,6 +162,11 @@ no RXERR), and the CRC-16 computed after the distributor would not reveal the mi
 
 Every word in `Q` and `Rep` carries the poison mark of its row (`TxRow_Poison`), passed with the word as
 `Enc_Poison` (ML-DS-13).
+
+**Join hold.** `Ctrl_Hold` (`Tx_Hold` of ML-1) keeps `TxRow_Ready` low, so no row of the Data Link layer is taken while
+a lane joins the lane set at the start of the link (ML-LM-17). `Q` and `Rep` are empty at the start, so the data slots
+carry IDLE rows (rule 4) and the alignment proceeds as without data. When the lane enters Active the alignment realigns
+on ACTIVE and ALIGN words only; no sequence-numbered word of the Data Link layer is in flight.
 
 **SKIP.** A free-running counter requests a SKIP (`Lane_SkipReq`, one cycle) every `SkipIntervalWords_g` cycles. All
 Lane layers of a multi-lane link use this request (generic `SkipExternal_g` of `ofb_lane`).
@@ -276,7 +282,7 @@ an overflow is reported by a simulation assertion.
 
 | Connection | `N = 1` | `N > 1` |
 | --- | --- | --- |
-| Transmit | `TxRow` word 0 to encoder 0 | `ofb_ml_tx`, encoder `i` flushed on link reset and while lane `i` is not in T (not in bypass) |
+| Transmit | `TxRow` word 0 to encoder 0 | `ofb_ml_tx` with the join hold of ML-1, encoder `i` flushed on link reset and while lane `i` is not in T (not in bypass) |
 | Receive | decoder 0 to the bypass of `ofb_ml_rx` (inline) | decoders to `ofb_ml_align` and to the bypass input of `ofb_ml_rx` |
 | `Lane_SkipReq` | from `ofb_ml_tx` | from `ofb_ml_tx` |
 | `Stat_DataSendingLanes` | lane 0 Active | D (bypass: lane 0 Active) |

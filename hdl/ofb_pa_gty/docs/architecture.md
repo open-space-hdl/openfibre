@@ -29,13 +29,13 @@ transceivers completely (PA-RS-02).
 | `PhyTx_K` flags l | `ch_txctrl2(3:0)` (K character per byte); `ch_txctrl0`, `ch_txctrl1` zero (normal disparity) |
 | `Phy_TxEnable(l)` | `ch_txelecidle` = not enable |
 | `Phy_RxInvert(l)` | `ch_rxpolarity` |
-| `Phy_CdrEnable(l)` | `ch_rxcdrhold` = not enable |
+| `Phy_CdrEnable(l)` | not used: the CDR runs in every lane state (PA-IF-02; `ch_rxcdrhold` is not enabled in the wizard) |
 | `PhyRx_Data` word l | `ch_rxdata(31:0)` |
 | `PhyRx_K` flags l | `ch_rxctrl0(3:0)` (K character per byte) |
 | `PhyRx_DispErr` flags l | `ch_rxctrl1(3:0)` (disparity error per byte) |
 | `PhyRx_CodeErr` flags l | `ch_rxctrl3(3:0)` (not in table per byte) |
 | `PhyRx_Valid(l)` | receivers ready (synchronised `rst_rx_done`), `Phy_RxEnable(l)` and a K character received on the lane since the receivers are ready (the receive buffer outputs zero words while it starts) |
-| `Phy_NoSignal(l)` | `ch_rxelecidle`, synchronised |
+| `Phy_NoSignal(l)` | always 0 (PA-IF-03, ECSS 5.4.2.4b.1): the receive electrical idle of the transceiver detects data only up to 2.5 Gbit/s and only with the OOB circuit, so `ch_rxelecidle` is not enabled; a lost signal reaches the Lane layer as words with errors (RXERR) |
 | `Phy_SerialNearLoopback(l)`, `Phy_SerialFarLoopback(l)` | `QUAD0_chl_loopback` = 010 (near-end PMA loopback) or 100 (far-end PMA loopback); a change of the far-end loopback (synchronised to FreeRunClk) pulses `INTF0_rst_tx_datapath_in` for 256 cycles |
 | `Phy_PrbsTxSel(l)`, `Phy_PrbsForceErr(l)` | `ch_txprbssel`, `ch_txprbsforceerr` (PRBS generator of the channel, after the 8B/10B encoder) |
 | `Phy_PrbsRxSel(l)`, `Phy_PrbsCntReset(l)` | `ch_rxprbssel`, `ch_rxprbscntreset` (PRBS checker of the channel, before the 8B/10B decoder) |
@@ -47,8 +47,8 @@ Channels without a lane (`NumLanes_g` < 4) send electrical idle; their receive o
 
 ## 4. Status crossing
 
-`rst_rx_done` (free-running clock domain), `ch_rxelecidle` and `ch_rxbyteisaligned` (asynchronous) cross to `LaneClk`
-in one `olo_intf_sync` with `SyncTmr_g` = true (two stages, three synchroniser chains with a majority voter).
+`rst_rx_done` (free-running clock domain) and `ch_rxbyteisaligned` (asynchronous) cross to `LaneClk` in one
+`olo_intf_sync` with `SyncTmr_g` = true (two stages, three synchroniser chains with a majority voter).
 
 `Stat_TxReady` is `rst_tx_done` (the transmit reset done of the wizard, already synchronised to `FreeRunClk`) from a
 register of `FreeRunClk` (PA-ST-02): it falls while `LaneClk` stands still, and it drives `Phy_TxReady` of the core

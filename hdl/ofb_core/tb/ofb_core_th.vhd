@@ -54,6 +54,7 @@ entity ofb_core_th is
         AutoStart_g     : boolean                := true;  -- AutoStart_g of both cores
         AlignTimeoutA_g : natural                := 10000; -- AlignTimeoutWords_g of core A
         AlignTimeoutB_g : natural                := 10000; -- AlignTimeoutWords_g of core B
+        LaneJoinHold_g  : natural                := 8192;  -- LaneJoinHoldWords_g of both cores
         PinModel_g      : boolean                := false; -- ofb_pa_gty(mdl) pin to pin
         PinLockNs_g     : positive               := 500    -- CdrLockTime of the models with PinModel_g (ns)
     );
@@ -267,7 +268,8 @@ begin
                 InitPrbsWords_g     => InitPrbsWords_g,
                 LaneStart_g         => LaneStartA_g and i = 0,
                 AutoStart_g         => AutoStart_g,
-                AlignTimeoutWords_g => choose(i = 0, AlignTimeoutA_g, AlignTimeoutB_g)
+                AlignTimeoutWords_g => choose(i = 0, AlignTimeoutA_g, AlignTimeoutB_g),
+                LaneJoinHoldWords_g => LaneJoinHold_g
             )
             port map (
                 Rst                    => RstI or CoreRstReq(i),
