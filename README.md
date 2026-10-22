@@ -17,13 +17,14 @@ entities of [Open Logic](https://github.com/open-logic/open-logic) (SECDED ECC, 
 hardware yet and has no flight heritage; see [what the levels mean](https://openspacehdl.org/trl/) and the next
 steps in the [roadmap](docs/roadmap.md#technology-readiness).
 
-The core (1 to 4 lanes, 1 to 32 virtual channels, broadcast messages, quality of service, EDAC) is complete and
-verified in simulation; the [compliance matrix](docs/compliance.md) traces every ECSS clause in scope to its tests.
-A fault injection campaign (line errors, word slips, lane failures, single and double errors in the buffers)
-checks that no packet is lost, duplicated or corrupted unnoticed; with packets of up to 1024 bytes the core
-transfers 94 % of the lane capacity in one direction and 90 % per direction in both. The regression covers every
-statement, branch and state machine transition of the core except a few defensive or unreachable items, each
-justified in the [code coverage report](docs/coverage.md).
+The core (1 to 4 lanes, 1 to 32 virtual channels, broadcast messages, quality of service, EDAC) is complete and verified
+in simulation; the [compliance matrix](docs/compliance.md) traces every ECSS clause in scope to its tests. A fault
+injection campaign (line errors, word slips, lane failures, single and double errors in the buffers) checks that no
+packet is lost, duplicated or corrupted unnoticed; with packets of up to 1024 bytes the core transfers 94 % of the lane
+capacity in one direction and 90 % per direction in both. The QuestaSim regression of release 0.1.0 covers every
+statement, branch and state machine transition of the core except a few defensive or unreachable items, each justified
+in the [code coverage report](docs/coverage.md); release 0.1.1 is verified with GHDL and the AMD Vivado simulator, and
+the report lists its changed lines.
 The first target is the AMD Versal AI Core XCVC1902 on the VCK190 evaluation board (4 GTY lanes on the QSFP
 connector, 6.25 Gbit/s per lane): the Physical adapter for the GTY and a reference design are verified with the
 transceiver model; the third and fourth builds met timing (the fourth with margin), a build with the packet ports
@@ -44,6 +45,7 @@ from this repository by `tools/docs/`).
 | [docs/compliance.md](docs/compliance.md) | ECSS compliance matrix: requirements and test cases of every clause (generated) |
 | [hdl/ofb_mib/docs/register_map.md](hdl/ofb_mib/docs/register_map.md) | Register map of the MIB (generated; C header `sw/ofb_regs.h`) |
 | [docs/coverage.md](docs/coverage.md) | Code coverage of the regression (QuestaSim) and the justification of every item not covered |
+| [CHANGELOG.md](CHANGELOG.md) | Changes of every release |
 | `hdl/<module>/docs/` | Specification, architecture, verification plan and verification report of each module |
 
 ## Repository structure

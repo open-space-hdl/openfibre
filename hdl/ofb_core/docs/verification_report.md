@@ -37,6 +37,19 @@ TC-CORE-30 to TC-CORE-33 pass in their configurations (5 of 5), with the default
 
 A lane manager that ignores the watchdog fails TC-CORE-30 (mutation check): the link stays stalled.
 
+Run on 2026-10-22 with the join hold of the Multi-Lane layer (ML-LM-17, release 0.1.1): the tests TC-CORE-34 and
+TC-CORE-35 pass in their configurations (10 of 10):
+
+| Test | Result |
+| --- | --- |
+| TC-CORE-34 (`lanes1` to `lanes4`) | The last lane of A started 3 us after the others, packets waiting on every VC: all packets delivered, all lanes data-sending and data-receiving, DL_ERRORS 0 and no retry at both ends |
+| TC-CORE-34 (`lanes4_nohold`) | The same with the hold off at both cores: 2 retries (the test detects the realignment loss) |
+| TC-CORE-35 (`lanes2` to `lanes4`) | Last lane cut: B reaches Both-Ends Ready 3787 to 3796 words after the first lane of A entered Active, when the cut lane of A times out (5000 words after it entered Started); every packet delivered over the other lanes |
+| TC-CORE-35 (`lanes4_hold1024`) | With the bound 1024: B reaches Both-Ends Ready 1059 words after the first lane of A entered Active |
+
+The full GHDL regression of the released tree runs in the CI of the release pull request. The QuestaSim regression was
+not repeated for release 0.1.1 ([coverage.md](../../../docs/coverage.md), section 6).
+
 Run on 2026-10-18 with the behavioural adapter model, two cores pin to pin through two `ofb_pa_gty` with the
 architecture `mdl`: TC-CORE-03 passes with `CdrLockTime` 500 ns (`lanes4_pin`, no expiry of the alignment watchdog)
 and with the lock time of the transceiver model and near the ends of the interval that bounds it, 16.65 us, 16.83 us
