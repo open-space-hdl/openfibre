@@ -8,7 +8,8 @@
 ---------------------------------------------------------------------------------------------------
 -- Lane manager of the Multi-Lane layer (ML-1): lane control for unidirectional lanes (TxOnly,
 -- RxOnly, FarEndActive, LaneReset), data-sending and hot redundant lanes, bypass selection,
--- capability exchange with the Data Link layer and scramble enables.
+-- capability exchange with the Data Link layer, scramble enables and the join hold of the rows of
+-- the Data Link layer.
 --
 -- Documentation: hdl/ofb_multilane/docs/architecture.md (section 2.5)
 
@@ -29,7 +30,11 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_ml_lane_mgr is
     generic (
-        NumLanes_g : positive range 1 to 4 := 1
+        NumLanes_g          : positive range 1 to 4      := 1;
+        -- Join hold (ML-LM-17): lane clock cycles after the first lane entered Active during which the
+        -- distributor takes no row of the Data Link layer while another enabled lane is initialising;
+        -- 0: off
+        LaneJoinHoldWords_g : natural range 0 to 1000000 := 8192
     );
     port (
         -- Control Ports
@@ -69,6 +74,8 @@ entity ofb_ml_lane_mgr is
         RxLanes                 : out   std_logic_vector(NumLanes_g-1 downto 0);
         NumTxLanes              : out   std_logic_vector(3 downto 0);
         NumRxLanes              : out   std_logic_vector(3 downto 0);
+        -- Join hold (ML-LM-17): the distributor takes no row of the Data Link layer
+        Tx_Hold                 : out   std_logic;
         -- Column codec
         Enc_Scramble            : out   std_logic_vector(NumLanes_g-1 downto 0);
         Dec_Unscramble          : out   std_logic_vector(NumLanes_g-1 downto 0)
@@ -99,6 +106,9 @@ architecture rtl of ofb_ml_lane_mgr is
         CapValid  : std_logic;
         Cap       : Char_t;
         CapIdle   : std_logic;
+        JoinCnt   : natural range 0 to LaneJoinHoldWords_g;
+        JoinDone  : std_logic;
+        Hold      : std_logic;
     end record;
 
     signal r, r_next : TwoProcess_r;
@@ -121,6 +131,7 @@ begin
         variable Max_v      : natural range 0 to 7;
         variable Cnt_v      : natural range 0 to NumLanes_g;
         variable Cond_v     : std_logic_vector(NumLanes_g-1 downto 0);
+        variable Joining_v  : boolean;
     begin
         -- Hold variables stable
         v := r;
@@ -281,6 +292,43 @@ begin
             end if;
         end loop;
 
+        -- Join hold (ML-LM-17): a lane that enters Active after the Data Link layer has started to send
+        -- changes the near-end active lanes, both ends realign and the words in flight are replaced by
+        -- RXERR (ECSS 5.6.7.1c.1, 5.6.7.2b.2). After the first lane entered Active, no row of the Data Link
+        -- layer is taken while another enabled lane is in its initialisation (Started to Connected, all
+        -- bounded by the initialisation timeout), at most LaneJoinHoldWords_g cycles. The hold ends for good
+        -- when no lane is initialising any more or the bound is reached; it is armed again when no lane is
+        -- Active (start, Link Reset, LaneReset of all lanes, loss of all lanes)
+        Joining_v := false;
+
+        for i in 0 to NumLanes_g-1 loop
+            State_v := Lane_State(4*i+3 downto 4*i);
+            if (Cfg_TxEn(i) = '1' or Cfg_RxEn(i) = '1') and
+               (State_v = LaneStateStarted_c or State_v = LaneStateInvertRxPol_c or
+                State_v = LaneStateConnecting_c or State_v = LaneStateConnected_c) then
+                Joining_v := true;
+            end if;
+        end loop;
+
+        if Bypass_v = '1' or LaneJoinHoldWords_g = 0 then
+            Joining_v := false;
+        end if;
+        if Active_v = (Active_v'range => '0') then
+            v.JoinCnt  := 0;
+            v.JoinDone := '0';
+        elsif r.JoinDone = '0' then
+            if not Joining_v or r.JoinCnt = LaneJoinHoldWords_g then
+                v.JoinDone := '1';
+            else
+                v.JoinCnt := r.JoinCnt + 1;
+            end if;
+        end if;
+        if Joining_v and v.JoinDone = '0' then
+            v.Hold := '1';
+        else
+            v.Hold := '0';
+        end if;
+
         -- Outputs
         ResetCond   <= Cond_v;
         Lane_TxOnly <= TxOnly_v;
@@ -305,6 +353,7 @@ begin
     RxLanes    <= r.Rx;
     NumTxLanes <= std_logic_vector(r.NumTx);
     NumRxLanes <= std_logic_vector(r.NumRx);
+    Tx_Hold    <= r.Hold;
 
     -- Data Link layer
     Dl_FarCapability      <= r.Cap;
@@ -340,6 +389,9 @@ begin
                 r.CapIdle   <= '1';
                 r.CapSeen   <= (others => '0');
                 r.FarScr    <= '0';
+                r.JoinCnt   <= 0;
+                r.JoinDone  <= '0';
+                r.Hold      <= '0';
             end if;
         end if;
     end process;
