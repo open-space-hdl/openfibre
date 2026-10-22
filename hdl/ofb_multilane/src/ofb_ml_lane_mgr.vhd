@@ -305,7 +305,7 @@ begin
             State_v := Lane_State(4*i+3 downto 4*i);
             if (Cfg_TxEn(i) = '1' or Cfg_RxEn(i) = '1') and
                (State_v = LaneStateStarted_c or State_v = LaneStateInvertRxPol_c or
-                State_v = LaneStateConnecting_c or State_v = LaneStateConnected_c) then
+                  State_v = LaneStateConnecting_c or State_v = LaneStateConnected_c) then
                 Joining_v := true;
             end if;
         end loop;
