@@ -59,7 +59,7 @@ begin
             Finish_g => false
         );
 
-    -- Behaviour of Phy_NoSignal: the transceiver model (default) or the line
+    -- Behaviour of Phy_NoSignal: never, as struct (default), or following the line
     p_ctrl : process is
     begin
         if LineSig_g then

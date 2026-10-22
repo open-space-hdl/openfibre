@@ -42,6 +42,8 @@ entity ofb_ml_tx is
         -- Lane sets and alignment state
         Bypass          : in    std_logic;
         AlignState      : in    AlignState_t;
+        -- Join hold of the lane manager (ML-LM-17): no row of the Data Link layer is taken
+        Ctrl_Hold       : in    std_logic := '0';
         ActLanes        : in    std_logic_vector(NumLanes_g-1 downto 0);
         TxLanes         : in    std_logic_vector(NumLanes_g-1 downto 0);
         DataLanes       : in    std_logic_vector(NumLanes_g-1 downto 0);
@@ -261,8 +263,9 @@ begin
         -- Take a row from the Data Link layer (registers only, ML-IF-01)
         -- A replicated word sent in this cycle makes room for the next row (no IDLE row in between)
         -- Bypass: only while lane 0 is Active (ML-BP-04)
+        -- Join hold: no row while a lane joins the lane set (ML-LM-17); the data slots carry IDLE
         if not NotRdy_v and (Bypass = '0' or ActLanes(0) = '1') and (r.RepValid = '0' or RepFree_v) and
-           r.Cnt <= NumLanes_g then
+           r.Cnt <= NumLanes_g and Ctrl_Hold = '0' then
             Ready_v := '1';
         end if;
         if Ready_v = '1' and TxRow_Valid = '1' then

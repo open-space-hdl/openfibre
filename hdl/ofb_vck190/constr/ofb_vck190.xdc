@@ -11,10 +11,9 @@
 # Clocks of the programmable logic: the constraints of the CIPS IP create clk_pl_0 (100 MHz: MIB, transceiver reset
 # controller, power-on reset) and clk_pl_1 (150 MHz: user side of the core); the lane clock is TXOUTCLK of channel 0.
 
-# Transceiver reference clock: MGTREFCLK1 of quad 200 (8A34001 output Q1, programmed to 156.25 MHz)
-set_property PACKAGE_PIN AD11 [get_ports GtRefClk_P]
-set_property PACKAGE_PIN AD10 [get_ports GtRefClk_N]
-create_clock -period 6.400 -name gt_refclk [get_ports GtRefClk_P]
+# Transceiver reference clock gt_refclk: tcl/build.tcl loads the pins of the selected source
+# (ofb_vck190_refclk_si570.xdc or ofb_vck190_refclk_8a34001.xdc) and writes the clock constraint at the selected
+# frequency into the project directory (ofb_vck190_refclk_clock.xdc).
 
 # QSFP1: GTY quad 200 (GTY_QUAD_X1Y0), channels 0 to 3 = lanes 0 to 3
 set_property LOC GTY_QUAD_X1Y0 [get_cells -hierarchical -filter {REF_NAME == GTYE5_QUAD}]

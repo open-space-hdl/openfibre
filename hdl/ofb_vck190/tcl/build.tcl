@@ -6,8 +6,21 @@
 # wizard instance, Open Logic and OpenFibre sources, constraints, synthesis, implementation and device image.
 #
 # Usage (from the repository root):
-#   vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl [-tclargs <step>]
-#   <step>: project (create the project only), synth, impl, all (default: all, device image included)
+#   vivado -mode batch -source hdl/ofb_vck190/tcl/build.tcl [-tclargs <words>]
+#   The words are optional and come in any order, for example -tclargs all si570 100:
+#   <step>: project (create the project only), rtl (project and RTL elaboration of the design), synth, impl,
+#   all (default: all, device image included)
+#   <refclk>: source of the transceiver reference clock, which selects its pins
+#   (constr/ofb_vck190_refclk_<refclk>.xdc): si570 (default: oscillator Si570 through the clock buffer SI53340 to
+#   GTY_REFCLK0 of GTY quad 201) or 8a34001 (clock generator 8A34001, output Q1, to MGTREFCLK1 of GTY quad 200)
+#   <frequency>: frequency of the reference clock in MHz, 100 or 156.25, for the transceiver wizard instance and the
+#   clock constraint (default: 100 with si570, the frequency of the Si570 after power-up; 156.25 with 8a34001)
+#
+# The results of a complete build go to <project>/results: the device image, the reports (timing summary,
+# utilisation, methodology, DRC), the constraints that do not apply (invalid_constraints.xdc) and build_info.txt
+# with the step, the reference clock with its frequency and pins, the Vivado version and the commits of the
+# repository and of its submodules. The step rtl writes invalid_constraints.xdc and build_info.txt of the elaborated
+# design.
 #
 # The environment variable OFB_VIVADO_OUT selects another project directory. On Windows the device image step
 # compiles the platform loader firmware in a deep directory below the project; with a project path of more than
@@ -27,7 +40,30 @@ if {$tcl_platform(platform) eq "windows" && [string length $out] > 40} {
     puts "WARNING: project path $out has more than 40 characters, write_device_image may fail on Windows (path\
         length limit); set OFB_VIVADO_OUT to a short directory, for example C:/ofb"
 }
-set step [expr {[llength $argv] > 0 ? [lindex $argv 0] : "all"}]
+# Arguments: the step, the source and the frequency of the reference clock, plain words in any order
+set step all
+set refclk si570
+set refclk_mhz ""
+foreach arg $argv {
+    if {$arg in {project rtl synth impl all}} {
+        set step $arg
+    } elseif {$arg in {si570 8a34001}} {
+        set refclk $arg
+    } elseif {$arg in {100 156.25}} {
+        set refclk_mhz $arg
+    } else {
+        error "unknown argument $arg (step: project, rtl, synth, impl, all; reference clock: si570, 8a34001;\
+            frequency: 100, 156.25)"
+    }
+}
+if {$refclk_mhz eq ""} {
+    set refclk_mhz [dict get {si570 100 8a34001 156.25} $refclk]
+}
+puts "Step $step, reference clock $refclk at $refclk_mhz MHz"
+if {![string match 2025.2* [version -short]]} {
+    puts "WARNING: the build is made for Vivado 2025.2, this is [version -short]"
+}
+set results [file join $out results]
 
 create_project -force ofb_vck190 $out -part xcvc1902-vsva2197-2MP-e-S
 set_property target_language VHDL [current_project]
@@ -63,9 +99,9 @@ foreach m $modules {
 set f [add_files -norecurse $ofb_files]
 set_property file_type {VHDL 2008} $f
 
-# Transceiver wizard instance (156.25 MHz reference clock)
+# Transceiver wizard instance at the frequency of the reference clock
 source [file join $root hdl ofb_pa_gty tcl ofb_gtw.tcl]
-ofb_gtw_create ofb_gtw 156.25
+ofb_gtw_create ofb_gtw $refclk_mhz
 generate_target all [get_ips ofb_gtw]
 
 # Control, interfaces and processing system (CIPS): every Versal design needs it, the platform management
@@ -130,6 +166,14 @@ set_property generic {IncludeCips_g=true} [current_fileset]
 # loaded: they constrain device pins, and the design uses olo_intf_sync for internal asynchronous signals only
 # (their crossings are constrained in ofb_vck190.xdc).
 add_files -fileset constrs_1 -norecurse [file join $root hdl ofb_vck190 constr ofb_vck190.xdc]
+add_files -fileset constrs_1 -norecurse [file join $root hdl ofb_vck190 constr ofb_vck190_refclk_${refclk}.xdc]
+# Clock constraint of the reference clock at the selected frequency, written into the project directory
+set refclk_xdc [file join $out ofb_vck190_refclk_clock.xdc]
+set fh [open $refclk_xdc w]
+puts $fh "# Written by tcl/build.tcl: transceiver reference clock $refclk at $refclk_mhz MHz"
+puts $fh "create_clock -period [format %.3f [expr {1000.0 / $refclk_mhz}]] -name gt_refclk \[get_ports GtRefClk_P\]"
+close $fh
+add_files -fileset constrs_1 -norecurse $refclk_xdc
 source [file join $root open-logic src base tcl olo_base_constraints_amd.tcl]
 
 set_property top ofb_vck190_top [current_fileset]
@@ -138,16 +182,61 @@ update_compile_order -fileset sources_1
 # Implementation: placement and routing explore several directives, physical optimization also after routing
 set_property strategy Performance_ExplorePostRoutePhysOpt [get_runs impl_1]
 
+# build_info.txt of the open design: the step, the reference clock with its frequency, the period of its clock and
+# the pins of its ports in the design, the Vivado version and the commits of the repository and of its submodules
+proc write_build_info {path} {
+    global step refclk refclk_mhz root
+    set fh [open $path w]
+    puts $fh "ofb_vck190, step $step, [clock format [clock seconds] -format {%Y-%m-%d %H:%M:%S}]"
+    puts $fh "Vivado [version -short], part [get_property PART [current_project]]"
+    set pins {}
+    foreach port {GtRefClk_P GtRefClk_N} { lappend pins "$port [get_property PACKAGE_PIN [get_ports $port]]" }
+    set period [get_property -quiet PERIOD [get_clocks -quiet gt_refclk]]
+    puts $fh "reference clock $refclk at $refclk_mhz MHz, gt_refclk period $period ns: [join $pins {, }]"
+    if {[catch {exec git -C $root log -1 --format=%H} commit]} { set commit "unknown (git not available)" }
+    puts $fh "repository $commit"
+    if {![catch {exec git -C $root submodule status} status]} {
+        puts $fh "submodules:
+$status"
+    }
+    close $fh
+}
+
 if {$step eq "project"} { return }
+if {$step eq "rtl"} {
+    synth_design -rtl -name rtl_1
+    # Constraints that do not apply to the elaborated design: a dropped constraint shows up before a synthesis
+    file mkdir $results
+    write_xdc -force -constraints invalid [file join $results invalid_constraints.xdc]
+    write_build_info [file join $results build_info.txt]
+    return
+}
 
 launch_runs synth_1 -jobs 8
 wait_on_run synth_1
 if {[get_property PROGRESS [get_runs synth_1]] ne "100%"} { error "synthesis failed" }
 if {$step eq "synth"} { return }
 
-launch_runs impl_1 -to_step write_device_image -jobs 8
+if {$step eq "impl"} {
+    launch_runs impl_1 -jobs 8
+} else {
+    launch_runs impl_1 -to_step write_device_image -jobs 8
+}
 wait_on_run impl_1
 if {[get_property PROGRESS [get_runs impl_1]] ne "100%"} { error "implementation failed" }
+
+# Results: reports of the implemented design, the device image and what was built
+file mkdir $results
 open_run impl_1
-report_utilization -file [file join $out utilization.rpt]
-report_timing_summary -file [file join $out timing_summary.rpt]
+report_utilization -file [file join $results utilization.rpt]
+report_utilization -hierarchical -hierarchical_depth 3 -file [file join $results utilization_hierarchical.rpt]
+report_timing_summary -file [file join $results timing_summary.rpt]
+report_methodology -file [file join $results methodology.rpt]
+report_drc -file [file join $results drc.rpt]
+# Constraints that do not apply to the implemented design (expected: none, the file holds only its header)
+write_xdc -force -constraints invalid [file join $results invalid_constraints.xdc]
+foreach pdi [glob -nocomplain [file join [get_property DIRECTORY [get_runs impl_1]] *.pdi]] {
+    file copy -force $pdi $results
+}
+write_build_info [file join $results build_info.txt]
+puts "Results in $results (reference clock $refclk at $refclk_mhz MHz)"

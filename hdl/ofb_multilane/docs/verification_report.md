@@ -11,13 +11,18 @@ Run on 2026-10-06 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 | `ofb_multilane_tb` (layer, one lane) | 6 | 6 |
 | `ofb_ml_align_tb` (ML-5, ML-6, four lanes; TC-ML-50 in the configurations `wd1024` and `wdoff`) | 7 | 7 |
 | `ofb_ml_link_tb` (multi-lane link, configurations `lanes2` to `lanes4`) | 12 x 3 | 36 |
-| `ofb_ml_lane_mgr_tb` (ML-1, capability event and transition to Active in the same cycle) | 1 | 1 |
+| `ofb_ml_lane_mgr_tb` (ML-1, capability event and transition to Active in the same cycle; join hold) | 2 | 2 |
 
 Alignment watchdog (ML-AL-11, 2026-10-17): TC-ML-50 passes with the lowest bound of 1024 cycles and with the
 watchdog off; the other tests of `ofb_ml_align_tb` pass unchanged (7 of 7). Mutation checks: a watchdog that restarts
 its counts at once in Both-Ends Ready, and one that uses the single bound outside Both-Ends Ready, both fail TC-ML-50; a
 lane manager that ignores the watchdog fails TC-CORE-30 (verification report of `ofb_core`). QuestaSim on
 2026-10-18: 7 of 7 with coverage (commit b6242a2) and without coverage (commit 9dff622, the tree of main 77f4eea).
+
+Join hold (ML-LM-17, release 0.1.1, 2026-10-22): TC-ML-51 passes in `ofb_ml_lane_mgr_tb` (2 of 2 tests of the
+testbench), with TC-CORE-34 and TC-CORE-35 of the core (verification report of `ofb_core`). The full GHDL regression of
+the released tree runs in the CI of the release pull request. The QuestaSim regression was not repeated for release
+0.1.1 ([coverage.md](../../../docs/coverage.md), section 6).
 
 Row acceptance in the bypass (ML-BP-04, 2026-10-16): 58 of 58 tests of the layer pass, among them the rewritten
 TC-ML-24 and the new TC-ML-49 with two to four lanes.
@@ -55,6 +60,7 @@ Defects found during verification:
 | Finding | Fix |
 | --- | --- |
 | Simulation of two cores with the AMD transceiver model, one lane, CoreClk at the frequency of LaneClk (2026-10-16): after the start both ends reported a sequence error and a retry. The bypass took the first two rows of the Data Link layer (an idle frame word and the first FCT) into the column encoder while the lane was not yet Active; a link reset pulse of the core crossing that arrived a few cycles after the Data Link layer had left Near-End Reset discarded them, and the far end received the second FCT first. The bypass of a layer with several lanes (`ofb_ml_tx`) took rows in the same way | Rows are taken only while lane 0 is Active (ML-BP-04), as the row distributor takes none in Not Ready; TC-ML-24 checked the old behaviour and was rewritten, TC-ML-49 added; both fail without the change. In the core only the entry into the link reset crosses as a pulse (CORE-PL-06) |
+| `ofb_pa_gty_core_tb` with the transceiver model of the AMD simulator, three and four lanes (2026-10-22, release 0.1.0 with NoSignal always de-asserted): lane 2 entered Active about 165 ns before lanes 0 and 1 at both ends; the alignment entered Near-End Ready with lane 2 alone and the Data Link layer started to send. When lanes 0 and 1 entered Active, the near-end active lanes changed, both ends realigned and the words in flight were replaced by RXERR: a sequence error (the first sequence number after the realignment was 16, 1 expected) and a retry at both ends, no data lost. With 0.1.0 alone the start of both ends lined up differently and the run passed | Join hold (ML-LM-17, `LaneJoinHoldWords_g`): after the first lane entered Active no row of the Data Link layer is taken while an enabled lane is still initialising. TC-ML-51, TC-CORE-34 (the same late lane without the hold: 2 retries), TC-CORE-35; `ofb_pa_gty_core_tb` with three and four lanes: DL_ERRORS 0 and no retry |
 | TC-ML-34 with three lanes (2026-10-15, first run of `lanes3`): the expected data-sending lanes after the failure of lane 1 were written for two lanes ("lane 0 sends alone"); the Multi-Lane layer correctly sends on lanes 0 and 2 | Testbench: the expected lanes are all lanes but lane 1, and all lanes after the reconnection, for any lane count |
 | TC-CORE-19 (core): the far-end capability event of a lane that entered Active in the same cycle was reported with "a lane was Active", so the far-end reset of a restarted end was not detected and the link stayed down for good | The lane states of the cycle before the event decide (ML-LM-14); TC-ML-48 forces the event and the transition to Active into the same cycle and fails with the old evaluation (mutation check) |
 | TC-ML-24: the one-cycle link reset pulse of the sequencer did not cover a rising clock edge (testbench timing) | Sequencer aligned to the falling edge before the pulse |
