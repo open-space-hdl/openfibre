@@ -205,8 +205,9 @@ run `lanes3`.
 On a tree with the previous gating of the received words (commit 2afb1b6: the first K character required again after
 the reset window), `ofb_pa_gty_core_tb`, `ofb_pa_gty_cc_tb` run `buferr` and runs `lanes1` to `lanes3` passed, and run
 `relock` failed: lane 0 of A stayed Active through the interruption (finding in section 2). `ofb_pa_gty_tb`,
-`ofb_pa_gty_cc_tb` run `cc` and `ofb_vck190_tb` passed on release 0.1.1, without the reset of the receive buffer;
-they and runs `lanes1` and `lanes2` were not repeated on the tree of release 0.1.2.
+`ofb_pa_gty_cc_tb` run `cc` and `ofb_vck190_tb` passed on release 0.1.1 (without the reset of the receive buffer),
+which stays their reference until they are repeated. These three and runs `lanes1` and `lanes2` are pending on this
+tree; they complete this section before the release.
 
 ### Behavioural model (architecture `mdl`)
 
