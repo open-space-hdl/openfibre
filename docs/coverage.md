@@ -182,20 +182,23 @@ vcover report -du=* -details -zeros -code sbf coverage/coverage.ucdb
 
 The second command lists the statements, branches and state machine items that are not covered, per design unit.
 
-## 6. Release 0.1.1: changed lines not measured
+## 6. Releases 0.1.1 and 0.1.2: changed lines not measured
 
-Sections 2 to 4 are the measurement of release 0.1.0; their line numbers refer to the sources of 0.1.0. Release 0.1.1
-was verified with GHDL (full regression) and with the AMD Vivado simulator and the transceiver model; the QuestaSim
-regression and the code coverage were not repeated. The following lines of the instrumented sources changed and have
-no coverage measurement yet; the tests named here run in the GHDL regression and pass:
+Sections 2 to 4 are the measurement of release 0.1.0; their line numbers refer to the sources of 0.1.0. Releases
+0.1.1 and 0.1.2 were verified with GHDL (full regression) and with the AMD Vivado simulator and the transceiver model;
+the QuestaSim regression and the code coverage were not repeated. The following lines of the instrumented sources
+changed and have no coverage measurement yet; the tests named here run in the GHDL regression and pass:
 
-| Location | Change | Tests |
-| --- | --- | --- |
-| `ofb_multilane/src/ofb_ml_lane_mgr.vhd`: join hold (`Joining`, `JoinCnt`, `JoinDone`, `Hold`, output `Tx_Hold`) | Hold of the rows of the Data Link layer while a lane joins at the link start (ML-LM-17) | TC-ML-51, TC-CORE-34, TC-CORE-35 |
-| `ofb_multilane/src/ofb_ml_tx.vhd`: condition of `TxRow_Ready` | `Ctrl_Hold` keeps `TxRow_Ready` low | TC-CORE-34, TC-CORE-35 |
-| `ofb_multilane/src/ofb_multilane.vhd`, `ofb_core/src/ofb_core.vhd` | Generic `LaneJoinHoldWords_g` and its connection, elaboration check against `AlignTimeoutWords_g` | TC-CORE-34, TC-CORE-35 (configurations `lanes4_nohold`, `lanes4_hold1024`) |
-| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`, `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd` | Behavioural model: `NoSignalNever` replaces `NoSignalSequence` (NoSignal 0, also during reset), `Phy_CdrEnable` without effect | TC-PA-10, TC-PA-15 |
+| Release | Location | Change | Tests |
+| --- | --- | --- | --- |
+| 0.1.1 | `ofb_multilane/src/ofb_ml_lane_mgr.vhd`: join hold (`Joining`, `JoinCnt`, `JoinDone`, `Hold`, output `Tx_Hold`) | Hold of the rows of the Data Link layer while a lane joins at the link start (ML-LM-17) | TC-ML-51, TC-CORE-34, TC-CORE-35 |
+| 0.1.1 | `ofb_multilane/src/ofb_ml_tx.vhd`: condition of `TxRow_Ready` | `Ctrl_Hold` keeps `TxRow_Ready` low | TC-CORE-34, TC-CORE-35 |
+| 0.1.1 | `ofb_multilane/src/ofb_multilane.vhd`, `ofb_core/src/ofb_core.vhd` | Generic `LaneJoinHoldWords_g` and its connection, elaboration check against `AlignTimeoutWords_g` | TC-CORE-34, TC-CORE-35 (configurations `lanes4_nohold`, `lanes4_hold1024`) |
+| 0.1.1 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`, `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd` | Behavioural model: `NoSignalNever` replaces `NoSignalSequence` (NoSignal 0, also during reset), `Phy_CdrEnable` without effect | TC-PA-10, TC-PA-15 |
+| 0.1.2 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`: reset sequence and transmitter | A reset during the reset sequence starts it again (the branches listed in section 4 as not covered at lines 236, 240, 245 and 248 of 0.1.0 are now exercised); the PRBS generator restarts with the reset of the transmitters, and the unreachable reset of section 4 (line 390 of 0.1.0) is removed | TC-PA-10, TC-PA-17 |
+| 0.1.2 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`, `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd`: receive buffer | With `RxBufReset_g` a buffer restarts at its start level after an overflow, every buffer error withholds the words of the reset window, a running buffer reports an error when the line becomes idle; control field `BufErrReq` forces a buffer error | TC-PA-18, TC-PA-15, TC-PA-02 (`lanes1_relock`), TC-CORE-36 |
 
-The transceiver wrapper (`ofb_pa_gty_struct.vhd`: NoSignal 0, CDR not held) and the VCK190 top level are verified in
-the AMD Vivado simulator as before and are not part of the QuestaSim measurement. The next release repeats the full
-QuestaSim regression with coverage and closes this section.
+The transceiver wrapper (`ofb_pa_gty_struct.vhd`: NoSignal 0 and CDR not held in 0.1.1, the reset of the receive
+elastic buffer in 0.1.2) and the VCK190 top level are verified in the AMD Vivado simulator as before and are not part
+of the QuestaSim measurement. A later release repeats the full QuestaSim regression with coverage and closes this
+section.
