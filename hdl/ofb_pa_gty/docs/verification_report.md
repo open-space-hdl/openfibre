@@ -183,6 +183,39 @@ de-asserted and the CDR not held (2026-10-22): DL_ERRORS 0x8 (sequence error) an
 delivered; the same tree with only NoSignal always de-asserted gave the same result, release 0.1.0 alone passed. The
 cause and its correction are recorded in the verification report of `ofb_multilane`.
 
+### Release 0.1.2
+
+Runs on 2026-10-23 with Vivado 2025.2 (xsim) on the tree of release 0.1.2 (commit c66ede8; the release tree differs
+from it in Markdown files and in the test selection of `hdl/ofb_core/tb/vunit_config.py` only):
+`python tools/run_xsim.py <test run>`, every test run on this tree, none carried over.
+
+| Testbench | Test | Result | Simulated time |
+| --- | --- | --- | --- |
+| `ofb_pa_gty_tb` | TC-PA-01, TC-PA-04, TC-PA-06 | Pass | 132 us |
+| `ofb_pa_gty_cc_tb`, run `cc` | TC-PA-03 | Pass | 94 us |
+| `ofb_pa_gty_cc_tb`, run `buferr` | TC-PA-07 | Pass | 318 us |
+| `ofb_pa_gty_core_tb` | TC-PA-02, four lanes, with the reset of the adapter of A | Pass | 295 us |
+| `ofb_pa_gty_core_tb`, runs `lanes1` to `lanes3` | TC-PA-02 with 1 to 3 lanes | Pass | 98 to 103 us |
+| `ofb_pa_gty_core_tb`, run `relock` | TC-PA-02 lane restart (idle line, reset of the receive buffer) | Pass | 147 us |
+| `ofb_vck190_tb` | TC-VCK-01 | Pass | 98 us |
+
+`ofb_pa_gty_tb`: 342 data words per lane without error, 409 per lane in near-end serial loopback, the PRBS-31 checkers
+locked, words with errors only after the bit errors on the line. TC-PA-03: 8 clock corrections at A and 4 at B, 0 and 0
+buffer errors. TC-PA-07 (no SKIP words, reference clock of B 1000 ppm slower): 36 buffer errors at A (indication at most
+4 `LaneClk` cycles), 8 at B (at most 10 cycles), 0 and 0 drops of the receivers ready; per lane about 30,323 words at A
+with 72 in error and 33,248 words at B with 4 in error, the same counts as with the previous gating. The words of each
+reset window are missing and no word of the reset appears as data. TC-PA-02 with four lanes: link initialised after 93.1
+us, first burst delivered after 97.2 us, clock corrections A 4, B 1; all 24 packets per VC and direction and 4 broadcast
+messages per direction delivered in order, DL_ERRORS 0 and no retry at either end; after the reset of the adapter of A
+only TX_LOST at A and Far-End Link Reset at B. With one to three lanes DL_ERRORS 0 at both ends. Lane restart with the
+reset of the receive buffer: lane 0 of A left Active during the interruption of the line and was Active again at both
+ends 26.04 us after the transmitter of B was enabled again, DL_ERRORS 0, second burst delivered. `ofb_vck190_tb`: 6
+packets back on every one of the 8 VCs, DL_ERRORS 0 and no retry at the far end.
+
+On a tree with the previous gating of the received words (commit 2afb1b6: the first K character required again after
+the reset window), `ofb_pa_gty_core_tb`, `ofb_pa_gty_cc_tb` run `buferr` and runs `lanes1` to `lanes3` passed, and run
+`relock` failed: lane 0 of A stayed Active through the interruption (finding in section 2).
+
 ### Behavioural model (architecture `mdl`)
 
 Run on 2026-10-17 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7: `python run.py "*ofb_pa_gty_model*"`, 46 of 46 tests
@@ -326,6 +359,11 @@ Findings during verification:
 
 | Finding | Fix |
 | --- | --- |
+| First version of the receive buffer reset (2026-10-21): a request on every comma realignment. In the PRBS phase of `ofb_pa_gty_tb` the comma aligner realigned 10,666 times in 24 us on the random data, which reset the buffers again and again (the PRBS checks still passed) | One alignment request per lane start, within 8192 `LaneClk` cycles after it (PA-RS-03) |
+| Receive buffer reset (TC-PA-07, 2026-10-21): during the single-mode reset the buffer delivered words of value 0 for about 0.3 us while `PhyRx_Valid` stayed high, about 48 words of value 0 per lane and reset | `PhyRx_Valid` low while the reset window is active (PA-RS-03) |
+| Receive buffer reset (2026-10-21): with the lanes aligned before the receivers were ready, the alignment request stayed armed after the lane start, so a later realignment during traffic would have reset the buffer | The alignment request is disarmed at the end of a window of 8192 `LaneClk` cycles after the lane start |
+| Receive buffer reset (`ofb_pa_gty_core_tb.relock`, 2026-10-23): the first version required the first K character again after the reset window. The idle line of the interruption raised a buffer error and a reset, delivered no K character afterwards, and `Phy_NoSignal` stays 0, so the words that drive the RXERR counter were withheld: lane 0 of A stayed Active through the interruption ("lane 0 of A did not leave Active during the interruption"). The model did not reproduce it, as its buffer reported no error on an idle line | `PhyRx_Valid` low during the reset window only (fixed length, 152 `FreeRunClk` cycles); after it the words pass as without the reset (PA-RS-03). The model reports the buffer error of an idle line and withholds the window, and `lanes1_relock` (GHDL) fails on the first version; TC-CORE-36 checks a forced buffer reset during traffic (no restart, frames recovered by a retry) |
+| The wizard option `RX_BUFFER_RESET_ON_COMMAALIGN` (2026-10-21): with `ENABLE` only the metadata of the IP changes; the quad attributes and the firmware are bit-identical (Vivado 2025.2) | The buffer reset after a comma alignment is in the logic of the adapter (PA-RS-03) |
 | Receive electrical idle of the transceiver (2026-10-21): the generated quad attributes set `RX_ELECIDLE_MODE` 11 and power the OOB circuit down, for which the transceiver documentation (AM002) specifies a static 0; the documentation also limits data detection by the electrical idle to 2.5 Gbit/s with the OOB circuit powered. NoSignal from the electrical idle therefore never showed a lost signal | NoSignal always de-asserted (PA-IF-03, ECSS 5.4.2.4b.1); a lost signal reaches the Lane layer as RXERR words |
 | The CDR hold followed CDR enable of the Lane layer, so every initialisation attempt started with a CDR that had to lock again (data sheet: 50,000 UI at least) | The CDR runs in every lane state (PA-IF-02); the standard only recommends disabling it |
 | QuestaSim at the time resolution of 1 ps that VUnit sets (2026-10-18): `ofb_pa_gty_model_core_tb.lanes4` saw no clock correction at either end by 1001 us (GHDL: one at each end at 353.2 us). The reference clock of B, 200 ppm slower than that of A, toggles after 3200.64 ps, which 1 ps truncates to 3200 ps: both ends ran at the same frequency | `run.py` runs QuestaSim at 1 fs, as GHDL; the model description states the resolution (section 6) |
