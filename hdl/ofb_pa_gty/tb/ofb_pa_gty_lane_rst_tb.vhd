@@ -689,20 +689,18 @@ begin
                 awaitHigh(RxBusy, 4, Elapsed_v, "Receiver reset first");
                 check_value(NumTx, 0, error, "Transmit buffer reset waits for the receiver reset");
 
-                -- Receiver reset request during the receiver reset: dropped; buffer request: served afterwards
+                -- Receiver reset request during the receiver reset: dropped; the transmit buffer reset follows after
+                -- the holdoff, the buffer request before the receiver reset is absorbed by it
                 awaitHigh(GtRxRst, Setup_c + 2, Elapsed_v, "GTRXRESET pulse");
                 cycles(Pulse_c + 10);
                 pulseFull;
-                pulseBuf;
                 awaitLow(RxBusy, DoneRise_c + 5, Elapsed_v, "End of the receiver reset");
                 awaitHigh(GtTxRst, Holdoff_c + Setup_c + 4, Elapsed_v, "Transmit buffer reset second");
                 check_value(Elapsed_v >= Holdoff_c + Setup_c, error, "Holdoff before the next sequence");
-                awaitHigh(BufBusy, Pulse_c + Hold_c + Holdoff_c + 6, Elapsed_v, "Buffer reset third");
-                check_value(Elapsed_v >= Hold_c + Holdoff_c, error, "Holdoff before the next sequence");
-                waitIdle(Setup_c + Pulse_c + Hold_c + Holdoff_c + 50, "After the three sequences");
-                checkCounts(1, 1, 1, 0, 1, 0,
-                            "Receiver reset, transmit and buffer reset once each (the first buffer request absorbed)");
-                checkIdle(x"0000", "After the three sequences");
+                waitIdle(Setup_c + Pulse_c + Hold_c + Holdoff_c + 50, "After the two sequences");
+                checkCounts(1, 0, 1, 0, 1, 0,
+                            "Receiver reset and transmit buffer reset once each, the buffer request absorbed");
+                checkIdle(x"0000", "After the two sequences");
 
                 -- Receiver reset requests in the gap are dropped, after the gap served (gap from the reset done)
                 Full_v := NumFull;
@@ -716,13 +714,17 @@ begin
                 awaitHigh(RxBusy, 6, Elapsed_v, "Request after the gap served");
                 check_value(GtPcs, x"0360", error, "New PCSRSVDIN base taken at the start of the sequence");
                 awaitHigh(GtRxRst, Setup_c + 2, Elapsed_v, "GTRXRESET pulse");
-                -- A change of the base during the sequence takes effect at the next sequence only
+                -- A change of the base during the sequence takes effect at the next sequence only; a buffer request
+                -- during the receiver reset is served after it (with the new base)
                 CfgPcs <= x"0040";
+                Buf_v  := NumBuf;
+                pulseBuf;
                 awaitLow(RxBusy, Pulse_c + DoneRise_c + 6, Elapsed_v, "End of the receiver reset");
                 check_value(GtPcs, x"0360", error, "Base value unchanged until the next sequence");
-                cycles(Holdoff_c + 4);
-                pulseBuf;
+                awaitHigh(BufBusy, Holdoff_c + 6, Elapsed_v, "Buffer request during the receiver reset served after it");
+                check_value(Elapsed_v >= Holdoff_c, error, "Holdoff before the buffer reset");
                 waitIdle(Setup_c + Pulse_c + Hold_c + Holdoff_c + 50, "Buffer reset");
+                checkCounts(-1, Buf_v + 1, -1, -1, -1, -1, "One buffer reset after the receiver reset");
                 check_value(GtPcs, x"0040", error, "Base value of the next sequence");
 
                 -- Reset of the sequencer in a receiver reset: ports at once to the values outside the sequences
