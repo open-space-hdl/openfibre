@@ -31,12 +31,14 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_mib is
     generic (
-        NumVc_g     : positive range 1 to 32 := 8;
-        NumLanes_g  : positive range 1 to 4  := 1;
-        NumPrio_g   : positive range 2 to 16 := 4;
+        NumVc_g            : positive range 1 to 32       := 8;
+        NumLanes_g         : positive range 1 to 4        := 1;
+        NumPrio_g          : positive range 2 to 16       := 4;
         -- Reset values of LaneStart and AutoStart of every lane (LANE_CTRL bits 0 and 1)
-        LaneStart_g : boolean                := false;
-        AutoStart_g : boolean                := true
+        LaneStart_g        : boolean                      := false;
+        AutoStart_g        : boolean                      := true;
+        -- Reset value of LANE_INIT_TIMEOUT (lane clock cycles; ECSS 5.5.2.6b.1: 5000 words)
+        InitTimeoutWords_g : positive range 1 to 16777215 := 5000
     );
     port (
         -- Management clock domain
@@ -109,6 +111,24 @@ entity ofb_mib is
         Phy_PrbsCntReset       : out   std_logic_vector(NumLanes_g-1 downto 0);
         Phy_PrbsErr            : in    std_logic_vector(NumLanes_g-1 downto 0)      := (others => '0');
         Phy_PrbsLocked         : in    std_logic_vector(NumLanes_g-1 downto 0)      := (others => '0');
+        -- Initialisation timeout of the lanes (LANE_INIT_TIMEOUT, LaneClk), control of the Physical adapters (PA_CTRL,
+        -- static, from registers of Clk), single-cycle receiver reset command per lane (LANE_CTRL RX_RESET, LaneClk)
+        Lane_InitTimeout       : out   std_logic_vector(23 downto 0);
+        Pa_RxResetOnDisc       : out   std_logic;
+        Pa_RxResetCdrOnly      : out   std_logic;
+        Pa_CdrHoldIdle         : out   std_logic;
+        Pa_PcsRsvdIn           : out   std_logic_vector(15 downto 0);
+        Pa_RxResetCmd          : out   std_logic_vector(NumLanes_g-1 downto 0);
+        -- Status of the Physical adapters per lane: buffer errors (levels or pulses), receiver reset done and in
+        -- progress, CDR lock, electrical idle; single-cycle events of the receiver reset
+        Pa_RxBufErr            : in    std_logic_vector(NumLanes_g-1 downto 0)      := (others => '0');
+        Pa_TxBufErr            : in    std_logic_vector(NumLanes_g-1 downto 0)      := (others => '0');
+        Pa_RxResetDone         : in    std_logic_vector(NumLanes_g-1 downto 0)      := (others => '0');
+        Pa_RxResetBusy         : in    std_logic_vector(NumLanes_g-1 downto 0)      := (others => '0');
+        Pa_CdrLock             : in    std_logic_vector(NumLanes_g-1 downto 0)      := (others => '0');
+        Pa_RxElecIdle          : in    std_logic_vector(NumLanes_g-1 downto 0)      := (others => '0');
+        Pa_EvRxReset           : in    std_logic_vector(NumLanes_g-1 downto 0)      := (others => '0');
+        Pa_EvRxResetTimeout    : in    std_logic_vector(NumLanes_g-1 downto 0)      := (others => '0');
         Lane_State             : in    std_logic_vector(4*NumLanes_g-1 downto 0);
         Lane_RxPolarity        : in    std_logic_vector(NumLanes_g-1 downto 0);
         Lane_NoSignal          : in    std_logic_vector(NumLanes_g-1 downto 0);
@@ -163,7 +183,9 @@ architecture rtl of ofb_mib is
     constant CoreStatW_c  : positive := 8 + 3 * NumVc_g + 6;
     constant CoreEvW_c    : positive := 8 + 2 * NumVc_g;
     constant LaneCfgW_c   : positive := 26;
-    constant LaneStatW_c  : positive := 104;
+    constant LaneStatW_c  : positive := 108;
+    -- Lane events per lane (LANE_EVENTS bits 7:0)
+    constant LaneEvW_c    : positive := 8;
     -- PRBS test: configuration bits of a lane (TX pattern, RX pattern, hold) and word counter width
     constant PrbsCfgW_c   : positive := 9;
     constant PrbsWordsW_c : positive := 48;
@@ -194,6 +216,10 @@ architecture rtl of ofb_mib is
     signal MlBypass      : std_logic;
     signal IrqMask       : std_logic_vector(31 downto 0);
     signal CmdLinkReset  : std_logic;
+    signal InitTimeout   : std_logic_vector(23 downto 0);
+    signal PaFlags       : std_logic_vector(2 downto 0);  -- PA_CTRL bits 2:0
+    signal PaPcs         : std_logic_vector(15 downto 0); -- PA_CTRL PCSRSVDIN
+    signal RxRstCmd      : std_logic_vector(NumLanes_g-1 downto 0);
     -- Quality of service (copy of the registers of the Data Link layer)
     signal VcCfg         : Slv32Array_t;
     signal VcBw          : Slv16Array_t;
@@ -214,13 +240,14 @@ architecture rtl of ofb_mib is
     signal VcCrOvf     : std_logic_vector(NumVc_g-1 downto 0);
     signal VcFrErr     : std_logic_vector(NumVc_g-1 downto 0);
     signal VcRxFrErr   : std_logic_vector(NumVc_g-1 downto 0);
-    signal LaneEvents  : std_logic_vector(4*NumLanes_g-1 downto 0);
+    signal LaneEvents  : std_logic_vector(LaneEvW_c*NumLanes_g-1 downto 0);
     signal Retries     : unsigned(31 downto 0);
     signal Crc16Cnt    : unsigned(15 downto 0);
     signal Crc8Cnt     : unsigned(15 downto 0);
     signal FrameCnt    : unsigned(15 downto 0);
     signal SeqCnt      : unsigned(15 downto 0);
     signal TimeoutCnt  : Cnt16Array_t;
+    signal RxRstCnt    : Cnt16Array_t;
     signal MisalignCnt : unsigned(15 downto 0);
     signal AlignToCnt  : unsigned(15 downto 0);
     signal StatSettle  : natural range 0 to 31;
@@ -236,8 +263,12 @@ architecture rtl of ofb_mib is
     signal LaneCfgOut : std_logic_vector(LaneCfgW_c*NumLanes_g-1 downto 0);
     signal LaneStatIn : std_logic_vector(LaneStatW_c*NumLanes_g+2*NumLanes_g+2 downto 0);
     signal LaneStat   : std_logic_vector(LaneStatW_c*NumLanes_g+2*NumLanes_g+2 downto 0);
-    signal LaneEvIn   : std_logic_vector(4*NumLanes_g+2 downto 0);
-    signal LaneEv     : std_logic_vector(4*NumLanes_g+2 downto 0);
+    signal LaneEvIn   : std_logic_vector(LaneEvW_c*NumLanes_g+2 downto 0);
+    signal LaneEv     : std_logic_vector(LaneEvW_c*NumLanes_g+2 downto 0);
+    signal BufErrLast : std_logic_vector(NumLanes_g-1 downto 0);
+    signal TxErrLast  : std_logic_vector(NumLanes_g-1 downto 0);
+    signal BufErrEv   : std_logic_vector(NumLanes_g-1 downto 0);
+    signal TxErrEv    : std_logic_vector(NumLanes_g-1 downto 0);
     signal MlCfgIn    : std_logic_vector(3 downto 0);
     signal MlCfgOut   : std_logic_vector(3 downto 0);
     signal PrbsCmdOut : std_logic_vector(2*NumLanes_g-1 downto 0);
@@ -340,15 +371,17 @@ begin
     -- Register file: writes, sticky flags, counters
     -----------------------------------------------------------------------------------------------
     p_regs : process (Clk) is
-        variable Addr_v : natural;
-        variable Lane_v : integer;
-        variable Reg_v  : natural;
-        variable Vc_v   : natural;
+        variable Addr_v   : natural;
+        variable Lane_v   : integer;
+        variable EvBase_v : natural;
+        variable Reg_v    : natural;
+        variable Vc_v     : natural;
     begin
         if rising_edge(Clk) then
             CmdLinkReset <= '0';
             CmdIfReset   <= '0';
             PrbsCmd      <= (others => '0');
+            RxRstCmd     <= (others => '0');
             EmptyClr     <= '0';
             Addr_v       := to_integer(unsigned(RbAddr));
             Lane_v       := (Addr_v / RegLaneStride_c) - (RegLaneBase_c / RegLaneStride_c);
@@ -360,7 +393,7 @@ begin
             DlErrors(7)          <= DlErrors(7) or (or CoreEv(7 + NumVc_g downto 8));
             DlErrors(8)          <= DlErrors(8) or (or CoreEv(7 + 2 * NumVc_g downto 8 + NumVc_g));
             DlErrors(9)          <= DlErrors(9) or (or UserEv(NumVc_g-1 downto 0));
-            DlErrors(10)         <= DlErrors(10) or LaneEv(4*NumLanes_g+1);
+            DlErrors(10)         <= DlErrors(10) or LaneEv(LaneEvW_c*NumLanes_g+1);
             DlErrors(11)         <= DlErrors(11) or (or UserEv(2*NumVc_g-1 downto NumVc_g));
             -- TX_LOST: the transmitters are no longer ready after they were ready (MG-ST-06): a fall of the level,
             -- TxLast is 0 after the reset
@@ -370,7 +403,7 @@ begin
             VcCrOvf      <= VcCrOvf or CoreEv(7 + 2 * NumVc_g downto 8 + NumVc_g);
             VcFrErr      <= VcFrErr or UserEv(NumVc_g-1 downto 0);
             VcRxFrErr    <= VcRxFrErr or UserEv(2*NumVc_g-1 downto NumVc_g);
-            LaneEvents   <= LaneEvents or LaneEv(4*NumLanes_g-1 downto 0);
+            LaneEvents   <= LaneEvents or LaneEv(LaneEvW_c*NumLanes_g-1 downto 0);
             -- Bandwidth flags once the status crossing has transferred a value after reset
             if StatSettle = 31 then
                 VcBwOver  <= VcBwOver or CoreStat(7 + 2 * NumVc_g downto 8 + NumVc_g);
@@ -395,15 +428,19 @@ begin
             end if;
 
             for i in 0 to NumLanes_g-1 loop
-                if LaneEv(4*i+1) = '1' then
+                if LaneEv(LaneEvW_c*i+1) = '1' then
                     TimeoutCnt(i) <= satInc(TimeoutCnt(i));
+                end if;
+                -- Completed receiver resets of the Physical adapter (LANE_EVENTS bit 6)
+                if LaneEv(LaneEvW_c*i+6) = '1' then
+                    RxRstCnt(i) <= satInc(RxRstCnt(i));
                 end if;
             end loop;
 
-            if LaneEv(4*NumLanes_g) = '1' then
+            if LaneEv(LaneEvW_c*NumLanes_g) = '1' then
                 MisalignCnt <= satInc(MisalignCnt);
             end if;
-            if LaneEv(4*NumLanes_g+2) = '1' then
+            if LaneEv(LaneEvW_c*NumLanes_g+2) = '1' then
                 AlignToCnt <= satInc(AlignToCnt);
             end if;
 
@@ -454,6 +491,11 @@ begin
                         MisalignCnt <= (others => '0');
                     when RegMlAlignTimeouts_c =>
                         AlignToCnt <= (others => '0');
+                    when RegLaneInitTimeout_c =>
+                        InitTimeout <= RbWrData(LaneInitTimeoutWordsHi_c downto LaneInitTimeoutWordsLo_c);
+                    when RegPaCtrl_c =>
+                        PaFlags <= RbWrData(2 downto 0);
+                        PaPcs   <= RbWrData(PaCtrlPcsrsvdinHi_c downto PaCtrlPcsrsvdinLo_c);
                     when RegEccStatus_c =>
                         EccSecStk <= '0';
                     when RegEccSelect_c =>
@@ -480,11 +522,14 @@ begin
                             if Reg_v = RegLaneCtrlOfs_c then
                                 LaneCtrl(Lane_v) <= RbWrData(17 downto 16) & RbWrData(6 downto 5) & RbWrData(15 downto 8) &
                                                     RbWrData(4 downto 0);
+                                RxRstCmd(Lane_v) <= RbWrData(LaneCtrlRxReset_c);
                             elsif Reg_v = RegLaneEventsOfs_c then
-                                LaneEvents(4*Lane_v+3 downto 4*Lane_v) <= LaneEvents(4*Lane_v+3 downto 4*Lane_v) and
-                                                                          not RbWrData(3 downto 0);
+                                EvBase_v                                 := LaneEvW_c * Lane_v;
+                                LaneEvents(EvBase_v + 7 downto EvBase_v) <= LaneEvents(EvBase_v + 7 downto EvBase_v) and
+                                                                            not RbWrData(7 downto 0);
                             elsif Reg_v = RegLaneTimeoutCountOfs_c then
                                 TimeoutCnt(Lane_v) <= (others => '0');
+                                RxRstCnt(Lane_v)   <= (others => '0');
                             elsif Reg_v = RegLanePrbsCtrlOfs_c then
                                 PrbsCtrl(Lane_v)      <= RbWrData(8 downto 0);
                                 PrbsCmd(2*Lane_v)     <= RbWrData(LanePrbsCtrlCountReset_c);
@@ -518,6 +563,7 @@ begin
                 SeqCnt      <= (others => '0');
                 LaneEvents  <= (others => '0');
                 TimeoutCnt  <= (others => (others => '0'));
+                RxRstCnt    <= (others => (others => '0'));
                 MisalignCnt <= (others => '0');
                 AlignToCnt  <= (others => '0');
             end if;
@@ -543,6 +589,10 @@ begin
                 PrbsCtrl <= (others => (others => '0'));
                 MlMax    <= std_logic_vector(to_unsigned(NumLanes_g, 3));
                 MlBypass <= '0';
+                -- Initialisation timeout from the generic, Physical adapter control (PA_CTRL reset value)
+                InitTimeout <= std_logic_vector(to_unsigned(InitTimeoutWords_g, 24));
+                PaFlags     <= RegPaCtrlReset_c(2 downto 0);
+                PaPcs       <= RegPaCtrlReset_c(PaCtrlPcsrsvdinHi_c downto PaCtrlPcsrsvdinLo_c);
 
                 for i in 0 to NumLanes_g-1 loop
                     -- LaneStart and AutoStart from the generics (MG-CF-03), TxEn, RxEn
@@ -561,6 +611,7 @@ begin
                 CmdLinkReset <= '0';
                 CmdIfReset   <= '0';
                 PrbsCmd      <= (others => '0');
+                RxRstCmd     <= (others => '0');
                 IrqMask      <= (others => '0');
                 DlErrors     <= (others => '0');
                 TxLast       <= '0';
@@ -576,6 +627,7 @@ begin
                 FrameCnt     <= (others => '0');
                 SeqCnt       <= (others => '0');
                 TimeoutCnt   <= (others => (others => '0'));
+                RxRstCnt     <= (others => (others => '0'));
                 MisalignCnt  <= (others => '0');
                 AlignToCnt   <= (others => '0');
                 EccSel       <= (others => '0');
@@ -669,6 +721,11 @@ begin
                     Data_v(15 downto 0) := std_logic_vector(MisalignCnt);
                 when RegMlAlignTimeouts_c =>
                     Data_v(15 downto 0) := std_logic_vector(AlignToCnt);
+                when RegLaneInitTimeout_c =>
+                    Data_v(23 downto 0) := InitTimeout;
+                when RegPaCtrl_c =>
+                    Data_v(2 downto 0)   := PaFlags;
+                    Data_v(31 downto 16) := PaPcs;
                 when RegEccStatus_c =>
                     Data_v(Ch_c-1 downto 0) := EccDedStk;
                     Data_v(16)              := EccSecStk;
@@ -703,12 +760,14 @@ begin
                             Data_v(7)            := LaneStat(Base_v + 39);
                             Data_v(15 downto 8)  := LaneStat(Base_v + 13 downto Base_v + 6);
                             Data_v(23 downto 16) := LaneStat(Base_v + 21 downto Base_v + 14);
+                            Data_v(27 downto 24) := LaneStat(Base_v + 107 downto Base_v + 104);
                         elsif Reg_v = RegLaneEventsOfs_c then
-                            Data_v(3 downto 0) := LaneEvents(4*Lane_v+3 downto 4*Lane_v);
+                            Data_v(7 downto 0) := LaneEvents(LaneEvW_c*Lane_v+7 downto LaneEvW_c*Lane_v);
                         elsif Reg_v = RegLaneReasonsOfs_c then
                             Data_v(15 downto 0) := LaneStat(Base_v + 37 downto Base_v + 22);
                         elsif Reg_v = RegLaneTimeoutCountOfs_c then
-                            Data_v(15 downto 0) := std_logic_vector(TimeoutCnt(Lane_v));
+                            Data_v(15 downto 0)  := std_logic_vector(TimeoutCnt(Lane_v));
+                            Data_v(31 downto 16) := std_logic_vector(RxRstCnt(Lane_v));
                         elsif Reg_v = RegLanePrbsCtrlOfs_c then
                             Data_v(8 downto 0) := PrbsCtrl(Lane_v);
                         elsif Reg_v = RegLanePrbsErrorsOfs_c then
@@ -733,7 +792,7 @@ begin
             end if;
 
             for i in 0 to NumLanes_g-1 loop
-                Irq_v := Irq_v or (or (LaneEvents(4*i+3 downto 4*i) and IrqMask(19 downto 16)));
+                Irq_v := Irq_v or (or (LaneEvents(LaneEvW_c*i+7 downto LaneEvW_c*i) and IrqMask(23 downto 16)));
             end loop;
 
             Irq <= Irq_v;
@@ -920,29 +979,48 @@ begin
         end if;
     end process;
 
+    -- Buffer errors of the Physical adapters (levels or pulses) as events: the rising edge
+    p_pa_ev : process (LaneClk) is
+    begin
+        if rising_edge(LaneClk) then
+            BufErrLast <= Pa_RxBufErr;
+            TxErrLast  <= Pa_TxBufErr;
+            BufErrEv   <= Pa_RxBufErr and not BufErrLast;
+            TxErrEv    <= Pa_TxBufErr and not TxErrLast;
+            if LaneRst = '1' then
+                BufErrLast <= (others => '0');
+                TxErrLast  <= (others => '0');
+                BufErrEv   <= (others => '0');
+                TxErrEv    <= (others => '0');
+            end if;
+        end if;
+    end process;
+
     p_lane_vec : process (all) is
         variable Stat_v : std_logic_vector(LaneStatW_c-1 downto 0);
-        variable Ev_v   : std_logic_vector(3 downto 0);
+        variable Ev_v   : std_logic_vector(LaneEvW_c-1 downto 0);
     begin
 
         for i in 0 to NumLanes_g-1 loop
-            Stat_v := std_logic_vector(PrbsWordCnt(i)(PrbsWordsW_c-1 downto 16)) & std_logic_vector(PrbsErrCnt(i)) &
+            Stat_v := Pa_RxElecIdle(i) & Pa_CdrLock(i) & Pa_RxResetBusy(i) & Pa_RxResetDone(i) &
+                      std_logic_vector(PrbsWordCnt(i)(PrbsWordsW_c-1 downto 16)) & std_logic_vector(PrbsErrCnt(i)) &
                       Phy_PrbsLocked(i) &
                       Phy_BitSync(i) & Lane_FarLostReason(8*i+7 downto 8*i) & Lane_FarStandbyReason(8*i+7 downto 8*i) &
                       Lane_FarCapability(8*i+7 downto 8*i) & Lane_RxErrCount(8*i+7 downto 8*i) &
                       Lane_NoSignal(i) & Lane_RxPolarity(i) & Lane_State(4*i+3 downto 4*i);
 
-            Ev_v := Lane_EvFarLostSignal(i) & Lane_EvFarStandby(i) & Lane_EvTimeout(i) & Lane_EvRxErrOverflow(i);
+            Ev_v := Pa_EvRxResetTimeout(i) & Pa_EvRxReset(i) & TxErrEv(i) & BufErrEv(i) &
+                    Lane_EvFarLostSignal(i) & Lane_EvFarStandby(i) & Lane_EvTimeout(i) & Lane_EvRxErrOverflow(i);
 
             LaneStatIn(LaneStatW_c*i+LaneStatW_c-1 downto LaneStatW_c*i) <= Stat_v;
-            LaneEvIn(4*i+3 downto 4*i)                                   <= Ev_v;
+            LaneEvIn(LaneEvW_c*i+LaneEvW_c-1 downto LaneEvW_c*i)         <= Ev_v;
         end loop;
 
         LaneStatIn(LaneStatIn'high downto LaneStatW_c*NumLanes_g) <= Ml_StatBypass & Ml_AlignState & Ml_DataReceiving &
                                                                      Ml_DataSending;
-        LaneEvIn(4*NumLanes_g)                                    <= Ml_EvMisaligned;
-        LaneEvIn(4*NumLanes_g+1)                                  <= Ml_EvRxOverflow;
-        LaneEvIn(4*NumLanes_g+2)                                  <= Ml_EvAlignTimeout;
+        LaneEvIn(LaneEvW_c*NumLanes_g)                            <= Ml_EvMisaligned;
+        LaneEvIn(LaneEvW_c*NumLanes_g+1)                          <= Ml_EvRxOverflow;
+        LaneEvIn(LaneEvW_c*NumLanes_g+2)                          <= Ml_EvAlignTimeout;
     end process;
 
     i_lane_cfg : entity olo.olo_base_cc_bits
@@ -975,7 +1053,7 @@ begin
 
     i_lane_ev : entity work.ofb_cc_pulse
         generic map (
-            NumPulses_g => 4 * NumLanes_g + 3
+            NumPulses_g => LaneEvW_c * NumLanes_g + 3
         )
         port map (
             In_Clk    => LaneClk,
@@ -984,6 +1062,42 @@ begin
             Out_Clk   => Clk,
             Out_Rst   => Rst,
             Out_Pulse => LaneEv
+        );
+
+    -- Initialisation timeout of the lanes (static configuration)
+    i_init_to : entity olo.olo_base_cc_bits
+        generic map (
+            Width_g   => 24,
+            SyncTmr_g => true
+        )
+        port map (
+            In_Clk   => Clk,
+            In_Rst   => Rst,
+            In_Data  => InitTimeout,
+            Out_Clk  => LaneClk,
+            Out_Rst  => LaneRst,
+            Out_Data => Lane_InitTimeout
+        );
+
+    -- Control of the Physical adapters: static configuration from the registers, synchronised in the adapter. Not
+    -- crossed into the lane clock domain, whose reset (during every transmitter reset) would clear the values
+    Pa_RxResetOnDisc  <= PaFlags(0);
+    Pa_RxResetCdrOnly <= PaFlags(1);
+    Pa_CdrHoldIdle    <= PaFlags(2);
+    Pa_PcsRsvdIn      <= PaPcs;
+
+    -- Receiver reset command per lane
+    i_rxrst_cmd : entity work.ofb_cc_pulse
+        generic map (
+            NumPulses_g => NumLanes_g
+        )
+        port map (
+            In_Clk    => Clk,
+            In_Rst    => Rst,
+            In_Pulse  => RxRstCmd,
+            Out_Clk   => LaneClk,
+            Out_Rst   => LaneRst,
+            Out_Pulse => Pa_RxResetCmd
         );
 
     -- Multi-Lane configuration: maximum number of data-sending lanes, bypass

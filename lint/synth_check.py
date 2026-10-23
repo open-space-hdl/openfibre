@@ -30,10 +30,14 @@ CONFIGS = [("ofb_core", {"NumLanes_g": lanes, "VcInDepth_g": 256 * lanes}) for l
     ("ofb_core", {"NumLanes_g": 4, "VcOutDepth_g": 16, "VcInDepth_g": 512, "ErbRows_g": 64}),
     ("ofb_core", {"NumLanes_g": 1, "InitPrbsWords_g": 0}),
     ("ofb_core", {"NumLanes_g": 2, "LaneStart_g": "true", "AutoStart_g": "false"}),
-    # Alignment watchdog off and at the bounds of its range (the counters of the upper bound are 21 bits wide)
+    # Alignment watchdog off and at the bounds of its range (the counters of the upper bound are 21 bits wide); the join
+    # hold must not exceed the watchdog
     ("ofb_core", {"NumLanes_g": 2, "VcInDepth_g": 512, "AlignTimeoutWords_g": 0}),
-    ("ofb_core", {"NumLanes_g": 2, "VcInDepth_g": 512, "AlignTimeoutWords_g": 1024}),
+    ("ofb_core", {"NumLanes_g": 2, "VcInDepth_g": 512, "AlignTimeoutWords_g": 1024, "LaneJoinHoldWords_g": 1024}),
     ("ofb_core", {"NumLanes_g": 4, "VcInDepth_g": 1024, "AlignTimeoutWords_g": 1000000}),
+    # Reset value of the initialisation timeout at the bounds of its range (LANE_INIT_TIMEOUT, 24 bits)
+    ("ofb_core", {"NumLanes_g": 1, "InitTimeoutWords_g": 1}),
+    ("ofb_core", {"NumLanes_g": 1, "InitTimeoutWords_g": 16777215}),
 ]
 # Values outside the generic ranges and the message of the check that rejects them
 REJECTED = [

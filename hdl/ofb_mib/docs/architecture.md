@@ -11,6 +11,15 @@ them use triplicated synchronisers (`SyncTmr_g` = true). An event
 that occurs more than once while the previous one is crossing may be counted once (see `ofb_cc_pulse` in the
 `ofb_pkg` architecture).
 
+The control of the Physical adapters (PA_CTRL, MG-PA-02) leaves the MIB without a crossing, as static levels from
+registers of the management clock: the adapter runs its reset sequencers on its own free-running clock, which the core
+does not have, and synchronises the values itself. Coherence of the 16-bit PCSRSVDIN and the flags is ensured in the
+adapter (`ofb_pa_gty` architecture, section 4): it takes a value only after it has been unchanged for 8 cycles of its
+clock, longer than the synchroniser depth, and applies it only at the start of a reset sequence of a lane. Software
+changes PA_CTRL while the lanes are stopped or before a receiver reset command (LANE_CTRL RX_RESET); a write during
+traffic takes effect at the next reset sequence of each lane. A crossing into the lane clock domain would also clear
+the values during every transmitter reset (`olo_base_cc_bits` resets its output with the lane reset).
+
 ## 2. Register file
 
 - Read data is registered; `Rb_RdValid` follows `Rb_Rd` by one cycle.

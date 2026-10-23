@@ -95,7 +95,7 @@ board. The script `hdl/ofb_vck190/tcl/xsdb_mib.tcl` provides the access and the 
 xsdb% source hdl/ofb_vck190/tcl/xsdb_mib.tcl
 xsdb% mib_connect
 xsdb% mib_rd 0x000
-0x0FB10009
+0x0FB1000A
 xsdb% mib_rd 0x010
 xsdb% prbs_ber 0 31 480
 xsdb% prbs_off 0
@@ -107,6 +107,27 @@ read and write one register. `prbs_ber <lane> <pattern> <seconds>` runs the PRBS
 on one lane: pattern sent and checked, count reset, lock, measurement, bit error rate (upper bound at 95 %
 confidence without error), then one forced error, which must be counted once. `prbs_off <lane>` ends the test; the
 link of the lane is down while the test runs.
+
+Receiver reset of the lanes (register map, lane l at offset 0x20 x l): the adapter resets the receiver of a lane at
+every restart of the lane. LANE_STATUS (0x104) bits 24 to 27 show RXRESETDONE, a receiver reset in progress, the CDR
+lock and the receiver electrical idle; LANE_EVENTS (0x108) bits 4 to 7 the receive and transmit buffer errors, a
+completed receiver reset and a receiver reset timeout (write one to clear); LANE_TIMEOUT_COUNT (0x110) bits 15:0 the
+initialisation timeouts and bits 31:16 the completed receiver resets (a write clears both). LANE_INIT_TIMEOUT (0x07C)
+holds the initialisation timeout in words (reset value 0x72714 = 468750, 3 ms). PA_CTRL (0x080) changes the behaviour
+of the adapter at run time; a new value takes effect at the next reset sequence of a lane:
+
+| PA_CTRL | Behaviour |
+| --- | --- |
+| 0x03600005 (reset value) | Receiver reset at every restart of a lane, CDR hold during electrical idle, PCSRSVDIN 0x0360 |
+| 0x03600001 | As the reset value, without CDR hold |
+| 0x03600007 | CDR reset (RXCDRRESET) instead of the receiver reset at a restart |
+| 0x03600004 | No receiver reset at a restart, CDR hold during electrical idle |
+| 0x03600000 | No receiver reset at a restart, no CDR hold |
+| 0x02400005 | PCSRSVDIN 0x0240, the tie value of the transceiver wizard |
+
+Values other than the reset value are outside the verified configuration. `mib_wr 0x100 0x00040062` resets the
+receiver of lane 0 once (LANE_CTRL bit 18, with the reset value of the other bits; lanes 1 to 3 at 0x120, 0x140,
+0x160).
 
 ## 8. Tests
 
@@ -120,7 +141,7 @@ link of the lane is down while the test runs.
 | TC-VCK-HW-06 Lane failure | If the far end can disable a lane: disable lane 3 during traffic, enable it again | Traffic continues on three lanes without loss, the lane joins again |
 | TC-VCK-HW-07 Error recovery | If the far end can inject errors: bit errors or corrupted frames during traffic | Every packet comes back unchanged; the far end counts the retries |
 | TC-VCK-HW-08 Bit error rate | PRBS test of every lane with `prbs_ber` (section 7): PRBS-31 and PRBS-7 sent and checked, with a QSFP loopback module, with the far end (same pattern) or in the near-end serial loopback (LANE_CTRL bit 16); 480 s per lane and pattern | Checkers locked; no error (BER below 1e-12 at 95 % confidence); the forced error counted once |
-| TC-VCK-HW-09 Register access | After TC-VCK-HW-01: `mib_rd 0x000`, `mib_rd 0x010`, `mib_rd 0x040`; `mib_wr 0x044 0x1`, `mib_rd 0x044` | ID 0x0FB10009; DL_STATUS bits 1:0 = 11 (link initialised) and bit 9 = 1 (TX_READY); ML_STATUS shows four data-sending and data-receiving lanes; IRQ_MASK reads back 0x1 |
+| TC-VCK-HW-09 Register access | After TC-VCK-HW-01: `mib_rd 0x000`, `mib_rd 0x010`, `mib_rd 0x040`; `mib_wr 0x044 0x1`, `mib_rd 0x044` | ID 0x0FB1000A; DL_STATUS bits 1:0 = 11 (link initialised) and bit 9 = 1 (TX_READY); ML_STATUS shows four data-sending and data-receiving lanes; IRQ_MASK reads back 0x1 |
 
 ## 9. Limits of the reference design
 

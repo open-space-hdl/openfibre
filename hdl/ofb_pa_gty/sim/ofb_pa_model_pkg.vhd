@@ -29,15 +29,22 @@ package ofb_pa_model_pkg is
 
     -- Channel effects of the transmitted bits of one lane
     type PaModelLane_t is record
-        TxInvert  : boolean;  -- transmitted pair crossed (P and N swapped)
-        SkewUi    : natural;  -- additional delay of the transmitted bits, in unit intervals
-        Idle      : boolean;  -- loss of signal: electrical idle on the pins
-        ErrReq    : natural;  -- every increment inverts one bit of the next transmitted word
-        BurstReq  : natural;  -- every increment sets BurstLen consecutive bits of the next word to '0' (dropout)
-        BurstLen  : positive; -- 1 to 40
-        ErrEvery  : natural;  -- 0: off, else one inverted bit every ErrEvery transmitted bits
+        TxInvert    : boolean;  -- transmitted pair crossed (P and N swapped)
+        SkewUi      : natural;  -- additional delay of the transmitted bits, in unit intervals
+        Idle        : boolean;  -- loss of signal: electrical idle on the pins
+        ErrReq      : natural;  -- every increment inverts one bit of the next transmitted word
+        BurstReq    : natural;  -- every increment sets BurstLen consecutive bits of the next word to '0' (dropout)
+        BurstLen    : positive; -- 1 to 40
+        ErrEvery    : natural;  -- 0: off, else one inverted bit every ErrEvery transmitted bits
         -- Receiver side: every increment forces an error of the receive buffer of this lane (PA-RS-03)
-        BufErrReq : natural;
+        BufErrReq   : natural;
+        -- Entire receiver reset (PA-RS-04): RXRESETDONE returns RxResetTime after the end of the GTRXRESET pulse;
+        -- RxResetHang withholds it (PA-RS-05)
+        RxResetTime : time;
+        RxResetHang : boolean;
+        -- Every increment sets the transmit buffer error of this lane (TXBUFSTATUS[1]) until the transmit buffer
+        -- reset (PA-RS-06)
+        TxBufErrReq : natural;
     end record;
 
     type PaModelLaneArray_t is array (0 to PaModelLanes_c-1) of PaModelLane_t;
@@ -79,7 +86,10 @@ package ofb_pa_model_pkg is
         BurstReq => 0,
         BurstLen => 8,
         ErrEvery => 0,
-        BufErrReq => 0
+        BufErrReq => 0,
+        RxResetTime => 4 us,
+        RxResetHang => false,
+        TxBufErrReq => 0
     );
 
     -- Reset sequence of the transceiver model in the AMD simulator (ofb_pa_gty_core_tb, model.md section 3)

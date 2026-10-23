@@ -27,7 +27,6 @@ library work;
 entity ofb_lane is
     generic (
         ClkFrequency_g      : real                  := 156.25e6;
-        InitTimeoutWords_g  : positive              := 5000;
         InitPrbsWords_g     : natural range 0 to 64 := 64;
         SkipIntervalWords_g : positive              := 5000;
         SkipExternal_g      : boolean               := false; -- SKIP on Ctrl_SkipReq (multi-lane)
@@ -46,11 +45,11 @@ entity ofb_lane is
         RxWord_K                 : out   WordK_t;
         RxWord_Valid             : out   std_logic;
         -- Lane control from / to the Multi-Lane layer
-        Ctrl_LaneReset           : in    std_logic := '0';
-        Ctrl_SkipReq             : in    std_logic := '0';
-        Ctrl_TxOnly              : in    std_logic := '0';
-        Ctrl_RxOnly              : in    std_logic := '0';
-        Ctrl_FarEndActive        : in    std_logic := '0';
+        Ctrl_LaneReset           : in    std_logic                     := '0';
+        Ctrl_SkipReq             : in    std_logic                     := '0';
+        Ctrl_TxOnly              : in    std_logic                     := '0';
+        Ctrl_RxOnly              : in    std_logic                     := '0';
+        Ctrl_FarEndActive        : in    std_logic                     := '0';
         Ctrl_NearCapability      : in    Char_t;
         Ctrl_State               : out   LaneState_t;
         Ctrl_FarCapability       : out   Char_t;
@@ -68,13 +67,14 @@ entity ofb_lane is
         Phy_CdrEnable            : out   std_logic;
         Phy_RxInvert             : out   std_logic;
         Phy_NoSignal             : in    std_logic;
-        -- Management parameters
+        -- Management parameters; initialisation timeout in lane clock cycles (default 5000, ECSS 5.5.2.6b.1)
+        Cfg_InitTimeout          : in    std_logic_vector(23 downto 0) := x"001388";
         Cfg_LaneStart            : in    std_logic;
         Cfg_AutoStart            : in    std_logic;
         Cfg_LaneReset            : in    std_logic;
-        Cfg_NearLoopback         : in    std_logic := '0';
-        Cfg_FarLoopback          : in    std_logic := '0';
-        Cfg_StandbyReason        : in    Char_t    := (others => '0');
+        Cfg_NearLoopback         : in    std_logic                     := '0';
+        Cfg_FarLoopback          : in    std_logic                     := '0';
+        Cfg_StandbyReason        : in    Char_t                        := (others => '0');
         -- Status (events are one clock cycle long)
         Stat_State               : out   LaneState_t;
         Stat_RxErrCount          : out   Char_t;
@@ -145,12 +145,12 @@ begin
     -----------------------------------------------------------------------------------------------
     i_init : entity work.ofb_lane_init
         generic map (
-            ClkFrequency_g     => ClkFrequency_g,
-            InitTimeoutWords_g => InitTimeoutWords_g
+            ClkFrequency_g => ClkFrequency_g
         )
         port map (
             Clk                     => Clk,
             Rst                     => Rst,
+            Cfg_InitTimeout         => Cfg_InitTimeout,
             Cfg_LaneStart           => Cfg_LaneStart,
             Cfg_AutoStart           => Cfg_AutoStart,
             Cfg_LaneReset           => Cfg_LaneReset,

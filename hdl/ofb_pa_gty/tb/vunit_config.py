@@ -23,3 +23,6 @@ def configure(lib):
     # Lane restart with Phy_NoSignal following the line (loss detected by NoSignal instead of the Lane layer)
     core.add_config(name="lanes1_relock_line", generics={"Lanes_g": 1, "Short_g": True, "Relock_g": True,
                                                          "LineSig_g": True})
+    # Lane restart without a gap between two receiver resets (as the VCK190 design): every restart resets the receiver
+    core.add_config(name="lanes1_relock_gap0", generics={"Lanes_g": 1, "Short_g": True, "Relock_g": True,
+                                                         "RxRstGap_g": 0})

@@ -39,7 +39,8 @@ entity ofb_pa_gty_model_core_tb is
         Short_g    : boolean               := false;
         Relock_g   : boolean               := false;
         CutNs_g    : positive              := 5000;
-        LineSig_g  : boolean               := false -- Phy_NoSignal of both models follows the line (NoSignalLine)
+        LineSig_g  : boolean               := false; -- Phy_NoSignal of both models follows the line (NoSignalLine)
+        RxRstGap_g : natural               := 400000 -- gap between two receiver resets of a lane (FreeRunClk cycles)
     );
 end entity;
 
@@ -52,11 +53,12 @@ begin
 
     i_tb : entity work.ofb_pa_gty_core_tb
         generic map (
-            Lanes_g  => Lanes_g,
-            Short_g  => Short_g,
-            Relock_g => Relock_g,
-            CutNs_g  => CutNs_g,
-            Finish_g => false
+            Lanes_g    => Lanes_g,
+            Short_g    => Short_g,
+            Relock_g   => Relock_g,
+            CutNs_g    => CutNs_g,
+            RxRstGap_g => RxRstGap_g,
+            Finish_g   => false
         );
 
     -- Behaviour of Phy_NoSignal: never, as struct (default), or following the line

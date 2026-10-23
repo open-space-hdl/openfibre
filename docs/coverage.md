@@ -182,10 +182,10 @@ vcover report -du=* -details -zeros -code sbf coverage/coverage.ucdb
 
 The second command lists the statements, branches and state machine items that are not covered, per design unit.
 
-## 6. Releases 0.1.1 and 0.1.2: changed lines not measured
+## 6. Releases 0.1.1 to 0.1.3: changed lines not measured
 
 Sections 2 to 4 are the measurement of release 0.1.0; their line numbers refer to the sources of 0.1.0. Releases
-0.1.1 and 0.1.2 were verified with GHDL (full regression) and with the AMD Vivado simulator and the transceiver model;
+0.1.1 to 0.1.3 were verified with GHDL (full regression) and with the AMD Vivado simulator and the transceiver model;
 the QuestaSim regression and the code coverage were not repeated. The following lines of the instrumented sources
 changed and have no coverage measurement yet; the tests named here run in the GHDL regression and pass:
 
@@ -197,8 +197,14 @@ changed and have no coverage measurement yet; the tests named here run in the GH
 | 0.1.1 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`, `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd` | Behavioural model: `NoSignalNever` replaces `NoSignalSequence` (NoSignal 0, also during reset), `Phy_CdrEnable` without effect | TC-PA-10, TC-PA-15 |
 | 0.1.2 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`: reset sequence and transmitter | A reset during the reset sequence starts it again (the branches listed in section 4 as not covered at lines 236, 240, 245 and 248 of 0.1.0 are now exercised); the PRBS generator restarts with the reset of the transmitters, and the unreachable reset of section 4 (line 390 of 0.1.0) is removed | TC-PA-10, TC-PA-17 |
 | 0.1.2 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`, `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd`: receive buffer | With `RxBufReset_g` a buffer restarts at its start level after an overflow, every buffer error withholds the words of the reset window, a running buffer reports an error when the line becomes idle; control field `BufErrReq` forces a buffer error | TC-PA-18, TC-PA-15, TC-PA-02 (`lanes1_relock`), TC-CORE-36 |
+| 0.1.3 | `ofb_pa_gty/src/ofb_pa_gty_lane_rst.vhd` (new) | Reset sequencer of a lane: entire receiver reset, CDR-only reset, transmit buffer reset, buffer reset, bounded waits, gap, priority, PCSRSVDIN base (PA-RS-03 to PA-RS-06) | TC-PA-19 to TC-PA-25, TC-CORE-37 |
+| 0.1.3 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`, `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd` | Behavioural model: reset sequencer, RXRESETDONE, relock after a receiver reset, transmit buffer error, status and events (PA-MD-12) | TC-PA-25, TC-PA-15, TC-CORE-37 |
+| 0.1.3 | `ofb_lane/src/ofb_lane_init.vhd`, `ofb_lane/src/ofb_lane.vhd` | Initialisation timeout from the input `Cfg_InitTimeout` (24-bit timer) | TC-LN-31, TC-LN-54, TC-CORE-37 |
+| 0.1.3 | `ofb_mib/src/ofb_mib.vhd` | LANE_INIT_TIMEOUT, PA_CTRL, RX_RESET command, LANE_STATUS bits 27:24, LANE_EVENTS bits 7:4 with interrupt, RX_RESETS (MG-PA-01 to MG-PA-03) | TC-MG-01, TC-MG-09, TC-MG-12, TC-CORE-37 |
+| 0.1.3 | `ofb_core/src/ofb_core.vhd` | Generic `InitTimeoutWords_g`, ports of the receiver reset | TC-CORE-37 |
 
 The transceiver wrapper (`ofb_pa_gty_struct.vhd`: NoSignal 0 and CDR not held in 0.1.1, the reset of the receive
-elastic buffer in 0.1.2) and the VCK190 top level are verified in the AMD Vivado simulator as before and are not part
+elastic buffer in 0.1.2, the reset sequencers, the CDR hold and the status crossings in 0.1.3) and the VCK190 top
+level are verified in the AMD Vivado simulator as before and are not part
 of the QuestaSim measurement. A later release repeats the full QuestaSim regression with coverage and closes this
 section.
