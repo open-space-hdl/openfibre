@@ -176,11 +176,27 @@ package body ofb_tb_pkg is
     end protected body;
 
     procedure ofbTestEnd (signal runner : inout runner_sync_t) is
+        variable Mismatch_v : boolean := false;
     begin
         report_alert_counters(FINAL);
-        if shared_uvvm_status.mismatch_on_expected_simulation_warnings_or_worse /= 0 then
-            alert(TB_ERROR, "UVVM alert counters do not match the expected alerts", "ofbTestEnd");
-        end if;
+
+        -- The alert counters are compared here, independent of the end status of UVVM: an alert raised by the
+        -- test end itself would not stop a test that has raised the stop limit of its level
+        for L in WARNING to TB_FAILURE loop
+
+            if L /= MANUAL_CHECK and get_alert_counter(L, REGARD) /= get_alert_counter(L, EXPECT) then
+                Mismatch_v := true;
+                log(ID_SEQUENCER, t_alert_level'image(L) & ": " & integer'image(get_alert_counter(L, REGARD))
+                                  & " alerts, " & integer'image(get_alert_counter(L, EXPECT)) & " expected",
+                    "ofbTestEnd");
+            end if;
+
+        end loop;
+
+        -- A failure ends the simulation, whatever the stop limits of the test
+        assert not Mismatch_v
+            report "ofbTestEnd: the alerts of the test differ from the expected alerts (summary above)"
+            severity failure;
         test_runner_cleanup(runner);
     end procedure;
 

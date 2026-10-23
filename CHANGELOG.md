@@ -4,6 +4,13 @@ The notable changes of OpenFibre. The versions follow semantic versioning: 0.y.z
 version for an incompatible change of ports, generics or the register map, a minor version for a feature and a patch
 version for a fix.
 
+## [Unreleased]
+
+### Changed
+
+- Verification: the test end (`ofb_tb_pkg.ofbTestEnd`) compares the alert counters of every level itself and ends
+  the simulation with a failure, whatever the stop limits of the test.
+
 ## [0.1.2] - 2026-10-23
 
 ### Fixed
