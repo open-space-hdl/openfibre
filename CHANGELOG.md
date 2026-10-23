@@ -4,6 +4,39 @@ The notable changes of OpenFibre. The versions follow semantic versioning: 0.y.z
 version for an incompatible change of ports, generics or the register map, a minor version for a feature and a patch
 version for a fix.
 
+## [0.1.2] - 2026-10-23
+
+### Fixed
+
+- `ofb_pa_gty`: the receive elastic buffer of a lane was never reset; the lane initialisation depended on the buffer
+  recovering by itself after the recovered clock had become stable. The adapter now resets the buffer of a lane
+  alone (RX component reset in single mode, as AM002 recommends) after an overflow or underflow and once per lane
+  start at the first comma alignment within a window after the start. The words of the reset window (a fixed
+  length of 1.52 us) are not passed to the Lane layer; after the window the words pass as without the reset, so a
+  frame across the window is recovered by a retry and an idle line still reaches the Lane layer as RXERR words
+  (PA-RS-03).
+
+### Changed
+
+- `ofb_pa_gty`: new generic `RxBufReset_g` (default true; false keeps the behaviour of 0.1.1). The transceiver
+  wizard instance enables the optional ports `ch_gtrxreset`, `ch_rxresetmode`, `ch_rxpcsresetmask`,
+  `ch_rxpmaresetmask` and `ch_rxbyterealign`. `ofb_vck190` keeps the default.
+- Behavioural model `ofb_pa_gty(mdl)`: with `RxBufReset_g` a receive buffer restarts at its start level after an
+  overflow, every buffer error withholds the words of the reset window, and a running buffer reports a buffer error
+  when the line becomes idle, as the transceiver model; the new field `BufErrReq` of the control record forces a
+  buffer error. A reset during the reset sequence starts the sequence again; a reset of the transmitters restarts
+  the PRBS generator, as the transmit PCS of the transceiver.
+- Open Logic 4.7.0-ft.9 (none of the Open Logic units that OpenFibre uses changed from 4.7.0-ft.6).
+
+### Verification
+
+- GHDL: the full regression in the CI of the release pull request, on the released tree, with the new test of a
+  forced reset of the receive buffer during traffic (TC-CORE-36). AMD Vivado simulator with the transceiver model,
+  every run on the released tree: the tests of `ofb_pa_gty` (with the forced buffer errors of TC-PA-07),
+  `ofb_pa_gty` with two cores (one to four lanes, lane restart through an idle line) and `ofb_vck190` (records in
+  the verification report of `ofb_pa_gty`). The QuestaSim regression and the code coverage were not repeated; the
+  changed lines are listed in [coverage.md](docs/coverage.md), section 6.
+
 ## [0.1.1] - 2026-10-22
 
 ### Fixed
