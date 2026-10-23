@@ -32,9 +32,10 @@ version for a fix.
 
 - GHDL: the full regression in the CI of the release pull request, on the released tree, with the new test of a
   forced reset of the receive buffer during traffic (TC-CORE-36). AMD Vivado simulator with the transceiver model,
-  on the released tree: the lane restart, the forced buffer errors of TC-PA-07, four lanes with the reset of the
-  adapter, and three lanes (records in the verification report of `ofb_pa_gty`). The QuestaSim regression and the
-  code coverage were not repeated; the changed lines are listed in [coverage.md](docs/coverage.md), section 6.
+  every run on the released tree: the tests of `ofb_pa_gty` (with the forced buffer errors of TC-PA-07),
+  `ofb_pa_gty` with two cores (one to four lanes, lane restart through an idle line) and `ofb_vck190` (records in
+  the verification report of `ofb_pa_gty`). The QuestaSim regression and the code coverage were not repeated; the
+  changed lines are listed in [coverage.md](docs/coverage.md), section 6.
 
 ## [0.1.1] - 2026-10-22
 
