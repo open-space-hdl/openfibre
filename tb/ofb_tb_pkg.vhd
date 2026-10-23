@@ -180,8 +180,8 @@ package body ofb_tb_pkg is
     begin
         report_alert_counters(FINAL);
 
-        -- UVVM updates its end status (shared_uvvm_status) only when an alert occurs, so an expected alert
-        -- that never came would pass unnoticed: the counters are compared here
+        -- The alert counters are compared here, independent of the end status of UVVM: an alert raised by the
+        -- test end itself would not stop a test that has raised the stop limit of its level
         for L in WARNING to TB_FAILURE loop
 
             if L /= MANUAL_CHECK and get_alert_counter(L, REGARD) /= get_alert_counter(L, EXPECT) then

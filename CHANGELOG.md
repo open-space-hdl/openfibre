@@ -6,12 +6,10 @@ version for a fix.
 
 ## [Unreleased]
 
-### Fixed
+### Changed
 
-- Verification: the test end (`ofb_tb_pkg.ofbTestEnd`) fails on a missing or an extra expected alert. It
-  compared only the end status of UVVM, which UVVM updates when an alert occurs, so an expected alert that never
-  came passed unnoticed; it now compares the alert counters with the expected counts. No test of 0.1.2 expects
-  an alert, so no earlier result changes.
+- Verification: the test end (`ofb_tb_pkg.ofbTestEnd`) compares the alert counters of every level itself and ends
+  the simulation with a failure, whatever the stop limits of the test.
 
 ## [0.1.2] - 2026-10-23
 
