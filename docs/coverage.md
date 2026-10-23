@@ -40,7 +40,8 @@ the Multi-Lane layer and the MIB without the redundant transmitter register:
 - Without coverage: the full regression at commit 9dff622 at a time resolution of 1 fs, 396 tests, all passed. The
   tree of 9dff622 is the tree of main 77f4eea (71b4665, `git rev-parse 9dff622^{tree}` and
   `git rev-parse 77f4eea^{tree}`).
-- With coverage: the full regression at commit b6242a2 at the default resolution of 1 ps, 396 tests, 395 passed.
+- With coverage: the full regression at commit b6242a2 at the resolution of 1 ps that VUnit sets for QuestaSim, 396
+  tests, 395 passed.
   `ofb_pa_gty_model_core_tb.lanes4` failed its check of the clock corrections: the reference clock of B, 200 ppm
   slower than that of A, toggles after 3200.64 ps, which 1 ps truncates to 3200 ps, so both ends ran at the same
   frequency. Since 9dff622 `run.py` runs QuestaSim at 1 fs. The 50 tests whose clocks have fractions of a picosecond
@@ -163,8 +164,8 @@ a verification model; none of the items is behaviour that the model description 
 | Location | Item not covered | Justification |
 | --- | --- | --- |
 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:223` | Branch: the reset sequence starts while the stretched reset is already released | The process starts at time 0 and after every sequence when the stretched reset rises, so the reset is always active when it reaches this line. |
-| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:236`, `242` | Branches: `LaneClk` or TX ready already due when the wait begins | Constant by construction: the reset done of the previous start ends at the latest when `LaneClk` starts (line 228), and `ClkDelay` < `TxReadyDelay` (model description, section 3). |
-| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:231`, `240`, `245`, `248` | Branches: a reset of the adapter during the reset sequence (before `LaneClk` starts, before TX ready, before RX ready) | The testbenches reset the adapter at power-up and in operation, after RX ready (TC-PA-10, TC-PA-02). The sequence then starts again from the top of the process. |
+| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:231`, `242` | Branches: no reset done of the previous start, TX ready already due when the wait begins | Constant by construction: `TxDoneStale` and `ClkDelay` are positive, so the reset done of the previous start lasts beyond the start of the sequence (line 228), and `ClkDelay` < `TxReadyDelay` (model description, section 3). |
+| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:236`, `240`, `245`, `248` | Branches: a reset of the adapter during the reset sequence (while the reset done of the previous start shows, before `LaneClk` starts, before TX ready, before RX ready) | The testbenches reset the adapter at power-up and in operation, after RX ready (TC-PA-10, TC-PA-02). The sequence then starts again from the top of the process. |
 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:390`, statements 391 and 392 | Branch: reset of the PRBS generator inside the `LaneClk` branch of the transmitter | Not reachable: `LaneClk` stops in the delta cycle in which the stretched reset rises, and the transmitter takes the reset through TX ready (line 322). The PRBS generator keeps its state over a reset; its checker synchronises itself (TC-PA-17). |
 | `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd:149` | Branch: word pushed into a full receive buffer | Defensive. The receiver checks the level before it pushes and counts the lost word (`ofb_pa_gty_model.vhd` line 544, TC-PA-18). |
 
@@ -181,20 +182,23 @@ vcover report -du=* -details -zeros -code sbf coverage/coverage.ucdb
 
 The second command lists the statements, branches and state machine items that are not covered, per design unit.
 
-## 6. Release 0.1.1: changed lines not measured
+## 6. Releases 0.1.1 and 0.1.2: changed lines not measured
 
-Sections 2 to 4 are the measurement of release 0.1.0; their line numbers refer to the sources of 0.1.0. Release 0.1.1
-was verified with GHDL (full regression) and with the AMD Vivado simulator and the transceiver model; the QuestaSim
-regression and the code coverage were not repeated. The following lines of the instrumented sources changed and have
-no coverage measurement yet; the tests named here run in the GHDL regression and pass:
+Sections 2 to 4 are the measurement of release 0.1.0; their line numbers refer to the sources of 0.1.0. Releases
+0.1.1 and 0.1.2 were verified with GHDL (full regression) and with the AMD Vivado simulator and the transceiver model;
+the QuestaSim regression and the code coverage were not repeated. The following lines of the instrumented sources
+changed and have no coverage measurement yet; the tests named here run in the GHDL regression and pass:
 
-| Location | Change | Tests |
-| --- | --- | --- |
-| `ofb_multilane/src/ofb_ml_lane_mgr.vhd`: join hold (`Joining`, `JoinCnt`, `JoinDone`, `Hold`, output `Tx_Hold`) | Hold of the rows of the Data Link layer while a lane joins at the link start (ML-LM-17) | TC-ML-51, TC-CORE-34, TC-CORE-35 |
-| `ofb_multilane/src/ofb_ml_tx.vhd`: condition of `TxRow_Ready` | `Ctrl_Hold` keeps `TxRow_Ready` low | TC-CORE-34, TC-CORE-35 |
-| `ofb_multilane/src/ofb_multilane.vhd`, `ofb_core/src/ofb_core.vhd` | Generic `LaneJoinHoldWords_g` and its connection, elaboration check against `AlignTimeoutWords_g` | TC-CORE-34, TC-CORE-35 (configurations `lanes4_nohold`, `lanes4_hold1024`) |
-| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`, `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd` | Behavioural model: `NoSignalNever` replaces `NoSignalSequence` (NoSignal 0, also during reset), `Phy_CdrEnable` without effect | TC-PA-10, TC-PA-15 |
+| Release | Location | Change | Tests |
+| --- | --- | --- | --- |
+| 0.1.1 | `ofb_multilane/src/ofb_ml_lane_mgr.vhd`: join hold (`Joining`, `JoinCnt`, `JoinDone`, `Hold`, output `Tx_Hold`) | Hold of the rows of the Data Link layer while a lane joins at the link start (ML-LM-17) | TC-ML-51, TC-CORE-34, TC-CORE-35 |
+| 0.1.1 | `ofb_multilane/src/ofb_ml_tx.vhd`: condition of `TxRow_Ready` | `Ctrl_Hold` keeps `TxRow_Ready` low | TC-CORE-34, TC-CORE-35 |
+| 0.1.1 | `ofb_multilane/src/ofb_multilane.vhd`, `ofb_core/src/ofb_core.vhd` | Generic `LaneJoinHoldWords_g` and its connection, elaboration check against `AlignTimeoutWords_g` | TC-CORE-34, TC-CORE-35 (configurations `lanes4_nohold`, `lanes4_hold1024`) |
+| 0.1.1 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`, `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd` | Behavioural model: `NoSignalNever` replaces `NoSignalSequence` (NoSignal 0, also during reset), `Phy_CdrEnable` without effect | TC-PA-10, TC-PA-15 |
+| 0.1.2 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`: reset sequence and transmitter | A reset during the reset sequence starts it again (the branches listed in section 4 as not covered at lines 236, 240, 245 and 248 of 0.1.0 are now exercised); the PRBS generator restarts with the reset of the transmitters, and the unreachable reset of section 4 (line 390 of 0.1.0) is removed | TC-PA-10, TC-PA-17 |
+| 0.1.2 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`, `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd`: receive buffer | With `RxBufReset_g` a buffer restarts at its start level after an overflow, every buffer error withholds the words of the reset window, a running buffer reports an error when the line becomes idle; control field `BufErrReq` forces a buffer error | TC-PA-18, TC-PA-15, TC-PA-02 (`lanes1_relock`), TC-CORE-36 |
 
-The transceiver wrapper (`ofb_pa_gty_struct.vhd`: NoSignal 0, CDR not held) and the VCK190 top level are verified in
-the AMD Vivado simulator as before and are not part of the QuestaSim measurement. The next release repeats the full
-QuestaSim regression with coverage and closes this section.
+The transceiver wrapper (`ofb_pa_gty_struct.vhd`: NoSignal 0 and CDR not held in 0.1.1, the reset of the receive
+elastic buffer in 0.1.2) and the VCK190 top level are verified in the AMD Vivado simulator as before and are not part
+of the QuestaSim measurement. A later release repeats the full QuestaSim regression with coverage and closes this
+section.

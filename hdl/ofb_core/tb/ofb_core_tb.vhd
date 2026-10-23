@@ -1578,6 +1578,41 @@ begin
                 checkAlignTimeouts(1, 0, "Loss of four words at A");
                 checkNoLinkReset;
 
+            -- TC-CORE-36: one error of the receive buffer of lane 0 at A during traffic, with the pin model and the
+            -- reset of the receive buffer (PA-RS-03): the words of the reset window are missing, the Data Link layer
+            -- recovers the frames with a retry, every packet is delivered in order, and lane 0 of A neither overflows
+            -- its RXERR counter nor leaves Active (a single buffer error costs no lane restart)
+            elsif run("test_buffer_reset") then
+                if PinModel_g then
+                    linkUp(500 us);
+                    allLanes(500 us);
+                    sendAll(40);
+                    cycles(300);
+                    PaCtrl(0).BtoA.Slips <= PaCtrl(0).BtoA.Slips + 1;
+                    T0_v                 := now;
+
+                    loop
+                        rd(0, RegLaneStat_c, Data_v);
+                        check_value(Data_v(3 downto 0), x"7", error, "Lane 0 of A Active after the buffer error");
+                        exit when now - T0_v > 20 us;
+                    end loop;
+
+                    waitDelivered(5 ms);
+                    rd(0, RegLaneEvents_c, Data_v);
+                    check_value(Data_v(0), '0', error, "No RXERR overflow at lane 0 of A");
+                    rd(0, RegLaneTimeoutCount_c, Data_v);
+                    check_value(to_integer(unsigned(Data_v(15 downto 0))), 0, error, "No initialisation timeout at A");
+                    N_v := 0;
+
+                    for c in 0 to 1 loop
+                        rd(c, RegRetries_c, Data_v);
+                        N_v := N_v + to_integer(unsigned(Data_v));
+                    end loop;
+
+                    log(ID_LOG_HDR, "Retries at both ends after the buffer error: " & to_string(N_v));
+                    check_value(N_v > 0, error, "The frames of the reset window recovered by a retry");
+                end if;
+
             -- TC-CORE-34: join hold (ML-LM-17). Packets wait on every VC before the start; at A the last lane is
             -- started 3 us after the others (B follows with AutoStart), so it enters Active after the alignment of
             -- the other lanes. The Data Link layer sends only after the last lane has joined: all packets are
@@ -1597,7 +1632,7 @@ begin
                 N_v := 0;
 
                 for c in 0 to 1 loop
-                    rd(c, RegDlRetries_c, Data_v);
+                    rd(c, RegRetries_c, Data_v);
                     N_v := N_v + to_integer(unsigned(Data_v));
                     rd(c, RegDlErrors_c, Data_v);
                     if LaneJoinHold_g > 0 or NumLanes_g = 1 then

@@ -52,6 +52,7 @@ link.
 | `Lane(l).ErrReq` | 0 | Every increment inverts one bit of the next transmitted word |
 | `Lane(l).BurstReq`, `BurstLen` | 0, 8 | Every increment sets `BurstLen` consecutive bits of the next word to '0' (a dropout, always detected by 8B/10B) |
 | `Lane(l).ErrEvery` | 0 | One inverted bit every `ErrEvery` transmitted bits (0: off) |
+| `Lane(l).BufErrReq` | 0 | Receiver side: every increment forces an error of the receive buffer of the lane, with `RxBufReset_g` followed by the reset window (PA-RS-03) |
 
 The default reset sequence is that of the transceiver model in the AMD simulator, measured with
 `ofb_pa_gty_core_tb`. At power-up (four lanes, the reset of the adapter released at 200 ns, the stretched reset of
@@ -100,21 +101,28 @@ of the signal, also when a lane restarts in operation (run `lanes1_relock` of th
   been idle for `NoSignalDelay` (receivers ready, receiver enabled), the receiver delivers one word per
   `LaneClk` cycle as the receiver of the transceiver model: 13 words with code errors, then words without errors that
   are not lane words. The Lane layer loses the word synchronisation after the errors (ECSS 5.5.8), counts every
-  following word as RXERR and enters LossOfSignal when the RXERR counter overflows (255 words, 1.6 us).
+  following word as RXERR and enters LossOfSignal when the RXERR counter overflows (255 words, 1.6 us). When the
+  receive buffer had delivered words before the line became idle, it reports an error after the 13 words, as in the
+  transceiver model (its recovered clock stops), and with `RxBufReset_g` the reset window below applies.
 - Receive buffer: 64 words per lane into `LaneClk`. The output starts at 16 words; above 24 words a SKIP word is
   removed, below 8 words a SKIP word is repeated (`Stat_ClkCor`, one pulse per correction). A full or empty buffer
-  sets `Stat_RxBufErr`.
+  sets `Stat_RxBufErr`; after an underflow, and with `RxBufReset_g` (default) also after an overflow, the buffer starts
+  again at 16 words, as `struct` resets the receive elastic buffer (PA-RS-03). With `RxBufReset_g`, every buffer
+  error starts the reset window of `struct` (238 `LaneClk` cycles): no word is valid during it, and after it the
+  words are delivered as they come.
 - Status: `Stat_Aligned` per lane, `Phy_NoSignal` as selected by `NoSignalMode`, `Stat_TxReady` (register of
   `FreeRunClk` that takes the transmit reset done only after it was 0 once since the release of the reset, as in
   `struct`), `Stat_RxReady`, `LaneRst` (set without a `LaneClk` edge while the transmitters
   are not ready, released two `LaneClk` cycles after `Stat_TxReady`). A reset through `Rst` stops `LaneClk` until
   `ClkDelay` after the start of the new sequence, as the reset controller of the transceiver stops the user clock.
+  A reset during the reset sequence starts the sequence again from its beginning.
 - Serial loopbacks: near-end, the receiver gets the own transmitted bits (the pins are still driven); far-end, the
   received bits are sent back on the pins.
 - PRBS test: PRBS-7, -9, -15, -23 and -31 generator and checker per lane on the bit stream (encoding of the
   transceiver, 1 to 5), bypassing 8B/10B; force error inverts one bit; the self-synchronising checker locks after 64
   correct bits and counts an error per wrong bit while locked (a forced error is seen at the bit and at the two taps
-  that use it); `Phy_PrbsErr` per `LaneClk` cycle with an error.
+  that use it); `Phy_PrbsErr` per `LaneClk` cycle with an error. The generator restarts from its seed after a reset
+  of the transmitters, as the transmit PCS of the transceiver.
 
 ## 5. Limits
 

@@ -49,7 +49,10 @@ architecture mdl of ofb_pa_gty is
     constant LockBits_c : positive := 64;
 
     -- NoSignalNever: words with code errors at the start of an idle period of the line (transceiver)
-    constant IdleErrWords_c : positive := 13;
+    constant IdleErrWords_c   : positive := 13;
+    -- Reset window of the receive elastic buffer in struct (setup, pulse and hold: 152 cycles of FreeRunClk at
+    -- 100 MHz) in cycles of LaneClk (PA-RS-03)
+    constant BufWindowWords_c : positive := 238;
 
     type IntArray_t is array (0 to N_c-1) of natural;
 
@@ -318,9 +321,11 @@ begin
         begin
             if TxRdy = '0' then
                 -- Electrical idle at once when the transmitters are not ready, also when a reset stops LaneClk in the
-                -- same delta cycle (the bits already scheduled are discarded)
+                -- same delta cycle (the bits already scheduled are discarded); the reset of the transmitters also
+                -- resets the running disparity and the PRBS generator, as the transmit PCS of the transceiver
                 TxLine(l) <= 'Z';
                 Rd_v      := '0';
+                Lfsr_v    := (others => '1');
             elsif rising_edge(LaneClk) then
                 Lane_v := PaModelCtrl(ModelIdx_g).Lane(l);
                 if Phy_TxEnable(l) = '0' or Lane_v.Idle then
@@ -384,10 +389,6 @@ begin
                 end if;
                 ErrReq_v := Lane_v.ErrReq;
                 BurstR_v := Lane_v.BurstReq;
-                if RstFree = '1' then
-                    Rd_v   := '0';
-                    Lfsr_v := (others => '1');
-                end if;
             end if;
         end process;
 
@@ -598,10 +599,15 @@ begin
             variable Lost_v   : natural := 0;
             variable IsSkip_v : boolean;
             variable Ctrl_v   : PaModelCtrl_t;
-            variable Idle_v   : natural := 0; -- words with code errors delivered in the current idle period
+            variable Idle_v   : natural := 0;     -- words with code errors delivered in the current idle period
+            variable Window_v : natural := 0;     -- PA-RS-03: cycles left of the reset window of the buffer
+            variable BufReq_v : natural := 0;     -- forced buffer errors served (control record)
+            variable Ran_v    : boolean := false; -- the buffer delivered words since it was last started
         begin
             if RstFree = '1' then
                 Run_v                           := false;
+                Window_v                        := 0;
+                Ran_v                           := false;
                 PhyRx_Data(32*l+31 downto 32*l) <= (others => '0');
                 PhyRx_K(4*l+3 downto 4*l)       <= (others => '0');
                 PhyRx_CodeErr(4*l+3 downto 4*l) <= (others => '0');
@@ -631,9 +637,15 @@ begin
                     Run_v := true;
                 end if;
                 if Run_v then
+                    Ran_v := true;
+                end if;
+                if Run_v then
                     if Lvl_v = 0 then
                         Stat_RxBufErr(l) <= '1';
                         Run_v            := false;
+                        if RxBufReset_g then
+                            Window_v := BufWindowWords_c;
+                        end if;
                     else
                         Word_v   := RxBuf_v.peek(l);
                         IsSkip_v := Word_v.Data = WordSkip_c and Word_v.K = "0001";
@@ -668,6 +680,16 @@ begin
                         Idle_v                          := Idle_v + 1;
                     else
                         PhyRx_CodeErr(4*l+3 downto 4*l) <= "0000";
+                        -- A running buffer loses its recovered clock when the line becomes idle: it reports an
+                        -- error after the words with code errors, as in the transceiver model (not on a line that
+                        -- never carried a signal since the buffer was last started)
+                        if Ran_v then
+                            Stat_RxBufErr(l) <= '1';
+                            Ran_v            := false;
+                            if RxBufReset_g then
+                                Window_v := BufWindowWords_c;
+                            end if;
+                        end if;
                     end if;
                     PhyRx_DispErr(4*l+3 downto 4*l) <= "0000";
                     PhyRx_Valid(l)                  <= '1';
@@ -676,8 +698,32 @@ begin
                 end if;
                 if RxOverrun(l) /= Lost_v then
                     Stat_RxBufErr(l) <= '1';
+                    -- PA-RS-03: the buffer is reset and starts again at the start level (an underflow already
+                    -- restarts it there)
+                    if RxBufReset_g then
+                        RxBuf_v.clear(l);
+                        Run_v    := false;
+                        Window_v := BufWindowWords_c;
+                    end if;
                 end if;
                 Lost_v := RxOverrun(l);
+                -- Forced error of the receive buffer (control record, BufErrReq)
+                if Ctrl_v.Lane(l).BufErrReq /= BufReq_v then
+                    BufReq_v         := Ctrl_v.Lane(l).BufErrReq;
+                    Stat_RxBufErr(l) <= '1';
+                    if RxBufReset_g then
+                        RxBuf_v.clear(l);
+                        Run_v    := false;
+                        Window_v := BufWindowWords_c;
+                    end if;
+                end if;
+                -- PA-RS-03: the words of the reset window of the buffer are withheld (the zero words of the
+                -- reset never pass as data); after the window the words are delivered as they come, so an idle
+                -- line still drives the RXERR counter of the Lane layer
+                if Window_v > 0 then
+                    Window_v       := Window_v - 1;
+                    PhyRx_Valid(l) <= '0';
+                end if;
                 if PrbsErrs(l) /= Errs_v then
                     Phy_PrbsErr(l) <= '1';
                 end if;
