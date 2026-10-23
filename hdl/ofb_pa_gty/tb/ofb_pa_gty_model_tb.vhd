@@ -657,15 +657,28 @@ begin
                 clearCounts;
                 waitUs(10);
                 checkClean(1000, "Signal back");
+                -- NoSignalLine during a reset of the adapter of B: no signal on every lane of B while it is in reset
+                RstEnd(1) <= '1';
+                wait for 100 ns;
+                check_value(NoSig(1), (N_c-1 downto 0 => '1'), error, "Line mode: no signal at B during its reset");
+                RstEnd(1) <= '0';
+                wait until RxRdy(1) = '1' for 20 us;
+                wait until Aligned(1) = (N_c-1 downto 0 => '1') for 5 us;
+                check_value(Aligned(1), (N_c-1 downto 0 => '1'), error, "Line mode: lanes of B aligned after its reset");
+                waitUs(3);
+                clearCounts;
+                waitUs(10);
+                checkClean(1000, "Line mode: after the reset of B");
                 -- NoSignalNever (default, as struct): Phy_NoSignal stays 0, an idle line gives the idle line words
                 PaModelCtrl(1).NoSignalMode <= NoSignalNever;
                 waitUs(1);
                 check_value(NoSig(1)(0), '0', error, "Never mode: no signal 0 at B");
                 clearCounts;
                 TxEn(0)(0)                  <= '0';
-                waitUs(2);
+                waitUs(4);
                 check_value(NoSig(1)(0), '0', error, "Never mode: line ignored, A off");
-                -- Idle line: 13 words with code errors, then words without errors (no lane words)
+                -- Idle line: 13 words with code errors, then words without errors (no lane words); the buffer
+                -- error of the idle line withholds the words of the reset window (238 words, PA-RS-03) first
                 check_value(ErrWords(1)(0), 13, error, "Never mode: words with code errors at B, line idle");
                 check_value(Good(1)(0) + Bad(1)(0) > 200, error, "Never mode: words without errors after them");
                 check_value(Aligned(1)(0), '0', error, "Never mode: lane 0 of B not aligned");
@@ -771,6 +784,23 @@ begin
 
                 if PpmB_g /= 0 then
                     check_value(N_v > 0, error, "Receive buffer errors without SKIP words");
+
+                    -- PA-RS-03: every buffer error resets the buffer, which starts again at the start level, so the
+                    -- errors are rare and the words arrive in order between them (a full buffer without the reset
+                    -- would lose a word about every 1000 words)
+                    for e in 0 to 1 loop
+
+                        for l in 0 to N_c-1 loop
+                            check_value(BufErrs(e)(l) <= 20, error, "Buffer errors limited by the buffer reset at end " &
+                                        to_string(e) & ", lane " & to_string(l) & ": " & to_string(BufErrs(e)(l)));
+                            check_value(Bad(e)(l) <= BufErrs(e)(l), error, "At most one word out of order per buffer " &
+                                        "error at end " & to_string(e) & ", lane " & to_string(l));
+                            check_value(Good(e)(l) > 10000, error, "Words in order at end " & to_string(e) &
+                                        ", lane " & to_string(l) & ": " & to_string(Good(e)(l)));
+                        end loop;
+
+                    end loop;
+
                 else
                     check_value(N_v, 0, error, "No receive buffer error with equal clocks");
                 end if;

@@ -42,6 +42,7 @@ transceivers completely (PA-RS-02).
 | `Phy_PrbsErr(l)`, `Phy_PrbsLocked(l)` | `ch_rxprbserr`, `ch_rxprbslocked` (receive user clock = `LaneClk`) |
 | `Stat_ClkCor(l)` | `ch_rxclkcorcnt` /= 0 (a SKIP word inserted or removed in this cycle) |
 | `Stat_RxBufErr(l)` | `ch_rxbufstatus(2)` (receive elastic buffer overflow or underflow) |
+| (receive elastic buffer reset, section 5) | `ch_gtrxreset`, `ch_rxresetmode`, `ch_rxpcsresetmask`, `ch_rxpmaresetmask` of channel l; requests from `ch_rxbufstatus(2)`, `ch_rxbyteisaligned` and `ch_rxbyterealign` |
 
 Channels without a lane (`NumLanes_g` < 4) send electrical idle; their receive outputs are not used.
 
@@ -60,7 +61,51 @@ ready status without a lane clock. `LaneRst` comes from an `olo_base_reset_gen` 
 `SyncTmr_g` = true) with `Stat_TxReady` as input: set without a clock edge while the transmitters are not ready,
 released synchronously.
 
-## 5. Transceiver configuration
+## 5. Receive elastic buffer reset
+
+With `RxBufReset_g` (default) the adapter resets the receive elastic buffer of a lane alone (PA-RS-03). The
+transceiver documentation (AM002, recommended receiver resets) asks for such a reset after an overflow or underflow of
+the buffer, after a comma alignment and after the recovered clock becomes stable on new data; without it the content
+of the buffer stays invalid. In a lane start the receiver reset completes before the far end sends, so the recovered
+clock becomes stable only later.
+
+- Requests, per lane in `LaneClk`: `ch_rxbufstatus(2)` (overflow or underflow) at any time, and one alignment request
+  per lane start. The start arms the alignment request when the receivers become ready or line receiver enable rises;
+  the first comma alignment within 8192 `LaneClk` cycles (52 us, the initialisation timeout and the lock of the
+  clock-data recovery) after it (`ch_rxbyteisaligned` rising, synchronised, or a `ch_rxbyterealign` pulse) requests
+  the reset and disarms it, and the end of the window disarms it as well. A lane that was already aligned when it
+  started (the comma aligner locked before the receivers were ready) has no alignment event in its start; without the
+  window, a realignment during traffic would reset its buffer and drop words of the running link. Further
+  realignments do not request a reset, so a reset cannot start the next one through the comma aligner (the PRBS
+  test, for example, realigns all the time on the random data).
+- A request is stretched to 16 `LaneClk` cycles and crosses to `FreeRunClk` in an `olo_intf_sync` with
+  `SyncTmr_g` = true.
+- Sequencer, per lane in `FreeRunClk`: `ch_rxresetmode` = 11 (single mode), `ch_rxpmaresetmask` = 0000000 and
+  `ch_rxpcsresetmask` = 00100 (RX elastic buffer) for 8 cycles, then `ch_gtrxreset` for 16 cycles (at least one
+  reference clock period), the masks held for 128 more cycles (single mode reports no reset done), then the values of
+  the master reset again (sequential mode, all masks set, `ch_gtrxreset` low, the values the wizard ties these ports to
+  when they are not used) and a holdoff of 256 cycles before the next reset. A request during the hold or the holdoff
+  is served after the holdoff. While the receivers are not ready (`rst_rx_done` low) or the free-running reset is
+  active, the sequencer stays idle with the master reset values.
+- Received words: during the reset the buffer delivers words of value 0. The reset window (setup, pulse and hold,
+  152 cycles of `FreeRunClk`, 1.52 us at 100 MHz, about 238 words) crosses back to `LaneClk` (`olo_intf_sync`,
+  `SyncTmr_g` = true); while it is active `PhyRx_Valid` of the lane is low, and after it the words are valid as
+  without the reset. The words of the window are missing, not replaced and not counted as RXERR: a frame across it
+  fails in the Data Link layer, and the retry recovers it. The zero words of the reset last about 0.3 us on the
+  transceiver model, so they lie inside the window with a margin of a factor of 5; the hardware test confirms it.
+  A word after the window that is wrong but correctly coded (for example a shifted word until the next K character)
+  reaches the Data Link layer, whose CRC rejects the frame, and the retry recovers it; the word synchronisation check
+  of the Lane layer catches a lost alignment at the next K character.
+- Idle line: the buffer reports an error when the line becomes idle, and the reset follows. The window has a fixed
+  length, and after it the receiver delivers words again (code errors, then words without lane meaning), so the
+  RXERR counter of the Lane layer overflows and the lane detects the lost signal (PA-IF-03); resets are at least
+  the holdoff apart, so each gap carries more than 400 words. Withholding the words until the first K character
+  instead would hide the idle line, which delivers none: the lane would stay Active through an interruption.
+
+With `RxBufReset_g` = false the ports keep the master reset values: the behaviour is that of the transceiver without
+the reset.
+
+## 6. Transceiver configuration
 
 `tcl/ofb_gtw.tcl` sets the line rate settings `LR0_SETTINGS` of interface 0 (`INTF0_GT_SETTINGS`) and the optional
 ports (`INTF0_OPTIONAL_PORTS`, the dictionary of all ports with the used ones enabled). The settings are listed in the

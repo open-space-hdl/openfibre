@@ -59,6 +59,7 @@ All files of `compile_order_sim.txt` analyse strictly (GHDL without `-frelaxed`)
 | `NumLanes_g` | 1 to 4, the same as `NumLanes_g` of `ofb_core` |
 | `RstPulseCycles_g` | Cycles of `FreeRunClk` of the stretched reset (default 1000); the reset sequence starts at its end, not before `PowerUpTime` |
 | `ModelIdx_g` | 0 to 7, a different value for every instance: the index of its control record `PaModelCtrl(ModelIdx_g)` in `ofb_pa_model_pkg` |
+| `RxBufReset_g` | The same as for the transceiver (default true): an overflow of a receive buffer restarts it at its start level, as `struct` resets the receive elastic buffer (PA-RS-03) |
 | `SimDevice_g` | Ignored by the model |
 
 Clocks and connections of each adapter:

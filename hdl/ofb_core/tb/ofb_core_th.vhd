@@ -800,6 +800,12 @@ begin
                     Ctrl_v(e).Lane(l).SkewUi   := 10 * Dir_v.Offset + 40 * Dir_v.Skew;
                     Ctrl_v(e).Lane(l).Idle     := Dir_v.Cut;
                     Ctrl_v(e).Lane(l).ErrReq   := Dir_v.Flips;
+                    -- Receiver side: the slips of the direction into adapter e force errors of its receive buffer
+                    if e = 0 then
+                        Ctrl_v(e).Lane(l).BufErrReq := PaCtrl(l).BtoA.Slips;
+                    else
+                        Ctrl_v(e).Lane(l).BufErrReq := PaCtrl(l).AtoB.Slips;
+                    end if;
                 end loop;
 
             end loop;
