@@ -187,27 +187,34 @@ cause and its correction are recorded in the verification report of `ofb_multila
 
 Runs on 2026-10-23 with Vivado 2025.2 (xsim) on the tree of release 0.1.2 (commit c66ede8; the release tree differs
 from it in Markdown files and in the test selection of `hdl/ofb_core/tb/vunit_config.py` only):
-`python tools/run_xsim.py <test run>`.
+`python tools/run_xsim.py <test run>`, every test run on this tree, none carried over.
 
 | Testbench | Test | Result | Simulated time |
 | --- | --- | --- | --- |
-| `ofb_pa_gty_core_tb`, run `relock` | TC-PA-02 lane restart (idle line, reset of the receive buffer) | Pass | 147 us |
+| `ofb_pa_gty_tb` | TC-PA-01, TC-PA-04, TC-PA-06 | Pass | 132 us |
+| `ofb_pa_gty_cc_tb`, run `cc` | TC-PA-03 | Pass | 94 us |
 | `ofb_pa_gty_cc_tb`, run `buferr` | TC-PA-07 | Pass | 318 us |
+| `ofb_pa_gty_core_tb` | TC-PA-02, four lanes, with the reset of the adapter of A | Pass | 295 us |
+| `ofb_pa_gty_core_tb`, runs `lanes1` to `lanes3` | TC-PA-02 with 1 to 3 lanes | Pass | 98 to 103 us |
+| `ofb_pa_gty_core_tb`, run `relock` | TC-PA-02 lane restart (idle line, reset of the receive buffer) | Pass | 147 us |
+| `ofb_vck190_tb` | TC-VCK-01 | Pass | 98 us |
 
-Lane restart with the reset of the receive buffer: lane 0 of A left Active during the interruption of the line and was
-Active again at both ends 26.04 us after the transmitter of B was enabled again, DL_ERRORS 0, second burst delivered.
-TC-PA-07 (no SKIP words, reference clock of B 1000 ppm slower): 36 buffer errors at A (indication at most 4 `LaneClk`
-cycles), 8 at B (at most 10 cycles), 0 and 0 drops of the receivers ready; per lane about 30,323 words at A with 72 in
-error and 33,248 words at B with 4 in error. The words of each reset window are missing and no word of the reset appears
-as data. In progress on this tree, completing this section before the release: `ofb_pa_gty_core_tb` with four lanes and
-run `lanes3`.
+`ofb_pa_gty_tb`: 342 data words per lane without error, 409 per lane in near-end serial loopback, the PRBS-31 checkers
+locked, words with errors only after the bit errors on the line. TC-PA-03: 8 clock corrections at A and 4 at B, 0 and 0
+buffer errors. TC-PA-07 (no SKIP words, reference clock of B 1000 ppm slower): 36 buffer errors at A (indication at most
+4 `LaneClk` cycles), 8 at B (at most 10 cycles), 0 and 0 drops of the receivers ready; per lane about 30,323 words at A
+with 72 in error and 33,248 words at B with 4 in error, the same counts as with the previous gating. The words of each
+reset window are missing and no word of the reset appears as data. TC-PA-02 with four lanes: link initialised after 93.1
+us, first burst delivered after 97.2 us, clock corrections A 4, B 1; all 24 packets per VC and direction and 4 broadcast
+messages per direction delivered in order, DL_ERRORS 0 and no retry at either end; after the reset of the adapter of A
+only TX_LOST at A and Far-End Link Reset at B. With one to three lanes DL_ERRORS 0 at both ends. Lane restart with the
+reset of the receive buffer: lane 0 of A left Active during the interruption of the line and was Active again at both
+ends 26.04 us after the transmitter of B was enabled again, DL_ERRORS 0, second burst delivered. `ofb_vck190_tb`: 6
+packets back on every one of the 8 VCs, DL_ERRORS 0 and no retry at the far end.
 
 On a tree with the previous gating of the received words (commit 2afb1b6: the first K character required again after
 the reset window), `ofb_pa_gty_core_tb`, `ofb_pa_gty_cc_tb` run `buferr` and runs `lanes1` to `lanes3` passed, and run
-`relock` failed: lane 0 of A stayed Active through the interruption (finding in section 2). `ofb_pa_gty_tb`,
-`ofb_pa_gty_cc_tb` run `cc` and `ofb_vck190_tb` passed on release 0.1.1 (without the reset of the receive buffer),
-which stays their reference until they are repeated. These three and runs `lanes1` and `lanes2` are pending on this
-tree; they complete this section before the release.
+`relock` failed: lane 0 of A stayed Active through the interruption (finding in section 2).
 
 ### Behavioural model (architecture `mdl`)
 
