@@ -6,7 +6,7 @@ Run on 2026-10-13 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_mib_tb` | 11 | 11 |
+| `ofb_mib_tb` | 12 | 12 |
 
 Full regression of the repository: 227 of 227 tests pass (with the packet ports of the VCs and register map version
 7). VSG reports no errors and no warnings. Run on 2026-10-15 with register map version 8 (transmitter ready): 11 of
@@ -16,6 +16,14 @@ value. A MIB that does not count the expiries fails TC-MG-06 (mutation check). R
 also counts one Misaligned condition and one expiry of the alignment watchdog and checks that the Link Reset command
 clears ML_MISALIGNED and ML_ALIGN_TIMEOUTS (MG-ST-07). QuestaSim on 2026-10-18: 11 of 11 with coverage (commit
 b6242a2) and without coverage (commit 9dff622, the tree of main 77f4eea).
+
+Run on 2026-10-23 with register map version 10 (initialisation timeout and Physical adapter registers, MG-PA-01 to
+MG-PA-03): 12 of 12, full regression 423 of 423. TC-MG-12 (new) checks LANE_INIT_TIMEOUT, PA_CTRL, the RX_RESET
+command, the receiver reset status, the four new lane events with interrupt and RX_RESETS; TC-MG-01 reads the reset
+values of the two new registers at the register file and at the outputs; TC-MG-09 saturates RX_RESETS with 65537
+receiver resets in parallel to the CRC-8 counter. Mutation checks: a MIB with a wrong PA_CTRL flag reset value fails
+TC-MG-01, one that counts the receiver reset timeouts as receiver resets, one that loses the RX_RESET command and one
+whose Interface Reset keeps LANE_INIT_TIMEOUT fail TC-MG-12.
 
 ## 2. Summary
 
@@ -59,3 +67,4 @@ Defects found during verification:
 | The sticky bandwidth flags latched the undefined value of the status crossing before its first transfer (simulation) | The sticky flags accumulate the crossed status only 32 cycles after reset (first fix with `to_01` replaced: not synthesizable, found with `lint/synth_check.py`) |
 | Every event was counted twice and every command gave two pulses: `olo_ft_cc_pulse` stretches its output pulses to two cycles of the output clock | `ofb_cc_pulse` (edge detector after `olo_ft_cc_pulse`), also used in the input VC buffer of the Data Link layer, where the same effect doubled the FCT requests |
 | First build of the VCK190 design: the latches of `olo_ft_cc_pulse` can lose commands and events (gate and data follow the input pulse) | `ofb_cc_pulse` without latch: handshake with single-cycle output pulses (`ofb_pkg` report) |
+| Release 0.1.3, TC-CORE-37 through the adapter models: PCSRSVDIN read 0x0000 at the port of the core before `LaneClk` ran. PA_CTRL crossed into the lane clock domain with `olo_base_cc_bits`, whose output follows the lane reset, so the adapter would see PCSRSVDIN 0 and the flags 0 during every transmitter reset and could take that value at the start of a reset sequence | PA_CTRL leaves the MIB as static levels from registers of the management clock; the adapter synchronises them and takes a value after 8 unchanged cycles of its free-running clock (MG-PA-02) |

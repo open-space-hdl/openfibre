@@ -50,6 +50,16 @@ TC-CORE-35 pass in their configurations (10 of 10):
 The full GHDL regression of the released tree runs in the CI of the release pull request. The QuestaSim regression was
 not repeated for release 0.1.1 ([coverage.md](../../../docs/coverage.md), section 6).
 
+Run on 2026-10-23 with the initialisation timeout from the MIB and the ports of the receiver reset (CORE-PL-07,
+CORE-PL-08, release 0.1.3): the full regression, 423 of 423 tests in GHDL. TC-CORE-37 (`lanes2_pin_rxrst`, two lanes
+through the adapter models without a gap between two receiver resets): lane 0 of A, started without a far end, stayed
+in Started for 32.04 us with the reset value of 5000 words and for 96.0 us after LANE_INIT_TIMEOUT was set to 15000
+words; after the RX_RESET command during traffic RX_RESETS of lane 0 of A read 1, the RX_RESET flag was set, no
+receiver reset timed out, and every packet was delivered in order; with RX_RESET_CDR_ONLY the commanded reset left
+RX_RESET_DONE at 1. Mutation checks: a core whose lanes do not take LANE_INIT_TIMEOUT fails TC-CORE-37, and a lane
+whose timeout ignores `Cfg_InitTimeout` fails TC-CORE-37 and TC-LN-54. The QuestaSim regression was not repeated for
+release 0.1.3 ([coverage.md](../../../docs/coverage.md), section 6).
+
 Run on 2026-10-18 with the behavioural adapter model, two cores pin to pin through two `ofb_pa_gty` with the
 architecture `mdl`: TC-CORE-03 passes with `CdrLockTime` 500 ns (`lanes4_pin`, no expiry of the alignment watchdog)
 and with the lock time of the transceiver model and near the ends of the interval that bounds it, 16.65 us, 16.83 us

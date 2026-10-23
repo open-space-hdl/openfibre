@@ -216,6 +216,20 @@ On a tree with the previous gating of the received words (commit 2afb1b6: the fi
 the reset window), `ofb_pa_gty_core_tb`, `ofb_pa_gty_cc_tb` run `buferr` and runs `lanes1` to `lanes3` passed, and run
 `relock` failed: lane 0 of A stayed Active through the interruption (finding in section 2).
 
+### Release 0.1.3
+
+GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, on 2026-10-23: the reset sequencer `ofb_pa_gty_lane_rst_tb`, 6 of 6 (TC-PA-19 to
+TC-PA-24, the port rules checked by the monitor in every cycle); the model `ofb_pa_gty_model_tb`, 44 of 44 with
+TC-PA-25 in the configurations `lanes1` to `lanes4`; `ofb_pa_gty_model_core_tb`, 7 of 7 with the new run
+`lanes1_relock_gap0` (every restart resets the receiver); full regression 423 of 423. Mutation checks of the sequencer,
+each applied alone: a missing PCSRSVDIN[10] in the pulse, no bound of the wait for RXRESETDONE falling or rising, no gap
+after a timeout, requests accepted during a receiver reset, no gap check, the transmit buffer reset before the receiver
+reset, a buffer request not absorbed by the receiver reset, the PCSRSVDIN base taken in every cycle, no setup time, a
+CDR-only wait not reported as busy, the PCSRSVDIN base during the buffer reset, the transmit buffer reset in sequential
+mode, and sequences while the receivers are not ready: each fails TC-PA-19 to TC-PA-24 (14 of 14). The absorbed buffer
+request first survived, because a second buffer request during the receiver reset hid it; TC-PA-24 checks both cases
+separately since. A model that ignores `Cfg_RxResetOnDisc` fails TC-PA-25.
+
 ### Behavioural model (architecture `mdl`)
 
 Run on 2026-10-17 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7: `python run.py "*ofb_pa_gty_model*"`, 46 of 46 tests
