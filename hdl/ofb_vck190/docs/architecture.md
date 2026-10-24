@@ -87,5 +87,6 @@ matched nothing: Vivado 12-180, 12-507, 12-508, 12-584, 12-627, 12-1008, 12-4739
 Common 17-1548) and the methodology report for TIMING-6, TIMING-7 and TIMING-47. One exception is known and counted:
 the 32 messages of the Open Logic constraint of the retimed distributed RAM read register (verification report,
 section 3); another number fails the check. The build stops on a failed check, after synthesis or after the
-implementation results are written (`results/constraint_check.txt`); the timing summary (worst setup and hold slack,
-failing endpoints) goes to the console and to `build_info.txt` and does not stop the build.
+implementation results are written (`results/constraint_check.txt`). The timing summary (worst setup and hold slack,
+failing endpoints) goes to the console and to `build_info.txt`; a design that misses timing also stops the build
+after the results are written ("BUILD FAILED").

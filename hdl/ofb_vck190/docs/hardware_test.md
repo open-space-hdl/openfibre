@@ -58,8 +58,9 @@ The script stops with "CONSTRAINT INTEGRITY FAILED" when a constraint did not ap
 nothing, for example a clock that did not exist when the constraint was read) or when the methodology checks
 TIMING-6, TIMING-7 or TIMING-47 report a clock pair without its constraint: after synthesis, before the
 implementation starts, or after the implementation, once the results are written. `results/constraint_check.txt`
-lists the messages. A design that misses timing does not stop the build: the console and `build_info.txt` show
-"TIMING NOT MET" with the worst setup and hold slack and the number of failing endpoints. Record:
+lists the messages. A design that misses timing (worst setup or hold slack below 0) also stops the build, after the
+results are written: the console and `build_info.txt` show "TIMING NOT MET" with the worst setup and hold slack and
+the number of failing endpoints, and the script ends with "BUILD FAILED". Record:
 
 | Item | Where | Expected |
 | --- | --- | --- |

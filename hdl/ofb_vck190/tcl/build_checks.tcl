@@ -13,8 +13,9 @@
 #   clocks: a clock pair constraint whose other clock was empty masks a whole clock domain, hold included).
 # - The design timing summary: worst setup and hold slack and the number of failing endpoints.
 #
-# tcl/build.tcl stops on a failed integrity check (after synthesis, or after the results of the implementation are
-# written) and reports the timing summary in build_info.txt; a failed timing does not stop the build.
+# tcl/build.tcl stops on a failed integrity check after synthesis, and after the implementation, once its results
+# are written, on a failed integrity check or a design that misses timing (worst setup or hold slack below 0); the
+# timing summary also goes to build_info.txt.
 #---------------------------------------------------------------------------------------------------
 
 namespace eval ofb_build_checks {
@@ -135,6 +136,14 @@ proc ofb_build_checks::timing_failed {timing} {
         if {[string is double -strict $v] && $v < 0} { return 1 }
     }
     return 0
+}
+
+# Reasons that fail an implemented build (empty when it passes): the constraint integrity and the timing
+proc ofb_build_checks::failure_reasons {synth impl methodology timing} {
+    set reasons {}
+    if {[integrity_failed $synth $impl $methodology]} { lappend reasons "CONSTRAINT INTEGRITY FAILED" }
+    if {$timing ne "" && [timing_failed $timing]} { lappend reasons "TIMING NOT MET" }
+    return $reasons
 }
 
 # Summary lines for the console and build_info.txt
