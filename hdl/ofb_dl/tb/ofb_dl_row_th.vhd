@@ -95,6 +95,7 @@ architecture sim of ofb_dl_row_th is
     signal WordIdSt  : std_logic_vector(2 downto 0);
     signal FarRxSeq  : natural   := 0;
     signal FarPol    : std_logic := '0';
+    signal EccCore   : std_logic_vector(2*EccChannels_c-1 downto 0);
 
 begin
 
@@ -196,7 +197,9 @@ begin
             Stat_BwUnder          => BwUnder,
             Stat_LinkResetState   => LinkState,
             Stat_RxErrState       => RxErrSt,
-            Stat_WordIdState      => WordIdSt
+            Stat_WordIdState      => WordIdSt,
+            Ecc_Core              => EccCore,
+            EccInj_Core           => EccInjCore
         );
 
     -----------------------------------------------------------------------------------------------
@@ -355,8 +358,16 @@ begin
                            FarEndResets => 0,
                            BcRx => 0,
                            BcDiscards => 0,
-                           BwUnder => (others => '0'));
+                           BwUnder => (others => '0'),
+                           ErbSecs => 0,
+                           ErbDeds => 0);
                 Init_v := false;
+            end if;
+            if EccCore(EccChErb_c) = '1' then
+                Stat_v.ErbSecs := Stat_v.ErbSecs + 1;
+            end if;
+            if EccCore(EccChannels_c + EccChErb_c) = '1' then
+                Stat_v.ErbDeds := Stat_v.ErbDeds + 1;
             end if;
             if EvRetry = '1' then
                 Stat_v.Retries := Stat_v.Retries + 1;

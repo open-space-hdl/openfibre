@@ -370,7 +370,7 @@ the received packets including the word with the end marker.
 | VC ports | 4 x `NumLanes_g` bytes per beat, one beat per `UserClk` cycle inside a packet. One more cycle per packet: at `S_Vc` when the last beat is full (row with the end marker), at `M_Vc` when the bytes of the last received row need one more beat | TC-NI-07 |
 | Clocks | `UserClk` not slower than `LaneClk` for the full throughput at the VC ports. `CoreClk` not slower than `LaneClk` (CORE-CK-01): with a slower `CoreClk` received rows are lost (DL_ERRORS bit 10) | TC-CORE-15 |
 | Packet length | No limit: packets longer than a data frame and than the VC buffers are streamed through them; packets of 65542 bytes (the largest Space Packet) with 1 to 4 lanes | TC-CORE-20 |
-| Latency | Packet of one byte on the idle link: 365, 388, 390 and 392 ns with 1, 2, 3 and 4 lanes, without the serialisation and transceiver delay. The receiver forwards a data frame after its EDF (store and forward), so the latency grows with the frame length | TC-CORE-16 |
+| Latency | Packet of one byte on the idle link: 370, 393, 400 and 402 ns with 1, 2, 3 and 4 lanes, without the serialisation and transceiver delay. The receiver forwards a data frame after its EDF (store and forward), so the latency grows with the frame length | TC-CORE-16 |
 | Share of a VC | Set by the quality of service configuration: priority, bandwidth (VC_BANDWIDTH), time-slots (ECSS 5.7.4) | |
 
 Capacity for packets of n bytes: a packet takes rows(n) = ceil((n + 1) / (4 x `NumLanes_g`)) rows on the link, so the

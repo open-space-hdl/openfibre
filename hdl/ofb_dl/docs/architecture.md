@@ -99,6 +99,14 @@ waiting to be sent or resent.
   `ofb_dl_tx_frame`. Until the RETRY is sent (`Retry_Done`), further ACKs, NACKs and sent items are ignored: words
   sent in this window carry the old polarity and are rejected by the far end.
 - ACKs and NACKs are valid only with the polarity of the Transmit Polarity Flag; they wait in a small event FIFO.
+- Admission write stage (DL-ER-09): the data word, its row write, the commit and VC of its item and the error
+  injection command of `ofb_dl_tx_admit` are registered together; the row is written into the RAM and the item
+  bookkeeping (write pointer, used rows, item length and count) is updated one cycle later. The register separates the
+  read path of the output VC buffer (ECC decode, VC multiplexer of the admission) from the write path of the buffer
+  RAM (ECC encode). A commit takes effect with the write of the last row of its item; the read-ahead loads the length
+  of an item one cycle after its commit and reads its first row one cycle later, so every row it reads is in the RAM.
+  Free rows, free data items, `Full` and `Empty` count the row and the commit in the register as stored, so the
+  admission sees the space as without the register. Every item reaches the transmitter one cycle later.
 - Data payload: the item at `Send` is read ahead into a 4-word FIFO (`olo_base_fifo_sync`), which `ofb_dl_tx_frame`
   reads (`Pay_*`). After a NACK the read-ahead restarts at the head item once the RETRY is sent.
 - Full: `Full = no free data word or no free item of any kind`; `Empty` when all queues are empty.

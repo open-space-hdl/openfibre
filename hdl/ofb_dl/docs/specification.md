@@ -105,6 +105,7 @@ level.
 | DL-ER-06 | On link reset the error recovery buffer shall be emptied; on LaneReset it shall not. | 5.7.7.1h, i, 5.7.10b.8 |
 | DL-ER-08 | The error recovery buffer shall hold `ErbRows_g` data rows; the elaboration shall stop with an error when `ErbRows_g` is not a power of two of at least 64 (a data segment of 64 rows). | 5.7.7.1m |
 | DL-ER-07 | The number of error recovery attempts (RETRYs sent) shall be counted, reported, and cleared by reset, interface reset or the MIB. The empty state of the buffer shall be reported. | 5.7.7.1j to l, Table 5-37 |
+| DL-ER-09 | The error recovery buffer shall register each admitted data word together with its row write, the commit of its item and the error injection command, and write the row into its RAM one cycle later. A commit shall take effect in the same cycle as the write of the last row of its item, so that an item is complete in the RAM when it becomes available for sending. The free rows, the free data items, the full and the empty state shall count the row and the commit held in the register as stored. | none (implementation) |
 
 ### 2.8 Data word identification and frame checks (DR-1, DR-2, DR-4)
 

@@ -26,7 +26,8 @@
 # implementation (an object query that matched nothing, for example a clock that does not exist yet) or when the
 # methodology checks TIMING-6, TIMING-7 or TIMING-47 report a clock pair without its constraint; after synthesis
 # before the implementation starts, after the implementation once the results are written. A design that misses
-# timing is reported (TIMING NOT MET in the console and in build_info.txt) but does not stop the build.
+# timing (worst setup or hold slack below 0) stops the build too, after the results are written (TIMING NOT MET in
+# the console and in build_info.txt).
 #
 # The environment variable OFB_VIVADO_OUT selects another project directory. On Windows the device image step
 # compiles the platform loader firmware in a deep directory below the project; with a project path of more than
@@ -278,6 +279,7 @@ puts "Results in $results (reference clock $refclk at $refclk_mhz MHz)"
 puts [string repeat = 100]
 foreach line $summary { puts $line }
 puts [string repeat = 100]
-if {[ofb_build_checks::integrity_failed $synth_check $impl_check $methodology]} {
-    error "CONSTRAINT INTEGRITY FAILED in implementation, see [file join $results constraint_check.txt]"
+set reasons [ofb_build_checks::failure_reasons $synth_check $impl_check $methodology $timing]
+if {[llength $reasons] > 0} {
+    error "BUILD FAILED: [join $reasons {, }], see [file join $results build_info.txt] and constraint_check.txt"
 }

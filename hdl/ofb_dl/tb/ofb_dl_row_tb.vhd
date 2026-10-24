@@ -1252,6 +1252,119 @@ begin
 
                 check_value(Cnt_v, 64, error, "64 PRBS words from the seed");
 
+            -- TC-DL-32: items read for sending right after their commit (admission write stage of the error
+            -- recovery buffer), error injection and NACK across the stage
+            elsif run("test_erb_commit_read") then
+                waitLinkInit(10 us);
+
+                for i in 1 to 8 loop
+                    rxFct(0, i);
+                end loop;
+
+                waitRxIdle;
+
+                -- The RAM of 256 rows first holds other words: four packets of 100 words, all acknowledged
+                for p in 0 to 3 loop
+                    userPacket(0, 100, 16#10000# * (p + 1));
+                end loop;
+
+                -- The log takes one word per cycle (capacity 16384): wait at most 10000 cycles
+                N_v := 0;
+
+                while txPayload < 400 and N_v < 10000 loop
+                    cycles(16);
+                    N_v := N_v + 16;
+                end loop;
+
+                check_value(txPayload, 400, error, "Packets of 100 words sent");
+                waitErbEmpty(20 us);
+                -- Packets of one data word on the idle link: each item is committed while the buffer is
+                -- otherwise empty, so the read-ahead reads it right after its commit, from rows that hold other
+                -- words before
+                TxLog_v.clear;
+
+                for k in 0 to 7 loop
+                    userPacket(0, 2, 16#5A0000# + 16#100# * k);
+                    N_v := 0;
+
+                    while txCount(KindEdf) < k + 1 and N_v < 1000 loop
+                        cycles(1);
+                        N_v := N_v + 1;
+                    end loop;
+
+                    -- The log takes one word per cycle: stop at the first packet not sent
+                    if txCount(KindEdf) < k + 1 then
+                        alert(error, "Packet " & to_string(k) & " not sent within 1000 cycles");
+                        exit;
+                    end if;
+                    waitErbEmpty(20 us);
+                end loop;
+
+                -- Data words of the data frames (idle frames carry PRBS words), the EOP words left out
+                Cnt_v  := 0;
+                Last_v := 0;
+
+                for i in 0 to TxLog_v.count - 1 loop
+                    Kind_v := txKind(i);
+                    if Kind_v = KindSdf then
+                        Last_v := 1;
+                    elsif Kind_v = KindEdf or Kind_v = KindRetry then
+                        Last_v := 0;
+                    elsif Kind_v = KindData and Last_v = 1 and txWord(i)(7 downto 0) /= CharEop_c then
+                        check_value(txWord(i), std_logic_vector(to_unsigned(16#5A0000# + 16#100# * Cnt_v, 32)),
+                                    error, "Word of packet " & to_string(Cnt_v) & " read right after its commit");
+                        Cnt_v := Cnt_v + 1;
+                    end if;
+                end loop;
+
+                check_value(Cnt_v, 8, error, "Eight packets of one word");
+                -- A single-bit error injected into the next row written: SEC event of the error recovery
+                -- buffer, the frame carries the corrected word
+                Cnt_v                  := RowStat.ErbSecs;
+                EccInjCore(EccChErb_c) <= '1';
+                cycles(1);
+                EccInjCore(EccChErb_c) <= '0';
+                cycles(20);
+                TxLog_v.clear;
+                userPacket(0, 2, 16#A50000#);
+                N_v                    := 0;
+
+                while txCount(KindEdf) < 1 and N_v < 10000 loop
+                    cycles(1);
+                    N_v := N_v + 1;
+                end loop;
+
+                waitErbEmpty(20 us);
+                check_value(RowStat.ErbSecs > Cnt_v, error, "SEC event of the error recovery buffer");
+                check_value(RowStat.ErbDeds, 0, error, "No DED event");
+                Pos_v := txFind(KindSdf, 0);
+                check_value(txWord(Pos_v + 1), x"00A50000", error, "Corrected word sent");
+                -- A NACK right after the commit and transmission of an item: the RETRY resends it unchanged
+                RowCfg.AutoAck <= false;
+                cycles(1);
+                TxLog_v.clear;
+                userPacket(0, 2, 16#C30000#);
+                N_v            := 0;
+
+                while txCount(KindEdf) < 1 and N_v < 10000 loop
+                    cycles(1);
+                    N_v := N_v + 1;
+                end loop;
+
+                Seq_v := to_integer(unsigned(txWord(txFind(KindEdf, 0))(14 downto 8)));
+                rxWord(wordNack('0' & std_logic_vector(to_unsigned((Seq_v + 127) mod 128, 7))));
+                waitRxIdle;
+                cycles(300);
+                Pos_v := txFind(KindRetry, 0);
+                check_value(Pos_v >= 0, error, "RETRY sent");
+                Idx_v := txFind(KindSdf, Pos_v);
+                check_value(Idx_v >= 0, error, "Item resent");
+                check_value(txWord(Idx_v + 1), x"00C30000", error, "Resent word unchanged");
+                Idx_v := txFind(KindEdf, Idx_v);
+                rxWord(wordAck('1' & txWord(Idx_v)(14 downto 8)));
+                waitErbEmpty(20 us);
+                check_value(RowStat.ProtErrs, 0, error, "No protocol error");
+
             end if;
 
         end loop;
