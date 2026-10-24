@@ -187,6 +187,14 @@ set t_met [ofb_build_checks::timing_summary $tim_met]
 check "timing summary values" $t_old [dict create wns -5.435 setup_fail 2583 whs 0.000 hold_fail 0]
 check "timing not met" [ofb_build_checks::timing_failed $t_old] 1
 check "timing met" [ofb_build_checks::timing_failed $t_met] 0
+check "hold not met" [ofb_build_checks::timing_failed [dict create wns 0.120 setup_fail 0 whs -0.039 hold_fail 15]] 1
+
+# Reasons that fail an implemented build: constraint integrity and timing
+check "failure reasons, old order" [ofb_build_checks::failure_reasons $s_old $i_new $m_old $t_old] \
+    [list "CONSTRAINT INTEGRITY FAILED" "TIMING NOT MET"]
+check "failure reasons, timing only" [ofb_build_checks::failure_reasons $s_new $i_new $m_new $t_old] \
+    [list "TIMING NOT MET"]
+check "failure reasons, passed" [llength [ofb_build_checks::failure_reasons $s_new $i_new $m_new $t_met]] 0
 
 # Summary lines
 set sum_old [ofb_build_checks::summary $s_old $i_new $m_old $t_old]

@@ -81,6 +81,7 @@ Simulator: GHDL.
 | `test_full_after_rxerr` (TC-DL-23) | RXERR with an empty error recovery buffer: no FULL; RXERR while a data frame waits for acknowledgement and nothing else is to be sent: FULL with the current sequence number | DL-TS-06 |
 | `test_bc_input_discard` (TC-DL-24) | Six broadcast frames while the user does not read: four messages buffered, two discarded and counted; the four are delivered afterwards | DL-BI-01 |
 | `test_link_reset_frame` (TC-DL-25) | Link Reset while a data frame of 60 words is sent: the frame is stopped (no EDF), the packet is flushed, the first idle frame after the link reset carries 64 PRBS words from the seed | DL-FA-05 |
+| `test_erb_commit_read` (TC-DL-32) | Items read for sending right after their commit: the buffer RAM first holds other words (packets of 100 words, all acknowledged), then packets of one word on the idle link, each committed while the buffer is otherwise empty: every data frame carries the word of its own packet. A single-bit error injected into the next row written: one SEC event of the error recovery buffer, the frame carries the corrected word. A NACK right after the commit and transmission of an item: the RETRY resends it with its word unchanged | DL-ER-09, DL-ER-01, DL-ER-03, MG-ED-03 |
 
 ### 3.5 Rows of several words (core testbench)
 
