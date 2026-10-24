@@ -49,7 +49,10 @@ implementation and the device image. On Windows the project path must not be lon
 device image step compiles the platform loader firmware in a deep directory below the project, and with a longer
 path `write_device_image` fails ("opening dependency file ... No such file or directory"). Either clone the
 repository to a short path (for example `C:/git/openfibre`) or set the environment variable `OFB_VIVADO_OUT` to a
-short project directory (for example `C:/ofb`); the paths below are then relative to that directory. Record:
+short project directory (for example `C:/ofb`); the paths below are then relative to that directory. The script sets
+`XILINX_LOCAL_USER_DATA=no` for the runs that `launch_runs` starts at the same time (AMD AR 63253): on a fresh
+installation of Vivado, one of them can otherwise fail at start-up with Common 17-1257 ("Failed to create directory")
+and "tclapp::load_apps failed". Record:
 
 | Item | Where | Expected |
 | --- | --- | --- |

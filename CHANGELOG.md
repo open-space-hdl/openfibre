@@ -4,6 +4,15 @@ The notable changes of OpenFibre. The versions follow semantic versioning: 0.y.z
 version for an incompatible change of ports, generics or the register map, a minor version for a feature and a patch
 version for a fix.
 
+## [Unreleased]
+
+### Fixed
+
+- `ofb_vck190`: `tcl/build.tcl` sets `XILINX_LOCAL_USER_DATA=no` for the runs of `launch_runs` (AMD AR 63253). On a
+  fresh installation of Vivado the runs that start at the same time create the user directory of the Tcl Store
+  together, and one of them can fail at start-up with Common 17-1257 ("Failed to create directory") and
+  "tclapp::load_apps failed".
+
 ## [0.1.3] - 2026-10-24
 
 The transceiver handling of `ofb_pa_gty` follows the recommendations of the transceiver documentation (AM002, PG331,
