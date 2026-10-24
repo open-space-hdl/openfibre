@@ -15,6 +15,13 @@ version for a fix.
   `In_Valid` = '1' (column encoder and decoder of the Multi-Lane layer), so the CRCs are unchanged. The constraint
   integrity check of `ofb_vck190` expects no known exception any more (was 32 messages of that Open Logic
   constraint) and treats olo_base_ram_sdp-1 as a constraint that did not apply.
+- `ofb_dl`: the error recovery buffer registers each admitted data word with its row write, the commit of its item
+  and the error injection command and writes the row one cycle later (DL-ER-09). In the laboratory build the path
+  from the read register of an output VC buffer through its ECC decoder, the VC multiplexer of the admission and the
+  ECC encoder of the buffer RAM missed the lane clock period (worst slack -0.620 ns at 156.25 MHz); the register
+  splits it. Every item reaches the transmitter one lane clock cycle later (the transmit path is store and
+  forward); the admission sees the same free space, and no port, generic or register changes. New test case
+  TC-DL-32 (items read right after their commit, error injection and NACK across the stage).
 - Verification: `python tools/compliance.py --check` also fails when `docs/compliance.md` is out of date (the matrix
   is generated in memory and compared with the file), and the CI runs the check, with a step that shows that a stale
   matrix fails it. The generated matrix is reproducible: test case entries of the same group and number (test names
