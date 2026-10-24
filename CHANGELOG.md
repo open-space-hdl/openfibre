@@ -4,7 +4,15 @@ The notable changes of OpenFibre. The versions follow semantic versioning: 0.y.z
 version for an incompatible change of ports, generics or the register map, a minor version for a feature and a patch
 version for a fix.
 
-## [Unreleased]
+## [0.1.4]
+
+Build and timing release of the VCK190 reference design, with the QuestaSim regression and the code coverage
+measurement of all changes since 0.1.0. Laboratory builds of 0.1.1 to 0.1.3 lost the clock pair constraints between
+the lane clock and the clocks of the CIPS (the reference clock constraint was read after them): the crossings were
+timed as synchronous paths and the hold of `clk_pl_0` was not analysed. 0.1.4 reads the reference clock first, stops
+the build on a constraint that did not apply or on a missed timing, closes the remaining lane clock path (admission
+register of the error recovery buffer, one more core clock cycle from admission to transmission) and pins Open Logic
+4.7.0-ft.11. Ports, generics and the register map are unchanged.
 
 ### Changed
 
