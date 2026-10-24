@@ -89,5 +89,6 @@ and the methodology report for TIMING-6, TIMING-7 and TIMING-47. Known exception
 number of messages (another number fails the check); none is expected since Open Logic 4.7.0-ft.11, whose
 constraint of the distributed RAM read path also matches the registers retimed by synthesis (verification report,
 section 3). The build stops on a failed check, after synthesis or after the
-implementation results are written (`results/constraint_check.txt`); the timing summary (worst setup and hold slack,
-failing endpoints) goes to the console and to `build_info.txt` and does not stop the build.
+implementation results are written (`results/constraint_check.txt`). The timing summary (worst setup and hold slack,
+failing endpoints) goes to the console and to `build_info.txt`; a design that misses timing also stops the build
+after the results are written ("BUILD FAILED").
