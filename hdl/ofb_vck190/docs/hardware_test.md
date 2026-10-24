@@ -65,7 +65,7 @@ lists the messages. A design that misses timing does not stop the build: the con
 | --- | --- | --- |
 | Device image | `vivado_out/ofb_vck190/results/*.pdi` | Present |
 | Build information | `vivado_out/ofb_vck190/results/build_info.txt` | Reference clock and frequency as intended (`si570` at 100 MHz by default, pins AB11 / AB10), commits of the repository and its submodules |
-| Constraint integrity | `vivado_out/ofb_vck190/results/constraint_check.txt` and the end of `build_info.txt` | "constraint integrity: passed"; known Open Logic constraint messages: synthesis 0, implementation 32 (the expected numbers, verification report section 3) |
+| Constraint integrity | `vivado_out/ofb_vck190/results/constraint_check.txt` and the end of `build_info.txt` | "constraint integrity: passed"; known constraint messages: synthesis 0, implementation 0 (the expected numbers) |
 | Timing | `vivado_out/ofb_vck190/results/timing_summary.rpt` and the timing line of `build_info.txt` | WNS and WHS of all clocks at least 0 ns (`clk_pl_0` 100 MHz, `clk_pl_1` 150 MHz, lane clock 156.25 MHz, `gt_refclk` at the selected frequency) |
 | Constraints | `vivado_out/ofb_vck190/results/invalid_constraints.xdc` | Only the header (every constraint applies) |
 | Resources | `vivado_out/ofb_vck190/results/utilization.rpt`, `utilization_hierarchical.rpt` | LUT, register, block RAM and URAM count of `i_core` |
