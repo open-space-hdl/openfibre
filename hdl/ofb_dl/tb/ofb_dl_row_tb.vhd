@@ -1268,11 +1268,12 @@ begin
                     userPacket(0, 100, 16#10000# * (p + 1));
                 end loop;
 
+                -- The log takes one word per cycle (capacity 16384): wait at most 10000 cycles
                 N_v := 0;
 
-                while txPayload < 400 and N_v < 100000 loop
-                    cycles(1);
-                    N_v := N_v + 1;
+                while txPayload < 400 and N_v < 10000 loop
+                    cycles(16);
+                    N_v := N_v + 16;
                 end loop;
 
                 check_value(txPayload, 400, error, "Packets of 100 words sent");
@@ -1286,11 +1287,16 @@ begin
                     userPacket(0, 2, 16#5A0000# + 16#100# * k);
                     N_v := 0;
 
-                    while txCount(KindEdf) < k + 1 and N_v < 10000 loop
+                    while txCount(KindEdf) < k + 1 and N_v < 1000 loop
                         cycles(1);
                         N_v := N_v + 1;
                     end loop;
 
+                    -- The log takes one word per cycle: stop at the first packet not sent
+                    if txCount(KindEdf) < k + 1 then
+                        alert(error, "Packet " & to_string(k) & " not sent within 1000 cycles");
+                        exit;
+                    end if;
                     waitErbEmpty(20 us);
                 end loop;
 
