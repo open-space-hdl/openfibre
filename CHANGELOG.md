@@ -19,9 +19,12 @@ version for a fix.
   and the error injection command and writes the row one cycle later (DL-ER-09). In the laboratory build the path
   from the read register of an output VC buffer through its ECC decoder, the VC multiplexer of the admission and the
   ECC encoder of the buffer RAM missed the lane clock period (worst slack -0.620 ns at 156.25 MHz); the register
-  splits it. Every item reaches the transmitter one lane clock cycle later (the transmit path is store and
-  forward); the admission sees the same free space, and no port, generic or register changes. New test case
-  TC-DL-32 (items read right after their commit, error injection and NACK across the stage).
+  splits it. Every item reaches the transmitter one core clock cycle later (the transmit path is store and
+  forward; the core clock is the lane clock in `ofb_vck190`); the admission sees the same free space, and no port,
+  generic or register changes. New test case TC-DL-32 (items read right after their commit, error injection and
+  NACK across the stage).
+- `ofb_vck190`: `tcl/build.tcl` also stops the build when the design misses timing (worst setup or hold slack below
+  0), after the results are written ("BUILD FAILED"; the timing line of `build_info.txt` says "TIMING NOT MET").
 - Verification: `python tools/compliance.py --check` also fails when `docs/compliance.md` is out of date (the matrix
   is generated in memory and compared with the file), and the CI runs the check, with a step that shows that a stale
   matrix fails it. The generated matrix is reproducible: test case entries of the same group and number (test names
