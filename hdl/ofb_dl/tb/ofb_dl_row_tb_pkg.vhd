@@ -80,9 +80,15 @@ package ofb_dl_row_tb_pkg is
         BcRx         : natural;
         BcDiscards   : natural;
         BwUnder      : std_logic_vector(RowNumVc_c-1 downto 0);
+        ErbSecs      : natural;   -- SEC events of the error recovery buffer
+        ErbDeds      : natural;   -- DED events of the error recovery buffer
     end record;
 
     signal RowStat : RowStat_t;
+
+    -- Error injection into the buffers of the core clock (one-cycle strobes, SEC channel bits EccChannels_c-1:0,
+    -- DED channel bits above, as the MIB drives them)
+    signal EccInjCore : std_logic_vector(2*EccChannels_c-1 downto 0) := (others => '0');
 
     -- Far-end polarity set by the sequencer (after it sends a NACK)
     signal FarPolCmd : std_logic := '0';
