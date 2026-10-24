@@ -107,6 +107,18 @@ the base value taken at the start of the last sequence (`Cfg_PcsRsvdIn`, after a
    `ch_gttxreset` for 16 cycles, the masks held for 128 more cycles.
 3. Receive elastic buffer reset (PA-RS-03), below.
 
+Interaction with the initialisation timeout of the lanes. A request of a receiver reset while a receiver reset of the
+lane runs, or within `RxRstGapCycles_g` after it, is dropped, not queued: a lane that restarts while its receiver
+resets does not start a second reset. With a gap at least as long as the initialisation timeout, a lane always gets
+complete initialisation attempts between two resets. Without a gap (`RxRstGapCycles_g` = 0, the VCK190 design) every
+restart of the lane while no reset runs starts a new one. When a reset lasts about as long as an initialisation
+attempt or longer, the attempt that runs when the reset ends can be too short for the lane to complete its
+initialisation (CDR lock, 1023 words without error and the handshake, about 30 us at 6.25 Gbit/s); its timeout
+restarts the lane and starts the next reset, and since the timing repeats, the lane can stay in this cycle. The
+registers show it: RX_RESETS (LANE_TIMEOUT_COUNT bits 31:16) and the initialisation timeouts (bits 15:0) rise while
+the lane does not reach Active, and LANE_STATUS bit 25 shows each reset in progress, so its duration can be read. A
+larger initialisation timeout at run time (LANE_INIT_TIMEOUT, at least twice the reset time) ends the cycle.
+
 With `RxBufReset_g` (default) the adapter resets the receive elastic buffer of a lane alone (PA-RS-03). The
 transceiver documentation (AM002, recommended receiver resets) asks for such a reset after an overflow or underflow of
 the buffer, after a comma alignment and after the recovered clock becomes stable on new data; without it the content

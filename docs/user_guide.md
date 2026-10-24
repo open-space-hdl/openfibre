@@ -275,15 +275,21 @@ a short QSFP cable) may select LPM (`RX_EQ_MODE` LPM in `tcl/ofb_gtw.tcl`). A lo
 Receiver reset of `ofb_pa_gty` (PA-RS-04): when a lane leaves the states that use the line (CDR enable falling), the
 adapter resets the entire receiver of that lane, the other lanes undisturbed, as the transceiver documentation (AM002)
 recommends after the remote end powers up, after electrical idle and after connecting the line. While the reset runs
-the lane receives no words; it continues its initialisation and sends INIT1. A receiver reset can take longer than the
-initialisation timeout of the standard (32 us at 156.25 MHz): with that timeout the adapter drops further reset
+the lane receives no words; it continues its initialisation and sends INIT1. In the simulation of the transceiver
+model the reset takes about 6.3 us; on the device the reset time depends on the configuration (PG442 gives up to
+150 ms for a full GT reset of a quad) and can exceed the initialisation timeout of the standard (32 us at
+156.25 MHz): with that timeout the adapter drops further reset
 requests of the lane for `RxRstGapCycles_g` (4 ms) after a reset, so that the lane makes initialisation attempts
 between two resets. A design with a longer initialisation timeout sets `RxRstGapCycles_g` = 0, and every restart of a
-lane resets its receiver while the lane waits in Started; the VCK190 design does this (section 10). LANE_STATUS bits 24
-to 27, LANE_EVENTS bits 6 and 7 and RX_RESETS (LANE_TIMEOUT_COUNT bits 31:16) show the receiver resets. PA_CTRL selects
-the behaviour at run time (reset on disconnection, CDR-only reset, CDR hold during electrical idle, PCSRSVDIN); its
-reset values are the verified configuration. The transmit buffer of a lane is reset when the transceiver reports a
-transmit buffer error (LANE_EVENTS bit 5).
+lane resets its receiver while the lane waits in Started; the VCK190 design does this (section 10). A restart during a
+running reset starts no second one. If a reset on the device lasts about as long as the initialisation timeout or
+longer, the attempt that runs when it ends can be too short to complete, and its timeout starts the next reset: the
+lane repeats resets without reaching Active, while RX_RESETS and the timeout count both rise. Then set LANE_INIT_TIMEOUT
+to at least twice the reset time; LANE_STATUS bit 25 shows a reset in progress, so its duration can be read.
+LANE_STATUS bits 24 to 27, LANE_EVENTS bits 6 and 7 and RX_RESETS (LANE_TIMEOUT_COUNT bits 31:16) show the receiver
+resets. PA_CTRL selects the behaviour at run time (reset on disconnection, CDR-only reset, CDR hold during electrical
+idle, PCSRSVDIN); its reset values are the verified configuration. The transmit buffer of a lane is reset when the
+transceiver reports a transmit buffer error (LANE_EVENTS bit 5).
 
 ## 6. Programming sequence
 

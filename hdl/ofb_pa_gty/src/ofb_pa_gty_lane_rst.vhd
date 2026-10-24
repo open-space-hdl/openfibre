@@ -46,7 +46,7 @@ entity ofb_pa_gty_lane_rst is
         -- reset are dropped (default at 100 MHz: 4 ms)
         GapCycles_g        : natural                       := 400_000;
         -- Bounds of the waits for RXRESETDONE after the GTRXRESET pulse: low (the sequence started), then high (it
-        -- completed). Defaults at 100 MHz: 10 ms and 150 ms (PG442: a reset can take up to 150 ms to complete)
+        -- completed). Defaults at 100 MHz: 10 ms and 150 ms (PG442 gives up to 150 ms for a full GT reset of a quad)
         DoneLowCycles_g    : positive                      := 1_000_000;
         DoneHighCycles_g   : positive                      := 15_000_000;
         -- PCSRSVDIN outside the reset sequences until the first sequence takes the configured value

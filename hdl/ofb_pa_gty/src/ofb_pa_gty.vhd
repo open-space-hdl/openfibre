@@ -32,7 +32,7 @@ entity ofb_pa_gty is
         -- a lane start (PA-RS-03); false leaves the buffers to the transceiver
         RxBufReset_g      : boolean                           := true;
         -- Bound of the wait for RXRESETDONE after an entire receiver reset (PA-RS-05), in FreeRunClk cycles: 150 ms
-        -- at 100 MHz (PG442: a reset can take up to 150 ms to complete)
+        -- at 100 MHz (PG442 gives up to 150 ms for a full GT reset of a quad; a conservative bound for one receiver)
         RxRstDoneCycles_g : positive                          := 15_000_000;
         -- CDR-only receiver reset: wait after the RXCDRRESET pulse, in FreeRunClk cycles (100 us at 100 MHz)
         CdrWaitCycles_g   : positive                          := 10_000;

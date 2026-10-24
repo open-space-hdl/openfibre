@@ -129,6 +129,10 @@ Values other than the reset value are outside the verified configuration. `mib_w
 receiver of lane 0 once (LANE_CTRL bit 18, with the reset value of the other bits; lanes 1 to 3 at 0x120, 0x140,
 0x160).
 
+A lane that never reaches Active while RX_RESETS and the initialisation timeouts both rise repeats receiver resets
+that last about as long as its initialisation timeout or longer: read the duration of a reset from LANE_STATUS bit 25
+(polled) and set LANE_INIT_TIMEOUT to at least twice it (`mib_wr 0x07C <words>`, 156250 words per millisecond).
+
 ## 8. Tests
 
 | Test | Steps | Pass criterion |
