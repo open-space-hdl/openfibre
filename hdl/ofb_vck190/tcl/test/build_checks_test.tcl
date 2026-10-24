@@ -5,9 +5,10 @@
 # Test of tcl/build_checks.tcl in tclsh (no Vivado): the checks run on excerpts of synthesis and implementation logs
 # and of the methodology and timing summary reports, written to a temporary directory, in the format Vivado 2025.2
 # writes them. Cases: the reference clock read after the clock pair constraints (the lane clock not found in
-# synthesis, TIMING-6, TIMING-7 and TIMING-47 after the implementation), the order of tcl/build.tcl (only the known
-# Open Logic messages), a number of known messages other than the expected one, a further constraint without its
-# object, timing met and not met.
+# synthesis, TIMING-6, TIMING-7 and TIMING-47 after the implementation), the order of tcl/build.tcl, the scoped Open
+# Logic constraint of the distributed RAM read path before 4.7.0-ft.11 (the retimed register not found) and its
+# message olo_base_ram_sdp-1 (no capture register found), a further constraint without its object, the mechanism of
+# known exceptions with an expected count, timing met and not met.
 #
 # Usage: tclsh hdl/ofb_vck190/tcl/test/build_checks_test.tcl (exit code 1 when a check fails)
 #---------------------------------------------------------------------------------------------------
@@ -52,7 +53,8 @@ set lane_clk_lost {WARNING: [Vivado 12-1008] No clocks found for command 'get_cl
 set synth_old [fixture synth_old.log "$synth_common$lane_clk_lost"]
 set synth_new [fixture synth_new.log $synth_common]
 
-# The scoped Open Logic constraint of one VC output FIFO RAM whose read register was retimed (four messages)
+# The scoped Open Logic constraint of one VC output FIFO RAM whose read register was retimed, before 4.7.0-ft.11
+# (four messages)
 set ram_sdp {CRITICAL WARNING: [Vivado 12-180] No cells matched 'g_async.RdPipe_reg[1][*]'. [/build/open-logic/src/base/tcl/olo_base_ram_sdp.tcl:17]
 WARNING: [Vivado 12-1008] No clocks found for command 'get_clocks -of_objects [get_cells -hierarchical {g_async.RdPipe_reg[1][*]}]'. [/build/open-logic/src/base/tcl/olo_base_ram_sdp.tcl:17]
 CRITICAL WARNING: [Vivado 12-180] No cells matched 'g_async.RdPipe_reg[1][*]'. [/build/open-logic/src/base/tcl/olo_base_ram_sdp.tcl:17]
@@ -62,11 +64,16 @@ set impl_common {Parsing XDC File [/build/vivado_out/ofb_vck190/ofb_vck190_refcl
 Finished Parsing XDC File [/build/vivado_out/ofb_vck190/ofb_vck190_refclk_clock.xdc]
 WARNING: [Constraints 18-402] set_max_delay: 'i_pa/i_lane_rst/g_tmr.g_chain[2].RstSyncChain[2]_i_1' is not a valid startpoint. [/build/open-logic/src/base/tcl/olo_base_reset_gen.tcl:15]
 }
-set impl_new [fixture impl_new.log "$impl_common[string repeat $ram_sdp 8]"]
+# The constraint since 4.7.0-ft.11 when a LUTRAM has no read capture register (once per RAM)
+set no_capture {CRITICAL WARNING: [olo_base_ram_sdp-1] olo_base_ram_sdp: no async read capture register found, the LUTRAM read path is not constrained
+}
+set impl_new [fixture impl_new.log $impl_common]
+set impl_ft9 [fixture impl_ft9.log "$impl_common[string repeat $ram_sdp 8]"]
 set impl_31 [fixture impl_31.log "$impl_common[string repeat $ram_sdp 7][join [lrange [split $ram_sdp \n] 1 3] \n]\n"]
+set impl_no_capture [fixture impl_no_capture.log "$impl_common$no_capture"]
 set lost {CRITICAL WARNING: [Vivado 12-180] No cells matched 'i_core/i_dl/i_removed*'. [/build/hdl/ofb_vck190/constr/ofb_vck190.xdc:50]
 }
-set impl_extra [fixture impl_extra.log "$impl_common[string repeat $ram_sdp 8]$lost"]
+set impl_extra [fixture impl_extra.log "$impl_common$lost"]
 
 # Reports ---------------------------------------------------------------------------------------------------------
 
@@ -130,22 +137,42 @@ check "synthesis, old order: the lane clock query" [string match {*i_pa/i_bufg/O
 check "synthesis, old order: integrity failed" [ofb_build_checks::integrity_failed $s_old "" {}] 1
 check "synthesis, new order: constraints that did not apply" [llength [dict get $s_new violations]] 0
 check "synthesis, new order: integrity passed" [ofb_build_checks::integrity_failed $s_new "" {}] 0
-# The Open Logic constraints are not used in synthesis: a known message there is not expected
-set s_known [ofb_build_checks::log_check [fixture synth_known.log "$synth_common$ram_sdp"]]
-check "synthesis with a known Open Logic message: integrity failed" \
-    [ofb_build_checks::integrity_failed $s_known "" {}] 1
 
 # Implementation
 set i_new [ofb_build_checks::log_check $impl_new]
-set i_31 [ofb_build_checks::log_check $impl_31]
+set i_ft9 [ofb_build_checks::log_check $impl_ft9]
+set i_no_capture [ofb_build_checks::log_check $impl_no_capture]
 set i_extra [ofb_build_checks::log_check $impl_extra]
-check "implementation: known Open Logic messages" [llength [dict get $i_new excepted]] 32
-check "implementation: constraints that did not apply" [llength [dict get $i_new violations]] 0
+check "implementation, new order: no constraint message" [llength [dict get $i_new violations]] 0
+check "implementation, new order: no known message" [llength [dict get $i_new excepted]] 0
 check "implementation, new order: integrity passed" [ofb_build_checks::integrity_failed $s_new $i_new {}] 0
-check "implementation, 31 known messages: integrity failed" [ofb_build_checks::integrity_failed $s_new $i_31 {}] 1
+check "implementation, Open Logic before 4.7.0-ft.11: violations" [llength [dict get $i_ft9 violations]] 32
+check "implementation, Open Logic before 4.7.0-ft.11: integrity failed" \
+    [ofb_build_checks::integrity_failed $s_new $i_ft9 {}] 1
+check "implementation, no capture register: violations" [llength [dict get $i_no_capture violations]] 1
+check "implementation, no capture register: integrity failed" \
+    [ofb_build_checks::integrity_failed $s_new $i_no_capture {}] 1
 check "implementation, further constraint lost: violations" [llength [dict get $i_extra violations]] 1
 check "implementation, further constraint lost: integrity failed" \
     [ofb_build_checks::integrity_failed $s_new $i_extra {}] 1
+
+# Known exceptions with an expected count (none configured at present): the mechanism with the former exception
+set saved_exceptions $ofb_build_checks::exceptions
+set saved_count $ofb_build_checks::known_count
+set ofb_build_checks::exceptions {{{*olo_base_ram_sdp.tcl:*} {*g_async.RdPipe_reg\[1\]\[\*\]*}}}
+set ofb_build_checks::known_count 32
+set x_32 [ofb_build_checks::log_check $impl_ft9]
+set x_31 [ofb_build_checks::log_check $impl_31]
+set x_synth [ofb_build_checks::log_check [fixture synth_known.log "$synth_common$ram_sdp"]]
+check "exception: known messages counted" [llength [dict get $x_32 excepted]] 32
+check "exception: no violation" [llength [dict get $x_32 violations]] 0
+check "exception, expected count: integrity passed" [ofb_build_checks::integrity_failed $s_new $x_32 {}] 0
+check "exception, 31 instead of 32: integrity failed" [ofb_build_checks::integrity_failed $s_new $x_31 {}] 1
+check "exception, known message in synthesis: integrity failed" [ofb_build_checks::integrity_failed $x_synth "" {}] 1
+check "exception, summary" [lindex [ofb_build_checks::summary $s_new $x_32 {} ""] 1] "known constraint messages\
+    (exceptions of the check): synthesis 0 (expected 0), implementation 32 (expected 32)"
+set ofb_build_checks::exceptions $saved_exceptions
+set ofb_build_checks::known_count $saved_count
 
 # Methodology
 set m_old [ofb_build_checks::methodology_check $meth_old]
@@ -166,8 +193,8 @@ set sum_old [ofb_build_checks::summary $s_old $i_new $m_old $t_old]
 set sum_new [ofb_build_checks::summary $s_new $i_new $m_new $t_met]
 check "summary, old order" [lindex $sum_old 0] "CONSTRAINT INTEGRITY FAILED: constraints that did not apply: synthesis 1,\
     implementation 0; methodology: TIMING-6 x 3, TIMING-7 x 3, TIMING-47 x 2"
-check "summary, known messages" [lindex $sum_new 1] "known Open Logic constraint messages (retimed RAM read register):\
-    synthesis 0 (expected 0), implementation 32 (expected 32)"
+check "summary, known messages" [lindex $sum_new 1] "known constraint messages (exceptions of the check): synthesis 0\
+    (expected 0), implementation 0 (expected 0)"
 check "summary, timing not met" [lindex $sum_old 2] "TIMING NOT MET: WNS -5.435 ns (2583 failing setup endpoints), WHS\
     0.000 ns (0 failing hold endpoints)"
 check "summary, new order" [lindex $sum_new 0] "constraint integrity: passed (no constraint without its object, no\
@@ -177,13 +204,14 @@ check "summary, timing met" [lindex $sum_new 2] "timing met: WNS 0.030 ns (0 fai
 
 # Report file
 set report [file join $tmp constraint_check.txt]
-ofb_build_checks::write_report $report $s_old $i_new $m_old $t_old
+ofb_build_checks::write_report $report $s_old $i_no_capture $m_old $t_old
 set fh [open $report r]
 set text [read $fh]
 close $fh
 check "report: the lost lane clock constraint" [string match {*synthesis: constraints that did not apply*i_pa/i_bufg/O*} \
     $text] 1
-check "report: the known messages listed" [regexp -all {olo_base_ram_sdp.tcl:17} $text] 32
+check "report: the RAM without capture register" [string match \
+    {*implementation: constraints that did not apply*olo_base_ram_sdp-1*} $text] 1
 
 file delete -force $tmp
 if {$failures > 0} {
