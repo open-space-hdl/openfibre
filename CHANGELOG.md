@@ -16,6 +16,18 @@ version for a fix.
 
 ### Fixed
 
+- `ofb_vck190`: the clock pair constraints of `ofb_vck190.xdc` were lost in every build since the reference clock
+  became selectable (release 0.1.1): `tcl/build.tcl` read the clock constraint of the reference clock after
+  `ofb_vck190.xdc`, so the lane clock, derived from it through the transceiver, did not exist when the constraints
+  were read. The crossings between the lane clock and the clocks of the CIPS were timed as synchronous paths (setup
+  violations of more than 5 ns), and the two constraints with `clk_pl_0` covered every path of that clock, so its
+  hold was not analysed. The script now reads the clock constraint first (processing order EARLY).
+- `ofb_vck190`: `tcl/build.tcl` checks the constraint integrity (`tcl/build_checks.tcl`) and stops the build when a
+  constraint did not apply in synthesis or implementation or when TIMING-6, TIMING-7 or TIMING-47 report a clock pair
+  without its constraint; the known Open Logic constraint of the retimed distributed RAM read register is counted as
+  the one exception. The timing summary (TIMING NOT MET or timing met) goes to the console and to `build_info.txt`,
+  with `results/constraint_check.txt`. The CI runs the checks on excerpts of logs and reports
+  (`tcl/test/build_checks_test.tcl`).
 - `ofb_vck190`: `tcl/build.tcl` sets `XILINX_LOCAL_USER_DATA=no` for the runs of `launch_runs` (AMD AR 63253). On a
   fresh installation of Vivado the runs that start at the same time create the user directory of the Tcl Store
   together, and one of them can fail at start-up with Common 17-1257 ("Failed to create directory") and
