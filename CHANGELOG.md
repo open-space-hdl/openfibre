@@ -6,6 +6,14 @@ version for a fix.
 
 ## [Unreleased]
 
+### Changed
+
+- Verification: `python tools/compliance.py --check` also fails when `docs/compliance.md` is out of date (the matrix
+  is generated in memory and compared with the file), and the CI runs the check, with a step that shows that a stale
+  matrix fails it. The generated matrix is reproducible: test case entries of the same group and number (test names
+  with their test case in brackets) were ordered by the iteration order of a set, which changes with the hash seed
+  of every Python process.
+
 ### Fixed
 
 - `ofb_vck190`: `tcl/build.tcl` sets `XILINX_LOCAL_USER_DATA=no` for the runs of `launch_runs` (AMD AR 63253). On a
