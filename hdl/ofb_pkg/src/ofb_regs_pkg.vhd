@@ -25,7 +25,7 @@ package ofb_regs_pkg is
     -----------------------------------------------------------------------------------------------
     -- Identification
     -----------------------------------------------------------------------------------------------
-    constant RegMapId_c : std_logic_vector(31 downto 0) := x"0FB10009";
+    constant RegMapId_c : std_logic_vector(31 downto 0) := x"0FB1000A";
 
     -----------------------------------------------------------------------------------------------
     -- Register addresses (byte addresses)
@@ -60,6 +60,8 @@ package ofb_regs_pkg is
     constant RegVcRxFramingError_c : natural := 16#070#;
     constant RegNiRxEmptyCount_c   : natural := 16#074#;
     constant RegMlAlignTimeouts_c  : natural := 16#078#;
+    constant RegLaneInitTimeout_c  : natural := 16#07C#;
+    constant RegPaCtrl_c           : natural := 16#080#;
 
     -----------------------------------------------------------------------------------------------
     -- LANE registers: address of instance n = Reg<Name>_c + n * RegLaneStride_c
@@ -173,7 +175,7 @@ package ofb_regs_pkg is
     constant IrqMaskDlErrorsLo_c   : natural := 0;
     constant IrqMaskDlErrorsHi_c   : natural := 12;
     constant IrqMaskLaneEventsLo_c : natural := 16;
-    constant IrqMaskLaneEventsHi_c : natural := 19;
+    constant IrqMaskLaneEventsHi_c : natural := 23;
     constant IrqMaskEccDed_c       : natural := 24;
     constant IrqMaskEccSec_c       : natural := 25;
 
@@ -218,6 +220,15 @@ package ofb_regs_pkg is
     constant MlAlignTimeoutsCountLo_c : natural := 0;
     constant MlAlignTimeoutsCountHi_c : natural := 15;
 
+    constant LaneInitTimeoutWordsLo_c : natural := 0;
+    constant LaneInitTimeoutWordsHi_c : natural := 23;
+
+    constant PaCtrlRxResetOnDisconnect_c : natural := 0;
+    constant PaCtrlRxResetCdrOnly_c      : natural := 1;
+    constant PaCtrlCdrHoldIdle_c         : natural := 2;
+    constant PaCtrlPcsrsvdinLo_c         : natural := 16;
+    constant PaCtrlPcsrsvdinHi_c         : natural := 31;
+
     constant LaneCtrlLaneStart_c          : natural := 0;
     constant LaneCtrlAutoStart_c          : natural := 1;
     constant LaneCtrlLaneReset_c          : natural := 2;
@@ -229,6 +240,7 @@ package ofb_regs_pkg is
     constant LaneCtrlStandbyReasonHi_c    : natural := 15;
     constant LaneCtrlSerialNearLoopback_c : natural := 16;
     constant LaneCtrlSerialFarLoopback_c  : natural := 17;
+    constant LaneCtrlRxReset_c            : natural := 18;
 
     constant LaneStatusStateLo_c         : natural := 0;
     constant LaneStatusStateHi_c         : natural := 3;
@@ -240,19 +252,29 @@ package ofb_regs_pkg is
     constant LaneStatusRxerrCountHi_c    : natural := 15;
     constant LaneStatusFarCapabilityLo_c : natural := 16;
     constant LaneStatusFarCapabilityHi_c : natural := 23;
+    constant LaneStatusRxResetDone_c     : natural := 24;
+    constant LaneStatusRxResetBusy_c     : natural := 25;
+    constant LaneStatusCdrLock_c         : natural := 26;
+    constant LaneStatusRxElecIdle_c      : natural := 27;
 
-    constant LaneEventsRxerrOverflow_c : natural := 0;
-    constant LaneEventsTimeout_c       : natural := 1;
-    constant LaneEventsFarStandby_c    : natural := 2;
-    constant LaneEventsFarLostSignal_c : natural := 3;
+    constant LaneEventsRxerrOverflow_c  : natural := 0;
+    constant LaneEventsTimeout_c        : natural := 1;
+    constant LaneEventsFarStandby_c     : natural := 2;
+    constant LaneEventsFarLostSignal_c  : natural := 3;
+    constant LaneEventsRxBufError_c     : natural := 4;
+    constant LaneEventsTxBufError_c     : natural := 5;
+    constant LaneEventsRxReset_c        : natural := 6;
+    constant LaneEventsRxResetTimeout_c : natural := 7;
 
     constant LaneReasonsStandbyReasonLo_c    : natural := 0;
     constant LaneReasonsStandbyReasonHi_c    : natural := 7;
     constant LaneReasonsLostSignalReasonLo_c : natural := 8;
     constant LaneReasonsLostSignalReasonHi_c : natural := 15;
 
-    constant LaneTimeoutCountCountLo_c : natural := 0;
-    constant LaneTimeoutCountCountHi_c : natural := 15;
+    constant LaneTimeoutCountCountLo_c    : natural := 0;
+    constant LaneTimeoutCountCountHi_c    : natural := 15;
+    constant LaneTimeoutCountRxResetsLo_c : natural := 16;
+    constant LaneTimeoutCountRxResetsHi_c : natural := 31;
 
     constant LanePrbsCtrlTxPatternLo_c : natural := 0;
     constant LanePrbsCtrlTxPatternHi_c : natural := 3;
@@ -303,6 +325,7 @@ package ofb_regs_pkg is
     constant RegEccInjectReset_c        : std_logic_vector(31 downto 0) := x"00000000";
     constant RegNiRxEmptyCountReset_c   : std_logic_vector(31 downto 0) := x"00000000";
     constant RegMlAlignTimeoutsReset_c  : std_logic_vector(31 downto 0) := x"00000000";
+    constant RegPaCtrlReset_c           : std_logic_vector(31 downto 0) := x"03600005";
     constant RegLaneCtrlReset_c         : std_logic_vector(31 downto 0) := x"00000062";
     constant RegLaneEventsReset_c       : std_logic_vector(31 downto 0) := x"00000000";
     constant RegLaneTimeoutCountReset_c : std_logic_vector(31 downto 0) := x"00000000";

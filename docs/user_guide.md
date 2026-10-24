@@ -129,6 +129,7 @@ Differences to the transceiver model that a system test must not rely on (model 
 | `AutoStart_g` | true | Reset value of AutoStart (LANE_CTRL bit 1) of every lane: the lanes start when the far end sends |
 | `AlignTimeoutWords_g` | 10000 | Alignment watchdog of the Multi-Lane layer, in lane clock cycles: 0 (off) or 1024 to 1000000. The lower bound makes the stable time (an eighth of the value, at least 128 words) span at least 16 ALIGN periods of 8 words, so that a stable Both-Ends Ready cannot come from a single ALIGN that happens to arrive aligned (behaviour in section 10) |
 | `LaneJoinHoldWords_g` | 8192 | Join hold of the Multi-Lane layer, in lane clock cycles: 0 (off) to 1000000, at most `AlignTimeoutWords_g` when the watchdog is on. After the first lane entered Active, the Data Link layer sends nothing while another enabled lane is still initialising, for at most this time (section 10) |
+| `InitTimeoutWords_g` | 5000 | Reset value of the initialisation timeout of the lanes (LANE_INIT_TIMEOUT), in words: 1 to 16777215. 5000 is the timeout of the standard (ECSS 5.5.2.6b.1); another value is a deviation from it (section 10) |
 
 A value outside these ranges stops the elaboration with a message that names the rule. Every lane count, 1 and 32
 VCs, a lane clock of 78.125 MHz, the smallest buffers and lane initialisation without PRBS words are simulated; the
@@ -237,7 +238,7 @@ is high while a sticky flag enabled in IRQ_MASK is set.
 | `PhyRx_CodeErr`, `PhyRx_DispErr` | in | 8B/10B code and disparity error per symbol |
 | `PhyRx_Valid` | in | Received word valid (gaps allowed) |
 | `Phy_TxEnable`, `Phy_RxEnable` | out | Line driver and line receiver enable |
-| `Phy_CdrEnable` | out | Clock and data recovery enable |
+| `Phy_CdrEnable` | out | Clock and data recovery enable; `ofb_pa_gty` resets the receiver of the lane at its falling edge (the lane leaves the states that use the line) and does not stop the CDR otherwise |
 | `Phy_RxInvert` | out | Invert the receive polarity (crossed pair detected) |
 | `Phy_NoSignal` | in | No signal on the line, synchronous to `LaneClk` (the adapter synchronises it) |
 | `Phy_TxReady` | in | Transmitters ready (one bit for all lanes, asynchronous level from a register or a constant, default `'1'`); while 0 the link is held in Near-End Reset (section 4) |
@@ -246,6 +247,11 @@ is high while a sticky flag enabled in IRQ_MASK is set.
 | `Phy_PrbsTxSel`, `Phy_PrbsRxSel` | out | PRBS test: transmitted and checked pattern per lane (4 bits, LANE_PRBS_CTRL) |
 | `Phy_PrbsForceErr`, `Phy_PrbsCntReset` | out | PRBS test: single-cycle pulses, one error in the transmitted pattern, checker reset |
 | `Phy_PrbsErr`, `Phy_PrbsLocked` | in | PRBS test: received word with a bit error, checker locked (optional) |
+| `Phy_RxResetOnDisc`, `Phy_RxResetCdrOnly`, `Phy_CdrHoldIdle`, `Phy_PcsRsvdIn` | out | Control of the adapter (PA_CTRL): receiver reset at the falling edge of CDR enable, CDR-only receiver reset, CDR hold during electrical idle, PCSRSVDIN of the transceiver. Static levels from registers of `MgmtClk`, kept during a transmitter reset; the adapter synchronises them |
+| `Phy_RxResetCmd` | out | Receiver reset command of the lane (LANE_CTRL bit 18), single-cycle pulse |
+| `Phy_RxBufErr`, `Phy_TxBufErr` | in | Receive and transmit buffer error of the adapter (level or pulse; the rising edge sets LANE_EVENTS bit 4 or 5; optional) |
+| `Phy_RxResetDone`, `Phy_RxResetBusy`, `Phy_CdrLock`, `Phy_RxElecIdle` | in | Receiver reset done, receiver reset in progress, CDR lock, receiver electrical idle (LANE_STATUS bits 24 to 27; optional) |
+| `Phy_EvRxReset`, `Phy_EvRxResetTimeout` | in | Single-cycle events: receiver reset completed (LANE_EVENTS bit 6, counted in RX_RESETS), receiver reset timed out (bit 7); optional |
 
 The adapter aligns the receive symbols to 10-bit symbol boundaries, decodes them, and passes them in `LaneClk`
 (receive clock correction with the SKIP words that the Lane layer sends, ECSS 5.5.3). The transmit side takes one word
@@ -263,17 +269,39 @@ lane initialisation timeout of ECSS-E-ST-50-11C (the time to send 5000 words) is
 timeout only when the clock-data recovery locks in less than about 22 us at 6.25 Gbit/s (lock time, 1023 words without
 error and the INIT2/INIT3 handshake within 32 us). The GTY architecture manual (AM002, LPM use mode) recommends LPM for
 short, low-reflection channels with up to 15 dB loss at the Nyquist frequency; a system on such a channel (for example
-a short QSFP cable) may select LPM (`RX_EQ_MODE` LPM in `tcl/ofb_gtw.tcl`).
+a short QSFP cable) may select LPM (`RX_EQ_MODE` LPM in `tcl/ofb_gtw.tcl`). A longer initialisation timeout
+(LANE_INIT_TIMEOUT, a deviation from the standard, section 10) gives the receiver more time.
+
+Receiver reset of `ofb_pa_gty` (PA-RS-04): when a lane leaves the states that use the line (CDR enable falling), the
+adapter resets the entire receiver of that lane, the other lanes undisturbed, as the transceiver documentation (AM002)
+recommends after the remote end powers up, after electrical idle and after connecting the line. While the reset runs
+the lane receives no words; it continues its initialisation and sends INIT1. In the simulation of the transceiver
+model the reset takes about 6.3 us; on the device the reset time depends on the configuration (PG442 gives up to
+150 ms for a full GT reset of a quad) and can exceed the initialisation timeout of the standard (32 us at
+156.25 MHz): with that timeout the adapter drops further reset
+requests of the lane for `RxRstGapCycles_g` (4 ms) after a reset, so that the lane makes initialisation attempts
+between two resets. A design with a longer initialisation timeout sets `RxRstGapCycles_g` = 0, and every restart of a
+lane resets its receiver while the lane waits in Started; the VCK190 design does this (section 10). A restart during a
+running reset starts no second one. If a reset on the device lasts about as long as the initialisation timeout or
+longer, the attempt that runs when it ends can be too short to complete, and its timeout starts the next reset: the
+lane repeats resets without reaching Active, while RX_RESETS and the timeout count both rise. Then set LANE_INIT_TIMEOUT
+to at least twice the reset time; LANE_STATUS bit 25 shows a reset in progress, so its duration can be read.
+LANE_STATUS bits 24 to 27, LANE_EVENTS bits 6 and 7 and RX_RESETS (LANE_TIMEOUT_COUNT bits 31:16) show the receiver
+resets. PA_CTRL selects the behaviour at run time (reset on disconnection, CDR-only reset, CDR hold during electrical
+idle, PCSRSVDIN); its reset values are the verified configuration. The transmit buffer of a lane is reset when the
+transceiver reports a transmit buffer error (LANE_EVENTS bit 5).
 
 ## 6. Programming sequence
 
-1. Release `Rst`. Read ID (0x0FB10009) and GENERICS.
+1. Release `Rst`. Read ID (0x0FB1000A) and GENERICS.
 2. Optional configuration before the link start:
    - DL_CTRL bit 8 DataScrambled (set after reset), DL_BC_INTERVAL.
    - Per VC: VC_CFG (priority, continuous mode, virtual network number), VC_BANDWIDTH, VC_SLOTS_LO / HI.
    - Multi-Lane: ML_CTRL (maximum number of data-sending lanes, bypass); per lane LANE_CTRL TxEn and RxEn (bits 5, 6,
      set after reset) for asymmetric links and unidirectional lanes.
    - IRQ_MASK.
+   - LANE_INIT_TIMEOUT (initialisation timeout of the lanes, reset value `InitTimeoutWords_g`) and PA_CTRL (control of
+     the Physical adapter); their reset values need no write.
    - Test modes per lane in LANE_CTRL: near-end and far-end parallel loopback (bits 3, 4, Lane layer), near-end and
      far-end serial loopback (bits 16, 17, Physical adapter).
 3. Start the link: LANE_CTRL of every lane with LaneStart (bit 0) at one end, for example 0x63 (LaneStart, AutoStart,
@@ -425,6 +453,8 @@ Where the standard leaves a choice, the section "Interpretation of the standard"
 | Implemented with a restriction | 5.6.2 | 1 to 4 lanes per port (`NumLanes_g`); the standard allows up to 16 lanes (5.6.2c) |
 | Implemented with a restriction | 5.4.2.3 | `ofb_pa_gty` runs at 6.25 Gbit/s (5.4.2.3b) from a 156.25 MHz reference clock. The core itself takes any data signalling rate (`LaneClk` = R / 40) |
 | Implemented with an option | 5.9.3c, Table 5-36 | `LaneStart_g` and `AutoStart_g` set the reset values of LaneStart and AutoStart; the defaults are the reset values of the standard, other values act as a management write right after the reset (MG-CF-03) |
+| Implemented with an option | 5.5.2.6b.1, 5.5.2.7b.1 | The initialisation timeout of the lanes is the management register LANE_INIT_TIMEOUT with the reset value `InitTimeoutWords_g`; the default of 5000 words is the timeout of the standard, any other value deviates from it. The VCK190 design uses 468750 words (3 ms), see its user guide |
+| Implemented with an interpretation | 5.4.1d, 5.5.2.4c | CDR enable does not stop the clock data recovery of `ofb_pa_gty`; its falling edge resets the receiver of the lane (PA-IF-02, PA-RS-04), and the CDR is held while the receiver reports electrical idle (PA-IF-04) |
 | Extension outside the standard | 5.6.6.4b, 5.6.7 | Alignment watchdog of the Multi-Lane layer (ML-AL-11, `AlignTimeoutWords_g`): LaneReset of the active lanes when the alignment has been in Not Ready for `AlignTimeoutWords_g` lane clock cycles, or outside Both-Ends Ready for twice as many, since the last stable Both-Ends Ready. It covers two cases the standard leaves without a way out: a lane skew beyond the alignment FIFOs at the own end (5.6.6.4b gives a FIFO of 3 or 4 words and no mechanism for a larger skew, which word losses at comma realignments after bit errors cause), and a far end that stays in Not Ready, for example without such a watchdog. No shall requirement is changed; `AlignTimeoutWords_g` = 0 gives the behaviour of the standard alone (see below) |
 | Extension outside the standard | 5.6.7.1c.1, 5.6.7.3b | Join hold of the Multi-Lane layer (ML-LM-17, `LaneJoinHoldWords_g`): when the link starts, the words of the Data Link layer wait while a lane is still initialising, so that the realignment when that lane enters Active loses no word of the Data Link layer (see below). No shall requirement is changed: the Multi-Lane layer sends IDLE rows as when the Data Link layer has nothing to send; `LaneJoinHoldWords_g` = 0 gives the behaviour of the standard alone |
 | Implemented with an interpretation | 5.7.9.3c | The link reset state machine leaves Near-End Reset only while the transmitters of the Physical adapter are ready (`Phy_TxReady`, section 4); the standard leaves it unconditionally. A transmitter that is not ready cannot send the INIT words of the lane initialisation. With `Phy_TxReady` = 1, the default of the port, the behaviour is that of the standard (DL-LR-06) |
@@ -458,8 +488,10 @@ both ends realign, and the words in flight are replaced by RXERR (5.6.7.2b.2). T
 retry, which shows as a sequence error (DL_ERRORS bit 3) and in DL_RETRIES. The join hold avoids this at the start of
 the link: after the first lane entered Active, no word of the Data Link layer is sent while another enabled lane is in
 Started, InvertRxPolarity, Connecting or Connected. It ends when every such lane has entered Active or left the
-initialisation (a timeout of its initialisation, 5000 words), at the latest after `LaneJoinHoldWords_g` cycles; the
-default of 8192 cycles (52 us at 156.25 MHz) covers one initialisation attempt with margin. The hold is armed again when
+initialisation (a timeout of its initialisation, LANE_INIT_TIMEOUT), at the latest after `LaneJoinHoldWords_g` cycles;
+the default of 8192 cycles (52 us at 156.25 MHz) covers one initialisation attempt of 5000 words with margin. With a
+longer initialisation timeout the hold can end before a late lane joins, and that lane then costs one retry without
+data loss, as described below. The hold is armed again when
 no lane is Active (link start, Link Reset, LaneReset of all lanes, loss of all lanes). A lane that joins later, for
 example after a restart while the other lanes carry traffic, is not held: words are in flight, and the realignment costs
 a retry without data loss, as the standard foresees.

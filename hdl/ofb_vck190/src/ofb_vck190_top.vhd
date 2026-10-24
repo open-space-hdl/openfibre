@@ -96,6 +96,20 @@ architecture struct of ofb_vck190_top is
     signal TxReady    : std_logic;
     signal RxReady    : std_logic;
     signal Aligned    : std_logic_vector(Lanes_c-1 downto 0);
+    -- Receiver reset and CDR hold of the transceivers (MIB PA_CTRL, LANE_CTRL RX_RESET) and their status
+    signal PaOnDisc   : std_logic;
+    signal PaCdrOnly  : std_logic;
+    signal PaCdrHold  : std_logic;
+    signal PaPcs      : std_logic_vector(15 downto 0);
+    signal PaRstCmd   : std_logic_vector(Lanes_c-1 downto 0);
+    signal RxBufErr   : std_logic_vector(Lanes_c-1 downto 0);
+    signal TxBufErr   : std_logic_vector(Lanes_c-1 downto 0);
+    signal RxRstDone  : std_logic_vector(Lanes_c-1 downto 0);
+    signal RxRstBusy  : std_logic_vector(Lanes_c-1 downto 0);
+    signal CdrLock    : std_logic_vector(Lanes_c-1 downto 0);
+    signal ElecIdle   : std_logic_vector(Lanes_c-1 downto 0);
+    signal EvRxRst    : std_logic_vector(Lanes_c-1 downto 0);
+    signal EvRxRstTo  : std_logic_vector(Lanes_c-1 downto 0);
 
     -- Echo of the virtual channels and broadcast messages
     signal VcData  : std_logic_vector(32*Lanes_c*NumVc_g-1 downto 0);
@@ -294,9 +308,12 @@ begin
     -----------------------------------------------------------------------------------------------
     -- Physical adapter and core
     -----------------------------------------------------------------------------------------------
+    -- Receiver reset of a lane at every disconnection (no gap): with the initialisation timeout of this design (3 ms)
+    -- an initialisation attempt outlasts the receiver reset of the transceiver
     i_pa : entity work.ofb_pa_gty
         generic map (
-            NumLanes_g => Lanes_c
+            NumLanes_g       => Lanes_c,
+            RxRstGapCycles_g => 0
         )
         port map (
             FreeRunClk             => MgmtClk,
@@ -323,8 +340,20 @@ begin
             Stat_TxReady           => TxReady,
             Stat_RxReady           => RxReady,
             Stat_Aligned           => Aligned,
-            Stat_RxBufErr          => open,
+            Stat_RxBufErr          => RxBufErr,
             Stat_ClkCor            => open,
+            Cfg_RxResetOnDisc      => PaOnDisc,
+            Cfg_RxResetCdrOnly     => PaCdrOnly,
+            Cfg_CdrHoldIdle        => PaCdrHold,
+            Cfg_PcsRsvdIn          => PaPcs,
+            Cmd_RxReset            => PaRstCmd,
+            Stat_TxBufErr          => TxBufErr,
+            Stat_RxResetDone       => RxRstDone,
+            Stat_RxResetBusy       => RxRstBusy,
+            Stat_CdrLock           => CdrLock,
+            Stat_RxElecIdle        => ElecIdle,
+            Ev_RxReset             => EvRxRst,
+            Ev_RxResetTimeout      => EvRxRstTo,
             Phy_SerialNearLoopback => SerNearLb,
             Phy_SerialFarLoopback  => SerFarLb,
             Phy_PrbsTxSel          => PrbsTxSel,
@@ -339,11 +368,14 @@ begin
     -- are ready (Phy_TxReady from Stat_TxReady of the adapter, both in the lane clock domain)
     i_core : entity work.ofb_core
         generic map (
-            NumVc_g       => NumVc_g,
-            NumLanes_g    => Lanes_c,
-            LaneClkFreq_g => 156.25e6,
-            CoreClkFreq_g => 156.25e6,
-            VcInDepth_g   => 256 * Lanes_c
+            NumVc_g            => NumVc_g,
+            NumLanes_g         => Lanes_c,
+            LaneClkFreq_g      => 156.25e6,
+            CoreClkFreq_g      => 156.25e6,
+            VcInDepth_g        => 256 * Lanes_c,
+            -- Initialisation timeout of 3 ms instead of the 5000 words (32 us) of ECSS 5.5.2.6b.1 (a documented
+            -- deviation of this design): a lane stays in Started while the receiver reset of its transceiver runs
+            InitTimeoutWords_g => 468750
         )
         port map (
             Rst                    => PorRst,
@@ -410,7 +442,20 @@ begin
             Phy_PrbsCntReset       => PrbsCntRst,
             Phy_PrbsErr            => PrbsErr,
             Phy_PrbsLocked         => PrbsLocked,
-            Phy_BitSync            => Aligned
+            Phy_BitSync            => Aligned,
+            Phy_RxResetOnDisc      => PaOnDisc,
+            Phy_RxResetCdrOnly     => PaCdrOnly,
+            Phy_CdrHoldIdle        => PaCdrHold,
+            Phy_PcsRsvdIn          => PaPcs,
+            Phy_RxResetCmd         => PaRstCmd,
+            Phy_RxBufErr           => RxBufErr,
+            Phy_TxBufErr           => TxBufErr,
+            Phy_RxResetDone        => RxRstDone,
+            Phy_RxResetBusy        => RxRstBusy,
+            Phy_CdrLock            => CdrLock,
+            Phy_RxElecIdle         => ElecIdle,
+            Phy_EvRxReset          => EvRxRst,
+            Phy_EvRxResetTimeout   => EvRxRstTo
         );
 
     -----------------------------------------------------------------------------------------------

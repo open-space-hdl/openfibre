@@ -42,15 +42,21 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_pa_gty_core_tb is
     generic (
-        Lanes_g  : positive range 1 to 4 := 4;
+        Lanes_g       : positive range 1 to 4 := 4;
         -- Link initialisation and the first burst only (the lane counts below four)
-        Short_g  : boolean               := false;
+        Short_g       : boolean               := false;
         -- With Short_g: restart of lane 0 by an interruption of the transmitter of B after the first burst
-        Relock_g : boolean               := false;
+        Relock_g      : boolean               := false;
         -- Length of the interruption of the transmitter of B in ns (Relock_g)
-        CutNs_g  : positive              := 5000;
+        CutNs_g       : positive              := 5000;
+        -- Gap between two receiver resets of a lane (RxRstGapCycles_g of the adapters, FreeRunClk cycles),
+        -- initialisation timeout of the lanes (InitTimeoutWords_g of the cores, words), bound for the return of lane 0
+        -- after the interruption in us (Relock_g)
+        RxRstGap_g    : natural               := 400000;
+        InitTimeout_g : positive              := 5000;
+        RelockMaxUs_g : positive              := 300;
         -- Stop the simulation at the end; false: only PaCoreTbEnd and PaCoreTbPass are set
-        Finish_g : boolean               := true
+        Finish_g      : boolean               := true
     );
 end entity;
 
@@ -66,7 +72,7 @@ architecture sim of ofb_pa_gty_core_tb is
     constant Timeout_c : time     := 1 ms;
 
     constant CutTime_c   : time := CutNs_g * 1 ns; -- interruption of the transmitter of lane 0 of B (Relock_g)
-    constant RelockMax_c : time := 300 us;         -- bound for the return of the lane after the interruption
+    constant RelockMax_c : time := RelockMaxUs_g * 1 us; -- bound for the return of the lane after the interruption
 
     constant RefPeriodA_c : time := 6400 ps;
     constant RefPeriodB_c : time := 6401280 fs; -- 200 ppm slower
@@ -100,6 +106,7 @@ architecture sim of ofb_pa_gty_core_tb is
     type NatArray_t is array (0 to 1) of natural;
     type ErrArray_t is array (0 to 1, 0 to Vcs_c) of natural; -- per VC checker, broadcast checker (Vcs_c)
     type TimeArray_t is array (0 to 1) of time;
+    type PcsArray_t is array (0 to 1) of std_logic_vector(15 downto 0);
 
     -- Clocks and resets
     signal RefClk     : EndArray_t := (others => '0');
@@ -128,6 +135,21 @@ architecture sim of ofb_pa_gty_core_tb is
     signal RxInvert  : LaneVecArray_t;
     signal NoSignal  : LaneVecArray_t;
     signal ClkCor    : LaneVecArray_t;
+
+    -- Receiver reset and CDR hold between the cores and the adapters, as in the VCK190 design
+    signal PaOnDisc   : EndArray_t;
+    signal PaCdrOnly  : EndArray_t;
+    signal PaCdrHold  : EndArray_t;
+    signal PaPcs      : PcsArray_t;
+    signal PaRstCmd   : LaneVecArray_t;
+    signal PaRxBufErr : LaneVecArray_t;
+    signal PaTxBufErr : LaneVecArray_t;
+    signal PaRstDone  : LaneVecArray_t;
+    signal PaRstBusy  : LaneVecArray_t;
+    signal PaCdrLock  : LaneVecArray_t;
+    signal PaElecIdle : LaneVecArray_t;
+    signal PaEvRst    : LaneVecArray_t;
+    signal PaEvRstTo  : LaneVecArray_t;
 
     -- Virtual channels and broadcast ports
     signal SVcData  : BeatArray_t   := (others => (others => '0'));
@@ -538,7 +560,17 @@ begin
                     report "End " & integer'image(e) & " lane 0 after the restart: LANE_TIMEOUT_COUNT " &
                            integer'image(to_integer(unsigned(A_v(15 downto 0)))) & " (" &
                            integer'image(to_integer(unsigned(A_v(15 downto 0))) - To_v(e)) &
-                           " during the restart), LANE_EVENTS " & to_hstring(B_v(3 downto 0));
+                           " during the restart), RX_RESETS " & integer'image(to_integer(unsigned(A_v(31 downto 16)))) &
+                           ", LANE_EVENTS " & to_hstring(B_v(7 downto 0));
+                    -- The entire receiver reset of the restarted lane completed (PA-RS-04, PA-RS-05)
+                    if e = 0 and to_integer(unsigned(A_v(31 downto 16))) = 0 then
+                        report "FAIL: no completed receiver reset of lane 0 of A during the restart" severity error;
+                        Fail_v := true;
+                    end if;
+                    if B_v(7) = '1' then
+                        report "FAIL: receiver reset timeout of lane 0 of end " & integer'image(e) severity error;
+                        Fail_v := true;
+                    end if;
                     rd(e, RegDlErrors_c, A_v);
                     report "End " & integer'image(e) & " after the restart: DL_ERRORS " & to_hstring(A_v);
                 end loop;
@@ -1010,104 +1042,171 @@ begin
             end if;
         end process;
 
+        -- Receiver reset of lane 0 (PA-RS-04): start and end with the duration, and during the relock phase the
+        -- electrical idle and the CDR lock of the receiver; at most 40 lines
+        p_rxrst : process (LaneClk(e)) is
+            variable Busy_v  : std_logic := '0';
+            variable Idle_v  : std_logic := '0';
+            variable Lock_v  : std_logic := '0';
+            variable Start_v : time      := 0 fs;
+            variable N_v     : natural   := 0;
+        begin
+            if rising_edge(LaneClk(e)) then
+                if N_v < 40 then
+                    if PaRstBusy(e)(0) /= Busy_v then
+                        if PaRstBusy(e)(0) = '1' then
+                            Start_v := now;
+                            report "End " & integer'image(e) & ": receiver reset of lane 0 started at " &
+                                   time'image(now);
+                        else
+                            report "End " & integer'image(e) & ": receiver reset of lane 0 ended at " & time'image(now) &
+                                   " (" & time'image(now - Start_v) & " after its start, RXRESETDONE " &
+                                   std_logic'image(PaRstDone(e)(0)) & ")";
+                        end if;
+                        N_v := N_v + 1;
+                    end if;
+                    if PaEvRstTo(e)(0) = '1' then
+                        report "End " & integer'image(e) & ": receiver reset of lane 0 timed out at " & time'image(now);
+                        N_v := N_v + 1;
+                    end if;
+                    if RelockOn and (PaElecIdle(e)(0) /= Idle_v or PaCdrLock(e)(0) /= Lock_v) then
+                        report "End " & integer'image(e) & ": lane 0 electrical idle " &
+                               std_logic'image(PaElecIdle(e)(0)) & ", CDR lock " & std_logic'image(PaCdrLock(e)(0)) &
+                               " at " & time'image(now);
+                        N_v := N_v + 1;
+                    end if;
+                end if;
+                Busy_v := PaRstBusy(e)(0);
+                Idle_v := PaElecIdle(e)(0);
+                Lock_v := PaCdrLock(e)(0);
+            end if;
+        end process;
+
         i_pa : entity work.ofb_pa_gty
             generic map (
-                NumLanes_g => Lanes_c
+                NumLanes_g       => Lanes_c,
+                RxRstGapCycles_g => RxRstGap_g
             )
             port map (
-                FreeRunClk    => FreeRunClk,
-                Rst           => PaRst(e),
-                RefClk        => RefClk(e),
-                LaneClk       => LaneClk(e),
-                LaneRst       => open,
-                Gt_TxP        => TxP(e),
-                Gt_TxN        => TxN(e),
-                Gt_RxP        => TxP(1 - e),
-                Gt_RxN        => TxN(1 - e),
-                PhyTx_Data    => PhyTxData(e),
-                PhyTx_K       => PhyTxK(e),
-                PhyRx_Data    => PhyRxData(e),
-                PhyRx_K       => PhyRxK(e),
-                PhyRx_CodeErr => PhyRxCode(e),
-                PhyRx_DispErr => PhyRxDisp(e),
-                PhyRx_Valid   => PhyRxVld(e),
-                Phy_TxEnable  => TxEnGt(e),
-                Phy_RxEnable  => RxEnable(e),
-                Phy_CdrEnable => CdrEnable(e),
-                Phy_RxInvert  => RxInvert(e),
-                Phy_NoSignal  => NoSignal(e),
-                Stat_TxReady  => TxReady(e),
-                Stat_RxReady  => RxReady(e),
-                Stat_Aligned  => Aligned(e),
-                Stat_RxBufErr => open,
-                Stat_ClkCor   => ClkCor(e)
+                FreeRunClk         => FreeRunClk,
+                Rst                => PaRst(e),
+                RefClk             => RefClk(e),
+                LaneClk            => LaneClk(e),
+                LaneRst            => open,
+                Gt_TxP             => TxP(e),
+                Gt_TxN             => TxN(e),
+                Gt_RxP             => TxP(1 - e),
+                Gt_RxN             => TxN(1 - e),
+                PhyTx_Data         => PhyTxData(e),
+                PhyTx_K            => PhyTxK(e),
+                PhyRx_Data         => PhyRxData(e),
+                PhyRx_K            => PhyRxK(e),
+                PhyRx_CodeErr      => PhyRxCode(e),
+                PhyRx_DispErr      => PhyRxDisp(e),
+                PhyRx_Valid        => PhyRxVld(e),
+                Phy_TxEnable       => TxEnGt(e),
+                Phy_RxEnable       => RxEnable(e),
+                Phy_CdrEnable      => CdrEnable(e),
+                Phy_RxInvert       => RxInvert(e),
+                Phy_NoSignal       => NoSignal(e),
+                Stat_TxReady       => TxReady(e),
+                Stat_RxReady       => RxReady(e),
+                Stat_Aligned       => Aligned(e),
+                Stat_RxBufErr      => PaRxBufErr(e),
+                Stat_ClkCor        => ClkCor(e),
+                Cfg_RxResetOnDisc  => PaOnDisc(e),
+                Cfg_RxResetCdrOnly => PaCdrOnly(e),
+                Cfg_CdrHoldIdle    => PaCdrHold(e),
+                Cfg_PcsRsvdIn      => PaPcs(e),
+                Cmd_RxReset        => PaRstCmd(e),
+                Stat_TxBufErr      => PaTxBufErr(e),
+                Stat_RxResetDone   => PaRstDone(e),
+                Stat_RxResetBusy   => PaRstBusy(e),
+                Stat_CdrLock       => PaCdrLock(e),
+                Stat_RxElecIdle    => PaElecIdle(e),
+                Ev_RxReset         => PaEvRst(e),
+                Ev_RxResetTimeout  => PaEvRstTo(e)
             );
 
         i_core : entity work.ofb_core
             generic map (
-                NumVc_g       => Vcs_c,
-                NumLanes_g    => Lanes_c,
-                LaneClkFreq_g => 156.25e6,
-                CoreClkFreq_g => 156.25e6,
-                VcInDepth_g   => 256 * Lanes_c
+                NumVc_g            => Vcs_c,
+                NumLanes_g         => Lanes_c,
+                LaneClkFreq_g      => 156.25e6,
+                CoreClkFreq_g      => 156.25e6,
+                VcInDepth_g        => 256 * Lanes_c,
+                InitTimeoutWords_g => InitTimeout_g
             )
             port map (
-                Rst               => Rst,
-                UserClk           => LaneClk(e),
-                CoreClk           => LaneClk(e),
-                LaneClk           => LaneClk(e),
-                MgmtClk           => FreeRunClk,
-                S_Vc_TData        => SVcData(e),
-                S_Vc_TKeep        => SVcKeep(e),
-                S_Vc_TLast        => SVcLast(e),
-                S_Vc_TUser        => (others => '0'),
-                S_Vc_TValid       => SVcValid(e),
-                S_Vc_TReady       => SVcReady(e),
-                M_Vc_TData        => MVcData(e),
-                M_Vc_TKeep        => MVcKeep(e),
-                M_Vc_TLast        => MVcLast(e),
-                M_Vc_TUser        => MVcUser(e),
-                M_Vc_TValid       => MVcValid(e),
-                M_Vc_TReady       => (others => '1'),
-                S_Bc_TData        => SBcData(e),
-                S_Bc_TUser        => SBcUser(e)(16 downto 0),
-                S_Bc_TValid       => SBcValid(e),
-                S_Bc_TReady       => SBcReady(e),
-                M_Bc_TData        => MBcData(e),
-                M_Bc_TUser        => MBcUser(e),
-                M_Bc_TValid       => MBcValid(e),
-                M_Bc_TReady       => '1',
-                S_AxiLite_ArAddr  => ArAddr(e),
-                S_AxiLite_ArValid => ArValid(e),
-                S_AxiLite_ArReady => ArReady(e),
-                S_AxiLite_AwAddr  => AwAddr(e),
-                S_AxiLite_AwValid => AwValid(e),
-                S_AxiLite_AwReady => AwReady(e),
-                S_AxiLite_WData   => WData(e),
-                S_AxiLite_WStrb   => "1111",
-                S_AxiLite_WValid  => WValid(e),
-                S_AxiLite_WReady  => WReady(e),
-                S_AxiLite_BResp   => BResp(e),
-                S_AxiLite_BValid  => BValid(e),
-                S_AxiLite_BReady  => BReady(e),
-                S_AxiLite_RData   => RData(e),
-                S_AxiLite_RResp   => RResp(e),
-                S_AxiLite_RValid  => RValid(e),
-                S_AxiLite_RReady  => RReady(e),
-                Irq               => open,
-                PhyTx_Data        => PhyTxData(e),
-                PhyTx_K           => PhyTxK(e),
-                PhyRx_Data        => PhyRxData(e),
-                PhyRx_K           => PhyRxK(e),
-                PhyRx_CodeErr     => PhyRxCode(e),
-                PhyRx_DispErr     => PhyRxDisp(e),
-                PhyRx_Valid       => PhyRxVld(e),
-                Phy_TxEnable      => TxEnable(e),
-                Phy_RxEnable      => RxEnable(e),
-                Phy_CdrEnable     => CdrEnable(e),
-                Phy_RxInvert      => RxInvert(e),
-                Phy_NoSignal      => NoSignal(e),
-                Phy_TxReady       => TxReady(e)
+                Rst                  => Rst,
+                UserClk              => LaneClk(e),
+                CoreClk              => LaneClk(e),
+                LaneClk              => LaneClk(e),
+                MgmtClk              => FreeRunClk,
+                S_Vc_TData           => SVcData(e),
+                S_Vc_TKeep           => SVcKeep(e),
+                S_Vc_TLast           => SVcLast(e),
+                S_Vc_TUser           => (others => '0'),
+                S_Vc_TValid          => SVcValid(e),
+                S_Vc_TReady          => SVcReady(e),
+                M_Vc_TData           => MVcData(e),
+                M_Vc_TKeep           => MVcKeep(e),
+                M_Vc_TLast           => MVcLast(e),
+                M_Vc_TUser           => MVcUser(e),
+                M_Vc_TValid          => MVcValid(e),
+                M_Vc_TReady          => (others => '1'),
+                S_Bc_TData           => SBcData(e),
+                S_Bc_TUser           => SBcUser(e)(16 downto 0),
+                S_Bc_TValid          => SBcValid(e),
+                S_Bc_TReady          => SBcReady(e),
+                M_Bc_TData           => MBcData(e),
+                M_Bc_TUser           => MBcUser(e),
+                M_Bc_TValid          => MBcValid(e),
+                M_Bc_TReady          => '1',
+                S_AxiLite_ArAddr     => ArAddr(e),
+                S_AxiLite_ArValid    => ArValid(e),
+                S_AxiLite_ArReady    => ArReady(e),
+                S_AxiLite_AwAddr     => AwAddr(e),
+                S_AxiLite_AwValid    => AwValid(e),
+                S_AxiLite_AwReady    => AwReady(e),
+                S_AxiLite_WData      => WData(e),
+                S_AxiLite_WStrb      => "1111",
+                S_AxiLite_WValid     => WValid(e),
+                S_AxiLite_WReady     => WReady(e),
+                S_AxiLite_BResp      => BResp(e),
+                S_AxiLite_BValid     => BValid(e),
+                S_AxiLite_BReady     => BReady(e),
+                S_AxiLite_RData      => RData(e),
+                S_AxiLite_RResp      => RResp(e),
+                S_AxiLite_RValid     => RValid(e),
+                S_AxiLite_RReady     => RReady(e),
+                Irq                  => open,
+                PhyTx_Data           => PhyTxData(e),
+                PhyTx_K              => PhyTxK(e),
+                PhyRx_Data           => PhyRxData(e),
+                PhyRx_K              => PhyRxK(e),
+                PhyRx_CodeErr        => PhyRxCode(e),
+                PhyRx_DispErr        => PhyRxDisp(e),
+                PhyRx_Valid          => PhyRxVld(e),
+                Phy_TxEnable         => TxEnable(e),
+                Phy_RxEnable         => RxEnable(e),
+                Phy_CdrEnable        => CdrEnable(e),
+                Phy_RxInvert         => RxInvert(e),
+                Phy_NoSignal         => NoSignal(e),
+                Phy_TxReady          => TxReady(e),
+                Phy_RxResetOnDisc    => PaOnDisc(e),
+                Phy_RxResetCdrOnly   => PaCdrOnly(e),
+                Phy_CdrHoldIdle      => PaCdrHold(e),
+                Phy_PcsRsvdIn        => PaPcs(e),
+                Phy_RxResetCmd       => PaRstCmd(e),
+                Phy_RxBufErr         => PaRxBufErr(e),
+                Phy_TxBufErr         => PaTxBufErr(e),
+                Phy_RxResetDone      => PaRstDone(e),
+                Phy_RxResetBusy      => PaRstBusy(e),
+                Phy_CdrLock          => PaCdrLock(e),
+                Phy_RxElecIdle       => PaElecIdle(e),
+                Phy_EvRxReset        => PaEvRst(e),
+                Phy_EvRxResetTimeout => PaEvRstTo(e)
             );
 
         -------------------------------------------------------------------------------------------

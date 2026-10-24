@@ -57,12 +57,12 @@ begin
 
     i_dut : entity work.ofb_lane_init
         generic map (
-            ClkFrequency_g     => 156.25e6,
-            InitTimeoutWords_g => TbInitTimeoutWords_c
+            ClkFrequency_g => 156.25e6
         )
         port map (
             Clk                     => ClkI,
             Rst                     => RstI,
+            Cfg_InitTimeout         => InitIn.InitTimeout,
             Cfg_LaneStart           => InitIn.LaneStart,
             Cfg_AutoStart           => InitIn.AutoStart,
             Cfg_LaneReset           => InitIn.CfgLaneReset,

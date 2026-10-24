@@ -13,10 +13,15 @@
 -- Channel effects and the times of the reset sequence come from PaModelCtrl(ModelIdx_g)
 -- (ofb_pa_model_pkg).
 --
+-- The reset sequencer of every lane is the same entity as in struct (ofb_pa_gty_lane_rst); the model answers
+-- its channel resets: the entire receiver reset (GTRXRESET in sequential mode) clears the receiver and
+-- returns RXRESETDONE after Lane(l).RxResetTime, the CDR reset relocks the receiver, the transmit buffer
+-- reset clears the transmit buffer error.
+--
 -- What this model does NOT reproduce: analogue behaviour (equalisation, jitter), the lock process of
 -- the PLL and the clock-data recovery (fixed delays instead), the power-up and DRP behaviour of the
--- transceiver, the reset of the transmit datapath of the quad on a far-end loopback change, and the
--- exact latency of the transceiver datapaths.
+-- transceiver, the reset of the transmit datapath of the quad on a far-end loopback change, the CDR
+-- hold, the PCSRSVDIN bits, and the exact latency of the transceiver datapaths.
 --
 -- Documentation: hdl/ofb_pa_gty/docs/model.md
 
@@ -78,6 +83,26 @@ architecture mdl of ofb_pa_gty is
     signal PrbsRst   : IntArray_t                       := (others => 0); -- PRBS checker resets requested
 
     shared variable RxBuf_v : PaModelBuffer_t;
+
+    -- Reset sequencer of every lane and the channel reset ports it drives (FreeRunClk)
+    type Mode2_t is array (0 to N_c-1) of std_logic_vector(1 downto 0);
+    type ReqCnts_t is array (0 to N_c-1) of natural range 0 to 15;
+
+    signal FullReqL  : std_logic_vector(N_c-1 downto 0) := (others => '0'); -- request, stretched in LaneClk
+    signal FullCnt   : ReqCnts_t                        := (others => 0);
+    signal CdrEnLast : std_logic_vector(N_c-1 downto 0) := (others => '0');
+    signal GtRxRst   : std_logic_vector(N_c-1 downto 0);
+    signal GtRxMode  : Mode2_t;
+    signal GtCdrRst  : std_logic_vector(N_c-1 downto 0);
+    signal GtTxRst   : std_logic_vector(N_c-1 downto 0);
+    signal RxRstDone : std_logic_vector(N_c-1 downto 0) := (others => '0'); -- RXRESETDONE of the channel
+    signal RxRstCnt  : IntArray_t                       := (others => 0);   -- receiver resets (relock)
+    signal TxBufErr  : std_logic_vector(N_c-1 downto 0) := (others => '0'); -- TXBUFSTATUS[1]
+    signal RxBusyF   : std_logic_vector(N_c-1 downto 0);
+    signal DoneEvF   : std_logic_vector(N_c-1 downto 0);
+    signal TimeoEvF  : std_logic_vector(N_c-1 downto 0);
+    signal DoneTgl   : std_logic_vector(N_c-1 downto 0) := (others => '0');
+    signal TimeoTgl  : std_logic_vector(N_c-1 downto 0) := (others => '0');
 
     -- PRBS taps (x^a + x^b + 1: bit n = bit n-a xor bit n-b) of the transceiver encoding 1 to 5
     type Taps_t is array (1 to 5) of natural;
@@ -295,7 +320,11 @@ begin
         if RstFree = '1' then
             Stat_RxReady <= '0';
         elsif rising_edge(LaneClk) then
-            Stat_RxReady <= RxRdy;
+            if RxRdy = '1' and RxBusyF = (RxBusyF'range => '0') then
+                Stat_RxReady <= '1';
+            else
+                Stat_RxReady <= '0';
+            end if;
         end if;
     end process;
 
@@ -303,6 +332,112 @@ begin
     -- Lanes
     -----------------------------------------------------------------------------------------------
     g_lane : for l in 0 to N_c-1 generate
+
+        -- Request of the entire receiver reset (PA-RS-04): the lane leaves the states that use the line, or the
+        -- command; stretched for the free-running clock, as struct
+        p_req : process (LaneClk) is
+        begin
+            if rising_edge(LaneClk) then
+                CdrEnLast(l) <= Phy_CdrEnable(l);
+                if (CdrEnLast(l) = '1' and Phy_CdrEnable(l) = '0' and Cfg_RxResetOnDisc = '1') or
+                   Cmd_RxReset(l) = '1' then
+                    FullCnt(l)  <= 15;
+                    FullReqL(l) <= '1';
+                elsif FullCnt(l) /= 0 then
+                    FullCnt(l) <= FullCnt(l) - 1;
+                else
+                    FullReqL(l) <= '0';
+                end if;
+            end if;
+        end process;
+
+        i_seq : entity work.ofb_pa_gty_lane_rst
+            generic map (
+                DoneHighCycles_g => RxRstDoneCycles_g,
+                CdrWaitCycles_g  => CdrWaitCycles_g,
+                GapCycles_g      => RxRstGapCycles_g
+            )
+            port map (
+                Clk            => FreeRunClk,
+                Rst            => RstFree,
+                Req_Full       => FullReqL(l),
+                Req_Buf        => '0',
+                Req_Tx         => TxBufErr(l) and TxRdyF,
+                Cfg_CdrOnly    => Cfg_RxResetCdrOnly,
+                Cfg_PcsRsvdIn  => Cfg_PcsRsvdIn,
+                Gt_MasterDone  => RxRdy,
+                Gt_RxResetDone => RxRstDone(l),
+                Gt_RxReset     => GtRxRst(l),
+                Gt_RxResetMode => GtRxMode(l),
+                Gt_RxPmaMask   => open,
+                Gt_RxPcsMask   => open,
+                Gt_RxCdrReset  => GtCdrRst(l),
+                Gt_TxReset     => GtTxRst(l),
+                Gt_TxResetMode => open,
+                Gt_TxPmaMask   => open,
+                Gt_TxPcsMask   => open,
+                Gt_PcsRsvdIn   => open,
+                Stat_RxBusy    => RxBusyF(l),
+                Stat_BufBusy   => open,
+                Ev_RxResetDone => DoneEvF(l),
+                Ev_Timeout     => TimeoEvF(l)
+            );
+
+        -- Answer of the transceiver to the entire receiver reset: RXRESETDONE 1 when the receivers are ready, 0 from
+        -- a GTRXRESET pulse in sequential mode until RxResetTime after its end (never with RxResetHang); every
+        -- receiver reset and CDR reset relocks the receiver
+        p_gtrst : process is
+        begin
+            RxRstDone(l) <= '0';
+            wait until RstFree = '0' and RxRdy = '1';
+            RxRstDone(l) <= '1';
+
+            loop
+                wait until (GtRxRst(l) = '1' and GtRxMode(l) = "00") or GtCdrRst(l) = '1' or RstFree = '1' or
+                           RxRdy = '0';
+                exit when RstFree = '1' or RxRdy = '0';
+                RxRstCnt(l) <= RxRstCnt(l) + 1;
+                if GtRxRst(l) = '1' then
+                    RxRstDone(l) <= '0';
+                    wait until GtRxRst(l) = '0' or RstFree = '1';
+                    exit when RstFree = '1';
+                    if not PaModelCtrl(ModelIdx_g).Lane(l).RxResetHang then
+                        wait until RstFree = '1' for PaModelCtrl(ModelIdx_g).Lane(l).RxResetTime;
+                        exit when RstFree = '1';
+                        RxRstDone(l) <= '1';
+                    end if;
+                else
+                    wait until GtCdrRst(l) = '0' or RstFree = '1';
+                    exit when RstFree = '1';
+                end if;
+            end loop;
+
+        end process;
+
+        -- Transmit buffer error by control (TXBUFSTATUS[1]) until the transmit buffer reset; event toggles
+        p_free : process (FreeRunClk) is
+            variable Req_v : natural := 0;
+        begin
+            if rising_edge(FreeRunClk) then
+                if PaModelCtrl(ModelIdx_g).Lane(l).TxBufErrReq /= Req_v then
+                    Req_v       := PaModelCtrl(ModelIdx_g).Lane(l).TxBufErrReq;
+                    TxBufErr(l) <= '1';
+                elsif GtTxRst(l) = '1' then
+                    TxBufErr(l) <= '0';
+                end if;
+                if DoneEvF(l) = '1' then
+                    DoneTgl(l) <= not DoneTgl(l);
+                end if;
+                if TimeoEvF(l) = '1' then
+                    TimeoTgl(l) <= not TimeoTgl(l);
+                end if;
+                if RstFree = '1' then
+                    TxBufErr(l) <= '0';
+                    DoneTgl(l)  <= '0';
+                    TimeoTgl(l) <= '0';
+                end if;
+            end if;
+        end process;
 
         -- Transmitter: four symbols per LaneClk cycle as 40 bits (symbol 0 first, bit a of a symbol
         -- first), or the PRBS pattern; electrical idle while not ready, disabled or idle by control
@@ -425,33 +560,34 @@ begin
         -- Receiver: the bits since the last transition, counted in the own unit interval; symbol
         -- alignment on commas, decoding, words with the comma in symbol 0, receive buffer
         p_rx : process is
-            variable Last_v     : time                          := 0 fs;
-            variable Level_v    : std_logic                     := 'Z';
-            variable N_v        : natural;
-            variable B_v        : natural range 0 to 1;
-            variable Sh_v       : natural range 0 to 1023       := 0;               -- last ten bits, newest in bit 9
-            variable Cnt_v      : natural range 0 to 10         := 0;
-            variable Align_v    : boolean                       := false;
-            variable Rd_v       : natural range 0 to 1          := 0;
-            variable Dec_v      : DecEntry_t;
-            variable Sym_v      : natural range 0 to 4          := 0;
-            variable Word_v     : PaModelWord_t;
-            variable Hist_v     : std_logic_vector(31 downto 1) := (others => '0'); -- 1: newest bit
-            variable Good_v     : natural                       := 0;
-            variable Lock_v     : boolean                       := false;
-            variable Sel_v      : natural                       := 0;
-            variable Errs_v     : natural                       := 0;
-            variable Lost_v     : natural                       := 0;
-            variable Bit_v      : std_logic;
-            variable Exp_v      : std_logic;
-            variable In_v       : std_logic;
-            variable Edge_v     : boolean;
-            variable AlignOut_v : boolean                       := false;
-            variable LockOut_v  : boolean                       := false;
-            variable ErrsOut_v  : natural                       := 0;
-            variable LostOut_v  : natural                       := 0;
-            variable RstSeen_v  : natural                       := 0;
-            variable LockAt_v   : time                          := 0 fs;            -- CDR locked from then on
+            variable Last_v      : time                          := 0 fs;
+            variable Level_v     : std_logic                     := 'Z';
+            variable N_v         : natural;
+            variable B_v         : natural range 0 to 1;
+            variable Sh_v        : natural range 0 to 1023       := 0;               -- last ten bits, newest in bit 9
+            variable Cnt_v       : natural range 0 to 10         := 0;
+            variable Align_v     : boolean                       := false;
+            variable Rd_v        : natural range 0 to 1          := 0;
+            variable Dec_v       : DecEntry_t;
+            variable Sym_v       : natural range 0 to 4          := 0;
+            variable Word_v      : PaModelWord_t;
+            variable Hist_v      : std_logic_vector(31 downto 1) := (others => '0'); -- 1: newest bit
+            variable Good_v      : natural                       := 0;
+            variable Lock_v      : boolean                       := false;
+            variable Sel_v       : natural                       := 0;
+            variable Errs_v      : natural                       := 0;
+            variable Lost_v      : natural                       := 0;
+            variable Bit_v       : std_logic;
+            variable Exp_v       : std_logic;
+            variable In_v        : std_logic;
+            variable Edge_v      : boolean;
+            variable AlignOut_v  : boolean                       := false;
+            variable LockOut_v   : boolean                       := false;
+            variable ErrsOut_v   : natural                       := 0;
+            variable LostOut_v   : natural                       := 0;
+            variable RstSeen_v   : natural                       := 0;
+            variable RxRstSeen_v : natural                       := 0;               -- receiver resets seen
+            variable LockAt_v    : time                          := 0 fs;            -- CDR locked from then on
         begin
             -- Only the line wakes the receiver (simulation speed): the controls are read at every
             -- transition, a reset of the PRBS checker arrives as a count from the LaneClk side
@@ -471,11 +607,13 @@ begin
                 RxLine(l) <= In_v;
             end if;
             -- Lock of the clock-data recovery: CdrLockTime after the first transition of a signal (after
-            -- electrical idle or a reset of the adapter); before, no word is decoded
-            if RstFree = '1' or In_v = 'Z' or Level_v = 'Z' then
-                LockAt_v := now + PaModelCtrl(ModelIdx_g).CdrLockTime;
+            -- electrical idle or a reset of the adapter) and after a receiver or CDR reset of the lane; before, no
+            -- word is decoded
+            if RstFree = '1' or In_v = 'Z' or Level_v = 'Z' or RxRstCnt(l) /= RxRstSeen_v then
+                RxRstSeen_v := RxRstCnt(l);
+                LockAt_v    := now + PaModelCtrl(ModelIdx_g).CdrLockTime;
             end if;
-            if RstFree = '1' or RxRdy = '0' or Phy_RxEnable(l) = '0' or
+            if RstFree = '1' or RxRdy = '0' or RxRstDone(l) = '0' or Phy_RxEnable(l) = '0' or
                In_v = 'Z' or now < LockAt_v then
                 -- No data: alignment lost, buffer cleared
                 Align_v := false;
@@ -592,19 +730,30 @@ begin
 
         -- Words into LaneClk: start at a fill level, clock correction with SKIP words
         p_rxout : process (LaneClk, RstFree) is
-            variable Run_v    : boolean := false;
+            variable Run_v    : boolean   := false;
             variable Word_v   : PaModelWord_t;
             variable Lvl_v    : natural;
-            variable Errs_v   : natural := 0;
-            variable Lost_v   : natural := 0;
+            variable Errs_v   : natural   := 0;
+            variable Lost_v   : natural   := 0;
             variable IsSkip_v : boolean;
             variable Ctrl_v   : PaModelCtrl_t;
-            variable Idle_v   : natural := 0;     -- words with code errors delivered in the current idle period
-            variable Window_v : natural := 0;     -- PA-RS-03: cycles left of the reset window of the buffer
-            variable BufReq_v : natural := 0;     -- forced buffer errors served (control record)
-            variable Ran_v    : boolean := false; -- the buffer delivered words since it was last started
+            variable Idle_v   : natural   := 0;     -- words with code errors delivered in the current idle period
+            variable Window_v : natural   := 0;     -- PA-RS-03: cycles left of the reset window of the buffer
+            variable BufReq_v : natural   := 0;     -- forced buffer errors served (control record)
+            variable Ran_v    : boolean   := false; -- the buffer delivered words since it was last started
+            variable DoneL_v  : std_logic := '0';
+            variable TimeoL_v : std_logic := '0';
         begin
             if RstFree = '1' then
+                DoneL_v                         := '0';
+                TimeoL_v                        := '0';
+                Stat_TxBufErr(l)                <= '0';
+                Stat_RxResetDone(l)             <= '0';
+                Stat_RxResetBusy(l)             <= '0';
+                Stat_CdrLock(l)                 <= '0';
+                Stat_RxElecIdle(l)              <= '1';
+                Ev_RxReset(l)                   <= '0';
+                Ev_RxResetTimeout(l)            <= '0';
                 Run_v                           := false;
                 Window_v                        := 0;
                 Ran_v                           := false;
@@ -733,6 +882,23 @@ begin
                 end if;
                 Phy_PrbsLocked(l) <= PrbsLock(l);
                 Stat_Aligned(l)   <= Aligned(l);
+                -- Entire or CDR receiver reset in progress: no word is valid, as struct
+                if RxBusyF(l) = '1' then
+                    PhyRx_Valid(l) <= '0';
+                end if;
+                Stat_TxBufErr(l)    <= TxBufErr(l);
+                Stat_RxResetDone(l) <= RxRstDone(l);
+                Stat_RxResetBusy(l) <= RxBusyF(l);
+                Stat_CdrLock(l)     <= Aligned(l);
+                if RxLine(l) = 'Z' then
+                    Stat_RxElecIdle(l) <= '1';
+                else
+                    Stat_RxElecIdle(l) <= '0';
+                end if;
+                Ev_RxReset(l)        <= DoneTgl(l) xor DoneL_v;
+                Ev_RxResetTimeout(l) <= TimeoTgl(l) xor TimeoL_v;
+                DoneL_v              := DoneTgl(l);
+                TimeoL_v             := TimeoTgl(l);
                 -- No signal: never (NoSignalNever, as struct), or while the line has been idle for NoSignalDelay
                 -- (NoSignalLine)
                 if Ctrl_v.NoSignalMode = NoSignalNever then

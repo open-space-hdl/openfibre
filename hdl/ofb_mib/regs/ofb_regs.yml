@@ -15,14 +15,14 @@
 #   RC   read only, any write to the register clears it (counters)
 # A reset value written as text depends on generics or on the instance (lane, VC); status fields have none.
 
-id: 0x0FB10009
+id: 0x0FB1000A
 
 registers:
   - name: ID
     offset: 0x000
     description: Identification of the core and version of the register map
     fields:
-      - {name: ID, bits: "31:0", access: RO, reset: 0x0FB10009, description: "0x0FB1 (OpenFibre) and register map version 9"}
+      - {name: ID, bits: "31:0", access: RO, reset: 0x0FB1000A, description: "0x0FB1 (OpenFibre) and register map version 10"}
 
   - name: GENERICS
     offset: 0x004
@@ -141,7 +141,7 @@ registers:
     description: Interrupt enables
     fields:
       - {name: DL_ERRORS, bits: "12:0", access: RW, reset: 0, description: Interrupt enable of the DL_ERRORS bits}
-      - {name: LANE_EVENTS, bits: "19:16", access: RW, reset: 0, description: Interrupt enable of the LANE_EVENTS bits of any lane}
+      - {name: LANE_EVENTS, bits: "23:16", access: RW, reset: 0, description: Interrupt enable of the LANE_EVENTS bits 7:0 of any lane}
       - {name: ECC_DED, bits: "24", access: RW, reset: 0, description: Interrupt enable of the ECC DED flags}
       - {name: ECC_SEC, bits: "25", access: RW, reset: 0, description: Interrupt enable of the ECC SEC flag}
 
@@ -227,6 +227,21 @@ registers:
     fields:
       - {name: COUNT, bits: "15:0", access: RC, reset: 0, description: "Expiries of the alignment watchdog, each with a LaneReset of the active lanes (saturating)"}
 
+  - name: LANE_INIT_TIMEOUT
+    offset: 0x07C
+    description: "Initialisation timeout of the lanes (ECSS 5.5.2.6b.1: 5000 words; other values deviate)"
+    fields:
+      - {name: WORDS, bits: "23:0", access: RW, reset: InitTimeoutWords_g, description: "Lane clock cycles from the entry into Started to the initialisation timeout (1 to 16777215; reset value: generic InitTimeoutWords_g, default 5000). A new value applies from the next entry into Started"}
+
+  - name: PA_CTRL
+    offset: 0x080
+    description: "Physical adapter control: receiver reset and CDR hold of the transceivers (all lanes)"
+    fields:
+      - {name: RX_RESET_ON_DISCONNECT, bits: "0", access: RW, reset: 1, description: "Entire receiver reset of a lane when it leaves the states that use the line (ClearLine entry)"}
+      - {name: RX_RESET_CDR_ONLY, bits: "1", access: RW, reset: 0, description: "Receiver reset of the CDR only, instead of the entire receiver"}
+      - {name: CDR_HOLD_IDLE, bits: "2", access: RW, reset: 1, description: "CDR held while the receiver reports electrical idle"}
+      - {name: PCSRSVDIN, bits: "31:16", access: RW, reset: 0x0360, description: "Transceiver setting for laboratory use: PCSRSVDIN outside the reset sequences (bits 10:8 are set by the entire receiver reset); values other than the reset value are outside the verified configuration. A write takes effect at the start of the next reset sequence of each lane, never during traffic; change it while the lanes are stopped or before a receiver reset command"}
+
 arrays:
   - name: LANE
     base: 0x100
@@ -248,6 +263,7 @@ arrays:
           - {name: STANDBY_REASON, bits: "15:8", access: RW, reset: 0, description: Standby Reason sent in STANDBY words}
           - {name: SERIAL_NEAR_LOOPBACK, bits: "16", access: RW, reset: 0, description: Near-end serial loopback (Physical layer)}
           - {name: SERIAL_FAR_LOOPBACK, bits: "17", access: RW, reset: 0, description: Far-end serial loopback (Physical layer)}
+          - {name: RX_RESET, bits: "18", access: W1, reset: 0, description: Entire receiver reset of the lane (Physical layer)}
       - name: LANE_STATUS
         offset: 0x04
         description: Lane status
@@ -259,6 +275,10 @@ arrays:
           - {name: PRBS_LOCKED, bits: "7", access: RO, description: PRBS checker of the Physical adapter locked to the received pattern}
           - {name: RXERR_COUNT, bits: "15:8", access: RO, description: RXERR word counter}
           - {name: FAR_CAPABILITY, bits: "23:16", access: RO, description: Far-end capabilities}
+          - {name: RX_RESET_DONE, bits: "24", access: RO, description: Reset done of the receiver of the Physical adapter (RXRESETDONE)}
+          - {name: RX_RESET_BUSY, bits: "25", access: RO, description: Receiver reset of the Physical adapter in progress}
+          - {name: CDR_LOCK, bits: "26", access: RO, description: Lock of the clock-data recovery of the Physical adapter}
+          - {name: RX_ELEC_IDLE, bits: "27", access: RO, description: Electrical idle reported by the receiver of the Physical adapter}
       - name: LANE_EVENTS
         offset: 0x08
         description: Sticky lane events
@@ -267,6 +287,10 @@ arrays:
           - {name: TIMEOUT, bits: "1", access: W1C, reset: 0, description: Initialisation timeout}
           - {name: FAR_STANDBY, bits: "2", access: W1C, reset: 0, description: Far end in standby}
           - {name: FAR_LOST_SIGNAL, bits: "3", access: W1C, reset: 0, description: Far end lost the signal}
+          - {name: RX_BUF_ERROR, bits: "4", access: W1C, reset: 0, description: Receive elastic buffer error of the Physical adapter}
+          - {name: TX_BUF_ERROR, bits: "5", access: W1C, reset: 0, description: Transmit buffer error of the Physical adapter}
+          - {name: RX_RESET, bits: "6", access: W1C, reset: 0, description: Receiver reset of the Physical adapter completed}
+          - {name: RX_RESET_TIMEOUT, bits: "7", access: W1C, reset: 0, description: "Receiver reset of the Physical adapter ended by its timeout (RXRESETDONE not seen)"}
       - name: LANE_REASONS
         offset: 0x0C
         description: Reasons received from the far end
@@ -278,6 +302,7 @@ arrays:
         description: Initialisation timeouts
         fields:
           - {name: COUNT, bits: "15:0", access: RC, reset: 0, description: Initialisation timeouts (saturating)}
+          - {name: RX_RESETS, bits: "31:16", access: RC, reset: 0, description: "Completed receiver resets of the Physical adapter (saturating, cleared together with COUNT)"}
       - name: LANE_PRBS_CTRL
         offset: 0x14
         description: PRBS test of the Physical adapter (bit error rate, 8B/10B bypassed, lane without traffic)

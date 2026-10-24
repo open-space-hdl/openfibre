@@ -56,7 +56,8 @@ entity ofb_core_th is
         AlignTimeoutB_g : natural                := 10000; -- AlignTimeoutWords_g of core B
         LaneJoinHold_g  : natural                := 8192;  -- LaneJoinHoldWords_g of both cores
         PinModel_g      : boolean                := false; -- ofb_pa_gty(mdl) pin to pin
-        PinLockNs_g     : positive               := 500    -- CdrLockTime of the models with PinModel_g (ns)
+        PinLockNs_g     : positive               := 500;   -- CdrLockTime of the models with PinModel_g (ns)
+        PinRxRstGap_g   : natural                := 400000 -- RxRstGapCycles_g of the models with PinModel_g
     );
     port (
         MgmtClk : out   std_logic;
@@ -153,6 +154,21 @@ architecture sim of ofb_core_th is
     signal SerFarLb   : LaneArray_t;
     signal BitSync    : LaneArray_t;
     signal TxReady    : std_logic_vector(0 to 1) := "00";
+
+    -- Receiver reset and status of the Physical adapters: connected to the models with PinModel_g, else the status
+    -- inputs of the cores stay 0
+    signal PaOnDisc   : BitArray_t;
+    signal PaCdrOnly  : BitArray_t;
+    signal PaCdrHold  : BitArray_t;
+    signal PaRstCmd   : LaneArray_t;
+    signal PaRxBufErr : LaneArray_t := (others => (others => '0'));
+    signal PaTxBufErr : LaneArray_t := (others => (others => '0'));
+    signal PaRstDone  : LaneArray_t := (others => (others => '0'));
+    signal PaRstBusy  : LaneArray_t := (others => (others => '0'));
+    signal PaCdrLock  : LaneArray_t := (others => (others => '0'));
+    signal PaElecIdle : LaneArray_t := (others => (others => '0'));
+    signal PaEvRst    : LaneArray_t := (others => (others => '0'));
+    signal PaEvRstTo  : LaneArray_t := (others => (others => '0'));
 
     -- Clocks of the cores and of the channel model: one delta cycle after the generated clocks, the
     -- clocks of a core gated by its run flags (taken while the generated clock is low)
@@ -338,8 +354,23 @@ begin
                 Phy_PrbsForceErr       => PrbsForce(i),
                 Phy_PrbsCntReset       => PrbsCntRst(i),
                 Phy_PrbsErr            => PrbsErr(i),
-                Phy_PrbsLocked         => PrbsLocked(i)
+                Phy_PrbsLocked         => PrbsLocked(i),
+                Phy_RxResetOnDisc      => PaOnDisc(i),
+                Phy_RxResetCdrOnly     => PaCdrOnly(i),
+                Phy_CdrHoldIdle        => PaCdrHold(i),
+                Phy_PcsRsvdIn          => CorePaPcs(i),
+                Phy_RxResetCmd         => PaRstCmd(i),
+                Phy_RxBufErr           => PaRxBufErr(i),
+                Phy_TxBufErr           => PaTxBufErr(i),
+                Phy_RxResetDone        => PaRstDone(i),
+                Phy_RxResetBusy        => PaRstBusy(i),
+                Phy_CdrLock            => PaCdrLock(i),
+                Phy_RxElecIdle         => PaElecIdle(i),
+                Phy_EvRxReset          => PaEvRst(i),
+                Phy_EvRxResetTimeout   => PaEvRstTo(i)
             );
+
+        CorePaFlags(i) <= PaCdrHold(i) & PaCdrOnly(i) & PaOnDisc(i);
 
         -------------------------------------------------------------------------------------------
         -- Packet generators and receivers per VC
@@ -817,8 +848,9 @@ begin
 
             i_pa : entity work.ofb_pa_gty(mdl)
                 generic map (
-                    NumLanes_g => N_c,
-                    ModelIdx_g => e
+                    NumLanes_g       => N_c,
+                    RxRstGapCycles_g => PinRxRstGap_g,
+                    ModelIdx_g       => e
                 )
                 port map (
                     FreeRunClk             => MgmtI,
@@ -853,8 +885,20 @@ begin
                     Stat_TxReady           => TxReady(e),
                     Stat_RxReady           => open,
                     Stat_Aligned           => BitSync(e),
-                    Stat_RxBufErr          => open,
-                    Stat_ClkCor            => open
+                    Stat_RxBufErr          => PaRxBufErr(e),
+                    Stat_ClkCor            => open,
+                    Cfg_RxResetOnDisc      => PaOnDisc(e),
+                    Cfg_RxResetCdrOnly     => PaCdrOnly(e),
+                    Cfg_CdrHoldIdle        => PaCdrHold(e),
+                    Cfg_PcsRsvdIn          => CorePaPcs(e),
+                    Cmd_RxReset            => PaRstCmd(e),
+                    Stat_TxBufErr          => PaTxBufErr(e),
+                    Stat_RxResetDone       => PaRstDone(e),
+                    Stat_RxResetBusy       => PaRstBusy(e),
+                    Stat_CdrLock           => PaCdrLock(e),
+                    Stat_RxElecIdle        => PaElecIdle(e),
+                    Ev_RxReset             => PaEvRst(e),
+                    Ev_RxResetTimeout      => PaEvRstTo(e)
                 );
 
         end generate;

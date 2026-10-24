@@ -4,8 +4,10 @@
 #---------------------------------------------------------------------------------------------------
 # Creates the Versal Transceivers Wizard instance of the Physical adapter PA-1 (ofb_pa_gty) in the
 # current Vivado project: one GTY quad, four duplex channels at 6.25 Gbit/s, 8B/10B in the
-# transceiver, 32-bit user data (four symbols), comma alignment on the 7-bit comma at character 0
-# of a word, receive elastic buffer with clock correction on the SpaceFibre SKIP word.
+# transceiver, 32-bit user data (four symbols), comma alignment on the comma at character 0 of a
+# word, receive elastic buffer with clock correction on the SpaceFibre SKIP word, transmit user
+# clock from TXPROGDIVCLK, receiver electrical idle detection (OOB) for the CDR hold, channel
+# reset and debug ports for the reset sequencer of every lane (PCSRSVDIN).
 #
 # Usage (Vivado Tcl):
 #   source hdl/ofb_pa_gty/tcl/ofb_gtw.tcl
@@ -30,12 +32,13 @@ proc ofb_gtw_lr0 {refclk_mhz} {
         TX_DATA_ENCODING 8B10B RX_DATA_DECODING 8B10B \
         TX_USER_DATA_WIDTH 32 TX_INT_DATA_WIDTH 40 RX_USER_DATA_WIDTH 32 RX_INT_DATA_WIDTH 40 \
         TX_BUFFER_MODE 1 RX_BUFFER_MODE 1 \
-        TX_OUTCLK_SOURCE TXOUTCLKPMA RX_OUTCLK_SOURCE RXOUTCLKPMA \
+        TX_OUTCLK_SOURCE TXPROGDIVCLK TXPROGDIV_FREQ_ENABLE true TXPROGDIV_FREQ_SOURCE LCPLL \
+        TXPROGDIV_FREQ_VAL 156.250 RX_OUTCLK_SOURCE RXOUTCLKPMA \
         RX_COMMA_PRESET NONE RX_COMMA_P_ENABLE true RX_COMMA_M_ENABLE true \
-        RX_COMMA_P_VAL 0101111100 RX_COMMA_M_VAL 1010000011 RX_COMMA_MASK 0001111111 \
+        RX_COMMA_P_VAL 0101111100 RX_COMMA_M_VAL 1010000011 RX_COMMA_MASK 0011111111 \
         RX_COMMA_ALIGN_WORD 4 RX_COMMA_DOUBLE_ENABLE false RX_COMMA_SHOW_REALIGN_ENABLE true \
         RX_COMMA_VALID_ONLY 0 RX_SLIDE_MODE OFF \
-        RX_CC_NUM_SEQ 1 RX_CC_LEN_SEQ 4 RX_CC_PERIODICITY 5000 RX_CC_KEEP_IDLE DISABLE \
+        RX_CC_NUM_SEQ 1 RX_CC_LEN_SEQ 4 RX_CC_PERIODICITY 2000 RX_CC_KEEP_IDLE DISABLE \
         RX_CC_PRECEDENCE ENABLE RX_CC_REPEAT_WAIT 0 \
         RX_CC_VAL_0_0 11111100 RX_CC_K_0_0 true RX_CC_DISP_0_0 false RX_CC_MASK_0_0 false \
         RX_CC_VAL_0_1 11001110 RX_CC_K_0_1 false RX_CC_DISP_0_1 false RX_CC_MASK_0_1 false \
@@ -43,22 +46,24 @@ proc ofb_gtw_lr0 {refclk_mhz} {
         RX_CC_VAL_0_3 01111111 RX_CC_K_0_3 false RX_CC_DISP_0_3 false RX_CC_MASK_0_3 false \
         RX_CC_K 00000001 RX_CC_DISP 00000000 RX_CC_MASK 00000000 \
         RX_CC_VAL [string repeat 0 40]0001111111000111111100110011100011111100 \
-        RX_CB_NUM_SEQ 0 \
-        RX_EQ_MODE AUTO RX_COUPLING AC RX_SSC_PPM 0 RX_PPM_OFFSET 200 \
+        RX_CB_NUM_SEQ 0 RX_BUFFER_RESET_ON_COMMAALIGN ENABLE \
+        RX_EQ_MODE AUTO RX_COUPLING AC RX_SSC_PPM 0 RX_PPM_OFFSET 200 OOB_ENABLE true \
     ]
 }
 
 # Optional ports of every channel: 8B/10B control and status, polarity, transmit electrical idle, alignment and buffer
-# status, receive component reset (single-mode reset of the receive elastic buffer), PRBS generator and checker (bit
-# error rate test). The receive electrical idle and the CDR hold are not used: the receiver gives no loss of signal
-# indication at this line rate and the CDR runs in every lane state (hdl/ofb_pa_gty/docs/specification.md, PA-IF-02,
-# PA-IF-03 and PA-RS-03).
+# status, receive and transmit component resets with reset done (entire receiver reset, receive elastic buffer reset,
+# transmit buffer reset), CDR reset, hold and lock, receive electrical idle (CDR hold only: no data detection at this
+# line rate), PRBS generator and checker (bit error rate test) (hdl/ofb_pa_gty/docs/specification.md, PA-IF-02,
+# PA-IF-03, PA-IF-04 and PA-RS-03 to PA-RS-06).
 proc ofb_gtw_ports {} {
     return {ch_txctrl0 ch_txctrl1 ch_txctrl2 ch_rxctrl0 ch_rxctrl1 ch_rxctrl2 ch_rxctrl3
             ch_txpolarity ch_rxpolarity ch_txelecidle
             ch_rxbyteisaligned ch_rxbyterealign ch_rxbufstatus ch_txbufstatus ch_rxclkcorcnt
             ch_rxresetdone ch_txresetdone
             ch_gtrxreset ch_rxresetmode ch_rxpcsresetmask ch_rxpmaresetmask
+            ch_gttxreset ch_txresetmode ch_txpcsresetmask ch_txpmaresetmask
+            ch_rxcdrreset ch_rxcdrhold ch_rxcdrlock ch_rxelecidle
             ch_txprbssel ch_txprbsforceerr ch_rxprbssel ch_rxprbscntreset ch_rxprbserr ch_rxprbslocked}
 }
 
@@ -83,7 +88,11 @@ proc ofb_gtw_create {name refclk_mhz} {
     foreach p [ofb_gtw_ports] {
         if {[dict get $got $p] ne "true"} { error "ofb_gtw: optional port $p not enabled" }
     }
-    # Loopback port of every channel (serial loopbacks of ECSS 5.4.2.2)
-    for {set c 0} {$c < 4} {incr c} { set_property CONFIG.QUAD0_CH${c}_LOOPBACK_EN true $ip }
+    # Loopback port of every channel (serial loopbacks of ECSS 5.4.2.2) and debug ports of every channel (PCSRSVDIN of
+    # the entire receiver reset; the other debug inputs are tied in ofb_pa_gty_struct to the values of the wizard)
+    for {set c 0} {$c < 4} {incr c} {
+        set_property CONFIG.QUAD0_CH${c}_LOOPBACK_EN true $ip
+        set_property CONFIG.QUAD0_CH${c}_DEBUG_EN true $ip
+    }
     return $ip
 }

@@ -7,7 +7,8 @@ loopback reset](img/ofb_pa_gty_arch.drawio.svg)
 
 ## 2. Clocking
 
-The transmit output clock of channel 0 (`TXOUTCLKPMA`, 6.25 Gbit/s / 40 bits = 156.25 MHz) drives one `BUFG_GT`. Its
+The transmit output clock of channel 0 (`TXPROGDIVCLK`, the programmable divider from the LCPLL, 156.25 MHz)
+drives one `BUFG_GT`. Its
 output is the user clock of all eight transmitters and receivers of the quad and `LaneClk` of the core. The receive
 elastic buffers cross from the recovered clocks to this clock and remove or insert SKIP words (clock correction
 sequence of four symbols, `RX_CC_LEN_SEQ` 4). The wizard reset controller clears the `BUFG_GT` (`INTF0_TX_clr_out`)
@@ -29,27 +30,45 @@ transceivers completely (PA-RS-02).
 | `PhyTx_K` flags l | `ch_txctrl2(3:0)` (K character per byte); `ch_txctrl0`, `ch_txctrl1` zero (normal disparity) |
 | `Phy_TxEnable(l)` | `ch_txelecidle` = not enable |
 | `Phy_RxInvert(l)` | `ch_rxpolarity` |
-| `Phy_CdrEnable(l)` | not used: the CDR runs in every lane state (PA-IF-02; `ch_rxcdrhold` is not enabled in the wizard) |
+| `Phy_CdrEnable(l)` | falling edge (`LaneClk`): request of the entire receiver reset of the lane with `Cfg_RxResetOnDisc` (section 5); the CDR is not stopped by it (PA-IF-02) |
+| `Cmd_RxReset(l)` | request of the entire receiver reset of the lane (section 5) |
+| (CDR hold, PA-IF-04) | `ch_rxcdrhold` = `Cfg_CdrHoldIdle` and `ch_rxelecidle` (synchronised to `FreeRunClk`) and receivers ready and no reset sequence of the lane and no near-end loopback, a register of `FreeRunClk` |
 | `PhyRx_Data` word l | `ch_rxdata(31:0)` |
 | `PhyRx_K` flags l | `ch_rxctrl0(3:0)` (K character per byte) |
 | `PhyRx_DispErr` flags l | `ch_rxctrl1(3:0)` (disparity error per byte) |
 | `PhyRx_CodeErr` flags l | `ch_rxctrl3(3:0)` (not in table per byte) |
-| `PhyRx_Valid(l)` | receivers ready (synchronised `rst_rx_done`), `Phy_RxEnable(l)` and a K character received on the lane since the receivers are ready (the receive buffer outputs zero words while it starts) |
-| `Phy_NoSignal(l)` | always 0 (PA-IF-03, ECSS 5.4.2.4b.1): the receive electrical idle of the transceiver detects data only up to 2.5 Gbit/s and only with the OOB circuit, so `ch_rxelecidle` is not enabled; a lost signal reaches the Lane layer as words with errors (RXERR) |
+| `PhyRx_Valid(l)` | receiver of the lane ready (synchronised `rst_rx_done` and no entire receiver reset of the lane in progress), `Phy_RxEnable(l)`, not in the reset window of the receive elastic buffer, and a K character received on the lane since the receiver is ready (the receive buffer outputs zero words while it starts) |
+| `Phy_NoSignal(l)` | always 0 (PA-IF-03, ECSS 5.4.2.4b.1): the receive electrical idle of the transceiver is specified for data detection up to 2.5 Gbit/s only, so it serves the CDR hold and the status only; a lost signal reaches the Lane layer as words with errors (RXERR) |
 | `Phy_SerialNearLoopback(l)`, `Phy_SerialFarLoopback(l)` | `QUAD0_chl_loopback` = 010 (near-end PMA loopback) or 100 (far-end PMA loopback); a change of the far-end loopback (synchronised to FreeRunClk) pulses `INTF0_rst_tx_datapath_in` for 256 cycles |
 | `Phy_PrbsTxSel(l)`, `Phy_PrbsForceErr(l)` | `ch_txprbssel`, `ch_txprbsforceerr` (PRBS generator of the channel, after the 8B/10B encoder) |
 | `Phy_PrbsRxSel(l)`, `Phy_PrbsCntReset(l)` | `ch_rxprbssel`, `ch_rxprbscntreset` (PRBS checker of the channel, before the 8B/10B decoder) |
 | `Phy_PrbsErr(l)`, `Phy_PrbsLocked(l)` | `ch_rxprbserr`, `ch_rxprbslocked` (receive user clock = `LaneClk`) |
 | `Stat_ClkCor(l)` | `ch_rxclkcorcnt` /= 0 (a SKIP word inserted or removed in this cycle) |
 | `Stat_RxBufErr(l)` | `ch_rxbufstatus(2)` (receive elastic buffer overflow or underflow) |
-| (receive elastic buffer reset, section 5) | `ch_gtrxreset`, `ch_rxresetmode`, `ch_rxpcsresetmask`, `ch_rxpmaresetmask` of channel l; requests from `ch_rxbufstatus(2)`, `ch_rxbyteisaligned` and `ch_rxbyterealign` |
+| `Stat_TxBufErr(l)` | `ch_txbufstatus(1)` (transmit buffer overflow or underflow) |
+| `Stat_RxResetDone(l)`, `Stat_CdrLock(l)`, `Stat_RxElecIdle(l)` | `ch_rxresetdone`, `ch_rxcdrlock`, `ch_rxelecidle` (synchronised to `LaneClk`) |
+| `Stat_RxResetBusy(l)`, `Ev_RxReset(l)`, `Ev_RxResetTimeout(l)` | receiver reset of the lane in progress, completed, timed out (sequencer, section 5) |
+| (reset sequencer, section 5) | `ch_gtrxreset`, `ch_rxresetmode`, `ch_rxpcsresetmask`, `ch_rxpmaresetmask`, `ch_rxcdrreset`, `ch_gttxreset`, `ch_txresetmode`, `ch_txpcsresetmask`, `ch_txpmaresetmask` and `QUAD0_chl_pcsrsvdin` of channel l; requests from `Phy_CdrEnable`, `Cmd_RxReset`, `ch_txbufstatus(1)`, `ch_rxbufstatus(2)`, `ch_rxbyteisaligned` and `ch_rxbyterealign` |
+| (other channel debug inputs) | the values the wizard ties them to without the debug ports: 0, `iloresetmask` 1 |
 
 Channels without a lane (`NumLanes_g` < 4) send electrical idle; their receive outputs are not used.
 
 ## 4. Status crossing
 
-`rst_rx_done` (free-running clock domain) and `ch_rxbyteisaligned` (asynchronous) cross to `LaneClk` in one
-`olo_intf_sync` with `SyncTmr_g` = true (two stages, three synchroniser chains with a majority voter).
+`rst_rx_done` (free-running clock domain), `ch_rxbyteisaligned`, `ch_rxresetdone`, `ch_rxcdrlock` and
+`ch_rxelecidle` (asynchronous) cross to `LaneClk` in one `olo_intf_sync` with `SyncTmr_g` = true (two stages, three
+synchroniser chains with a majority voter). `ch_rxresetdone`, `ch_rxelecidle` and `ch_txbufstatus(1)` cross to
+`FreeRunClk` for the reset sequencers in a second one. The configuration inputs (`Cfg_RxResetCdrOnly`,
+`Cfg_CdrHoldIdle`, `Cfg_PcsRsvdIn`, 18 bits, static levels from any clock domain) cross to `FreeRunClk` in a third
+one. Per-bit synchronisers do not keep a multi-bit value coherent: after a change, each bit takes the new value in one
+of two consecutive cycles, so a mix of old and new bits can show for one cycle. Coherence follows from two rules:
+the synchronised value is taken only after it has been unchanged for 8 cycles of `FreeRunClk` (longer than the
+synchroniser depth and its one-cycle skew), and a sequencer applies the taken PCSRSVDIN only at the start of a reset
+sequence, never during one. The source changes rarely (a register write, for example PA_CTRL of the MIB): software
+changes it while the lanes are stopped or before a receiver reset command, and a change during traffic takes effect at
+the next reset sequence of each lane. A handshake crossing is not used because the adapter has no clock of the
+source. `Cfg_RxResetOnDisc` (one bit) crosses to `LaneClk`. The state of each sequencer
+(receiver reset in progress, buffer reset window, completion and timeout as toggles) crosses back to `LaneClk`.
 
 `Stat_TxReady` is `rst_tx_done` (the transmit reset done of the wizard, already synchronised to `FreeRunClk`) from a
 register of `FreeRunClk` (PA-ST-02): it falls while `LaneClk` stands still, and it drives `Phy_TxReady` of the core
@@ -61,7 +80,44 @@ ready status without a lane clock. `LaneRst` comes from an `olo_base_reset_gen` 
 `SyncTmr_g` = true) with `Stat_TxReady` as input: set without a clock edge while the transmitters are not ready,
 released synchronously.
 
-## 5. Receive elastic buffer reset
+## 5. Reset sequencer
+
+Every lane has a reset sequencer `ofb_pa_gty_lane_rst` in `FreeRunClk`, shared by both architectures (the model
+drives its own channel emulation with it). It serves three requests, one sequence at a time and in this order of
+priority, with a holdoff of 256 cycles between two sequences; a sequence starts only while the receivers of the wizard
+are ready (`rst_rx_done`) and is never aborted. All outputs to the transceiver come from registers (GTRXRESET,
+GTTXRESET and PCSRSVDIN are asynchronous inputs). Outside the sequences the reset ports have the values the wizard ties
+them to when they are not used (sequential mode, all masks set), as its reset controller requires, and PCSRSVDIN has
+the base value taken at the start of the last sequence (`Cfg_PcsRsvdIn`, after a reset the default 0x0360).
+
+1. Entire receiver reset (PA-RS-04): requested by the falling edge of `Phy_CdrEnable` with `Cfg_RxResetOnDisc`, or by
+   `Cmd_RxReset`, in `LaneClk` (stretched to 16 cycles for the crossing). `ch_rxresetmode` 00 (sequential), all PMA
+   and PCS reset masks set and PCSRSVDIN = base or 0x0300 (RXDAPIRESETMASK) for 8 cycles, then `ch_gtrxreset` with
+   PCSRSVDIN = base or 0x0700 (RXDAPIRESET) for 16 cycles (at least one reference clock period), then PCSRSVDIN =
+   base or 0x0300 until `ch_rxresetdone` falls and rises again (AM002, "RX reset in response to GTRXRESET pulse in full
+   sequential mode"). The waits are bounded (PA-RS-05): 1000000 cycles for the fall, `RxRstDoneCycles_g` for the rise;
+   on expiry the sequence ends with a timeout event. A request while a receiver reset runs, or within
+   `RxRstGapCycles_g` after its end (completed or timed out), is dropped. With `Cfg_RxResetCdrOnly` the sequence is a
+   pulse of `ch_rxcdrreset` (16 cycles) and a wait of `CdrWaitCycles_g`. While the reset runs, the receiver of the lane
+   is not ready: its words are not valid and `Stat_RxReady` is low. The entire receiver reset includes the elastic
+   buffer, so a pending buffer request is cleared; the first comma alignment of the next lane start requests the
+   buffer reset again (below).
+2. Transmit buffer reset (PA-RS-06): requested while `ch_txbufstatus(1)` is set and the transmitters are ready.
+   `ch_txresetmode` 11 (single), `ch_txpmaresetmask` 000, `ch_txpcsresetmask` 1 and PCSRSVDIN 0 for 8 cycles, then
+   `ch_gttxreset` for 16 cycles, the masks held for 128 more cycles.
+3. Receive elastic buffer reset (PA-RS-03), below.
+
+Interaction with the initialisation timeout of the lanes. A request of a receiver reset while a receiver reset of the
+lane runs, or within `RxRstGapCycles_g` after it, is dropped, not queued: a lane that restarts while its receiver
+resets does not start a second reset. With a gap at least as long as the initialisation timeout, a lane always gets
+complete initialisation attempts between two resets. Without a gap (`RxRstGapCycles_g` = 0, the VCK190 design) every
+restart of the lane while no reset runs starts a new one. When a reset lasts about as long as an initialisation
+attempt or longer, the attempt that runs when the reset ends can be too short for the lane to complete its
+initialisation (CDR lock, 1023 words without error and the handshake, about 30 us at 6.25 Gbit/s); its timeout
+restarts the lane and starts the next reset, and since the timing repeats, the lane can stay in this cycle. The
+registers show it: RX_RESETS (LANE_TIMEOUT_COUNT bits 31:16) and the initialisation timeouts (bits 15:0) rise while
+the lane does not reach Active, and LANE_STATUS bit 25 shows each reset in progress, so its duration can be read. A
+larger initialisation timeout at run time (LANE_INIT_TIMEOUT, at least twice the reset time) ends the cycle.
 
 With `RxBufReset_g` (default) the adapter resets the receive elastic buffer of a lane alone (PA-RS-03). The
 transceiver documentation (AM002, recommended receiver resets) asks for such a reset after an overflow or underflow of
@@ -80,13 +136,11 @@ clock becomes stable only later.
   test, for example, realigns all the time on the random data).
 - A request is stretched to 16 `LaneClk` cycles and crosses to `FreeRunClk` in an `olo_intf_sync` with
   `SyncTmr_g` = true.
-- Sequencer, per lane in `FreeRunClk`: `ch_rxresetmode` = 11 (single mode), `ch_rxpmaresetmask` = 0000000 and
-  `ch_rxpcsresetmask` = 00100 (RX elastic buffer) for 8 cycles, then `ch_gtrxreset` for 16 cycles (at least one
-  reference clock period), the masks held for 128 more cycles (single mode reports no reset done), then the values of
-  the master reset again (sequential mode, all masks set, `ch_gtrxreset` low, the values the wizard ties these ports to
-  when they are not used) and a holdoff of 256 cycles before the next reset. A request during the hold or the holdoff
-  is served after the holdoff. While the receivers are not ready (`rst_rx_done` low) or the free-running reset is
-  active, the sequencer stays idle with the master reset values.
+- Sequence: `ch_rxresetmode` = 11 (single mode), `ch_rxpmaresetmask` = 0000000, `ch_rxpcsresetmask` = 00100 (RX
+  elastic buffer) and PCSRSVDIN 0 for 8 cycles, then `ch_gtrxreset` for 16 cycles (at least one reference clock
+  period), the masks held for 128 more cycles (single mode reports no reset done), then the values outside the
+  sequences again and the holdoff. A request during the hold or the holdoff is served after the holdoff. The buffer
+  requests count only while the receiver of the lane is ready (no entire receiver reset in progress).
 - Received words: during the reset the buffer delivers words of value 0. The reset window (setup, pulse and hold,
   152 cycles of `FreeRunClk`, 1.52 us at 100 MHz, about 238 words) crosses back to `LaneClk` (`olo_intf_sync`,
   `SyncTmr_g` = true); while it is active `PhyRx_Valid` of the lane is low, and after it the words are valid as
@@ -107,6 +161,8 @@ the reset.
 
 ## 6. Transceiver configuration
 
-`tcl/ofb_gtw.tcl` sets the line rate settings `LR0_SETTINGS` of interface 0 (`INTF0_GT_SETTINGS`) and the optional
-ports (`INTF0_OPTIONAL_PORTS`, the dictionary of all ports with the used ones enabled). The settings are listed in the
-specification (section 3).
+`tcl/ofb_gtw.tcl` sets the line rate settings `LR0_SETTINGS` of interface 0 (`INTF0_GT_SETTINGS`), the optional
+ports (`INTF0_OPTIONAL_PORTS`, the dictionary of all ports with the used ones enabled) and the debug ports of the four
+channels (`QUAD0_CHn_DEBUG_EN`, for PCSRSVDIN). The wizard keeps one interface with four lanes: its reset controller
+resets the four receivers together, so the reset of one receiver goes through the channel reset ports of the
+sequencers instead. The settings are listed in the specification (section 3).

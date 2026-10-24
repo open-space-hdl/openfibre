@@ -4,6 +4,74 @@ The notable changes of OpenFibre. The versions follow semantic versioning: 0.y.z
 version for an incompatible change of ports, generics or the register map, a minor version for a feature and a patch
 version for a fix.
 
+## [0.1.3] - 2026-10-24
+
+The transceiver handling of `ofb_pa_gty` follows the recommendations of the transceiver documentation (AM002, PG331,
+PG442) more closely. In the laboratory, with releases 0.1.1 and 0.1.2, no lane of the VCK190 design reached Active
+with the far end used there: the transmitters were ready and the receivers bit-synchronised, but the lanes stayed in
+Started (LANE_TIMEOUT_COUNT saturated at 0xFFFF) and never received 1023 words without error after INIT1. All
+interface changes are additive (new registers in reserved fields of register map version 9, new ports with defaults);
+the generic `InitTimeoutWords_g` moved from the internal units `ofb_lane` and `ofb_lane_init` to `ofb_core`, where it
+is the reset value of LANE_INIT_TIMEOUT.
+
+### Added
+
+- `ofb_pa_gty`: entire receiver reset of one lane, the other lanes undisturbed (PA-RS-04): GTRXRESET with
+  PCSRSVDIN[10] in sequential mode, all reset masks and PCSRSVDIN[9:8] held until RXRESETDONE (AM002, receiver reset in
+  response to a GTRXRESET pulse in full sequential mode), the reset AM002 recommends after the remote end powers up,
+  after electrical idle and after connecting the line. It runs when a lane leaves the states that use the line (CDR
+  enable falling) and on a command per lane; the words of the lane are not valid while it runs. Optionally a CDR reset
+  only. Every wait for the transceiver is bounded, with a timeout event (PA-RS-05). Transmit buffer reset after a
+  transmit buffer error (PA-RS-06). CDR hold while the receiver reports electrical idle (PA-IF-04). Status per lane:
+  RXRESETDONE, receiver reset in progress, CDR lock, electrical idle, transmit buffer error, receiver reset events
+  (PA-ST-03). New generics `RxRstDoneCycles_g`, `CdrWaitCycles_g`, `RxRstGapCycles_g`, configuration inputs
+  `Cfg_RxResetOnDisc`, `Cfg_RxResetCdrOnly`, `Cfg_CdrHoldIdle`, `Cfg_PcsRsvdIn`, the command `Cmd_RxReset` and the
+  status outputs. The reset sequences of a lane are one entity, `ofb_pa_gty_lane_rst`, used by both architectures.
+- Register map version 10 (ID 0x0FB1000A): LANE_INIT_TIMEOUT (0x07C, initialisation timeout of the lanes), PA_CTRL
+  (0x080, receiver reset on disconnection, CDR-only reset, CDR hold, PCSRSVDIN), LANE_CTRL bit 18 RX_RESET, LANE_STATUS
+  bits 27:24, LANE_EVENTS bits 7:4 with IRQ_MASK bits 23:20, LANE_TIMEOUT_COUNT bits 31:16 RX_RESETS (completed
+  receiver resets, saturating). Every new field was reserved in version 9.
+- `ofb_core`: generic `InitTimeoutWords_g` (reset value of LANE_INIT_TIMEOUT, default 5000, the value of the
+  standard) and the control and status ports of the receiver reset (`Phy_RxResetOnDisc`, `Phy_RxResetCdrOnly`,
+  `Phy_CdrHoldIdle`, `Phy_PcsRsvdIn`, `Phy_RxResetCmd`; inputs `Phy_RxBufErr`, `Phy_TxBufErr`, `Phy_RxResetDone`,
+  `Phy_RxResetBusy`, `Phy_CdrLock`, `Phy_RxElecIdle`, `Phy_EvRxReset`, `Phy_EvRxResetTimeout` with default 0).
+
+### Changed
+
+- `ofb_pa_gty`, transceiver wizard (`tcl/ofb_gtw.tcl`): user clock from TXPROGDIVCLK (156.25 MHz from the LCPLL);
+  comma mask 0011111111; clock correction periodicity setting 2000 (the Lane layer still sends SKIP every 5000 words,
+  ECSS 5.5.3d); elastic buffer reset on comma alignment; out-of-band detection enabled (receive electrical idle for the
+  CDR hold); the channel reset, CDR and debug ports for the reset sequences. PCSRSVDIN is 0x0360 outside the reset
+  sequences (bits 9:8 set and bit 10 clear, as the reset sequences require), a transceiver setting for laboratory use
+  that PA_CTRL can change at run time; the wizard ties it to 0x0240. The line driver settings of the wizard
+  (TXDIFFCTRL 11001, TXMAINCURSOR 77, no pre-cursor or post-cursor) are used unchanged.
+- `ofb_lane`: the initialisation timeout is the input `Cfg_InitTimeout` (24 bits, words, default 5000) instead of the
+  generic `InitTimeoutWords_g`.
+- `ofb_vck190`: initialisation timeout of 468750 words (3 ms) and a receiver reset at every restart of a lane (no gap),
+  so a restarted lane stays in Started while its receiver resets; a documented deviation from ECSS 5.5.2.6b.1
+  (specification of `ofb_vck190`, section 5). The adapter and the core are connected with all new ports.
+- Behavioural model `ofb_pa_gty(mdl)`: the reset sequencer of `struct`, the receiver reset with the control fields
+  `RxResetTime` and `RxResetHang`, and the transmit buffer error `TxBufErrReq`.
+- `lint/synth_check.py`: the configuration of the watchdog bound 1024 sets the join hold to 1024 (the default of 8192
+  exceeds the watchdog, which the Multi-Lane layer rejects); the bounds of `InitTimeoutWords_g` are synthesised.
+- Verification: the test end (`ofb_tb_pkg.ofbTestEnd`) compares the alert counters of every level itself and ends
+  the simulation with a failure, whatever the stop limits of the test.
+
+### Verification
+
+- GHDL: the full regression in the CI of the release pull request, on the released tree; 423 of 423 in the CI of the
+  feature pull request (runs 39987693049 and 40060386480). New tests: the reset sequencer (TC-PA-19 to TC-PA-24), the
+  receiver reset with the behavioural model (TC-PA-25), the MIB registers of the receiver reset (TC-MG-12, RX_RESETS
+  saturation in TC-MG-09), the core through the adapter models (TC-CORE-37), the initialisation timeout from the
+  input (TC-LN-54). A mutation check of the new logic killed 21 of 21 mutants.
+- AMD Vivado simulator with the transceiver model, with the wizard instance created again by the changed
+  `tcl/ofb_gtw.tcl`, 11 of 11 runs on a tree that differs from the released one in Markdown files and two comment
+  lines: the tests of `ofb_pa_gty`, `ofb_pa_gty` with two cores (one to four lanes; the lane restart with the entire
+  receiver reset, also with the settings of `ofb_vck190`) and `ofb_vck190` (records in the verification reports of
+  `ofb_pa_gty` and `ofb_vck190`). The entire receiver reset of one lane takes about 6.3 us in the model.
+- The QuestaSim regression and the code coverage were not repeated; the changed lines are listed in
+  [coverage.md](docs/coverage.md), section 6.
+
 ## [0.1.2] - 2026-10-23
 
 ### Fixed

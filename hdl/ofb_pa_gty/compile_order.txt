@@ -1,2 +1,3 @@
 hdl/ofb_pa_gty/src/ofb_pa_gty.vhd
+hdl/ofb_pa_gty/src/ofb_pa_gty_lane_rst.vhd
 hdl/ofb_pa_gty/src/ofb_pa_gty_struct.vhd

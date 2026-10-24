@@ -30,25 +30,28 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_core is
     generic (
-        NumVc_g             : positive range 1 to 32     := 8;
-        NumLanes_g          : positive range 1 to 4      := 1;
-        LaneClkFreq_g       : real                       := 156.25e6;
-        CoreClkFreq_g       : real                       := 200.0e6;
-        VcOutDepth_g        : positive                   := 128;
-        VcInDepth_g         : positive                   := 256;
-        ErbRows_g           : positive                   := 512;
-        InitPrbsWords_g     : natural range 0 to 64      := 64;
+        NumVc_g             : positive range 1 to 32       := 8;
+        NumLanes_g          : positive range 1 to 4        := 1;
+        LaneClkFreq_g       : real                         := 156.25e6;
+        CoreClkFreq_g       : real                         := 200.0e6;
+        VcOutDepth_g        : positive                     := 128;
+        VcInDepth_g         : positive                     := 256;
+        ErbRows_g           : positive                     := 512;
+        InitPrbsWords_g     : natural range 0 to 64        := 64;
         -- Reset values of LaneStart and AutoStart of every lane (LANE_CTRL bits 0 and 1)
-        LaneStart_g         : boolean                    := false;
-        AutoStart_g         : boolean                    := true;
+        LaneStart_g         : boolean                      := false;
+        AutoStart_g         : boolean                      := true;
         -- Alignment watchdog of the Multi-Lane layer (ML-AL-11): lane clock cycles in Not Ready (twice as
         -- many outside Both-Ends Ready) before a LaneReset of the active lanes; 0: off, else 1024 to 1000000
         -- (the stable time of an eighth spans at least 16 ALIGN periods of 8 words)
-        AlignTimeoutWords_g : natural range 0 to 1000000 := 10000;
+        AlignTimeoutWords_g : natural range 0 to 1000000   := 10000;
         -- Join hold of the Multi-Lane layer (ML-LM-17): lane clock cycles after the first lane entered
         -- Active during which no row of the Data Link layer is sent while another enabled lane is
         -- initialising; 0: off. The default covers one initialisation attempt (5000 words) with margin
-        LaneJoinHoldWords_g : natural range 0 to 1000000 := 8192
+        LaneJoinHoldWords_g : natural range 0 to 1000000   := 8192;
+        -- Reset value of the initialisation timeout of the lanes (LANE_INIT_TIMEOUT), lane clock cycles: 5000 is the
+        -- value of ECSS 5.5.2.6b.1, any other value deviates from the standard
+        InitTimeoutWords_g  : positive range 1 to 16777215 := 5000
     );
     port (
         -- Asynchronous reset (high active), clocks
@@ -131,7 +134,24 @@ entity ofb_core is
         Phy_PrbsForceErr       : out   std_logic_vector(NumLanes_g-1 downto 0);
         Phy_PrbsCntReset       : out   std_logic_vector(NumLanes_g-1 downto 0);
         Phy_PrbsErr            : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
-        Phy_PrbsLocked         : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0')
+        Phy_PrbsLocked         : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+        -- Receiver reset and CDR hold of the Physical adapters (MIB PA_CTRL: static, registers of MgmtClk, kept during
+        -- a transmitter reset), single-cycle receiver reset command per lane (LANE_CTRL RX_RESET, LaneClk); status per
+        -- lane (LaneClk): buffer errors (levels or pulses), receiver reset done and in progress, CDR lock, electrical
+        -- idle, single-cycle events of the receiver reset
+        Phy_RxResetOnDisc      : out   std_logic;
+        Phy_RxResetCdrOnly     : out   std_logic;
+        Phy_CdrHoldIdle        : out   std_logic;
+        Phy_PcsRsvdIn          : out   std_logic_vector(15 downto 0);
+        Phy_RxResetCmd         : out   std_logic_vector(NumLanes_g-1 downto 0);
+        Phy_RxBufErr           : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+        Phy_TxBufErr           : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+        Phy_RxResetDone        : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+        Phy_RxResetBusy        : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+        Phy_CdrLock            : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+        Phy_RxElecIdle         : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+        Phy_EvRxReset          : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0');
+        Phy_EvRxResetTimeout   : in    std_logic_vector(NumLanes_g-1 downto 0) := (others => '0')
     );
 end entity;
 
@@ -288,6 +308,7 @@ architecture rtl of ofb_core is
 
     -- Lane configuration and status
     signal CfgLaneStart : std_logic_vector(NumLanes_g-1 downto 0);
+    signal CfgInitTo    : std_logic_vector(23 downto 0);
     signal CfgAutoStart : std_logic_vector(NumLanes_g-1 downto 0);
     signal CfgLaneReset : std_logic_vector(NumLanes_g-1 downto 0);
     signal CfgNearLb    : std_logic_vector(NumLanes_g-1 downto 0);
@@ -713,6 +734,7 @@ begin
                 Phy_CdrEnable            => Phy_CdrEnable(i),
                 Phy_RxInvert             => Phy_RxInvert(i),
                 Phy_NoSignal             => Phy_NoSignal(i),
+                Cfg_InitTimeout          => CfgInitTo,
                 Cfg_LaneStart            => CfgLaneStart(i),
                 Cfg_AutoStart            => CfgAutoStart(i),
                 Cfg_LaneReset            => CfgLaneReset(i),
@@ -738,10 +760,11 @@ begin
     -----------------------------------------------------------------------------------------------
     i_mib : entity work.ofb_mib
         generic map (
-            NumVc_g     => NumVc_g,
-            NumLanes_g  => NumLanes_g,
-            LaneStart_g => LaneStart_g,
-            AutoStart_g => AutoStart_g
+            NumVc_g            => NumVc_g,
+            NumLanes_g         => NumLanes_g,
+            LaneStart_g        => LaneStart_g,
+            AutoStart_g        => AutoStart_g,
+            InitTimeoutWords_g => InitTimeoutWords_g
         )
         port map (
             Clk                    => MgmtClk,
@@ -809,6 +832,20 @@ begin
             Phy_PrbsCntReset       => Phy_PrbsCntReset,
             Phy_PrbsErr            => Phy_PrbsErr,
             Phy_PrbsLocked         => Phy_PrbsLocked,
+            Lane_InitTimeout       => CfgInitTo,
+            Pa_RxResetOnDisc       => Phy_RxResetOnDisc,
+            Pa_RxResetCdrOnly      => Phy_RxResetCdrOnly,
+            Pa_CdrHoldIdle         => Phy_CdrHoldIdle,
+            Pa_PcsRsvdIn           => Phy_PcsRsvdIn,
+            Pa_RxResetCmd          => Phy_RxResetCmd,
+            Pa_RxBufErr            => Phy_RxBufErr,
+            Pa_TxBufErr            => Phy_TxBufErr,
+            Pa_RxResetDone         => Phy_RxResetDone,
+            Pa_RxResetBusy         => Phy_RxResetBusy,
+            Pa_CdrLock             => Phy_CdrLock,
+            Pa_RxElecIdle          => Phy_RxElecIdle,
+            Pa_EvRxReset           => Phy_EvRxReset,
+            Pa_EvRxResetTimeout    => Phy_EvRxResetTimeout,
             Lane_State             => StLaneState,
             Lane_RxPolarity        => StRxPolarity,
             Lane_NoSignal          => Phy_NoSignal,

@@ -15,6 +15,7 @@
 ---------------------------------------------------------------------------------------------------
 library ieee;
     use ieee.std_logic_1164.all;
+    use ieee.numeric_std.all;
 
 library work;
     use work.ofb_pkg.all;
@@ -25,8 +26,12 @@ library work;
 ---------------------------------------------------------------------------------------------------
 package ofb_lane_init_tb_pkg is
 
+    -- Initialisation timeout of the unit test (ECSS value)
+    constant TbInitTimeoutWords_c : positive := 5000;
+
     -- Inputs of ofb_lane_init, driven by the test sequencer
     type InitIn_t is record
+        InitTimeout   : std_logic_vector(23 downto 0);
         LaneStart     : std_logic;
         AutoStart     : std_logic;
         CfgLaneReset  : std_logic;
@@ -55,6 +60,7 @@ package ofb_lane_init_tb_pkg is
     end record;
 
     constant InitInDefault_c : InitIn_t := (
+        InitTimeout   => std_logic_vector(to_unsigned(TbInitTimeoutWords_c, 24)),
         LaneStart     => '0',
         AutoStart     => '0',
         CfgLaneReset  => '0',
@@ -103,8 +109,5 @@ package ofb_lane_init_tb_pkg is
 
     signal InitIn  : InitIn_t := InitInDefault_c;
     signal InitOut : InitOut_t;
-
-    -- Initialisation timeout of the unit test (ECSS value)
-    constant TbInitTimeoutWords_c : positive := 5000;
 
 end package;
