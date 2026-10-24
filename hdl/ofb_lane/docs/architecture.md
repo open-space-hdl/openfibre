@@ -17,7 +17,7 @@ Two-process FSM with the ten states of ECSS Figure 5-29 (`LaneStateFsm_t`). The 
 | --- | --- |
 | `State` | Current state |
 | `TimerCnt` | ClearLine 2 us timer, cycles = ceil(2 us * `ClkFrequency_g`) |
-| `TimeoutCnt`, `TimeoutRun` | Initialisation timeout: started on entry to Started, stopped in Active, expires after `InitTimeoutWords_g` words |
+| `TimeoutCnt`, `TimeoutRun` | Initialisation timeout: started on entry to Started, stopped in Active, expires when the count reaches `Cfg_InitTimeout` words (24 bits, compared in every cycle) |
 | `WordCnt`, `SeenInit` | Words received since the last RXERR in Started / InvertRxPolarity, and whether an INIT1 or INIT2 was among them (1023 words rule) |
 | `InvInit1Cnt`, `InvInit2Cnt` | iINIT1 / iINIT2 received without intervening RXERR |
 | `Init2Cnt` | INIT2 received without intervening RXERR |

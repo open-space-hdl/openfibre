@@ -165,6 +165,19 @@ begin
             checkState(state, msg);
         end procedure;
 
+        -- Cycles in Started from now until the state changes (at most 20000)
+        procedure startedCycles (n : out natural) is
+            variable Cnt_v : natural := 0;
+        begin
+
+            while InitOut.State = LaneStateStarted_c and Cnt_v < 20000 loop
+                cycles(1);
+                Cnt_v := Cnt_v + 1;
+            end loop;
+
+            n := Cnt_v;
+        end procedure;
+
         -- Disabled -> Wait -> Started with LaneStart and a signal
         procedure goStarted is
         begin
@@ -427,6 +440,43 @@ begin
                 rxWords(KindInit2, 3);
                 checkState(LaneStateConnected_c, "Connected");
                 waitState(LaneStateClearLine_c, TbInitTimeoutWords_c, "Timeout in Connected");
+
+            -- TC-LN-54: initialisation timeout from Cfg_InitTimeout: Started lasts 1200 and 3000 words; a change in
+            -- Started applies to the running attempt (a larger value extends it, a value below the elapsed time ends
+            -- it in the next cycle); 0 and 1 end an attempt after one cycle
+            elsif run("test_timeout_value") then
+                InitIn.InitTimeout <= std_logic_vector(to_unsigned(1200, 24));
+                goStarted;
+                startedCycles(Cnt_v);
+                check_value(Cnt_v >= 1199 and Cnt_v <= 1201, error, "Started for 1200 words: " & to_string(Cnt_v));
+                InitIn.InitTimeout <= std_logic_vector(to_unsigned(3000, 24));
+                waitState(LaneStateStarted_c, ClearLineCycles_c + 10, "Started again");
+                startedCycles(Cnt_v);
+                check_value(Cnt_v >= 2999 and Cnt_v <= 3001, error, "Started for 3000 words: " & to_string(Cnt_v));
+                -- 1000 after 500 words in Started: the attempt ends after 1000 words
+                waitState(LaneStateStarted_c, ClearLineCycles_c + 10, "Started again");
+                cycles(500);
+                InitIn.InitTimeout <= std_logic_vector(to_unsigned(1000, 24));
+                startedCycles(Cnt_v);
+                check_value(Cnt_v + 500 >= 999 and Cnt_v + 500 <= 1001, error,
+                            "Changed to 1000 words in Started: " & to_string(Cnt_v + 500));
+                -- 1000 after 1500 words in Started (timeout 3000): the attempt ends in the next cycle
+                InitIn.InitTimeout <= std_logic_vector(to_unsigned(3000, 24));
+                waitState(LaneStateStarted_c, ClearLineCycles_c + 10, "Started again");
+                cycles(1500);
+                InitIn.InitTimeout <= std_logic_vector(to_unsigned(1000, 24));
+                startedCycles(Cnt_v);
+                check_value(Cnt_v <= 2, error, "Changed below the elapsed time: ends at once: " & to_string(Cnt_v));
+
+                -- 0 and 1: one cycle
+                for v in 0 to 1 loop
+                    InitIn.InitTimeout <= std_logic_vector(to_unsigned(v, 24));
+                    waitState(LaneStateStarted_c, ClearLineCycles_c + 10, "Started again");
+                    startedCycles(Cnt_v);
+                    check_value(Cnt_v <= 2, error, "Timeout " & to_string(v) & ": one cycle: " & to_string(Cnt_v));
+                end loop;
+
+                InitIn.InitTimeout <= std_logic_vector(to_unsigned(TbInitTimeoutWords_c, 24));
 
             -- TC-LN-32: RXERR counter clear on LaneReset and in Connected only
             elsif run("test_errclear") then

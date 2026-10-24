@@ -20,8 +20,11 @@ library, so that the default binding cannot pick the wrong one:
 
 - `compile_order.txt` lists the entity and `struct` (with the transceiver wizard instance `ofb_gtw`, created by
   `tcl/ofb_gtw.tcl`);
-- `compile_order_sim.txt` lists the 8B/10B package, the control package `sim/ofb_pa_model_pkg.vhd`, the entity and
-  `mdl`.
+- `compile_order_sim.txt` lists the 8B/10B package, the control package `sim/ofb_pa_model_pkg.vhd`, the entity, the
+  reset sequencer `src/ofb_pa_gty_lane_rst.vhd` and `mdl`.
+
+Both architectures use the same reset sequencer `ofb_pa_gty_lane_rst` (in both lists), so the sequences of the entire
+receiver reset, the CDR-only reset and the transmit buffer reset are the same in GHDL and on the transceiver model.
 
 Both lists follow the compile order of the core (`compile_order.txt` of the repository). `python run.py
 --compile-order` fails when a list misses its architecture or contains both. The model testbench and the core
@@ -53,6 +56,9 @@ link.
 | `Lane(l).BurstReq`, `BurstLen` | 0, 8 | Every increment sets `BurstLen` consecutive bits of the next word to '0' (a dropout, always detected by 8B/10B) |
 | `Lane(l).ErrEvery` | 0 | One inverted bit every `ErrEvery` transmitted bits (0: off) |
 | `Lane(l).BufErrReq` | 0 | Receiver side: every increment forces an error of the receive buffer of the lane, with `RxBufReset_g` followed by the reset window (PA-RS-03) |
+| `Lane(l).RxResetTime` | 4 us | Entire receiver reset of the lane: RXRESETDONE returns this long after the end of the GTRXRESET pulse (PA-RS-04) |
+| `Lane(l).RxResetHang` | false | RXRESETDONE stays low after a GTRXRESET pulse, so the sequencer runs into its bound (PA-RS-05) |
+| `Lane(l).TxBufErrReq` | 0 | Every increment sets the transmit buffer error of the lane until the transmit buffer reset (PA-RS-06) |
 
 The default reset sequence is that of the transceiver model in the AMD simulator, measured with
 `ofb_pa_gty_core_tb`. At power-up (four lanes, the reset of the adapter released at 200 ns, the stretched reset of
@@ -97,10 +103,10 @@ of the signal, also when a lane restarts in operation (run `lanes1_relock` of th
   (0011111 or 1100000) and realign on a comma in another position; the decoder flags code and disparity errors; a word
   starts with a comma symbol (K28.1, K28.5, K28.7), so the comma is in symbol 0. `Phy_RxInvert` inverts the received
   bits. Without signal, while the receiver is disabled, or before the receivers are ready, no word is received and the
-  alignment is lost; `Phy_CdrEnable` has no effect, as in `struct` (PA-IF-02). In `NoSignalNever`, once the line has
-  been idle for `NoSignalDelay` (receivers ready, receiver enabled), the receiver delivers one word per
-  `LaneClk` cycle as the receiver of the transceiver model: 13 words with code errors, then words without errors that
-  are not lane words. The Lane layer loses the word synchronisation after the errors (ECSS 5.5.8), counts every
+  alignment is lost; `Phy_CdrEnable` does not stop the reception, as in `struct` (PA-IF-02). In `NoSignalNever`,
+  once the line has been idle for `NoSignalDelay` (receivers ready, receiver enabled), the receiver delivers one word
+  per `LaneClk` cycle as the receiver of the transceiver model: 13 words with code errors, then words without errors
+  that are not lane words. The Lane layer loses the word synchronisation after the errors (ECSS 5.5.8), counts every
   following word as RXERR and enters LossOfSignal when the RXERR counter overflows (255 words, 1.6 us). When the
   receive buffer had delivered words before the line became idle, it reports an error after the 13 words, as in the
   transceiver model (its recovered clock stops), and with `RxBufReset_g` the reset window below applies.
@@ -116,6 +122,14 @@ of the signal, also when a lane restarts in operation (run `lanes1_relock` of th
   are not ready, released two `LaneClk` cycles after `Stat_TxReady`). A reset through `Rst` stops `LaneClk` until
   `ClkDelay` after the start of the new sequence, as the reset controller of the transceiver stops the user clock.
   A reset during the reset sequence starts the sequence again from its beginning.
+- Receiver reset (PA-RS-04 to PA-RS-06): the falling edge of `Phy_CdrEnable` with `Cfg_RxResetOnDisc`, and
+  `Cmd_RxReset`, request the entire receiver reset of the lane from its sequencer, as in `struct`. RXRESETDONE is 1
+  while the receivers are ready, falls with a GTRXRESET pulse in sequential mode and rises `RxResetTime` after the end
+  of the pulse (never with `RxResetHang`); every receiver reset and CDR reset relocks the receiver (`CdrLockTime`), and
+  no word is valid while the reset runs or RXRESETDONE is low. `TxBufErrReq` sets the transmit buffer error, which the
+  transmit buffer reset of the sequencer clears. The status outputs of PA-ST-03 follow: `Stat_RxResetDone`,
+  `Stat_RxResetBusy`, `Stat_CdrLock` (the comma alignment of the lane), `Stat_RxElecIdle` (the line is idle),
+  `Stat_TxBufErr`, `Ev_RxReset`, `Ev_RxResetTimeout`; `Stat_RxReady` is low while a receiver reset of a lane runs.
 - Serial loopbacks: near-end, the receiver gets the own transmitted bits (the pins are still driven); far-end, the
   received bits are sent back on the pins.
 - PRBS test: PRBS-7, -9, -15, -23 and -31 generator and checker per lane on the bit stream (encoding of the
@@ -146,6 +160,8 @@ of the signal, also when a lane restarts in operation (run `lanes1_relock` of th
 - The datapath latency is close to, not equal to, the transceiver: one `LaneClk` cycle in the transmitter, the
   serialisation, 16 words in the receive buffer.
 - A change of `TxInvert` takes effect with the next transmitted bit.
+- The receiver reset takes the fixed time `RxResetTime`; the CDR hold (`Cfg_CdrHoldIdle`) and PCSRSVDIN have no effect,
+  and the transmit buffer reset does not disturb the transmitted bits.
 
 ## 6. Simulation speed
 

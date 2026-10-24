@@ -27,14 +27,15 @@ library work;
 ---------------------------------------------------------------------------------------------------
 entity ofb_lane_init is
     generic (
-        ClkFrequency_g     : real     := 156.25e6;
-        InitTimeoutWords_g : positive := 5000
+        ClkFrequency_g : real := 156.25e6
     );
     port (
         -- Control Ports
         Clk                     : in    std_logic;
         Rst                     : in    std_logic;
-        -- Management parameters
+        -- Management parameters. Initialisation timeout: lane clock cycles from the entry into Started (ECSS
+        -- 5.5.2.6b.1: the time to transmit 5000 words), taken on every cycle of the timer
+        Cfg_InitTimeout         : in    std_logic_vector(23 downto 0) := std_logic_vector(to_unsigned(5000, 24));
         Cfg_LaneStart           : in    std_logic;
         Cfg_AutoStart           : in    std_logic;
         Cfg_LaneReset           : in    std_logic;
@@ -99,7 +100,7 @@ architecture rtl of ofb_lane_init is
     type TwoProcess_r is record
         State       : LaneFsm_t;
         TimerCnt    : natural range 0 to ClearLineCycles_c-1;
-        TimeoutCnt  : natural range 0 to InitTimeoutWords_g-1;
+        TimeoutCnt  : unsigned(23 downto 0);
         TimeoutRun  : std_logic;
         WordCnt     : natural range 0 to 1023;
         SeenInit    : std_logic;
@@ -209,10 +210,11 @@ begin
             v.SentCnt := r.SentCnt + 1;
         end if;
 
-        -- Initialisation timeout timer: time to send InitTimeoutWords_g words (ECSS 5.5.2.7b.1)
+        -- Initialisation timeout timer: time to send Cfg_InitTimeout words (ECSS 5.5.2.7b.1); 0 and 1 end it after
+        -- one cycle
         Timeout_v := false;
         if r.TimeoutRun = '1' then
-            if r.TimeoutCnt = InitTimeoutWords_g-1 then
+            if r.TimeoutCnt + 1 >= unsigned(Cfg_InitTimeout) then
                 Timeout_v := true;
             else
                 v.TimeoutCnt := r.TimeoutCnt + 1;
@@ -356,7 +358,7 @@ begin
                 when Started_s =>
                     -- Start the initialisation timeout timer
                     v.TimeoutRun  := '1';
-                    v.TimeoutCnt  := 0;
+                    v.TimeoutCnt  := (others => '0');
                     v.WordCnt     := 0;
                     v.SeenInit    := '0';
                     v.InvInit1Cnt := 0;
@@ -512,7 +514,7 @@ begin
             if Rst = '1' then
                 r.State       <= ClearLine_s;
                 r.TimerCnt    <= 0;
-                r.TimeoutCnt  <= 0;
+                r.TimeoutCnt  <= (others => '0');
                 r.TimeoutRun  <= '0';
                 r.WordCnt     <= 0;
                 r.SeenInit    <= '0';

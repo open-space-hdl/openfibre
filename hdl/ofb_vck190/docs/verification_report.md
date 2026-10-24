@@ -13,7 +13,11 @@ model power-up error in the runner (pass at the first attempt, same results). Re
 transmitter ready input of the core: the core is reset by the power-on reset alone and holds the link until
 `Stat_TxReady` of the adapter is 1 (`Phy_TxReady`). Transceivers ready after 64.9 us, link initialised after 94.8 us,
 6 packets on each of the 8 VCs and 4 broadcast messages back, no error and no retry at the far end, LEDs 0 to 3 on
-(pass, simulation done at 98.9 us).
+(pass, simulation done at 98.9 us). Rerun on 2026-10-24 for release 0.1.3 (commit 0a86908: initialisation timeout of
+468750 words, receiver reset at every lane restart without a gap, transceiver wizard with the settings of PA-RS-04 to
+PA-RS-06): link initialised after 94.6 us, 6 packets on every VC and 4 broadcast messages back, DL_ERRORS 0 and no
+retry at the far end (pass at the second elaboration after the power-up error of the transceiver model, simulation
+done at 98.7 us).
 
 | Test | Result |
 | --- | --- |

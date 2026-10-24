@@ -100,6 +100,14 @@ package ofb_core_tb_pkg is
     -- Interrupt outputs of the cores
     signal CoreIrq : std_logic_vector(0 to 1);
 
+    -- Control of the Physical adapters at the ports of the cores (MIB PA_CTRL): PCSRSVDIN, and CDR hold, CDR-only and
+    -- receiver reset on disconnection (bits 2:0)
+    type CorePcs_t is array (0 to 1) of std_logic_vector(15 downto 0);
+    type CorePaFlags_t is array (0 to 1) of std_logic_vector(2 downto 0);
+
+    signal CorePaPcs   : CorePcs_t;
+    signal CorePaFlags : CorePaFlags_t;
+
     -- Raw beats for VC 0 of core A in queue 0 (sent before the generated packets of VC 0): bytes 127:0
     -- (byte 0 in bits 7:0), TKEEP 143:128, TLAST 144, TUSER 145
     subtype RawBeat_t is BeatEntry_t;

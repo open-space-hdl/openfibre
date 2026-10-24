@@ -47,6 +47,11 @@ TESTBENCHES = {
     "ofb_pa_gty_core_tb.lanes3": ("ofb_pa_gty_core_tb", {"Lanes_g": "3", "Short_g": "true"}),
     # One lane: restart of the lane by an interruption of the far-end transmitter after the first burst
     "ofb_pa_gty_core_tb.relock": ("ofb_pa_gty_core_tb", {"Lanes_g": "1", "Short_g": "true", "Relock_g": "true"}),
+    # The same restart with the settings of the VCK190 design: no gap between two receiver resets, initialisation
+    # timeout of 468750 words (3 ms)
+    "ofb_pa_gty_core_tb.relock_vck190": ("ofb_pa_gty_core_tb", {"Lanes_g": "1", "Short_g": "true", "Relock_g": "true",
+                                                                "RxRstGap_g": "0", "InitTimeout_g": "468750",
+                                                                "RelockMaxUs_g": "3000"}),
     "ofb_vck190_tb": ("ofb_vck190_tb", {}),
 }
 

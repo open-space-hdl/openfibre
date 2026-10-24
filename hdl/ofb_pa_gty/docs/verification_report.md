@@ -216,6 +216,60 @@ On a tree with the previous gating of the received words (commit 2afb1b6: the fi
 the reset window), `ofb_pa_gty_core_tb`, `ofb_pa_gty_cc_tb` run `buferr` and runs `lanes1` to `lanes3` passed, and run
 `relock` failed: lane 0 of A stayed Active through the interruption (finding in section 2).
 
+### Release 0.1.3
+
+Runs on 2026-10-23 and 2026-10-24 with Vivado 2025.2 (xsim) on commit 0a86908, with the transceiver wizard instance
+created again by the changed `tcl/ofb_gtw.tcl` (TXPROGDIVCLK 156.250 MHz, comma mask 0011111111, clock correction
+periodicity 2000, out-of-band detection, buffer reset on comma alignment, the channel debug ports); every test run on
+this tree, none carried over. The tree of the release differs from it in Markdown files and in two comments.
+
+| Testbench | Test | Result | Simulated time |
+| --- | --- | --- | --- |
+| `ofb_pa_gty_tb` | TC-PA-01, TC-PA-04, TC-PA-06 | Pass | 132 us |
+| `ofb_pa_gty_cc_tb`, run `cc` | TC-PA-03 | Pass | 97 us |
+| `ofb_pa_gty_cc_tb`, run `far` | TC-PA-05 | Pass | 145 us |
+| `ofb_pa_gty_cc_tb`, run `buferr` | TC-PA-07 | Pass | 319 us |
+| `ofb_pa_gty_core_tb` | TC-PA-02, four lanes, with the reset of the adapter of A | Pass | 300 us |
+| `ofb_pa_gty_core_tb`, runs `lanes1` to `lanes3` | TC-PA-02 with 1 to 3 lanes | Pass | 99 to 104 us |
+| `ofb_pa_gty_core_tb`, run `relock` | TC-PA-02 lane restart with the entire receiver reset | Pass | 150 us |
+| `ofb_pa_gty_core_tb`, run `relock_vck190` | TC-PA-02 lane restart with the settings of the VCK190 design | Pass | 150 us |
+| `ofb_vck190_tb` | TC-VCK-01 | Pass (second elaboration) | 99 us |
+
+`ofb_pa_gty_tb`: 398 and 342 data words per lane without error, 409 per lane in near-end serial loopback, the PRBS-31
+checkers locked, words with errors only after the bit errors on the line. TC-PA-03: 9 clock corrections at A and 4 at
+B, no buffer error. TC-PA-05: 3006 data words per lane back through the far-end serial loopback of B without error.
+TC-PA-07: 36 buffer errors at A (indication at most 4 `LaneClk` cycles) and 8 at B (at most 10), no drop of the
+receivers ready, per lane about 30,350 words at A with 72 in error and 33,280 at B with 4 in error, the counts of
+release 0.1.2. TC-PA-02 with four lanes: link initialised after 93.9 us, first burst delivered after 98.1 us, clock
+corrections A 6, B 1; all 24 packets per VC and direction and 4 broadcast messages per direction delivered in order,
+DL_ERRORS 0 and no retry; after the reset of the adapter of A only TX_LOST at A and Far-End Link Reset at B. With one
+to three lanes DL_ERRORS 0 at both ends.
+
+Lane restart (`relock`): the restart of lane 0 reset the entire receiver of that lane at both ends, 6.16 us at B and
+6.32 us at A from the start of the sequence to RXRESETDONE, without a timeout; the receivers reported electrical idle
+while the line was idle and the CDR lock stayed set; lane 0 was Active again at both ends 28.52 us after the
+transmitter of B was enabled again (release 0.1.2: 26.04 us); RX_RESETS 1 at each end, no initialisation timeout
+during the restart, DL_ERRORS 0, second burst delivered. The run `relock_vck190` (no gap, initialisation timeout of
+468750 words) behaves the same: the first attempt after the restart completes, so the longer timeout is not reached.
+`ofb_vck190_tb`: 6 packets back on every VC, 4 broadcast messages back, DL_ERRORS 0 and no retry at the far end.
+
+Two infrastructure events, not test results: the first elaboration of the run `far` ended at once with an empty log
+(the process ended before it wrote anything) and the run passed on the next start; the first simulation of
+`ofb_vck190_tb` showed the power-up error of the transceiver model (DIV_VAL_CHK, the LCPLL of a quad not locked) and
+was ended, and the second elaboration passed.
+
+GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, on 2026-10-23: the reset sequencer `ofb_pa_gty_lane_rst_tb`, 6 of 6 (TC-PA-19 to
+TC-PA-24, the port rules checked by the monitor in every cycle); the model `ofb_pa_gty_model_tb`, 44 of 44 with
+TC-PA-25 in the configurations `lanes1` to `lanes4`; `ofb_pa_gty_model_core_tb`, 7 of 7 with the new run
+`lanes1_relock_gap0` (every restart resets the receiver); full regression 423 of 423. Mutation checks of the sequencer,
+each applied alone: a missing PCSRSVDIN[10] in the pulse, no bound of the wait for RXRESETDONE falling or rising, no gap
+after a timeout, requests accepted during a receiver reset, no gap check, the transmit buffer reset before the receiver
+reset, a buffer request not absorbed by the receiver reset, the PCSRSVDIN base taken in every cycle, no setup time, a
+CDR-only wait not reported as busy, the PCSRSVDIN base during the buffer reset, the transmit buffer reset in sequential
+mode, and sequences while the receivers are not ready: each fails TC-PA-19 to TC-PA-24 (14 of 14). The absorbed buffer
+request first survived, because a second buffer request during the receiver reset hid it; TC-PA-24 checks both cases
+separately since. A model that ignores `Cfg_RxResetOnDisc` fails TC-PA-25.
+
 ### Behavioural model (architecture `mdl`)
 
 Run on 2026-10-17 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7: `python run.py "*ofb_pa_gty_model*"`, 46 of 46 tests

@@ -60,7 +60,8 @@ entity ofb_core_tb is
         AlignTimeoutB_g : natural                := 10000; -- Alignment watchdog of core B (words, 0: off)
         LaneJoinHold_g  : natural                := 8192;  -- Join hold of both cores (words, 0: off)
         PinModel_g      : boolean                := false; -- ofb_pa_gty(mdl) pin to pin
-        PinLockNs_g     : positive               := 500    -- CdrLockTime of the models with PinModel_g (ns)
+        PinLockNs_g     : positive               := 500;   -- CdrLockTime of the models with PinModel_g (ns)
+        PinRxRstGap_g   : natural                := 400000 -- RxRstGapCycles_g of the models with PinModel_g
     );
 end entity;
 
@@ -453,7 +454,7 @@ begin
                 check_value(to_integer(unsigned(Data_v(7 downto 0))), NumVc_g, error, "NUM_VC of A");
                 check_value(to_integer(unsigned(Data_v(11 downto 8))), NumLanes_g, error, "NUM_LANES of A");
                 rd(0, RegId_c, Data_v);
-                check_value(Data_v, x"0FB10009", error, "ID of A");
+                check_value(Data_v, x"0FB1000A", error, "ID of A");
                 linkUp(500 us);
                 rd(1, RegDlErrors_c, Data_v);
                 check_value(Data_v, x"00000000", error, "No error at B");
@@ -1613,6 +1614,121 @@ begin
                     check_value(N_v > 0, error, "The frames of the reset window recovered by a retry");
                 end if;
 
+            -- TC-CORE-37: control of the Physical adapters and the entire receiver reset through the MIB, with the
+            -- pin model and no gap between two receiver resets: reset values of LANE_INIT_TIMEOUT (InitTimeoutWords_g)
+            -- and PA_CTRL at the ports of the cores; the time of lane 0 of A in Started without a far end follows
+            -- LANE_INIT_TIMEOUT (5000 and 15000 words); LANE_STATUS reports the receiver reset status of the adapter;
+            -- LANE_CTRL RX_RESET of lane 0 at A during traffic: an entire receiver reset of that lane in the adapter
+            -- (RX_RESET event, RX_RESETS counted), every packet delivered in order; with RX_RESET_CDR_ONLY in PA_CTRL
+            -- the command resets the CDR only (RX_RESET_DONE stays 1); a written PCSRSVDIN reaches the port
+            elsif run("test_rx_reset") then
+                if PinModel_g then
+                    rd(0, RegLaneInitTimeout_c, Data_v);
+                    check_value(Data_v, x"00001388", error, "LANE_INIT_TIMEOUT: InitTimeoutWords_g");
+                    rd(0, RegPaCtrl_c, Data_v);
+                    check_value(Data_v, x"03600005", error, "PA_CTRL reset value");
+                    check_value(CorePaPcs(0), x"0360", error, "PCSRSVDIN at the port of A");
+                    check_value(CorePaFlags(0), "101", error, "CDR hold and reset on disconnection at the port of A");
+
+                    -- Lane 0 of A started, B without AutoStart: the time in Started is the initialisation timeout
+                    for l in 0 to NumLanes_g-1 loop
+                        wr(1, RegLaneCtrl_c + 16#20# * l, x"00000060");
+                    end loop;
+
+                    for k in 0 to 1 loop
+                        if k = 1 then
+                            wr(0, RegLaneInitTimeout_c, x"00003A98");
+                        end if;
+                        wr(0, RegLaneCtrl_c, x"00000061");
+                        -- Wait for the next entry into Started and measure its length
+                        T0_v := now;
+
+                        loop
+                            rd(0, RegLaneStat_c, Data_v);
+                            exit when Data_v(3 downto 0) /= x"3" or now - T0_v > 200 us;
+                        end loop;
+
+                        loop
+                            rd(0, RegLaneStat_c, Data_v);
+                            exit when Data_v(3 downto 0) = x"3" or now - T0_v > 400 us;
+                        end loop;
+
+                        T0_v := now;
+
+                        loop
+                            rd(0, RegLaneStat_c, Data_v);
+                            exit when Data_v(3 downto 0) /= x"3" or now - T0_v > 200 us;
+                        end loop;
+
+                        log(ID_LOG_HDR, "Lane 0 of A in Started for " & to_string(now - T0_v));
+                        if k = 0 then
+                            check_value(now - T0_v > 31 us and now - T0_v < 34 us, error,
+                                        "Started for 5000 words (32 us)");
+                        else
+                            check_value(now - T0_v > 95 us and now - T0_v < 98 us, error,
+                                        "Started for LANE_INIT_TIMEOUT 15000 words (96 us)");
+                        end if;
+                    end loop;
+
+                    wr(0, RegLaneCtrl_c, x"00000060");
+                    wr(0, RegLaneInitTimeout_c, x"00001388");
+
+                    for l in 0 to NumLanes_g-1 loop
+                        wr(1, RegLaneCtrl_c + 16#20# * l, x"00000062");
+                    end loop;
+
+                    linkUp(1 ms);
+                    allLanes(500 us);
+                    -- Receiver reset status of the adapter: reset done, not busy, CDR locked, no electrical idle
+                    rd(0, RegLaneStat_c, Data_v);
+                    check_value(Data_v(27 downto 24), "0101", error, "LANE_STATUS: RX_RESET_DONE and CDR_LOCK");
+
+                    for l in 0 to NumLanes_g-1 loop
+                        wr(0, RegLaneEvents_c + 16#20# * l, x"000000FF");
+                        wr(0, RegLaneTimeoutCount_c + 16#20# * l, x"00000000");
+                    end loop;
+
+                    -- Entire receiver reset of lane 0 at A during traffic
+                    sendAll(40);
+                    cycles(300);
+                    wr(0, RegLaneCtrl_c, x"00040063");
+                    waitDelivered(5 ms);
+                    rd(0, RegLaneEvents_c, Data_v);
+                    check_value(Data_v(6), '1', error, "RX_RESET event of lane 0 at A");
+                    check_value(Data_v(7), '0', error, "No receiver reset timeout at A");
+                    rd(0, RegLaneTimeoutCount_c, Data_v);
+                    log(ID_LOG_HDR, "Receiver resets of lane 0 at A: " &
+                        to_string(to_integer(unsigned(Data_v(31 downto 16)))));
+                    check_value(to_integer(unsigned(Data_v(31 downto 16))) >= 1, error, "RX_RESETS of lane 0 at A");
+                    rd(0, RegLaneStat_c, Data_v);
+                    check_value(Data_v(27 downto 24), "0101", error, "LANE_STATUS after the receiver reset");
+
+                    -- CDR-only mode, written PCSRSVDIN at the port
+                    wr(0, RegPaCtrl_c, x"02400007");
+                    cycles(20);
+                    check_value(CorePaPcs(0), x"0240", error, "Written PCSRSVDIN at the port of A");
+                    check_value(CorePaFlags(0), "111", error, "CDR-only mode at the port of A");
+                    allLanes(500 us);
+                    wr(0, RegLaneEvents_c, x"000000FF");
+                    wr(0, RegLaneTimeoutCount_c, x"00000000");
+                    sendAll(20);
+                    cycles(300);
+                    wr(0, RegLaneCtrl_c, x"00040063");
+                    T0_v := now;
+
+                    loop
+                        rd(0, RegLaneStat_c, Data_v);
+                        check_value(Data_v(24), '1', error, "CDR-only reset: RX_RESET_DONE stays 1");
+                        exit when now - T0_v > 150 us;
+                    end loop;
+
+                    waitDelivered(5 ms);
+                    rd(0, RegLaneEvents_c, Data_v);
+                    check_value(Data_v(6), '1', error, "CDR-only reset: RX_RESET event");
+                    rd(0, RegLaneTimeoutCount_c, Data_v);
+                    check_value(to_integer(unsigned(Data_v(31 downto 16))) >= 1, error, "CDR-only reset: RX_RESETS");
+                end if;
+
             -- TC-CORE-34: join hold (ML-LM-17). Packets wait on every VC before the start; at A the last lane is
             -- started 3 us after the others (B follows with AutoStart), so it enters Active after the alignment of
             -- the other lanes. The Data Link layer sends only after the last lane has joined: all packets are
@@ -1789,7 +1905,8 @@ begin
             AlignTimeoutB_g => AlignTimeoutB_g,
             LaneJoinHold_g  => LaneJoinHold_g,
             PinModel_g      => PinModel_g,
-            PinLockNs_g     => PinLockNs_g
+            PinLockNs_g     => PinLockNs_g,
+            PinRxRstGap_g   => PinRxRstGap_g
         )
         port map (
             MgmtClk => MgmtClk,

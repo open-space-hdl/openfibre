@@ -13,9 +13,14 @@ Run on 2026-10-06 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 | `ofb_lane_tx_tb` (LN-2) | 4 | 4 |
 | `ofb_tb_8b10b_tb` (verification component) | 4 | 4 |
 
+Run on 2026-10-23 with the initialisation timeout from the input `Cfg_InitTimeout` (release 0.1.3): `ofb_lane_init_tb`
+15 of 15 with TC-LN-54 (Started for 1200 and 3000 words, a change in Started applied to the running attempt, values 0
+and 1 end an attempt after one cycle), the other lane benches unchanged; full regression 423 of 423. A lane whose
+timeout compares with the constant 5000 fails TC-LN-54 (mutation check).
+
 ## 2. Summary
 
-All 44 test cases pass; every requirement of the specification is covered (see the verification plan). VSG reports
+All 45 test cases pass; every requirement of the specification is covered (see the verification plan). VSG reports
 no errors and no warnings.
 
 Defects found and fixed during verification:

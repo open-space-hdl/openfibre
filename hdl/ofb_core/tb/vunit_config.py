@@ -47,6 +47,9 @@ RANGE_CONFIGS = (
      ("test_link_up", "test_traffic", "test_error_recovery", "test_throughput", "test_buffer_reset")),
     # One lane through the pin model: a forced error of the receive buffer during traffic (TC-CORE-36)
     ("lanes1_pin", {"NumLanes_g": 1, "PinModel_g": True}, ("test_buffer_reset",)),
+    # Two lanes through the pin models without a gap between two receiver resets (as the VCK190 design): control of
+    # the adapters and the entire receiver reset through the MIB (TC-CORE-37)
+    ("lanes2_pin_rxrst", {"NumLanes_g": 2, "PinModel_g": True, "PinRxRstGap_g": 0}, ("test_rx_reset",)),
     # Error recovery through the models with the lock time of the transceiver model (16.83 us) and near the ends of the
     # interval that bounds it: the word losses at comma realignments are recovered by the alignment watchdog
     ("lanes4_pin_lock16650", {"NumLanes_g": 4, "PinModel_g": True, "PinLockNs_g": 16650}, ("test_error_recovery",)),
@@ -74,7 +77,7 @@ JOIN_CONFIGS = (
 
 # Tests that need the pin model (PinModel_g): they run only in their configurations of RANGE_CONFIGS, not in the
 # configurations lanes1 to lanes4
-PIN_TESTS = {"test_buffer_reset"}
+PIN_TESTS = {"test_buffer_reset", "test_rx_reset"}
 
 
 def configure(lib):

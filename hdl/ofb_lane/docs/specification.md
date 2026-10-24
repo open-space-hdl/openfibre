@@ -38,7 +38,7 @@ The module consists of four blocks of the architecture (section 7.5):
 | --- | --- | --- |
 | LN-INIT-01 | The lane initialisation state machine shall implement the states ClearLine, Disabled, Wait, Started, InvertRxPolarity, Connecting, Connected, Active, PrepareStandby and LossOfSignal with the entry conditions, actions and exit conditions of the standard, exit conditions evaluated in the order given there. | 5.5.2.1, 5.5.2.4 to 5.5.2.13 |
 | LN-INIT-02 | ClearLine shall last 2 us, disable the transmitter, receiver and CDR and switch off the receive bit inversion; it is entered on LaneReset from any state. | 5.5.2.4 |
-| LN-INIT-03 | The initialisation timeout timer shall start on entry to Started, expire after the time to transmit 5000 words and be stopped in Active; its expiry in Started, InvertRxPolarity, Connecting or Connected moves to ClearLine and is reported as a timeout event. | 5.5.2.4a.2 to 5, 5.5.2.7b.1, 5.5.2.11b.1 |
+| LN-INIT-03 | The initialisation timeout timer shall start on entry to Started, expire after the time to transmit `Cfg_InitTimeout` words (management parameter, compared in every cycle of the timer; default 5000, the value of the standard; 0 and 1 expire after one cycle) and be stopped in Active; its expiry in Started, InvertRxPolarity, Connecting or Connected moves to ClearLine and is reported as a timeout event. | 5.5.2.4a.2 to 5, 5.5.2.6b.1, 5.5.2.7b.1, 5.5.2.11b.1 |
 | LN-INIT-04 | Started shall move to Connecting when FarEndActive is asserted or when 1023 words including at least one INIT1 or INIT2 are received without intervening RXERR, and to InvertRxPolarity on three iINIT1 or three iINIT2 without intervening RXERR. InvertRxPolarity shall invert the received bits. | 5.5.2.7f, 5.5.2.8 |
 | LN-INIT-05 | Connecting shall move to Connected on RxOnly, FarEndActive, three INIT2 or three INIT3 with the same parameters, each without intervening RXERR. | 5.5.2.9f |
 | LN-INIT-06 | Connected shall send INIT3 with the capability field, report the far-end capability once three INIT3 with the same capability are received without intervening RXERR, clear the RXERR word counter, and move to Active on RxOnly, on FarEndActive after at least one INIT3 was sent, or after three such INIT3 are received and at least three INIT3 are sent; a received comma K28.7 moves it to ClearLine. | 5.5.2.10b, e |
@@ -92,7 +92,6 @@ The module consists of four blocks of the architecture (section 7.5):
 | Generic | Default | Description |
 | --- | --- | --- |
 | `ClkFrequency_g` | 156.25e6 | Lane clock frequency in Hz (2 us ClearLine timer) |
-| `InitTimeoutWords_g` | 5000 | Initialisation timeout in words |
 | `InitPrbsWords_g` | 64 | PRBS data words after each INIT1 / INIT2 (0 to 64) |
 | `SkipIntervalWords_g` | 5000 | Words between two SKIP words in Active |
 | `SkipExternal_g` | false | SKIP on the request `Ctrl_SkipReq` of the Multi-Lane layer (multi-lane link) |

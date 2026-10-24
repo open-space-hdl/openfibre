@@ -7,7 +7,8 @@
 -- Description
 ---------------------------------------------------------------------------------------------------
 -- Unit testbench of the Management Information Base: register map, reset values, configuration
--- crossings, commands, status, sticky flags, counters and interrupt (four clock domains).
+-- crossings, commands, status, sticky flags, counters and interrupt (four clock domains), the
+-- initialisation timeout of the lanes and the control and status of the Physical adapters.
 --
 -- Documentation: hdl/ofb_mib/docs/verification_plan.md
 
@@ -133,6 +134,28 @@ architecture sim of ofb_mib_tb is
     signal ForceCnt   : natural                      := 0;
     signal CntRstCnt  : natural                      := 0;
 
+    -- Initialisation timeout of the lanes, control and status of the Physical adapter
+    signal InitTo      : std_logic_vector(23 downto 0);
+    signal PaOnDisc    : std_logic;
+    signal PaCdrOnly   : std_logic;
+    signal PaCdrHold   : std_logic;
+    signal PaPcs       : std_logic_vector(15 downto 0);
+    signal PaRstCmd    : std_logic_vector(0 downto 0);
+    signal PaRxBufErr  : std_logic_vector(0 downto 0) := "0";
+    signal PaTxBufErr  : std_logic_vector(0 downto 0) := "0";
+    signal PaRstDone   : std_logic_vector(0 downto 0) := "0";
+    signal PaRstBusy   : std_logic_vector(0 downto 0) := "0";
+    signal PaCdrLock   : std_logic_vector(0 downto 0) := "0";
+    signal PaElecIdle  : std_logic_vector(0 downto 0) := "0";
+    signal PaEvRst     : std_logic_vector(0 downto 0) := "0";
+    signal PaEvRstTo   : std_logic_vector(0 downto 0) := "0";
+    signal RstCmdCnt   : natural                      := 0;
+    -- Saturation of RX_RESETS: 65537 receiver reset events in the lane domain, in parallel to TC-MG-09
+    signal SatLane     : std_logic                    := '0';
+    signal SatLaneDone : std_logic                    := '0';
+    signal PaEvRstSat  : std_logic_vector(0 downto 0) := "0";
+    signal PaEvRstIn   : std_logic_vector(0 downto 0);
+
     -- User domain
     signal NiEv      : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
     signal NiRxEv    : std_logic_vector(NumVc_c-1 downto 0) := (others => '0');
@@ -208,6 +231,20 @@ begin
 
         end procedure;
 
+        -- One-cycle event of the Physical adapter in the lane domain
+        procedure paEvent (signal ev : out std_logic_vector(0 downto 0)) is
+        begin
+            wait until rising_edge(LaneClk);
+            ev <= "1";
+            wait until rising_edge(LaneClk);
+            ev <= "0";
+
+            for i in 1 to 20 loop
+                wait until rising_edge(LaneClk);
+            end loop;
+
+        end procedure;
+
     -- Test cases
     begin
         test_runner_setup(runner, runner_cfg);
@@ -222,7 +259,7 @@ begin
 
             -- TC-MG-01: identification and reset values
             if run("test_reset_values") then
-                chk(16#000#, x"0FB10009", "ID");
+                chk(16#000#, x"0FB1000A", "ID");
                 chk(16#004#, x"00000104", "Generics");
                 chk(16#008#, x"00000100", "DataScrambled set");
                 chk(16#00C#, x"00000028", "Broadcast interval 40");
@@ -255,6 +292,13 @@ begin
                 chk(RegLaneEvents_c, RegLaneEventsReset_c, "LANE_EVENTS of lane 0");
                 chk(RegLaneTimeoutCount_c, RegLaneTimeoutCountReset_c, "LANE_TIMEOUT_COUNT of lane 0");
                 chk(RegLanePrbsCtrl_c, RegLanePrbsCtrlReset_c, "LANE_PRBS_CTRL of lane 0");
+                chk(RegLaneInitTimeout_c, x"00001388", "LANE_INIT_TIMEOUT: InitTimeoutWords_g (5000)");
+                chk(RegPaCtrl_c, RegPaCtrlReset_c, "PA_CTRL");
+                chk(RegPaCtrl_c, x"03600005", "PA_CTRL: PCSRSVDIN 0x0360, CDR hold, receiver reset on disconnection");
+                check_value(InitTo, x"001388", error, "Initialisation timeout in the lane domain");
+                check_value(std_logic_vector'(PaCdrHold & PaCdrOnly & PaOnDisc), "101", error,
+                            "Physical adapter control in the lane domain");
+                check_value(PaPcs, x"0360", error, "PCSRSVDIN in the lane domain");
                 chk(RegVcFramingError_c, x"00000000", "VC_FRAMING_ERROR");
                 chk(RegVcRxFramingError_c, x"00000000", "VC_RX_FRAMING_ERROR");
                 chk(RegNiRxEmptyCount_c, RegNiRxEmptyCountReset_c, "NI_RX_EMPTY_COUNT");
@@ -642,6 +686,8 @@ begin
             -- TC-MG-09: the event counters saturate at 0xFFFF (CRC-8 counter, the counters share the
             -- saturating increment)
             elsif run("test_counter_saturation") then
+                -- 65537 receiver resets in the lane domain at the same time
+                SatLane <= '1';
 
                 for i in 1 to 65537 loop
                     wait until rising_edge(CoreClk);
@@ -657,6 +703,9 @@ begin
 
                 cycles(10);
                 chk(16#020#, x"0000FFFF", "CRC-8 counter saturated");
+                wait until SatLaneDone = '1';
+                cycles(20);
+                chk(RegLaneTimeoutCount_c, x"FFFF0000", "RX_RESETS saturated, COUNT unchanged");
 
             -- TC-MG-10: PRBS test registers of a lane: patterns to the Physical adapter, lock status, error
             -- and word counters, hold, count reset and force error commands, Interface Reset
@@ -794,6 +843,112 @@ begin
                 chk(RegVcRxFramingError_c, x"00000000", "Receive framing error flags cleared by the Link Reset command");
                 chk(RegDlErrors_c, x"00000000", "Data Link flags cleared by the Link Reset command");
 
+            -- TC-MG-12: initialisation timeout and Physical adapter registers: LANE_INIT_TIMEOUT and PA_CTRL
+            -- written, read back (reserved bits zero) and forwarded to the lane domain, reset by Interface Reset;
+            -- LANE_CTRL RX_RESET gives one command pulse and reads as zero; receiver reset status in LANE_STATUS;
+            -- buffer errors (rising edges of levels), receiver reset and its timeout in LANE_EVENTS with
+            -- interrupt; RX_RESETS counts the receiver resets, cleared by a write and by Link Reset
+            elsif run("test_pa_registers") then
+                wr(RegLaneInitTimeout_c, x"FF0A2C2B");
+                chk(RegLaneInitTimeout_c, x"000A2C2B", "LANE_INIT_TIMEOUT: WORDS (23:0) read back");
+                wr(RegPaCtrl_c, x"0240FFFA");
+                chk(RegPaCtrl_c, x"02400002", "PA_CTRL read back, reserved bits zero");
+                cycles(20);
+                check_value(InitTo, x"0A2C2B", error, "Initialisation timeout in the lane domain");
+                check_value(std_logic_vector'(PaCdrHold & PaCdrOnly & PaOnDisc), "010", error,
+                            "Physical adapter control in the lane domain");
+                check_value(PaPcs, x"0240", error, "PCSRSVDIN in the lane domain");
+                -- Interface Reset: both back to their reset values
+                wr(RegDlCtrl_c, x"00000102");
+                chk(RegLaneInitTimeout_c, x"00001388", "LANE_INIT_TIMEOUT reset by Interface Reset");
+                chk(RegPaCtrl_c, x"03600005", "PA_CTRL reset by Interface Reset");
+                cycles(20);
+                check_value(InitTo, x"001388", error, "Initialisation timeout reset in the lane domain");
+                check_value(std_logic_vector'(PaCdrHold & PaCdrOnly & PaOnDisc), "101", error,
+                            "Physical adapter control reset in the lane domain");
+                check_value(PaPcs, x"0360", error, "PCSRSVDIN reset in the lane domain");
+
+                -- Receiver reset command: one pulse per write of RX_RESET, the bit reads as zero
+                wr(RegLaneCtrl_c, x"00040062");
+                cycles(20);
+                check_value(RstCmdCnt, 1, error, "One receiver reset command");
+                chk(RegLaneCtrl_c, x"00000062", "RX_RESET reads as zero, configuration unchanged");
+                wr(RegLaneCtrl_c, x"00000062");
+                cycles(20);
+                check_value(RstCmdCnt, 1, error, "No command without RX_RESET");
+                wr(RegLaneCtrl_c, x"00040062");
+                cycles(20);
+                check_value(RstCmdCnt, 2, error, "Second receiver reset command");
+
+                -- Status of the receiver reset
+                PaRstDone  <= "1";
+                PaCdrLock  <= "1";
+                cycles(20);
+                chk(RegLaneStatus_c, x"05000000", "RX_RESET_DONE and CDR_LOCK");
+                PaRstDone  <= "0";
+                PaCdrLock  <= "0";
+                PaRstBusy  <= "1";
+                PaElecIdle <= "1";
+                cycles(20);
+                chk(RegLaneStatus_c, x"0A000000", "RX_RESET_BUSY and RX_ELEC_IDLE");
+                PaRstBusy  <= "0";
+                PaElecIdle <= "0";
+
+                -- Events: a buffer error level gives one event at its rising edge
+                wait until rising_edge(LaneClk);
+                PaRxBufErr <= "1";
+                cycles(20);
+                chk(RegLaneEvents_c, x"00000010", "RX_BUF_ERROR at the rising edge of the level");
+                wr(RegLaneEvents_c, x"00000010");
+                cycles(20);
+                chk(RegLaneEvents_c, x"00000000", "RX_BUF_ERROR cleared, no new event while the level stays");
+                wait until rising_edge(LaneClk);
+                PaRxBufErr <= "0";
+                paEvent(PaTxBufErr);
+                paEvent(PaEvRst);
+                paEvent(PaEvRst);
+                paEvent(PaEvRst);
+                cycles(20);
+                chk(RegLaneEvents_c, x"00000060", "TX_BUF_ERROR (pulse) and RX_RESET");
+                chk(RegLaneTimeoutCount_c, x"00030000", "RX_RESETS counts the receiver resets");
+                check_value(Irq, '0', error, "No interrupt without mask");
+                wr(RegIrqMask_c, x"00400000");
+                cycles(3);
+                check_value(Irq, '1', error, "Interrupt for RX_RESET (mask bit 22)");
+                wr(RegLaneEvents_c, x"00000040");
+                cycles(3);
+                check_value(Irq, '0', error, "Interrupt cleared with the flag");
+                paEvent(PaEvRstTo);
+                cycles(20);
+                chk(RegLaneEvents_c, x"000000A0", "RX_RESET_TIMEOUT");
+                chk(RegLaneTimeoutCount_c, x"00030000", "A timeout is not counted as a receiver reset");
+                wr(RegIrqMask_c, x"00800000");
+                cycles(3);
+                check_value(Irq, '1', error, "Interrupt for RX_RESET_TIMEOUT (mask bit 23)");
+                wr(RegIrqMask_c, x"00200000");
+                cycles(3);
+                check_value(Irq, '1', error, "Interrupt for TX_BUF_ERROR (mask bit 21)");
+                wait until rising_edge(LaneClk);
+                PaRxBufErr <= "1";
+                cycles(20);
+                chk(RegLaneEvents_c, x"000000B0", "RX_BUF_ERROR at the next rising edge");
+                wr(RegIrqMask_c, x"00100000");
+                cycles(3);
+                check_value(Irq, '1', error, "Interrupt for RX_BUF_ERROR (mask bit 20)");
+                PaRxBufErr <= "0";
+                wr(RegLaneEvents_c, x"000000F0");
+                cycles(3);
+                check_value(Irq, '0', error, "Interrupt cleared with the flags");
+                -- RX_RESETS cleared by a write and by Link Reset
+                wr(RegLaneTimeoutCount_c, x"00000000");
+                chk(RegLaneTimeoutCount_c, x"00000000", "RX_RESETS cleared by a write");
+                paEvent(PaEvRst);
+                cycles(20);
+                chk(RegLaneTimeoutCount_c, x"00010000", "RX_RESETS counts again");
+                wr(RegDlCtrl_c, x"00000101");
+                chk(RegLaneTimeoutCount_c, x"00000000", "RX_RESETS cleared by Link Reset");
+                chk(RegLaneEvents_c, x"00000000", "LANE_EVENTS cleared by Link Reset");
+
             end if;
 
         end loop;
@@ -905,6 +1060,20 @@ begin
             Phy_PrbsErr            => PrbsErr,
             Phy_PrbsLocked         => PrbsLocked,
             Phy_BitSync            => BitSync,
+            Lane_InitTimeout       => InitTo,
+            Pa_RxResetOnDisc       => PaOnDisc,
+            Pa_RxResetCdrOnly      => PaCdrOnly,
+            Pa_CdrHoldIdle         => PaCdrHold,
+            Pa_PcsRsvdIn           => PaPcs,
+            Pa_RxResetCmd          => PaRstCmd,
+            Pa_RxBufErr            => PaRxBufErr,
+            Pa_TxBufErr            => PaTxBufErr,
+            Pa_RxResetDone         => PaRstDone,
+            Pa_RxResetBusy         => PaRstBusy,
+            Pa_CdrLock             => PaCdrLock,
+            Pa_RxElecIdle          => PaElecIdle,
+            Pa_EvRxReset           => PaEvRstIn,
+            Pa_EvRxResetTimeout    => PaEvRstTo,
             Lane_State             => LaneStat(3 downto 0),
             Lane_RxPolarity        => LaneStat(4 downto 4),
             Lane_NoSignal          => LaneStat(5 downto 5),
@@ -988,6 +1157,9 @@ begin
     p_prbs_cmd : process (LaneClk) is
     begin
         if rising_edge(LaneClk) then
+            if PaRstCmd(0) = '1' then
+                RstCmdCnt <= RstCmdCnt + 1;
+            end if;
             if PrbsForce(0) = '1' then
                 ForceCnt <= ForceCnt + 1;
             end if;
@@ -995,6 +1167,30 @@ begin
                 CntRstCnt <= CntRstCnt + 1;
             end if;
         end if;
+    end process;
+
+    PaEvRstIn <= PaEvRst or PaEvRstSat;
+
+    -- Saturation of RX_RESETS (TC-MG-09): 65537 receiver reset events, 13 lane clock cycles apart (the minimum
+    -- spacing of the pulse crossing into the management clock)
+    p_sat_lane : process is
+    begin
+        wait until SatLane = '1';
+
+        for i in 1 to 65537 loop
+            wait until rising_edge(LaneClk);
+            PaEvRstSat <= "1";
+            wait until rising_edge(LaneClk);
+            PaEvRstSat <= "0";
+
+            for k in 1 to 12 loop
+                wait until rising_edge(LaneClk);
+            end loop;
+
+        end loop;
+
+        SatLaneDone <= '1';
+        wait;
     end process;
 
     p_inj_lane : process (LaneClk) is

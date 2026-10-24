@@ -140,8 +140,10 @@ def add_pa_model(lib):
     added = lib.add_source_files([f for f in files if f.resolve() not in present])
     if COVERAGE:
         added.add_compile_option("modelsim.vcom_flags", ["+cover=sbcef"])
-    # The model testbenches and the end-to-end testbench with its package (wrapped by ofb_pa_gty_model_core_tb)
+    # The model testbenches, the end-to-end testbench with its package (wrapped by ofb_pa_gty_model_core_tb) and the
+    # testbench of the reset sequencer of a lane
     tbs = sorted((PA_DIR / "tb").glob("ofb_pa_gty_model*.vhd"))
+    tbs += sorted((PA_DIR / "tb").glob("ofb_pa_gty_lane_rst_tb.vhd"))
     tbs += sorted((PA_DIR / "tb").glob("ofb_pa_gty_core_tb*.vhd"))
     if tbs:
         lib.add_source_files(tbs)

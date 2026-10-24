@@ -12,7 +12,7 @@ ports only.
 | Testbench | Harness | DUT and environment |
 | --- | --- | --- |
 | `ofb_lane_tb` | `ofb_lane_th` | Two `ofb_lane` (A, B), `ofb_tb_pa_model` (8B/10B, cut, crossed pair, symbol offset, bit errors), AXI-Stream VVCs for the transmit words, monitors with scoreboard of the received words, monitor of the transmit words (no iINIT) |
-| `ofb_lane_init_tb` | `ofb_lane_init_th` | `ofb_lane_init`, events of LN-2 / LN-3 driven by the sequencer, timeout 5000 words |
+| `ofb_lane_init_tb` | `ofb_lane_init_th` | `ofb_lane_init`, events of LN-2 / LN-3 and `Cfg_InitTimeout` driven by the sequencer, timeout 5000 words unless a test sets another |
 | `ofb_lane_rx_tb` | `ofb_lane_rx_th` | `ofb_lane_rx`, symbol stream driven by the sequencer, log of the words passed up, RXERR leak every 64 words |
 | `ofb_lane_tx_tb` | `ofb_lane_tx_th` | Two `ofb_lane_tx` (64 PRBS words and SKIP every 20 words; no PRBS words), AXI-Stream VVC, log of the transmitted words |
 | `ofb_tb_8b10b_tb` | none | Self test of the 8B/10B package of the Physical adapter model |
@@ -56,6 +56,7 @@ Lane clock 156.25 MHz (6.25 Gbit/s with 32-bit words). Simulator: GHDL.
 | `test_active_exits` (TC-LN-29) | Order NoSignal before overflow, LOS_Cause 0b00 / 0b01 / 0b10, 32 LOST_SIGNAL, no counter clear in LossOfSignal | LN-INIT-07, LN-INIT-08 |
 | `test_standby_and_stop` (TC-LN-30) | 32 STANDBY in PrepareStandby; three consecutive LOST_SIGNAL with SKIP transparent | LN-INIT-08, LN-INIT-09 |
 | `test_timeout` (TC-LN-31) | Timeout in Started and in Connected, one event | LN-INIT-03 |
+| `test_timeout_value` (TC-LN-54) | `Cfg_InitTimeout` 1200 and 3000: Started lasts 1200 and 3000 words (plus or minus one); changed to 1000 after 500 words in Started: the attempt ends after 1000 words; changed to 1000 after 1500 words: it ends within two cycles; 0 and 1: Started lasts at most two cycles | LN-INIT-03 |
 | `test_errclear` (TC-LN-32) | RXERR counter clear only in Connected and on LaneReset | LN-RX-05, LN-INIT-06 |
 | `test_exit_matrix` (TC-LN-33) | Exits of the states before Connected: LaneReset in Wait, Started and Connecting; NoSignal in Connecting; three iINIT2; timeout in InvertRxPolarity and Connecting; three STANDBY / LOST_SIGNAL in Started, InvertRxPolarity and Connecting (ignored in Wait, CDR off) | LN-INIT-01 to 04, LN-INIT-09 |
 

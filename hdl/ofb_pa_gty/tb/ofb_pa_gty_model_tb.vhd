@@ -47,10 +47,15 @@ end entity;
 ---------------------------------------------------------------------------------------------------
 architecture sim of ofb_pa_gty_model_tb is
 
-    constant N_c        : positive := Lanes_g;
-    constant RefHalf_c  : time     := 3200 ps;
-    constant FreeHalf_c : time     := 5 ns;
-    constant RstCyc_c   : positive := 10;
+    constant N_c          : positive := Lanes_g;
+    constant RefHalf_c    : time     := 3200 ps;
+    constant FreeHalf_c   : time     := 5 ns;
+    constant RstCyc_c     : positive := 10;
+    -- Bounds of the receiver reset for the model (FreeRunClk cycles): wait for RXRESETDONE 30 us, gap 10 us, wait
+    -- of the CDR-only reset 2 us
+    constant RstDoneCyc_c : positive := 3000;
+    constant RstGapCyc_c  : positive := 1000;
+    constant CdrWaitCyc_c : positive := 200;
 
     type LaneVec_t is array (0 to 1) of std_logic_vector(N_c-1 downto 0);
     type Data_t is array (0 to 1) of std_logic_vector(32*N_c-1 downto 0);
@@ -95,6 +100,18 @@ architecture sim of ofb_pa_gty_model_tb is
     signal BufErr    : LaneVec_t;
     signal ClkCor    : LaneVec_t;
 
+    -- Receiver reset and transmit buffer reset per end (PA-RS-04 to PA-RS-06)
+    signal OnDisc   : Sl_t      := (others => '1');
+    signal CdrOnly  : Sl_t      := (others => '0');
+    signal RstCmd   : LaneVec_t := (others => (others => '0'));
+    signal TxBufErr : LaneVec_t;
+    signal RstDone  : LaneVec_t;
+    signal RstBusy  : LaneVec_t;
+    signal CdrLock  : LaneVec_t;
+    signal ElecIdle : LaneVec_t;
+    signal EvRst    : LaneVec_t;
+    signal EvRstTo  : LaneVec_t;
+
     -- Generator: SKIP words on (every 8th word), sources of the checked data words (loopback: own end)
     signal SkipOn  : boolean   := true;
     signal OwnData : LaneVec_t := (others => (others => '0'));
@@ -107,6 +124,9 @@ architecture sim of ofb_pa_gty_model_tb is
     signal Cors     : Count_t := (others => (others => 0)); -- clock corrections
     signal BufErrs  : Count_t := (others => (others => 0));
     signal PrbsErrs : Count_t := (others => (others => 0));
+    signal EvRsts   : Count_t := (others => (others => 0)); -- receiver resets completed
+    signal EvRstTos : Count_t := (others => (others => 0)); -- receiver resets timed out
+    signal VldBusy  : Count_t := (others => (others => 0)); -- valid words during a receiver reset
 
     -- LaneClk edges at which an output of the lane clock domain changed in the same delta cycle, and
     -- edges after which the received data changed (proof that the monitor sees the outputs)
@@ -136,9 +156,12 @@ begin
 
         i_pa : entity work.ofb_pa_gty(mdl)
             generic map (
-                NumLanes_g       => N_c,
-                RstPulseCycles_g => RstCyc_c,
-                ModelIdx_g       => e
+                NumLanes_g        => N_c,
+                RstPulseCycles_g  => RstCyc_c,
+                RxRstDoneCycles_g => RstDoneCyc_c,
+                CdrWaitCycles_g   => CdrWaitCyc_c,
+                RxRstGapCycles_g  => RstGapCyc_c,
+                ModelIdx_g        => e
             )
             port map (
                 FreeRunClk             => FreeClk,
@@ -174,7 +197,17 @@ begin
                 Stat_RxReady           => RxRdy(e),
                 Stat_Aligned           => Aligned(e),
                 Stat_RxBufErr          => BufErr(e),
-                Stat_ClkCor            => ClkCor(e)
+                Stat_ClkCor            => ClkCor(e),
+                Cfg_RxResetOnDisc      => OnDisc(e),
+                Cfg_RxResetCdrOnly     => CdrOnly(e),
+                Cmd_RxReset            => RstCmd(e),
+                Stat_TxBufErr          => TxBufErr(e),
+                Stat_RxResetDone       => RstDone(e),
+                Stat_RxResetBusy       => RstBusy(e),
+                Stat_CdrLock           => CdrLock(e),
+                Stat_RxElecIdle        => ElecIdle(e),
+                Ev_RxReset             => EvRst(e),
+                Ev_RxResetTimeout      => EvRstTo(e)
             );
 
         -- Generator per lane: SKIP word every 8th word, IDLE word every 32nd, else data words with
@@ -244,6 +277,9 @@ begin
                         Cors(e)(l)     <= 0;
                         BufErrs(e)(l)  <= 0;
                         PrbsErrs(e)(l) <= 0;
+                        EvRsts(e)(l)   <= 0;
+                        EvRstTos(e)(l) <= 0;
+                        VldBusy(e)(l)  <= 0;
                         Prev_v(l)      := -1;
                     end loop;
 
@@ -255,6 +291,15 @@ begin
                         end if;
                         if BufErr(e)(l) = '1' then
                             BufErrs(e)(l) <= BufErrs(e)(l) + 1;
+                        end if;
+                        if EvRst(e)(l) = '1' then
+                            EvRsts(e)(l) <= EvRsts(e)(l) + 1;
+                        end if;
+                        if EvRstTo(e)(l) = '1' then
+                            EvRstTos(e)(l) <= EvRstTos(e)(l) + 1;
+                        end if;
+                        if RstBusy(e)(l) = '1' and RxVld(e)(l) = '1' then
+                            VldBusy(e)(l) <= VldBusy(e)(l) + 1;
                         end if;
                         if PrbsErr(e)(l) = '1' then
                             PrbsErrs(e)(l) <= PrbsErrs(e)(l) + 1;
@@ -645,9 +690,10 @@ begin
                 waitUs(5);
                 check_value(Good(1)(0), 0, error, "No words at B with the receiver disabled");
                 RxEn(1)(0)                  <= '1';
-                -- The CDR is not held (PA-IF-02): Phy_CdrEnable low does not stop the reception
+                -- Phy_CdrEnable low does not stop the reception (PA-IF-02); its falling edge resets the receiver of
+                -- the lane (4 us in the model, PA-RS-04), the reception resumes after it
                 CdrEn(1)(0) <= '0';
-                waitUs(3);
+                waitUs(6);
                 clearCounts;
                 waitUs(5);
                 check_value(Good(1)(0) > 0 and Bad(1)(0) = 0 and ErrWords(1)(0) = 0, error,
@@ -804,6 +850,144 @@ begin
                 else
                     check_value(N_v, 0, error, "No receive buffer error with equal clocks");
                 end if;
+
+            -- TC-PA-25: entire receiver reset of a lane (PA-RS-04 to PA-RS-06): Phy_CdrEnable falling at B resets
+            -- the receiver of lane 0 alone (no valid word and receivers not ready while it runs, the other lanes and
+            -- A undisturbed, reset done event, words in order after it); no reset without RX_RESET_ON_DISCONNECT;
+            -- the command resets the last lane; CDR-only mode; RXRESETDONE withheld: timeout event after the bound,
+            -- the lane recovers with the next command; a transmit buffer error at A is reset
+            elsif run("test_rx_reset") then
+                fastStart;
+                CdrEn(1)(0) <= '0';
+                wait until RstBusy(1)(0) = '1' for 2 us;
+                check_value(RstBusy(1)(0), '1', error, "Receiver reset of lane 0 at B starts");
+                T_v         := now;
+                check_value(RxRdy(1), '0', error, "Receivers of B not ready during the receiver reset");
+                wait for 500 ns;
+                check_value(RstDone(1)(0), '0', error, "RXRESETDONE of lane 0 at B low during the reset");
+                wait until RstBusy(1)(0) = '0' for PaModelLaneDefault_c.RxResetTime + 2 us;
+                check_value(RstBusy(1)(0), '0', error, "Receiver reset of lane 0 at B ends");
+                check_value(now - T_v >= PaModelLaneDefault_c.RxResetTime and
+                            now - T_v < PaModelLaneDefault_c.RxResetTime + 1 us, error,
+                            "Receiver reset ends RxResetTime after the pulse: " & to_string(now - T_v));
+                CdrEn(1)(0) <= '1';
+                waitUs(1);
+                check_value(RstDone(1)(0), '1', error, "RXRESETDONE of lane 0 at B after the reset");
+                check_value(RxRdy(1), '1', error, "Receivers of B ready after the reset");
+                check_value(EvRsts(1)(0), 1, error, "One receiver reset event at B (the rising edge starts none)");
+                check_value(EvRstTos(1)(0), 0, error, "No timeout");
+                check_value(VldBusy(1)(0), 0, error, "No valid word during the receiver reset");
+
+                for l in 1 to N_c-1 loop
+                    check_value(Good(1)(l) > 500 and Bad(1)(l) = 0 and ErrWords(1)(l) = 0 and EvRsts(1)(l) = 0, error,
+                                "Lane " & to_string(l) & " of B undisturbed by the receiver reset of lane 0");
+                end loop;
+
+                for l in 0 to N_c-1 loop
+                    check_value(Good(0)(l) > 500 and Bad(0)(l) = 0 and ErrWords(0)(l) = 0 and EvRsts(0)(l) = 0, error,
+                                "Lane " & to_string(l) & " of A undisturbed by the receiver reset at B");
+                end loop;
+
+                clearCounts;
+                waitUs(10);
+                checkClean(1000, "After the receiver reset");
+
+                -- RX_RESET_ON_DISCONNECT 0: the edge starts no reset, the words continue (after the gap)
+                OnDisc(1)   <= '0';
+                waitUs(1);
+                CdrEn(1)(0) <= '0';
+                waitUs(3);
+                check_value(EvRsts(1)(0) = 0 and RstBusy(1)(0) = '0', error,
+                            "No receiver reset without RX_RESET_ON_DISCONNECT");
+                CdrEn(1)(0) <= '1';
+                OnDisc(1)   <= '1';
+                checkClean(1000, "Words continue without RX_RESET_ON_DISCONNECT");
+
+                -- Command: entire receiver reset of the last lane of B
+                wait until rising_edge(LaneClk(1));
+                RstCmd(1)(N_c-1) <= '1';
+                wait until rising_edge(LaneClk(1));
+                RstCmd(1)(N_c-1) <= '0';
+                wait until RstBusy(1)(N_c-1) = '1' for 2 us;
+                check_value(RstBusy(1)(N_c-1), '1', error, "Command: receiver reset of the last lane of B");
+                wait until RstBusy(1)(N_c-1) = '0' for PaModelLaneDefault_c.RxResetTime + 2 us;
+                waitUs(1);
+                check_value(EvRsts(1)(N_c-1), 1, error, "Command: reset done event of the last lane");
+                check_value(VldBusy(1)(N_c-1), 0, error, "Command: no valid word during the reset");
+                waitUs(10);
+                clearCounts;
+                waitUs(10);
+                checkClean(1000, "After the commanded receiver reset");
+
+                -- CDR-only mode: RXCDRRESET and the fixed wait, RXRESETDONE stays 1
+                CdrOnly(1)   <= '1';
+                waitUs(1);
+                wait until rising_edge(LaneClk(1));
+                RstCmd(1)(0) <= '1';
+                wait until rising_edge(LaneClk(1));
+                RstCmd(1)(0) <= '0';
+                wait until RstBusy(1)(0) = '1' for 2 us;
+                check_value(RstBusy(1)(0), '1', error, "CDR-only reset starts");
+                T_v          := now;
+                wait until RstBusy(1)(0) = '0' for 2 * CdrWaitCyc_c * 2 * FreeHalf_c;
+                check_value(now - T_v >= CdrWaitCyc_c * 2 * FreeHalf_c and
+                            now - T_v < (CdrWaitCyc_c + 100) * 2 * FreeHalf_c, error,
+                            "CDR-only reset: pulse and fixed wait: " & to_string(now - T_v));
+                check_value(RstDone(1)(0), '1', error, "CDR-only reset: RXRESETDONE stays 1");
+                waitUs(1);
+                check_value(EvRsts(1)(0), 1, error, "CDR-only reset: reset done event");
+                CdrOnly(1)   <= '0';
+                waitUs(10);
+                clearCounts;
+                waitUs(10);
+                checkClean(1000, "After the CDR-only reset");
+
+                -- RXRESETDONE withheld: timeout event after the bound, the lane stays without words until the next
+                -- reset, which completes after the gap
+                PaModelCtrl(1).Lane(0).RxResetHang <= true;
+                wait until rising_edge(LaneClk(1));
+                RstCmd(1)(0)                       <= '1';
+                wait until rising_edge(LaneClk(1));
+                RstCmd(1)(0)                       <= '0';
+                wait until RstBusy(1)(0) = '1' for 2 us;
+                T_v                                := now;
+                wait until RstBusy(1)(0) = '0' for RstDoneCyc_c * 2 * FreeHalf_c + 5 us;
+                check_value(RstBusy(1)(0), '0', error, "Withheld RXRESETDONE: the reset ends");
+                check_value(now - T_v >= RstDoneCyc_c * 2 * FreeHalf_c, error,
+                            "Withheld RXRESETDONE: the reset ends at the bound: " & to_string(now - T_v));
+                waitUs(1);
+                check_value(EvRstTos(1)(0), 1, error, "Withheld RXRESETDONE: timeout event");
+                check_value(EvRsts(1)(0), 0, error, "Withheld RXRESETDONE: no reset done event");
+                check_value(RstDone(1)(0), '0', error, "Withheld RXRESETDONE: RXRESETDONE still 0");
+                clearCounts;
+                waitUs(5);
+                check_value(Good(1)(0), 0, error, "Withheld RXRESETDONE: no words on the lane");
+                PaModelCtrl(1).Lane(0).RxResetHang <= false;
+                waitUs(10);
+                wait until rising_edge(LaneClk(1));
+                RstCmd(1)(0)                       <= '1';
+                wait until rising_edge(LaneClk(1));
+                RstCmd(1)(0)                       <= '0';
+                wait until RstBusy(1)(0) = '1' for 2 us;
+                wait until RstBusy(1)(0) = '0' for PaModelLaneDefault_c.RxResetTime + 2 us;
+                waitUs(1);
+                check_value(EvRsts(1)(0), 1, error, "The next reset completes");
+                check_value(RstDone(1)(0), '1', error, "RXRESETDONE after the next reset");
+                waitUs(10);
+                clearCounts;
+                waitUs(10);
+                checkClean(1000, "After the recovery");
+
+                -- Transmit buffer error at A: reset of the transmit buffer, the error clears
+                PaModelCtrl(0).Lane(0).TxBufErrReq <= 1;
+                wait until TxBufErr(0)(0) = '1' for 1 us;
+                check_value(TxBufErr(0)(0), '1', error, "Transmit buffer error of lane 0 at A");
+                wait until TxBufErr(0)(0) = '0' for 5 us;
+                check_value(TxBufErr(0)(0), '0', error, "Transmit buffer error cleared by the transmit buffer reset");
+                check_value(EvRsts(0)(0) = 0 and RstBusy(0)(0) = '0', error, "No receiver reset at A");
+                clearCounts;
+                waitUs(10);
+                checkClean(1000, "After the transmit buffer reset");
             end if;
 
         end loop;
