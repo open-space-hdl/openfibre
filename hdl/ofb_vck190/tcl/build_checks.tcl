@@ -18,25 +18,19 @@
 #---------------------------------------------------------------------------------------------------
 
 namespace eval ofb_build_checks {
-    # Message ids of a constraint that did not apply
+    # Message ids of a constraint that did not apply. olo_base_ram_sdp-1: the scoped Open Logic constraint of a
+    # distributed RAM found no read capture register, so the LUTRAM read path of that RAM is not constrained.
     variable msg_ids {
         {Vivado 12-180} {Vivado 12-507} {Vivado 12-508} {Vivado 12-584} {Vivado 12-627} {Vivado 12-1008}
-        {Vivado 12-4739} {Designutils 20-1280} {Common 17-55} {Common 17-1548}
+        {Vivado 12-4739} {Designutils 20-1280} {Common 17-55} {Common 17-1548} {olo_base_ram_sdp-1}
     }
-    # Known exception, each entry a list of string match patterns that all match the message line: the scoped Open
-    # Logic constraint of the distributed RAM read path names g_async.RdPipe_reg[1][*], which synthesis renames when
-    # it retimes the register (RdPipe_reg[1][<bit>]_bret). That path crosses from the write clock to the read clock
-    # of an asynchronous FIFO and is bounded by the clock pair constraints of ofb_vck190.xdc, which this check keeps
-    # from being lost (no message for them, no TIMING-6, TIMING-7 or TIMING-47). The messages are counted and
-    # reported, never dropped. To be removed when the Open Logic constraint matches retimed registers.
-    variable exceptions {
-        {{*olo_base_ram_sdp.tcl:*} {*g_async.RdPipe_reg\[1\]\[\*\]*}}
-    }
-    # Expected number of these messages in the implementation log (the Open Logic constraints are not used in
-    # synthesis, so none there): 8 VC output FIFOs, each with one Vivado 12-1008, one Vivado 12-4739 and two
-    # Vivado 12-180. Another number fails the check: then more or fewer constraints are lost than this exception
-    # explains.
-    variable known_count 32
+    # Known exceptions, each entry a list of string match patterns that all match the message line, with the
+    # expected number of their messages in the implementation log (known_count; none are expected in synthesis).
+    # Another number fails the check. None at present: since Open Logic 4.7.0-ft.11 the scoped constraint of the
+    # distributed RAM read path also matches the registers that synthesis retimes (until then the one exception of
+    # this check, 32 messages).
+    variable exceptions {}
+    variable known_count 0
     # Methodology checks that fail the build
     variable timing_checks {TIMING-6 TIMING-7 TIMING-47}
 }
@@ -153,7 +147,7 @@ proc ofb_build_checks::summary {synth impl methodology timing} {
         set text "constraint integrity: passed (no constraint without its object, no TIMING-6, TIMING-7 or\
             TIMING-47)"
     }
-    set known "known Open Logic constraint messages (retimed RAM read register): synthesis $known_synth (expected 0)"
+    set known "known constraint messages (exceptions of the check): synthesis $known_synth (expected 0)"
     if {$impl ne ""} { append known ", implementation $known_impl (expected $known_count)" }
     set lines [list $text $known]
     if {$timing ne ""} {
@@ -177,7 +171,7 @@ proc ofb_build_checks::write_report {path synth impl methodology timing} {
         puts $fh ""
         puts $fh "$name: constraints that did not apply"
         foreach line [dict get $result violations] { puts $fh "  $line" }
-        puts $fh "$name: known Open Logic constraint messages"
+        puts $fh "$name: known constraint messages (exceptions of the check)"
         foreach line [dict get $result excepted] { puts $fh "  $line" }
     }
     close $fh

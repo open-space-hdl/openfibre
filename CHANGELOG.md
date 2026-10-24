@@ -8,6 +8,13 @@ version for a fix.
 
 ### Changed
 
+- Open Logic pinned to `4.7.0-ft.11` (was `4.7.0-ft.9`). Relevant to OpenFibre: the scoped constraint of the
+  distributed RAM read path (`olo_base_ram_sdp.tcl`) also matches the first read registers that synthesis retimes
+  and reports a RAM without a capture register as olo_base_ram_sdp-1; `olo_base_crc` evaluates `In_Last` and
+  `In_Be` only for an accepted beat. OpenFibre drives `In_Last` = '1' and a partial `In_Be` only together with
+  `In_Valid` = '1' (column encoder and decoder of the Multi-Lane layer), so the CRCs are unchanged. The constraint
+  integrity check of `ofb_vck190` expects no known exception any more (was 32 messages of that Open Logic
+  constraint) and treats olo_base_ram_sdp-1 as a constraint that did not apply.
 - Verification: `python tools/compliance.py --check` also fails when `docs/compliance.md` is out of date (the matrix
   is generated in memory and compared with the file), and the CI runs the check, with a step that shows that a stale
   matrix fails it. The generated matrix is reproducible: test case entries of the same group and number (test names

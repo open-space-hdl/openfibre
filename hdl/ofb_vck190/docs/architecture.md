@@ -84,8 +84,10 @@ routing).
 The constraint integrity check (`tcl/build_checks.tcl`, plain Tcl, tested by `tcl/test/build_checks_test.tcl` in the
 CI) reads the logs of the synthesis and implementation runs for constraints that did not apply (an object query that
 matched nothing: Vivado 12-180, 12-507, 12-508, 12-584, 12-627, 12-1008, 12-4739, Designutils 20-1280, Common 17-55,
-Common 17-1548) and the methodology report for TIMING-6, TIMING-7 and TIMING-47. One exception is known and counted:
-the 32 messages of the Open Logic constraint of the retimed distributed RAM read register (verification report,
-section 3); another number fails the check. The build stops on a failed check, after synthesis or after the
+Common 17-1548; and olo_base_ram_sdp-1, a distributed RAM of Open Logic whose read capture register was not found)
+and the methodology report for TIMING-6, TIMING-7 and TIMING-47. Known exceptions can be listed with their expected
+number of messages (another number fails the check); none is expected since Open Logic 4.7.0-ft.11, whose
+constraint of the distributed RAM read path also matches the registers retimed by synthesis (verification report,
+section 3). The build stops on a failed check, after synthesis or after the
 implementation results are written (`results/constraint_check.txt`); the timing summary (worst setup and hold slack,
 failing endpoints) goes to the console and to `build_info.txt` and does not stop the build.
