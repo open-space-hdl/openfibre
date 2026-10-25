@@ -17,10 +17,17 @@
 #   clock constraint (default: 100 with si570, the frequency of the Si570 after power-up; 156.25 with 8a34001)
 #
 # The results of a complete build go to <project>/results: the device image, the reports (timing summary,
-# utilisation, methodology, DRC), the constraints that do not apply (invalid_constraints.xdc) and build_info.txt
-# with the step, the reference clock with its frequency and pins, the Vivado version and the commits of the
-# repository and of its submodules. The step rtl writes invalid_constraints.xdc and build_info.txt of the elaborated
-# design.
+# utilisation, methodology, DRC), the constraints that do not apply (invalid_constraints.xdc), constraint_check.txt
+# and build_info.txt with the step, the reference clock with its frequency and pins, the Vivado version, the commits
+# of the repository and of its submodules, the result of the constraint integrity check and the timing summary. The
+# step rtl writes invalid_constraints.xdc and build_info.txt of the elaborated design.
+#
+# Constraint integrity (tcl/build_checks.tcl): the build stops when a constraint did not apply in synthesis or in
+# implementation (an object query that matched nothing, for example a clock that does not exist yet) or when the
+# methodology checks TIMING-6, TIMING-7 or TIMING-47 report a clock pair without its constraint; after synthesis
+# before the implementation starts, after the implementation once the results are written. A design that misses
+# timing (worst setup or hold slack below 0) stops the build too, after the results are written (TIMING NOT MET in
+# the console and in build_info.txt).
 #
 # The environment variable OFB_VIVADO_OUT selects another project directory. On Windows the device image step
 # compiles the platform loader firmware in a deep directory below the project; with a project path of more than
@@ -31,6 +38,7 @@
 #---------------------------------------------------------------------------------------------------
 
 set root [file normalize [file join [file dirname [info script]] .. .. ..]]
+source [file join $root hdl ofb_vck190 tcl build_checks.tcl]
 if {[info exists env(OFB_VIVADO_OUT)] && $env(OFB_VIVADO_OUT) ne ""} {
     set out [file normalize $env(OFB_VIVADO_OUT)]
 } else {
@@ -162,18 +170,23 @@ add_files -norecurse [make_wrapper -files $bd -top]
 close_bd_design [current_bd_design]
 set_property generic {IncludeCips_g=true} [current_fileset]
 
-# Constraints: board, Open Logic crossings (implementation only). The scoped constraints of olo_intf_sync are not
-# loaded: they constrain device pins, and the design uses olo_intf_sync for internal asynchronous signals only
-# (their crossings are constrained in ofb_vck190.xdc).
-add_files -fileset constrs_1 -norecurse [file join $root hdl ofb_vck190 constr ofb_vck190.xdc]
-add_files -fileset constrs_1 -norecurse [file join $root hdl ofb_vck190 constr ofb_vck190_refclk_${refclk}.xdc]
-# Clock constraint of the reference clock at the selected frequency, written into the project directory
+# Constraints. First the clock constraint of the reference clock at the selected frequency, written into the project
+# directory (processing order EARLY): the clock pair constraints of ofb_vck190.xdc find the lane clock as the clock of
+# the transceiver output clock buffer, and that clock exists only once the reference clock it is derived from is
+# defined. Read later, the lane clock is empty and the clock pair constraints are lost or, with one clock missing,
+# cover a whole clock domain. Then the board constraints, the pins of the selected reference clock and the Open Logic
+# crossings (implementation only, processing order LATE). The scoped constraints of olo_intf_sync are not loaded:
+# they constrain device pins, and the design uses olo_intf_sync for internal asynchronous signals only (their
+# crossings are constrained in ofb_vck190.xdc).
 set refclk_xdc [file join $out ofb_vck190_refclk_clock.xdc]
 set fh [open $refclk_xdc w]
 puts $fh "# Written by tcl/build.tcl: transceiver reference clock $refclk at $refclk_mhz MHz"
 puts $fh "create_clock -period [format %.3f [expr {1000.0 / $refclk_mhz}]] -name gt_refclk \[get_ports GtRefClk_P\]"
 close $fh
 add_files -fileset constrs_1 -norecurse $refclk_xdc
+set_property PROCESSING_ORDER EARLY [get_files $refclk_xdc]
+add_files -fileset constrs_1 -norecurse [file join $root hdl ofb_vck190 constr ofb_vck190.xdc]
+add_files -fileset constrs_1 -norecurse [file join $root hdl ofb_vck190 constr ofb_vck190_refclk_${refclk}.xdc]
 source [file join $root open-logic src base tcl olo_base_constraints_amd.tcl]
 
 set_property top ofb_vck190_top [current_fileset]
@@ -212,9 +225,23 @@ if {$step eq "rtl"} {
     return
 }
 
+# The runs of launch_runs are Vivado processes of their own that start at the same time (the IP of the transceiver
+# wizard and of the block design out of context, then synth_1). On a fresh installation of Vivado they create the user
+# directory of the Tcl Store together, and one of them can fail at start-up with Common 17-1257 ("Failed to create
+# directory") and "tclapp::load_apps failed" (AMD AR 63253). The runs inherit the environment of this process: with
+# XILINX_LOCAL_USER_DATA=no, the workaround of the answer record, their Tcl Store stays out of that directory.
+set ::env(XILINX_LOCAL_USER_DATA) no
 launch_runs synth_1 -jobs 8
 wait_on_run synth_1
 if {[get_property PROGRESS [get_runs synth_1]] ne "100%"} { error "synthesis failed" }
+# Constraint integrity of the synthesis: stop before the implementation when a constraint did not apply
+set synth_check [ofb_build_checks::log_check [file join [get_property DIRECTORY [get_runs synth_1]] runme.log]]
+if {[ofb_build_checks::integrity_failed $synth_check "" {}]} {
+    file mkdir $results
+    ofb_build_checks::write_report [file join $results constraint_check.txt] $synth_check "" {} ""
+    error "CONSTRAINT INTEGRITY FAILED in synthesis: [llength [dict get $synth_check violations]] constraint(s) did\
+        not apply, see [file join $results constraint_check.txt]"
+}
 if {$step eq "synth"} { return }
 
 if {$step eq "impl"} {
@@ -238,5 +265,21 @@ write_xdc -force -constraints invalid [file join $results invalid_constraints.xd
 foreach pdi [glob -nocomplain [file join [get_property DIRECTORY [get_runs impl_1]] *.pdi]] {
     file copy -force $pdi $results
 }
+# Constraint integrity of the implementation and the timing summary, into constraint_check.txt and build_info.txt
+set impl_check [ofb_build_checks::log_check [file join [get_property DIRECTORY [get_runs impl_1]] runme.log]]
+set methodology [ofb_build_checks::methodology_check [file join $results methodology.rpt]]
+set timing [ofb_build_checks::timing_summary [file join $results timing_summary.rpt]]
+set summary [ofb_build_checks::summary $synth_check $impl_check $methodology $timing]
+ofb_build_checks::write_report [file join $results constraint_check.txt] $synth_check $impl_check $methodology $timing
 write_build_info [file join $results build_info.txt]
+set fh [open [file join $results build_info.txt] a]
+foreach line $summary { puts $fh $line }
+close $fh
 puts "Results in $results (reference clock $refclk at $refclk_mhz MHz)"
+puts [string repeat = 100]
+foreach line $summary { puts $line }
+puts [string repeat = 100]
+set reasons [ofb_build_checks::failure_reasons $synth_check $impl_check $methodology $timing]
+if {[llength $reasons] > 0} {
+    error "BUILD FAILED: [join $reasons {, }], see [file join $results build_info.txt] and constraint_check.txt"
+}

@@ -49,13 +49,25 @@ implementation and the device image. On Windows the project path must not be lon
 device image step compiles the platform loader firmware in a deep directory below the project, and with a longer
 path `write_device_image` fails ("opening dependency file ... No such file or directory"). Either clone the
 repository to a short path (for example `C:/git/openfibre`) or set the environment variable `OFB_VIVADO_OUT` to a
-short project directory (for example `C:/ofb`); the paths below are then relative to that directory. Record:
+short project directory (for example `C:/ofb`); the paths below are then relative to that directory. The script sets
+`XILINX_LOCAL_USER_DATA=no` for the runs that `launch_runs` starts at the same time (AMD AR 63253): on a fresh
+installation of Vivado, one of them can otherwise fail at start-up with Common 17-1257 ("Failed to create directory")
+and "tclapp::load_apps failed".
+
+The script stops with "CONSTRAINT INTEGRITY FAILED" when a constraint did not apply (an object query that matched
+nothing, for example a clock that did not exist when the constraint was read) or when the methodology checks
+TIMING-6, TIMING-7 or TIMING-47 report a clock pair without its constraint: after synthesis, before the
+implementation starts, or after the implementation, once the results are written. `results/constraint_check.txt`
+lists the messages. A design that misses timing (worst setup or hold slack below 0) also stops the build, after the
+results are written: the console and `build_info.txt` show "TIMING NOT MET" with the worst setup and hold slack and
+the number of failing endpoints, and the script ends with "BUILD FAILED". Record:
 
 | Item | Where | Expected |
 | --- | --- | --- |
 | Device image | `vivado_out/ofb_vck190/results/*.pdi` | Present |
 | Build information | `vivado_out/ofb_vck190/results/build_info.txt` | Reference clock and frequency as intended (`si570` at 100 MHz by default, pins AB11 / AB10), commits of the repository and its submodules |
-| Timing | `vivado_out/ofb_vck190/results/timing_summary.rpt` | WNS and WHS of all clocks at least 0 ns (`clk_pl_0` 100 MHz, `clk_pl_1` 150 MHz, lane clock 156.25 MHz, `gt_refclk` at the selected frequency) |
+| Constraint integrity | `vivado_out/ofb_vck190/results/constraint_check.txt` and the end of `build_info.txt` | "constraint integrity: passed"; known constraint messages: synthesis 0, implementation 0 (the expected numbers) |
+| Timing | `vivado_out/ofb_vck190/results/timing_summary.rpt` and the timing line of `build_info.txt` | WNS and WHS of all clocks at least 0 ns (`clk_pl_0` 100 MHz, `clk_pl_1` 150 MHz, lane clock 156.25 MHz, `gt_refclk` at the selected frequency) |
 | Constraints | `vivado_out/ofb_vck190/results/invalid_constraints.xdc` | Only the header (every constraint applies) |
 | Resources | `vivado_out/ofb_vck190/results/utilization.rpt`, `utilization_hierarchical.rpt` | LUT, register, block RAM and URAM count of `i_core` |
 | Methodology and DRC | `vivado_out/ofb_vck190/results/methodology.rpt`, `drc.rpt` | No critical item about clock domain crossings or the transceivers |

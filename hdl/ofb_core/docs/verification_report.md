@@ -60,6 +60,11 @@ RX_RESET_DONE at 1. Mutation checks: a core whose lanes do not take LANE_INIT_TI
 whose timeout ignores `Cfg_InitTimeout` fails TC-CORE-37 and TC-LN-54. The QuestaSim regression was not repeated for
 release 0.1.3 ([coverage.md](../../../docs/coverage.md), section 6).
 
+QuestaSim on 2026-10-24 and 2026-10-25, release 0.1.4 ([coverage record](../../../docs/coverage.md)): the full
+regression at commit c413cc4 passes at a time resolution of 1 fs with coverage, 424 of 424, and without coverage,
+424 of 424; 166 of them are tests of `ofb_core_tb` and `ofb_core_cc_tb` (163 and 3). The code coverage measures every
+change since release 0.1.0.
+
 Run on 2026-10-18 with the behavioural adapter model, two cores pin to pin through two `ofb_pa_gty` with the
 architecture `mdl`: TC-CORE-03 passes with `CdrLockTime` 500 ns (`lanes4_pin`, no expiry of the alignment watchdog)
 and with the lock time of the transceiver model and near the ends of the interval that bounds it, 16.65 us, 16.83 us
@@ -167,17 +172,20 @@ clock 192.3 MHz; packets of 1 to 1024 bytes on four VCs):
 
 | Configuration | Latency, packet of one byte | A to B only | Both directions, per direction |
 | --- | --- | --- | --- |
-| lanes1 | 365 ns | 4.73 Gbit/s (94.6 %) | 4.53 / 4.53 Gbit/s (90.5 / 90.6 %) |
-| lanes2 | 388 ns | 9.42 Gbit/s (94.2 %) | 9.07 / 9.05 Gbit/s (90.7 / 90.5 %) |
-| lanes3 | 390 ns | 14.11 Gbit/s (94.1 %) | 13.58 / 13.60 Gbit/s (90.5 / 90.7 %) |
-| lanes4 | 392 ns | 18.73 Gbit/s (93.7 %) | 17.94 / 17.98 Gbit/s (89.7 / 89.9 %) |
+| lanes1 | 370 ns | 4.73 Gbit/s (94.6 %) | 4.53 / 4.53 Gbit/s (90.6 / 90.6 %) |
+| lanes2 | 393 ns | 9.44 Gbit/s (94.4 %) | 9.07 / 9.04 Gbit/s (90.7 / 90.4 %) |
+| lanes3 | 400 ns | 14.10 Gbit/s (94.0 %) | 13.60 / 13.63 Gbit/s (90.7 / 90.9 %) |
+| lanes4 | 402 ns | 18.71 Gbit/s (93.5 %) | 17.94 / 17.99 Gbit/s (89.7 / 89.9 %) |
 
 The latency includes the behavioural Physical adapter (no serialisation delay) and the store-and-forward frame
-buffer of the receiver. Measured on 2026-10-13 with the packet ports of the VCs; the input stage and the output
-register of the receive packet conversion add about 25 ns to the latency of the earlier measurement (339, 362 and
-361 ns), the throughput is unchanged (the payload counts four bytes per word and the word with the end marker, as
-before). The losses are the framing words (SDF, EDF per data frame of 64 words per lane), the
-EOP and Fill characters, SKIP, and in both directions the ACKs and FCTs of the reverse traffic.
+buffer of the receiver. Measured on 2026-10-24 with the admission register of the error recovery buffer (DL-ER-09):
+it adds one core clock cycle, which the measurement at the user port sees as 5.2 ns with one and two lanes and
+10.4 ns with three and four lanes (one or two user clock cycles; without the register 365.0, 387.8, 389.8 and
+391.8 ns in the same run). The throughput is unchanged within the variation of the random traffic. On 2026-10-13 the
+input stage and the output register of the receive packet conversion had added about 25 ns to the latency of the
+earlier measurement (339, 362 and 361 ns), with the throughput unchanged (the payload counts four bytes per word and
+the word with the end marker, as before). The losses are the framing words (SDF, EDF per data frame of 64 words per
+lane), the EOP and Fill characters, SKIP, and in both directions the ACKs and FCTs of the reverse traffic.
 
 Fault injection campaign (TC-CORE-13): the regression runs seed 1; the extended campaign
 `OFB_CAMPAIGN_SEEDS="2,3,4,5" python run.py "*test_fault_campaign*"` adds seeds 2 to 5. The

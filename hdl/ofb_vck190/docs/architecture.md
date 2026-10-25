@@ -48,8 +48,10 @@ simulation (`IncludeCips_g` = false) the poller drives the MIB port directly.
 - Transceiver reference clock `gt_refclk`, selected by `tcl/build.tcl`: Si570 (default, 100 MHz after power-up) on
   AB11 / AB10 (GTY_REFCLK0 of quad 201, used by quad 200, `constr/ofb_vck190_refclk_si570.xdc`) or 8A34001 output Q1
   (156.25 MHz) on AD11 / AD10 (MGTREFCLK1 of quad 200, `constr/ofb_vck190_refclk_8a34001.xdc`); `tcl/build.tcl`
-  writes the clock constraint at the selected frequency into the project directory. The clocks of the CIPS are
-  created by its IP constraints (`clk_pl_0`, `clk_pl_1`).
+  writes the clock constraint at the selected frequency into the project directory and reads it before
+  `ofb_vck190.xdc` (processing order EARLY): the clock pair constraints find the lane clock as the clock of the
+  transceiver output clock buffer, which exists only once `gt_refclk` is defined. The clocks of the CIPS are created
+  by its IP constraints (`clk_pl_0`, `clk_pl_1`).
 - Quad location GTY_QUAD_X1Y0 (quad 200) and the serial pins of channels 0 to 3.
 - LEDs on H34, J33, K36, L35 (LVCMOS18), false path.
 - Crossings between `clk_pl_0`, `clk_pl_1` and the lane clock: `set_max_delay -datapath_only` with the period of
@@ -78,3 +80,15 @@ with one `add_files` call), creates the transceiver wizard instance at the frequ
 results of a complete build go to `results` in the project directory. The implementation run uses the strategy
 `Performance_ExplorePostRoutePhysOpt` (several placement and routing directives, physical optimization also after
 routing).
+
+The constraint integrity check (`tcl/build_checks.tcl`, plain Tcl, tested by `tcl/test/build_checks_test.tcl` in the
+CI) reads the logs of the synthesis and implementation runs for constraints that did not apply (an object query that
+matched nothing: Vivado 12-180, 12-507, 12-508, 12-584, 12-627, 12-1008, 12-4739, Designutils 20-1280, Common 17-55,
+Common 17-1548; and olo_base_ram_sdp-1, a distributed RAM of Open Logic whose read capture register was not found)
+and the methodology report for TIMING-6, TIMING-7 and TIMING-47. Known exceptions can be listed with their expected
+number of messages (another number fails the check); none is expected since Open Logic 4.7.0-ft.11, whose
+constraint of the distributed RAM read path also matches the registers retimed by synthesis (verification report,
+section 3). The build stops on a failed check, after synthesis or after the
+implementation results are written (`results/constraint_check.txt`). The timing summary (worst setup and hold slack,
+failing endpoints) goes to the console and to `build_info.txt`; a design that misses timing also stops the build
+after the results are written ("BUILD FAILED").

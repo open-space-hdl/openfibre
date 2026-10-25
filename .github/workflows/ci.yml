@@ -60,6 +60,21 @@ jobs:
         run: python lint/lint.py
       - name: Register map up to date
         run: python tools/regmap.py --check
+      - name: ECSS compliance matrix
+        run: python tools/compliance.py --check
+      - name: A stale compliance matrix fails the check
+        run: |
+          echo "| stale |" >> docs/compliance.md
+          if out=$(python tools/compliance.py --check); then
+            echo "a stale docs/compliance.md passed python tools/compliance.py --check"
+            exit 1
+          fi
+          echo "$out" | grep "docs/compliance.md is out of date, run without --check"
+          git checkout -- docs/compliance.md
+      - name: Checks of the VCK190 build script
+        run: |
+          command -v tclsh || { sudo apt-get update -q && sudo apt-get install -y -q tcl; }
+          tclsh hdl/ofb_vck190/tcl/test/build_checks_test.tcl
       - name: Markdown lint
         uses: DavidAnson/markdownlint-cli2-action@v24
         with:

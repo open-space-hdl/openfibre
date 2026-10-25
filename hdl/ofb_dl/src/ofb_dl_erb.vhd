@@ -128,6 +128,14 @@ architecture rtl of ofb_dl_erb is
     type EvFsm_t is (Idle_s, Delete_s, Retry_s);
 
     type TwoProcess_r is record
+        -- Admission write stage (DL-ER-09): the data word, its row write, the commit and the VC of the admission
+        -- and the ECC injection, registered together; the RAM write and the item bookkeeping use the stage
+        SWrData    : std_logic_vector(Width_c-1 downto 0);
+        SWrValid   : std_logic;
+        SWrCommit  : std_logic;
+        SWrVc      : std_logic_vector(4 downto 0);
+        SInjValid  : std_logic;
+        SInjDouble : std_logic;
         -- Data items
         DVc        : VcArray_t(0 to DataItems_g-1);
         DLen       : LenArray_t(0 to DataItems_g-1);
@@ -269,16 +277,26 @@ begin
         Pop_v     := '0';
         RdEna_v   := '0';
 
-        -- Admission: data rows, data item, FCT, broadcast message. The range checks are redundant
-        -- (the admission checks the space) but keep transient delta-cycle values in range.
-        if WrData_Valid = '1' and r.Used < Rows_g and r.WrCnt < MaxFrameWords_c then
+        -- Admission write stage (DL-ER-09): the data words, row writes and commits enter the stage and take effect
+        -- one cycle later, all together, so that a commit takes effect with the write of the last row of its item
+        v.SWrData    := WrData_K & WrData_Data;
+        v.SWrValid   := WrData_Valid;
+        v.SWrCommit  := WrData_Commit;
+        v.SWrVc      := WrData_Vc;
+        v.SInjValid  := EccInj_Valid;
+        v.SInjDouble := EccInj_Double;
+
+        -- Admission: data rows and data item from the stage, FCT, broadcast message. The range checks are
+        -- redundant (the admission checks the space, the stage included) but keep transient delta-cycle values in
+        -- range.
+        if r.SWrValid = '1' and r.Used < Rows_g and r.WrCnt < MaxFrameWords_c then
             v.WrPtr := r.WrPtr + 1;
             v.WrCnt := r.WrCnt + 1;
             v.Used  := r.Used + 1;
         end if;
-        if WrData_Commit = '1' and v.WrCnt > 0 and r.DNum < DataItems_g then
+        if r.SWrCommit = '1' and v.WrCnt > 0 and r.DNum < DataItems_g then
             Idx_v         := wrapAdd(r.DHead, r.DNum, DataItems_g);
-            v.DVc(Idx_v)  := WrData_Vc;
+            v.DVc(Idx_v)  := r.SWrVc;
             v.DLen(Idx_v) := v.WrCnt;
             v.DNum        := r.DNum + 1;
             v.WrCnt       := 0;
@@ -422,7 +440,9 @@ begin
     -- Outputs
     -----------------------------------------------------------------------------------------------
     p_out : process (all) is
-        variable Idx_v : natural;
+        variable Idx_v  : natural;
+        variable Used_v : natural range 0 to Rows_g;
+        variable DNum_v : natural range 0 to DataItems_g;
     begin
         -- Next data item
         Idx_v         := wrapAdd(r.DHead, r.DSent, DataItems_g);
@@ -451,10 +471,19 @@ begin
         if r.BNum > r.BSent and r.RetryReq = '0' then
             SndBc_Valid <= '1';
         end if;
-        -- Space and status
-        Data_FreeRows <= std_logic_vector(to_unsigned(Rows_g - r.Used, Data_FreeRows'length));
+        -- Space and status: the row and the commit in the admission write stage count as stored (DL-ER-09), so
+        -- that the admission sees the space it would see without the stage
+        Used_v := r.Used;
+        if r.SWrValid = '1' and r.Used < Rows_g then
+            Used_v := r.Used + 1;
+        end if;
+        DNum_v := r.DNum;
+        if r.SWrCommit = '1' and r.DNum < DataItems_g then
+            DNum_v := r.DNum + 1;
+        end if;
+        Data_FreeRows <= std_logic_vector(to_unsigned(Rows_g - Used_v, Data_FreeRows'length));
         Data_ItemFree <= '0';
-        if r.DNum < DataItems_g then
+        if DNum_v < DataItems_g then
             Data_ItemFree <= '1';
         end if;
         Fct_ItemFree <= '0';
@@ -466,11 +495,11 @@ begin
             Bc_ItemFree <= '1';
         end if;
         Stat_Full <= '0';
-        if r.Used = Rows_g or r.DNum = DataItems_g or r.FNum = FctItems_g or r.BNum = BcItems_g then
+        if Used_v = Rows_g or DNum_v = DataItems_g or r.FNum = FctItems_g or r.BNum = BcItems_g then
             Stat_Full <= '1';
         end if;
         Stat_Empty <= '0';
-        if r.DNum = 0 and r.FNum = 0 and r.BNum = 0 then
+        if DNum_v = 0 and r.FNum = 0 and r.BNum = 0 then
             Stat_Empty <= '1';
         end if;
     end process;
@@ -487,25 +516,27 @@ begin
         if rising_edge(Clk) then
             r <= r_next;
             if Rst = '1' or Ctrl_LinkReset = '1' then
-                r.DHead    <= 0;
-                r.DNum     <= 0;
-                r.DSent    <= 0;
-                r.WrPtr    <= (others => '0');
-                r.WrCnt    <= 0;
-                r.FreePtr  <= (others => '0');
-                r.Used     <= 0;
-                r.FHead    <= 0;
-                r.FNum     <= 0;
-                r.FSent    <= 0;
-                r.BHead    <= 0;
-                r.BNum     <= 0;
-                r.BSent    <= 0;
-                r.LHead    <= 0;
-                r.LNum     <= 0;
-                r.EvState  <= Idle_s;
-                r.LastAck  <= (others => '0');
-                r.RetryReq <= '0';
-                r.ProtErr  <= '0';
+                r.SWrValid  <= '0';
+                r.SWrCommit <= '0';
+                r.DHead     <= 0;
+                r.DNum      <= 0;
+                r.DSent     <= 0;
+                r.WrPtr     <= (others => '0');
+                r.WrCnt     <= 0;
+                r.FreePtr   <= (others => '0');
+                r.Used      <= 0;
+                r.FHead     <= 0;
+                r.FNum      <= 0;
+                r.FSent     <= 0;
+                r.BHead     <= 0;
+                r.BNum      <= 0;
+                r.BSent     <= 0;
+                r.LHead     <= 0;
+                r.LNum      <= 0;
+                r.EvState   <= Idle_s;
+                r.LastAck   <= (others => '0');
+                r.RetryReq  <= '0';
+                r.ProtErr   <= '0';
                 -- Reads in flight are discarded, the read-ahead restarts
                 r.Restart   <= '1';
                 r.FetchOff  <= 0;
@@ -514,6 +545,8 @@ begin
             if Rst = '1' then
                 r.InFlight   <= 0;
                 r.RamRdValid <= '0';
+                -- The injection command waits for the next row written, also across a link reset
+                r.SInjValid <= '0';
             end if;
         end if;
     end process;
@@ -521,7 +554,7 @@ begin
     -----------------------------------------------------------------------------------------------
     -- Data rows: RAM and read-ahead FIFO
     -----------------------------------------------------------------------------------------------
-    RamWrData <= WrData_K & WrData_Data;
+    RamWrData <= r.SWrData;
 
     -- Frames may wait long for their ACK: the scrubber removes accumulated single errors
     i_ram : entity olo.olo_ft_ram_sdp_scrub
@@ -534,7 +567,7 @@ begin
             Clk            => Clk,
             Rst            => Rst,
             Wr_Addr        => std_logic_vector(r.WrPtr),
-            Wr_Ena         => WrData_Valid,
+            Wr_Ena         => r.SWrValid,
             Wr_Data        => RamWrData,
             Rd_Addr        => std_logic_vector(r.RdPtr),
             Rd_Ena         => RamRdEna,
@@ -542,8 +575,8 @@ begin
             Rd_Valid       => RamRdValid,
             Rd_EccSec      => RamSec,
             Rd_EccDed      => RamDed,
-            ErrInj_BitFlip => eccInjPattern(eccCodewordWidth(Width_c), EccInj_Double),
-            ErrInj_Valid   => EccInj_Valid,
+            ErrInj_BitFlip => eccInjPattern(eccCodewordWidth(Width_c), r.SInjDouble),
+            ErrInj_Valid   => r.SInjValid,
             Scrub_EccSec   => ScrubSec,
             Scrub_EccDed   => ScrubDed,
             Scrub_PassDone => open,

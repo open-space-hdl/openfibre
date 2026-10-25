@@ -4,6 +4,78 @@ The notable changes of OpenFibre. The versions follow semantic versioning: 0.y.z
 version for an incompatible change of ports, generics or the register map, a minor version for a feature and a patch
 version for a fix.
 
+## [0.1.4] - 2026-10-25
+
+Build and timing release of the VCK190 reference design, with the QuestaSim regression and the code coverage
+measurement of all changes since 0.1.0. Laboratory builds of 0.1.1 to 0.1.3 lost the clock pair constraints between
+the lane clock and the clocks of the CIPS (the reference clock constraint was read after them): the crossings were
+timed as synchronous paths and the hold of `clk_pl_0` was not analysed. 0.1.4 reads the reference clock first, stops
+the build on a constraint that did not apply or on a missed timing, closes the remaining lane clock path (admission
+register of the error recovery buffer, one more core clock cycle from admission to transmission) and pins Open Logic
+4.7.0-ft.11. Ports, generics and the register map are unchanged.
+
+### Changed
+
+- Open Logic pinned to `4.7.0-ft.11` (was `4.7.0-ft.9`). Relevant to OpenFibre: the scoped constraint of the
+  distributed RAM read path (`olo_base_ram_sdp.tcl`) also matches the first read registers that synthesis retimes
+  and reports a RAM without a capture register as olo_base_ram_sdp-1; `olo_base_crc` evaluates `In_Last` and
+  `In_Be` only for an accepted beat. OpenFibre drives `In_Last` = '1' and a partial `In_Be` only together with
+  `In_Valid` = '1' (column encoder and decoder of the Multi-Lane layer), so the CRCs are unchanged. The constraint
+  integrity check of `ofb_vck190` expects no known exception any more (was 32 messages of that Open Logic
+  constraint) and treats olo_base_ram_sdp-1 as a constraint that did not apply.
+- `ofb_dl`: the error recovery buffer registers each admitted data word with its row write, the commit of its item
+  and the error injection command and writes the row one cycle later (DL-ER-09). In the laboratory build the path
+  from the read register of an output VC buffer through its ECC decoder, the VC multiplexer of the admission and the
+  ECC encoder of the buffer RAM missed the lane clock period (worst slack -0.620 ns at 156.25 MHz); the register
+  splits it. Every item reaches the transmitter one core clock cycle later (the transmit path is store and
+  forward; the core clock is the lane clock in `ofb_vck190`); the admission sees the same free space, and no port,
+  generic or register changes. New test case TC-DL-32 (items read right after their commit, error injection and
+  NACK across the stage).
+- `ofb_vck190`: `tcl/build.tcl` also stops the build when the design misses timing (worst setup or hold slack below
+  0), after the results are written ("BUILD FAILED"; the timing line of `build_info.txt` says "TIMING NOT MET").
+- Verification: `python tools/compliance.py --check` also fails when `docs/compliance.md` is out of date (the matrix
+  is generated in memory and compared with the file), and the CI runs the check, with a step that shows that a stale
+  matrix fails it. The generated matrix is reproducible: test case entries of the same group and number (test names
+  with their test case in brackets) were ordered by the iteration order of a set, which changes with the hash seed
+  of every Python process.
+- Verification: new test cases of the reset sequencer of `ofb_pa_gty`, found by the code coverage of this release:
+  TC-PA-26, a reset of the sequencer in each state of the sequences (the reset in 11 of the 12 states was untested),
+  and TC-PA-27, a receiver reset request in each state of a receiver reset, which is dropped (PA-RS-04; the drop was
+  tested in one of the six states).
+
+### Verification
+
+- QuestaSim (time resolution 1 fs): the full regression at c413cc4, 424 of 424 with code coverage and 424 of 424
+  without; `ofb_pa_gty_lane_rst_tb` with TC-PA-26 and TC-PA-27 at 23cee55, 8 of 8 in both modes (the design sources
+  of both commits are identical). The code coverage measures every change since release 0.1.0
+  ([coverage.md](docs/coverage.md)): every statement, branch, state machine state and transition is covered except
+  the seven branches and two statements of release 0.1.0 and four branches of the behavioural model, each justified.
+- GHDL: the full regression in the CI of the release pull request, on the released tree; 424 of 424 at c413cc4
+  (run 40123879318), 425 of 425 at 6e8b270 with TC-PA-26 (run 40145201482), 426 of 426 at 23cee55 with TC-PA-27
+  (run 40155527421).
+- AMD Vivado simulator with the transceiver model, 11 of 11 runs at c413cc4: the tests of `ofb_pa_gty`, `ofb_pa_gty`
+  with two cores (one to four lanes, the lane restarts) and `ofb_vck190` (records in the verification reports of
+  `ofb_pa_gty` and `ofb_vck190`). The later commits change testbenches and documents only.
+
+### Fixed
+
+- `ofb_vck190`: the clock pair constraints of `ofb_vck190.xdc` were lost in every build since the reference clock
+  became selectable (release 0.1.1): `tcl/build.tcl` read the clock constraint of the reference clock after
+  `ofb_vck190.xdc`, so the lane clock, derived from it through the transceiver, did not exist when the constraints
+  were read. The crossings between the lane clock and the clocks of the CIPS were timed as synchronous paths (setup
+  violations of more than 5 ns), and the two constraints with `clk_pl_0` covered every path of that clock, so its
+  hold was not analysed. The script now reads the clock constraint first (processing order EARLY).
+- `ofb_vck190`: `tcl/build.tcl` checks the constraint integrity (`tcl/build_checks.tcl`) and stops the build when a
+  constraint did not apply in synthesis or implementation or when TIMING-6, TIMING-7 or TIMING-47 report a clock pair
+  without its constraint; the known Open Logic constraint of the retimed distributed RAM read register is counted as
+  the one exception. The timing summary (TIMING NOT MET or timing met) goes to the console and to `build_info.txt`,
+  with `results/constraint_check.txt`. The CI runs the checks on excerpts of logs and reports
+  (`tcl/test/build_checks_test.tcl`).
+- `ofb_vck190`: `tcl/build.tcl` sets `XILINX_LOCAL_USER_DATA=no` for the runs of `launch_runs` (AMD AR 63253). On a
+  fresh installation of Vivado the runs that start at the same time create the user directory of the Tcl Store
+  together, and one of them can fail at start-up with Common 17-1257 ("Failed to create directory") and
+  "tclapp::load_apps failed".
+
 ## [0.1.3] - 2026-10-24
 
 The transceiver handling of `ofb_pa_gty` follows the recommendations of the transceiver documentation (AM002, PG331,
