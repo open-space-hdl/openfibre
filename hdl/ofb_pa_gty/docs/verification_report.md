@@ -277,6 +277,11 @@ TC-PA-26, which resets the sequencer in each of the 12 states of the sequences (
 showed the reset in 11 of these states untested). Mutation checks, each applied alone: the reset without effect
 in the state FullSetup, FullWaitLow, CdrWait, TxHold or BufPulse; each fails TC-PA-26 (5 of 5).
 
+TC-PA-27, 8 of 8 with it: a receiver reset request in each state of a receiver reset is dropped (PA-RS-04;
+the code coverage of the release showed the drop tested only in the wait for RXRESETDONE rising, TC-PA-24).
+Mutation checks, each applied alone: the request accepted in the state FullSetup, FullPulse, FullWaitLow,
+CdrPulse or CdrWait; each fails TC-PA-27 (5 of 5).
+
 ### Behavioural model (architecture `mdl`)
 
 Run on 2026-10-17 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7: `python run.py "*ofb_pa_gty_model*"`, 46 of 46 tests

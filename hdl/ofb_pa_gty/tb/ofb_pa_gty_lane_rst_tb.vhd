@@ -893,6 +893,77 @@ begin
                     checkIdle(x"0040", "After the request served");
                 end loop;
 
+            -- TC-PA-27: a receiver reset request during a receiver reset is dropped in every state of the entire and of
+            -- the CDR-only receiver reset (TC-PA-24 drops one in the wait for RXRESETDONE rising): the sequence
+            -- completes with its event, and no second receiver reset follows, also after the gap
+            elsif run("test_drop_in_reset") then
+
+                for s in FullSetup_s to CdrWait_s loop
+
+                    if s /= FullWaitHigh_s then
+                        Full_v  := NumFull;
+                        Cdr_v   := NumCdr;
+                        Done_v  := NumDone;
+                        Timeo_v := NumTimeo;
+                        if s = CdrPulse_s or s = CdrWait_s then
+                            CfgCdrOnly <= '1';
+                        end if;
+                        if s = FullWaitLow_s then
+                            DoneMode <= Stuck_s;
+                        end if;
+                        pulseFull;
+
+                        -- Wait for the state and check its port values
+                        if s = CdrPulse_s or s = CdrWait_s then
+                            awaitHigh(GtCdrRst, 4, Elapsed_v, "RXCDRRESET pulse");
+                            if s = CdrWait_s then
+                                awaitLow(GtCdrRst, Pulse_c + 2, Elapsed_v, "End of the RXCDRRESET pulse");
+                            end if;
+                            wait for 1 ns;
+                            check_value(GtCdrRst = '1', s = CdrPulse_s, error, "RXCDRRESET in the pulse only");
+                        else
+                            awaitHigh(RxBusy, 4, Elapsed_v, "Receiver reset starts");
+                            if s /= FullSetup_s then
+                                awaitHigh(GtRxRst, Setup_c + 2, Elapsed_v, "GTRXRESET pulse");
+                            end if;
+                            if s = FullWaitLow_s then
+                                awaitLow(GtRxRst, Pulse_c + 2, Elapsed_v, "End of the GTRXRESET pulse");
+                            end if;
+                            wait for 1 ns;
+                            check_value(GtRxRst = '1', s = FullPulse_s, error, "GTRXRESET in the pulse only");
+                            if s = FullWaitLow_s then
+                                check_value(RxRstDone, '1', error, "Wait for RXRESETDONE falling");
+                            end if;
+                        end if;
+                        check_value(RxBusy, '1', error, "Receiver reset in progress");
+
+                        -- Rising edge of the request in this state: low at the next clock edge (the starting request
+                        -- may have ended in this cycle), high at the edge after it
+                        wait until rising_edge(Clk);
+                        ReqFull <= '1';
+                        cycles(2);
+                        ReqFull <= '0';
+
+                        -- The sequence completes (with the timeout when RXRESETDONE never falls), then the gap
+                        waitIdle(Setup_c + Pulse_c + DoneRise_c + Holdoff_c + 50, "End of the receiver reset");
+                        DoneMode <= Normal_s;
+                        cycles(Gap_c + 50);
+                        if s = CdrPulse_s or s = CdrWait_s then
+                            checkCounts(Full_v, -1, -1, Cdr_v + 1, Done_v + 1, Timeo_v,
+                                        "Request in " & SeqState_t'image(s) & " dropped");
+                        elsif s = FullWaitLow_s then
+                            checkCounts(Full_v + 1, -1, -1, Cdr_v, Done_v, Timeo_v + 1,
+                                        "Request in " & SeqState_t'image(s) & " dropped");
+                        else
+                            checkCounts(Full_v + 1, -1, -1, Cdr_v, Done_v + 1, Timeo_v,
+                                        "Request in " & SeqState_t'image(s) & " dropped");
+                        end if;
+                        checkIdle(PcsDflt_c, "After the request in " & SeqState_t'image(s));
+                        CfgCdrOnly <= '0';
+                    end if;
+
+                end loop;
+
             end if;
 
         end loop;
