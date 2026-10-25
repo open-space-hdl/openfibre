@@ -60,6 +60,11 @@ RX_RESET_DONE at 1. Mutation checks: a core whose lanes do not take LANE_INIT_TI
 whose timeout ignores `Cfg_InitTimeout` fails TC-CORE-37 and TC-LN-54. The QuestaSim regression was not repeated for
 release 0.1.3 ([coverage.md](../../../docs/coverage.md), section 6).
 
+QuestaSim on 2026-10-24 and 2026-10-25, release 0.1.4 ([coverage record](../../../docs/coverage.md)): the full
+regression at commit c413cc4 passes at a time resolution of 1 fs with coverage, 424 of 424, and without coverage,
+424 of 424; 166 of them are tests of `ofb_core_tb` and `ofb_core_cc_tb` (163 and 3). The code coverage measures every
+change since release 0.1.0.
+
 Run on 2026-10-18 with the behavioural adapter model, two cores pin to pin through two `ofb_pa_gty` with the
 architecture `mdl`: TC-CORE-03 passes with `CdrLockTime` 500 ns (`lanes4_pin`, no expiry of the alignment watchdog)
 and with the lock time of the transceiver model and near the ends of the interval that bounds it, 16.65 us, 16.83 us
