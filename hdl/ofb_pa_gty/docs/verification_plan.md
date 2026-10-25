@@ -78,6 +78,7 @@ of one cycle and never together.
 | `test_tx_buffer` (TC-PA-22) | A transmit buffer error: one transmit buffer reset that clears it, no receiver reset event, the values outside the sequences afterwards; an error that stays: one reset per sequence and holdoff (5 to 7 in five sequence lengths) | PA-RS-06 |
 | `test_rx_buffer` (TC-PA-23) | A request: the buffer reset window for exactly the setup, pulse and hold time, PCSRSVDIN 0 from the setup, one buffer reset, no receiver reset event; a request level held high starts one reset; two rising edges during a buffer reset give one more reset | PA-RS-03 |
 | `test_priority` (TC-PA-24) | Receiver reset, transmit buffer error and buffer reset requested together while the receivers are not ready: the receiver reset first, the transmit buffer reset after the holdoff, the buffer request absorbed by the receiver reset (no buffer reset); a receiver reset request during the reset dropped; a receiver reset request in the gap dropped; a new PCSRSVDIN base taken at the start of the next sequence, a change during a sequence only at the following one; a buffer request during a receiver reset served after it and the holdoff, with the new base; a reset of the sequencer during a receiver reset gives the values outside the sequences with the default base at once and no event, and a request afterwards is served | PA-RS-03, PA-RS-04, PA-RS-06 |
+| `test_reset_states` (TC-PA-26) | A reset of the sequencer for one cycle in each state of the sequences: setup, pulse and the waits for RXRESETDONE falling and rising of the entire receiver reset, pulse and wait of the CDR-only reset, setup, pulse and hold of the transmit buffer reset and of the buffer reset; each state reached by its request and recognised by its port values. At the clock edge of the reset the values outside the sequences with the default PCSRSVDIN 0x0360, no event; afterwards a request of the same kind is served (a transmit buffer error that the reset left set without a new one) | PA-RS-02, PA-RS-03, PA-RS-04, PA-RS-06 |
 
 ## 4. Coverage analysis
 
@@ -87,7 +88,8 @@ edge of CDR enable (PA-RS-04) runs on the transceiver model in the lane restart 
 model in TC-PA-25 and TC-CORE-37. The CDR hold (PA-IF-04) depends on the electrical idle detection of the transceiver
 and is not modelled by the behavioural model; the lane restart of TC-PA-02 reports the electrical idle and the CDR
 lock of the transceiver model while the line is idle. The sequences of the reset ports (PA-RS-04 to PA-RS-06) are
-checked cycle by cycle in TC-PA-19 to TC-PA-24 on the sequencer that both architectures use. A lane failure over
+checked cycle by cycle in TC-PA-19 to TC-PA-24 on the sequencer that both architectures use, and TC-PA-26 resets the
+sequencer in every state of the sequences. A lane failure over
 the transceiver model is not simulated: the behavioural model covers it in the core testbench (TC-CORE-07).
 
 The transceiver model does not insert the forced error of the PRBS generator (`TXPRBSFORCEERR`): TC-PA-06 tests the

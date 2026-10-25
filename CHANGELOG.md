@@ -38,6 +38,8 @@ register of the error recovery buffer, one more core clock cycle from admission 
   matrix fails it. The generated matrix is reproducible: test case entries of the same group and number (test names
   with their test case in brackets) were ordered by the iteration order of a set, which changes with the hash seed
   of every Python process.
+- Verification: new test case TC-PA-26 of the reset sequencer of `ofb_pa_gty`, a reset of the sequencer in each
+  state of the sequences. The code coverage of this release showed the reset in 11 of the 12 states untested.
 
 ### Fixed
 

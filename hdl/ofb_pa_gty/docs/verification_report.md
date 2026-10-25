@@ -270,6 +270,13 @@ mode, and sequences while the receivers are not ready: each fails TC-PA-19 to TC
 request first survived, because a second buffer request during the receiver reset hid it; TC-PA-24 checks both cases
 separately since. A model that ignores `Cfg_RxResetOnDisc` fails TC-PA-25.
 
+### Release 0.1.4
+
+GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, on 2026-10-25: the reset sequencer `ofb_pa_gty_lane_rst_tb`, 7 of 7 with
+TC-PA-26, which resets the sequencer in each of the 12 states of the sequences (the code coverage of the release
+showed the reset in 11 of these states untested). Mutation checks, each applied alone: the reset without effect
+in the state FullSetup, FullWaitLow, CdrWait, TxHold or BufPulse; each fails TC-PA-26 (5 of 5).
+
 ### Behavioural model (architecture `mdl`)
 
 Run on 2026-10-17 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7: `python run.py "*ofb_pa_gty_model*"`, 46 of 46 tests

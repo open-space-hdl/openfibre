@@ -70,6 +70,12 @@ architecture sim of ofb_pa_gty_lane_rst_tb is
     -- RXRESETDONE of the model: normal, never rising after it fell (Hang_s), never falling (Stuck_s)
     type DoneMode_t is (Normal_s, Hang_s, Stuck_s);
 
+    -- States of the sequences in which TC-PA-26 resets the sequencer
+    type SeqState_t is (
+        FullSetup_s, FullPulse_s, FullWaitLow_s, FullWaitHigh_s, CdrPulse_s, CdrWait_s,
+        TxSetup_s, TxPulse_s, TxHold_s, BufSetup_s, BufPulse_s, BufHold_s
+    );
+
     signal DoneMode    : DoneMode_t := Normal_s;
     signal TxErrSet    : std_logic  := '0';
     signal TxErrSticky : boolean    := false;
@@ -358,6 +364,7 @@ begin
         variable Full_v    : natural;
         variable Buf_v     : natural;
         variable Tx_v      : natural;
+        variable Cdr_v     : natural;
         variable Done_v    : natural;
         variable Timeo_v   : natural;
         variable Elapsed_v : natural;
@@ -750,6 +757,141 @@ begin
                 awaitHigh(RxBusy, 6, Elapsed_v, "Request after the reset served");
                 waitIdle(Setup_c + Pulse_c + DoneRise_c + Holdoff_c + 50, "After the receiver reset");
                 checkCounts(-1, Buf_v, -1, -1, Done_v + 1, Timeo_v, "Receiver reset after the reset");
+
+            -- TC-PA-26: reset of the sequencer in every state of the sequences, each reached by its request and
+            -- recognised by its port values: one cycle of reset gives the values outside the sequences with the
+            -- default PCSRSVDIN base at once and no event; a request of the same kind afterwards is served
+            elsif run("test_reset_states") then
+                CfgPcs <= x"0040";
+
+                for s in SeqState_t loop
+
+                    -- Request of the sequence, wait for the state and check its port values
+                    case s is
+                        when FullSetup_s | FullPulse_s | FullWaitLow_s | FullWaitHigh_s =>
+                            if s = FullWaitLow_s then
+                                DoneMode <= Stuck_s;
+                            end if;
+                            pulseFull;
+                            awaitHigh(RxBusy, 4, Elapsed_v, "Receiver reset starts");
+                            if s /= FullSetup_s then
+                                awaitHigh(GtRxRst, Setup_c + 2, Elapsed_v, "GTRXRESET pulse");
+                            end if;
+                            if s = FullWaitLow_s or s = FullWaitHigh_s then
+                                awaitLow(GtRxRst, Pulse_c + 2, Elapsed_v, "End of the GTRXRESET pulse");
+                            end if;
+                            if s = FullWaitHigh_s then
+                                cycles(2);
+                            end if;
+                            wait for 1 ns;
+                            check_value(RxBusy, '1', error, "Receiver reset in progress");
+                            if s = FullPulse_s then
+                                check_value(GtRxRst, '1', error, "Pulse: GTRXRESET");
+                                check_value(GtPcs, x"0740", error, "Pulse: PCSRSVDIN with bits 10:8");
+                            else
+                                check_value(GtRxRst, '0', error, "Setup or wait: no GTRXRESET");
+                                check_value(GtPcs, x"0340", error, "Setup or wait: PCSRSVDIN with bits 9:8");
+                            end if;
+                            if s = FullWaitLow_s then
+                                check_value(RxRstDone, '1', error, "Wait for RXRESETDONE falling");
+                            elsif s = FullWaitHigh_s then
+                                check_value(RxRstDone, '0', error, "Wait for RXRESETDONE rising");
+                            end if;
+
+                        when CdrPulse_s | CdrWait_s =>
+                            CfgCdrOnly <= '1';
+                            pulseFull;
+                            awaitHigh(GtCdrRst, 4, Elapsed_v, "RXCDRRESET pulse");
+                            if s = CdrWait_s then
+                                awaitLow(GtCdrRst, Pulse_c + 2, Elapsed_v, "End of the RXCDRRESET pulse");
+                            end if;
+                            wait for 1 ns;
+                            check_value(RxBusy, '1', error, "CDR-only receiver reset in progress");
+                            check_value(GtCdrRst = '1', s = CdrPulse_s, error, "RXCDRRESET in the pulse only");
+                            check_value(GtPcs, x"0040", error, "CDR-only reset: PCSRSVDIN base");
+
+                        when TxSetup_s | TxPulse_s | TxHold_s =>
+                            setTxErr;
+                            awaitHigh(GtTxMode(0), 4, Elapsed_v, "Transmit buffer reset starts");
+                            if s /= TxSetup_s then
+                                awaitHigh(GtTxRst, Setup_c + 2, Elapsed_v, "GTTXRESET pulse");
+                            end if;
+                            if s = TxHold_s then
+                                awaitLow(GtTxRst, Pulse_c + 2, Elapsed_v, "End of the GTTXRESET pulse");
+                            end if;
+                            wait for 1 ns;
+                            check_value(std_logic_vector'(GtTxMode & GtTxPma), "11" & "000", error,
+                                        "Transmit buffer reset: single mode, no PMA mask");
+                            check_value(GtTxRst = '1', s = TxPulse_s, error, "GTTXRESET in the pulse only");
+                            check_value(GtPcs, x"0000", error, "Transmit buffer reset: PCSRSVDIN");
+
+                        when BufSetup_s | BufPulse_s | BufHold_s =>
+                            pulseBuf;
+                            awaitHigh(BufBusy, 4, Elapsed_v, "Buffer reset starts");
+                            if s /= BufSetup_s then
+                                awaitHigh(GtRxRst, Setup_c + 2, Elapsed_v, "GTRXRESET pulse");
+                            end if;
+                            if s = BufHold_s then
+                                awaitLow(GtRxRst, Pulse_c + 2, Elapsed_v, "End of the GTRXRESET pulse");
+                            end if;
+                            wait for 1 ns;
+                            check_value(BufBusy, '1', error, "Buffer reset in progress");
+                            check_value(std_logic_vector'(GtRxMode & GtRxPma & GtRxPcs), "11" & "0000000" & "00100",
+                                        error, "Buffer reset: single mode, elastic buffer mask");
+                            check_value(GtRxRst = '1', s = BufPulse_s, error, "GTRXRESET in the pulse only");
+                            check_value(GtPcs, x"0000", error, "Buffer reset: PCSRSVDIN");
+                    end case;
+
+                    -- One cycle of reset: the values outside the sequences with the default base, no event
+                    Done_v   := NumDone;
+                    Timeo_v  := NumTimeo;
+                    Rst      <= '1';
+                    wait until rising_edge(Clk);
+                    wait for 1 ns;
+                    checkIdle(PcsDflt_c, "Reset in " & SeqState_t'image(s));
+                    Rst      <= '0';
+                    DoneMode <= Normal_s;
+                    settle;
+                    checkCounts(-1, -1, -1, -1, Done_v, Timeo_v, "No event from the reset in " & SeqState_t'image(s));
+
+                    -- A request of the same kind is served (a transmit buffer error that the reset left set is served
+                    -- without a new one); the gap of a receiver reset ends before the next state
+                    Full_v := NumFull;
+                    Buf_v  := NumBuf;
+                    Tx_v   := NumTx;
+                    Cdr_v  := NumCdr;
+
+                    case s is
+                        when FullSetup_s | FullPulse_s | FullWaitLow_s | FullWaitHigh_s | CdrPulse_s | CdrWait_s =>
+                            pulseFull;
+                            waitIdle(Setup_c + Pulse_c + DoneRise_c + Holdoff_c + 50, "Receiver reset after the reset");
+                            if s = CdrPulse_s or s = CdrWait_s then
+                                checkCounts(Full_v, Buf_v, Tx_v, Cdr_v + 1, Done_v + 1, Timeo_v,
+                                            "CDR-only reset served after the reset in " & SeqState_t'image(s));
+                            else
+                                checkCounts(Full_v + 1, Buf_v, Tx_v, Cdr_v, Done_v + 1, Timeo_v,
+                                            "Receiver reset served after the reset in " & SeqState_t'image(s));
+                            end if;
+                            CfgCdrOnly <= '0';
+                            cycles(Gap_c);
+
+                        when TxSetup_s | TxPulse_s | TxHold_s =>
+                            if TxErr = '0' then
+                                setTxErr;
+                            end if;
+                            waitIdle(Setup_c + Pulse_c + Hold_c + Holdoff_c + 50, "Transmit buffer reset after the reset");
+                            checkCounts(Full_v, Buf_v, Tx_v + 1, Cdr_v, Done_v, Timeo_v,
+                                        "Transmit buffer reset served after the reset in " & SeqState_t'image(s));
+
+                        when BufSetup_s | BufPulse_s | BufHold_s =>
+                            pulseBuf;
+                            waitIdle(Setup_c + Pulse_c + Hold_c + Holdoff_c + 50, "Buffer reset after the reset");
+                            checkCounts(Full_v, Buf_v + 1, Tx_v, Cdr_v, Done_v, Timeo_v,
+                                        "Buffer reset served after the reset in " & SeqState_t'image(s));
+                    end case;
+
+                    checkIdle(x"0040", "After the request served");
+                end loop;
 
             end if;
 
