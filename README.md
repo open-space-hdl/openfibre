@@ -21,10 +21,9 @@ The core (1 to 4 lanes, 1 to 32 virtual channels, broadcast messages, quality of
 in simulation; the [compliance matrix](docs/compliance.md) traces every ECSS clause in scope to its tests. A fault
 injection campaign (line errors, word slips, lane failures, single and double errors in the buffers) checks that no
 packet is lost, duplicated or corrupted unnoticed; with packets of up to 1024 bytes the core transfers 94 % of the lane
-capacity in one direction and 90 % per direction in both. The QuestaSim regression of release 0.1.0 covers every
+capacity in one direction and 90 % per direction in both. The QuestaSim regression of release 0.1.4 covers every
 statement, branch and state machine transition of the core except a few defensive or unreachable items, each justified
-in the [code coverage report](docs/coverage.md); releases 0.1.1 to 0.1.3 are verified with GHDL and the AMD Vivado
-simulator, and the report lists their changed lines.
+in the [code coverage report](docs/coverage.md).
 The first target is the AMD Versal AI Core XCVC1902 on the VCK190 evaluation board (4 GTY lanes on the QSFP
 connector, 6.25 Gbit/s per lane): the Physical adapter for the GTY and a reference design are verified with the
 transceiver model; the third and fourth builds met timing (the fourth with margin), a build with the packet ports

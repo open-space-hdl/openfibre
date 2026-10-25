@@ -12,9 +12,10 @@ python run.py --questa --coverage -p 1
 The sources of `hdl/<module>/src` are compiled with `+cover=sbcef`: statements, branches, conditions, expressions
 (focused expression coverage) and state machines. Open Logic, UVVM and the testbenches are not instrumented; Open Logic
 is verified by its own regression. The behavioural model of the Physical adapter (architecture `mdl` of `ofb_pa_gty`
-and its package, `hdl/ofb_pa_gty/sim`) runs in the regression and is instrumented as well. The transceiver wrapper
-(architecture `struct`) and the VCK190 top level need the transceiver model and run in the AMD Vivado simulator
-(`tools/run_xsim.py`); they are not part of this measurement. QuestaSim runs at a time resolution of 1 fs, as GHDL.
+and its package, `hdl/ofb_pa_gty/sim`) and the reset sequencer of a lane (`ofb_pa_gty_lane_rst`), which both
+architectures use, run in the regression and are instrumented as well. The transceiver wrapper (architecture `struct`)
+and the VCK190 top level need the transceiver model and run in the AMD Vivado simulator (`tools/run_xsim.py`); they
+are not part of this measurement. QuestaSim runs at a time resolution of 1 fs, as GHDL, with and without coverage.
 `run.py` merges the coverage of all tests into `coverage/coverage.ucdb` and writes the reports
 `coverage/coverage_report.txt` (details per instance) and `coverage/coverage_byfile.txt`; a design unit is covered
 when any of its instances in any test covers it.
@@ -34,27 +35,23 @@ Closure rules:
 
 ## 2. Result
 
-Runs on 2026-10-18 on the main branch with the behavioural model of the Physical adapter, the alignment watchdog of
-the Multi-Lane layer and the MIB without the redundant transmitter register:
+Runs of release 0.1.4 on 2026-10-24 and 2026-10-25 on the release branch, with the behavioural model of the Physical
+adapter, on commit c413cc4 and on commit 23cee55, which adds TC-PA-26 and TC-PA-27 to the testbench of the reset
+sequencer. The design sources and the behavioural model are identical in both commits
+(`git diff c413cc4 23cee55 -- 'hdl/*/src' 'hdl/*/sim'` is empty).
 
-- Without coverage: the full regression at commit 9dff622 at a time resolution of 1 fs, 396 tests, all passed. The
-  tree of 9dff622 is the tree of main 77f4eea (71b4665, `git rev-parse 9dff622^{tree}` and
-  `git rev-parse 77f4eea^{tree}`).
-- With coverage: the full regression at commit b6242a2 at the resolution of 1 ps that VUnit sets for QuestaSim, 396
-  tests, 395 passed.
-  `ofb_pa_gty_model_core_tb.lanes4` failed its check of the clock corrections: the reference clock of B, 200 ppm
-  slower than that of A, toggles after 3200.64 ps, which 1 ps truncates to 3200 ps, so both ends ran at the same
-  frequency. Since 9dff622 `run.py` runs QuestaSim at 1 fs. The 50 tests whose clocks have fractions of a picosecond
-  ran again with coverage at 9dff622 (1 fs), all passed: `ofb_pa_gty_model_tb` 40, `ofb_pa_gty_model_core_tb` 6,
-  `ofb_cc_pulse_tb` configuration `near` 4. The design sources are identical in both commits
-  (`git diff --stat b6242a2 9dff622 -- 'hdl/*/src'` is empty).
-- The coverage below merges 396 per-test databases (`vcover merge`). From b6242a2 (1 ps), the 346 tests whose time
-  values are whole picoseconds: `ofb_core_tb` 150, `ofb_ml_link_tb` 36, `ofb_ni_tb` 28, `ofb_dl_row_tb` 22,
-  `ofb_lane_init_tb` 14, `ofb_lane_tb` 14, `ofb_mib_tb` 11, `ofb_ml_codec_tb` 10, `ofb_cc_pulse_tb` 8 (configurations
-  `in_fast` and `out_fast`), `ofb_lane_rx_tb` 8, `ofb_dl_mac_tb` 7, `ofb_dl_tb` 7, `ofb_ml_align_tb` 7,
-  `ofb_multilane_tb` 6, `ofb_pkg_tb` 6, `ofb_lane_tx_tb` 4, `ofb_tb_8b10b_tb` 4, `ofb_core_cc_tb` 3,
-  `ofb_ml_lane_mgr_tb` 1. From 9dff622 (1 fs), the 50 tests above. The merged coverage equals the coverage of all
-  396 tests of b6242a2 in every file and metric.
+- With coverage: the full regression at c413cc4, 424 tests, all passed; `ofb_pa_gty_lane_rst_tb` at 23cee55, 8
+  tests, all passed.
+- Without coverage: the full regression at c413cc4, 424 tests, all passed; `ofb_pa_gty_lane_rst_tb` at 23cee55,
+  8 tests, all passed.
+- The coverage below merges 426 per-test databases (`vcover merge`): the 418 tests of c413cc4 other than those of
+  `ofb_pa_gty_lane_rst_tb` (`ofb_core_tb` 163, `ofb_pa_gty_model_tb` 44, `ofb_ml_link_tb` 36, `ofb_ni_tb` 28,
+  `ofb_dl_row_tb` 23, `ofb_lane_init_tb` 15, `ofb_lane_tb` 14, `ofb_cc_pulse_tb` 12, `ofb_mib_tb` 12,
+  `ofb_ml_codec_tb` 10, `ofb_lane_rx_tb` 8, `ofb_dl_mac_tb` 7, `ofb_dl_tb` 7, `ofb_ml_align_tb` 7,
+  `ofb_pa_gty_model_core_tb` 7, `ofb_multilane_tb` 6, `ofb_pkg_tb` 6, `ofb_lane_tx_tb` 4, `ofb_tb_8b10b_tb` 4,
+  `ofb_core_cc_tb` 3, `ofb_ml_lane_mgr_tb` 2) and the 8 tests of `ofb_pa_gty_lane_rst_tb` at 23cee55.
+
+The measurement covers every change since release 0.1.0 (section 6).
 
 Numbers are covered/total bins per file; bold marks a metric with misses.
 
@@ -65,8 +62,8 @@ Numbers are covered/total bins per file; bold marks a metric with misses.
 | `ofb_dl/src/ofb_dl.vhd` | 51/51 | 19/19 |  |  | **6/7** | **15/19** |
 | `ofb_dl/src/ofb_dl_bc_in.vhd` | 12/12 |  |  |  |  | **9/11** |
 | `ofb_dl/src/ofb_dl_bc_out.vhd` | 23/23 | 18/18 |  |  | **8/9** | **4/6** |
-| `ofb_dl/src/ofb_dl_erb.vhd` | 151/151 | 67/67 | 3/3 | 4/4 | **35/37** | **23/41** |
-| `ofb_dl/src/ofb_dl_link_reset.vhd` | 20/20 | 30/30 | 4/4 | 8/8 | **10/12** | 2/2 |
+| `ofb_dl/src/ofb_dl_erb.vhd` | 164/164 | 71/71 | 3/3 | 4/4 | **34/41** | **23/41** |
+| `ofb_dl/src/ofb_dl_link_reset.vhd` | 20/20 | 30/30 | 4/4 | 8/8 | **11/12** | 2/2 |
 | `ofb_dl/src/ofb_dl_mac.vhd` | 60/60 | 34/34 |  |  | **13/16** | 2/2 |
 | `ofb_dl/src/ofb_dl_pkg.vhd` | **40/41** | 21/21 |  |  | **8/9** |  |
 | `ofb_dl/src/ofb_dl_qos_regs.vhd` | 19/19 | 15/15 |  |  | **3/4** |  |
@@ -82,29 +79,30 @@ Numbers are covered/total bins per file; bold marks a metric with misses.
 | `ofb_lane/src/ofb_lane_loopback.vhd` | 17/17 | 6/6 |  |  |  |  |
 | `ofb_lane/src/ofb_lane_rx.vhd` | 186/186 | 73/73 |  |  | 18/18 | 6/6 |
 | `ofb_lane/src/ofb_lane_tx.vhd` | 56/56 | 24/24 |  |  | 2/2 |  |
-| `ofb_mib/src/ofb_mib.vhd` | 299/299 | 153/153 |  |  | **28/32** | **10/15** |
+| `ofb_mib/src/ofb_mib.vhd` | 330/330 | 162/162 |  |  | **28/32** | **10/15** |
 | `ofb_multilane/src/ofb_ml_align.vhd` | 199/199 | **120/121** | 3/3 | 6/6 | **45/48** | 2/2 |
 | `ofb_multilane/src/ofb_ml_col_dec.vhd` | 45/45 | 19/19 |  |  | 3/3 |  |
 | `ofb_multilane/src/ofb_ml_col_enc.vhd` | 60/60 | 23/23 |  |  | 4/4 | **6/7** |
-| `ofb_multilane/src/ofb_ml_lane_mgr.vhd` | 110/110 | 56/56 |  |  | **24/30** | **5/6** |
+| `ofb_multilane/src/ofb_ml_lane_mgr.vhd` | 127/127 | 67/67 |  |  | **36/42** | **5/6** |
 | `ofb_multilane/src/ofb_ml_pkg.vhd` | 43/43 | **32/33** |  |  | 8/8 |  |
 | `ofb_multilane/src/ofb_ml_rx.vhd` | 79/79 | **39/41** | 5/5 | 16/16 | 5/5 |  |
-| `ofb_multilane/src/ofb_ml_tx.vhd` | 102/102 | 48/48 |  |  | 19/19 | 5/5 |
+| `ofb_multilane/src/ofb_ml_tx.vhd` | 102/102 | 48/48 |  |  | 20/20 | 5/5 |
 | `ofb_multilane/src/ofb_multilane.vhd` | 38/38 | 10/10 |  |  | 2/2 | 7/7 |
 | `ofb_ni/src/ofb_ni.vhd` | 12/12 |  |  |  |  |  |
 | `ofb_ni/src/ofb_ni_vc_rx.vhd` | 176/176 | 66/66 |  |  | **21/22** | 13/13 |
 | `ofb_ni/src/ofb_ni_vc_tx.vhd` | 59/59 | 31/31 |  |  | 11/11 | **5/6** |
-| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd` | **237/239** | **139/147** |  |  | **37/40** | **11/14** |
+| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd` | 306/306 | **178/181** |  |  | **44/48** | **16/20** |
 | `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd` | 11/11 | **1/2** |  |  |  |  |
+| `ofb_pa_gty/src/ofb_pa_gty_lane_rst.vhd` | 113/113 | 56/56 | 14/14 | 30/30 | 11/11 |  |
 | `ofb_pkg/src/ofb_cc_pulse.vhd` | 19/19 | 8/8 |  |  |  |  |
 | `ofb_pkg/src/ofb_pkg.vhd` | 55/55 | 10/10 |  |  | **1/2** |  |
-| Total | 3094/3098 (99.9 %) | 1516/1532 (99.0 %) | 29/29 (100.0 %) | 62/62 (100.0 %) | 469/515 (91.1 %) | 254/308 (82.5 %) |
+| Total | 3337/3339 (99.9 %) | 1635/1646 (99.3 %) | 43/43 (100.0 %) | 92/92 (100.0 %) | 500/551 (90.7 %) | 259/314 (82.5 %) |
 
 ## 3. Gaps found and closed
 
-The first run (88.8 % over all metrics and files, 97.5 % of the statements, 94.9 % of the branches, 82.3 % of the state
-machine transitions) showed behaviour that the requirements ask for but no test exercised. The tests below close these
-gaps; all of them passed without a change of the design.
+The first run of release 0.1.0 (88.8 % over all metrics and files, 97.5 % of the statements, 94.9 % of the branches,
+82.3 % of the state machine transitions) showed behaviour that the requirements ask for but no test exercised. The
+tests below close these gaps (line numbers of release 0.1.0); all of them passed without a change of the design.
 
 | Gap | Test |
 | --- | --- |
@@ -141,11 +139,19 @@ register). The design closes both:
 | Saturation of the PRBS counters (32 and 48 bits) | One saturating increment for all counters of the MIB (`satInc`), covered by TC-MG-09 |
 | Read decode of the lane registers: no undefined offset left | Last branch of the decode is the PRBS word counter (as in the VC decode); TC-MG-08 reads and writes the registers of a lane beyond `NumLanes_g` instead |
 
+The measurement of release 0.1.4 found two gaps in the code added since release 0.1.0, both in the reset sequencer
+of a lane (`ofb_pa_gty_lane_rst`); the tests passed without a change of the design:
+
+| Gap | Test |
+| --- | --- |
+| The reset of the sequencer in the states of the sequences, of which only the wait for RXRESETDONE rising was tested (11 of the 30 state transitions) | TC-PA-26 (mutation checked: a reset without effect in one state fails the test, for five states each alone) |
+| A receiver reset request during a receiver reset is dropped (PA-RS-04), tested only in the wait for RXRESETDONE rising: five of the six state terms of the request condition (line 255) were not covered, and removing one of them failed no test | TC-PA-27 (mutation checked: the request accepted in one state fails the test, for each of the five states) |
+
 ## 4. Remaining misses
 
-In the design sources, seven branches and two statements remain uncovered. None of them is behaviour that a
-requirement asks for; each is defensive, constant by construction or not executed as a separate statement by the
-simulator:
+In the design sources, seven branches and two statements remain uncovered, the same items as in release 0.1.0 at
+the same lines. None of them is behaviour that a requirement asks for; each is defensive, constant by construction or
+not executed as a separate statement by the simulator:
 
 | Location | Item not covered | Justification |
 | --- | --- | --- |
@@ -158,20 +164,26 @@ simulator:
 | `ofb_multilane/src/ofb_ml_rx.vhd:112` | Branch: output queue full | Defensive, guarded by an assertion of severity error that the regression never raised. |
 | `ofb_multilane/src/ofb_ml_rx.vhd:195` | Branch: shift of the waiting words beyond the accumulator | Constant: `i < NumLanes_g` and `AccSize_c = 2 x NumLanes_g`, so the condition is always true; the guard keeps the index in range for elaboration. |
 
-In the behavioural model of the Physical adapter, nine branches and two statements remain uncovered. The model is
-a verification model; none of the items is behaviour that the model description or a test relies on:
+In the behavioural model of the Physical adapter, four branches remain uncovered (release 0.1.0: nine branches and two
+statements; since release 0.1.2 a reset of the adapter during the reset sequence starts the sequence again, which the
+tests exercise, and the unreachable reset of the PRBS generator is removed). The model is a verification model; none
+of the items is behaviour that the model description or a test relies on:
 
 | Location | Item not covered | Justification |
 | --- | --- | --- |
-| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:223` | Branch: the reset sequence starts while the stretched reset is already released | The process starts at time 0 and after every sequence when the stretched reset rises, so the reset is always active when it reaches this line. |
-| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:231`, `242` | Branches: no reset done of the previous start, TX ready already due when the wait begins | Constant by construction: `TxDoneStale` and `ClkDelay` are positive, so the reset done of the previous start lasts beyond the start of the sequence (line 228), and `ClkDelay` < `TxReadyDelay` (model description, section 3). |
-| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:236`, `240`, `245`, `248` | Branches: a reset of the adapter during the reset sequence (while the reset done of the previous start shows, before `LaneClk` starts, before TX ready, before RX ready) | The testbenches reset the adapter at power-up and in operation, after RX ready (TC-PA-10, TC-PA-02). The sequence then starts again from the top of the process. |
-| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:390`, statements 391 and 392 | Branch: reset of the PRBS generator inside the `LaneClk` branch of the transmitter | Not reachable: `LaneClk` stops in the delta cycle in which the stretched reset rises, and the transmitter takes the reset through TX ready (line 322). The PRBS generator keeps its state over a reset; its checker synchronises itself (TC-PA-17). |
-| `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd:149` | Branch: word pushed into a full receive buffer | Defensive. The receiver checks the level before it pushes and counts the lost word (`ofb_pa_gty_model.vhd` line 544, TC-PA-18). |
+| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:249` | Branch: the reset sequence starts while the stretched reset is already released | The stretched reset is active at time 0, and every wait of the sequence (lines 250 to 275) ends when it rises or skips the remaining steps while it is active, so the process returns to this line only with the reset active. |
+| `ofb_pa_gty/sim/ofb_pa_gty_model.vhd:256`, `267` | Branches: no reset done of the previous start, TX ready already due when the wait begins | Constant by construction: `TxDoneStale` and `ClkDelay` are positive, so the reset done of the previous start lasts beyond the start of the sequence (line 254), and `ClkDelay` < `TxReadyDelay` (model description, section 3). |
+| `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd:160` | Branch: word pushed into a full receive buffer | Defensive. The receiver checks the level before it pushes and counts the lost word (`ofb_pa_gty_model.vhd` line 680, TC-PA-18). |
+
+All 43 states and 92 transitions of the state machines are covered.
 
 The condition and expression metrics are reported, not closed. The redundant register `TxSeen` of the MIB, whose term
 of the TX_LOST expression could not be reached, has been removed; the expression of `ofb_mib.vhd` is the fall of
-`Phy_TxReady` alone.
+`Phy_TxReady` alone. The misses of the code added since release 0.1.0 were reviewed in the same way. In the admission
+register of the error recovery buffer they are the guards of a row write without a free row and of a commit with
+every data item in use (`ofb_dl_erb.vhd` lines 477 and 481), which the admission excludes (DL-ER-09); in the MIB
+the EDAC flags of the quality of service registers, which are defined only together with their valid signal
+(`ofb_mib.vhd` lines 1198 and 1199).
 
 ## 5. Reproduction
 
@@ -182,29 +194,24 @@ vcover report -du=* -details -zeros -code sbf coverage/coverage.ucdb
 
 The second command lists the statements, branches and state machine items that are not covered, per design unit.
 
-## 6. Releases 0.1.1 to 0.1.3: changed lines not measured
+## 6. Changes since release 0.1.0
 
-Sections 2 to 4 are the measurement of release 0.1.0; their line numbers refer to the sources of 0.1.0. Releases
-0.1.1 to 0.1.3 were verified with GHDL (full regression) and with the AMD Vivado simulator and the transceiver model;
-the QuestaSim regression and the code coverage were not repeated. The following lines of the instrumented sources
-changed and have no coverage measurement yet; the tests named here run in the GHDL regression and pass:
+Release 0.1.0 was measured on 2026-10-18 (396 tests). The measurement of section 2 includes the changes of the
+instrumented sources in releases 0.1.1 to 0.1.4:
 
-| Release | Location | Change | Tests |
+| Release | Location | Change | Result |
 | --- | --- | --- | --- |
-| 0.1.1 | `ofb_multilane/src/ofb_ml_lane_mgr.vhd`: join hold (`Joining`, `JoinCnt`, `JoinDone`, `Hold`, output `Tx_Hold`) | Hold of the rows of the Data Link layer while a lane joins at the link start (ML-LM-17) | TC-ML-51, TC-CORE-34, TC-CORE-35 |
-| 0.1.1 | `ofb_multilane/src/ofb_ml_tx.vhd`: condition of `TxRow_Ready` | `Ctrl_Hold` keeps `TxRow_Ready` low | TC-CORE-34, TC-CORE-35 |
-| 0.1.1 | `ofb_multilane/src/ofb_multilane.vhd`, `ofb_core/src/ofb_core.vhd` | Generic `LaneJoinHoldWords_g` and its connection, elaboration check against `AlignTimeoutWords_g` | TC-CORE-34, TC-CORE-35 (configurations `lanes4_nohold`, `lanes4_hold1024`) |
-| 0.1.1 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`, `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd` | Behavioural model: `NoSignalNever` replaces `NoSignalSequence` (NoSignal 0, also during reset), `Phy_CdrEnable` without effect | TC-PA-10, TC-PA-15 |
-| 0.1.2 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`: reset sequence and transmitter | A reset during the reset sequence starts it again (the branches listed in section 4 as not covered at lines 236, 240, 245 and 248 of 0.1.0 are now exercised); the PRBS generator restarts with the reset of the transmitters, and the unreachable reset of section 4 (line 390 of 0.1.0) is removed | TC-PA-10, TC-PA-17 |
-| 0.1.2 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`, `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd`: receive buffer | With `RxBufReset_g` a buffer restarts at its start level after an overflow, every buffer error withholds the words of the reset window, a running buffer reports an error when the line becomes idle; control field `BufErrReq` forces a buffer error | TC-PA-18, TC-PA-15, TC-PA-02 (`lanes1_relock`), TC-CORE-36 |
-| 0.1.3 | `ofb_pa_gty/src/ofb_pa_gty_lane_rst.vhd` (new) | Reset sequencer of a lane: entire receiver reset, CDR-only reset, transmit buffer reset, buffer reset, bounded waits, gap, priority, PCSRSVDIN base (PA-RS-03 to PA-RS-06) | TC-PA-19 to TC-PA-25, TC-CORE-37 |
-| 0.1.3 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`, `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd` | Behavioural model: reset sequencer, RXRESETDONE, relock after a receiver reset, transmit buffer error, status and events (PA-MD-12) | TC-PA-25, TC-PA-15, TC-CORE-37 |
-| 0.1.3 | `ofb_lane/src/ofb_lane_init.vhd`, `ofb_lane/src/ofb_lane.vhd` | Initialisation timeout from the input `Cfg_InitTimeout` (24-bit timer) | TC-LN-31, TC-LN-54, TC-CORE-37 |
-| 0.1.3 | `ofb_mib/src/ofb_mib.vhd` | LANE_INIT_TIMEOUT, PA_CTRL, RX_RESET command, LANE_STATUS bits 27:24, LANE_EVENTS bits 7:4 with interrupt, RX_RESETS (MG-PA-01 to MG-PA-03) | TC-MG-01, TC-MG-09, TC-MG-12, TC-CORE-37 |
-| 0.1.3 | `ofb_core/src/ofb_core.vhd` | Generic `InitTimeoutWords_g`, ports of the receiver reset | TC-CORE-37 |
+| 0.1.1 | `ofb_multilane/src/ofb_ml_lane_mgr.vhd`: join hold (`Joining`, `JoinCnt`, `JoinDone`, `Hold`, output `Tx_Hold`) | Hold of the rows of the Data Link layer while a lane joins at the link start (ML-LM-17) | Statements and branches covered (TC-ML-51, TC-CORE-34, TC-CORE-35) |
+| 0.1.1 | `ofb_multilane/src/ofb_ml_tx.vhd`: condition of `TxRow_Ready` | `Ctrl_Hold` keeps `TxRow_Ready` low | Covered, also its condition terms |
+| 0.1.1 | `ofb_multilane/src/ofb_multilane.vhd`, `ofb_core/src/ofb_core.vhd` | Generic `LaneJoinHoldWords_g` and its connection | Covered |
+| 0.1.1 to 0.1.3 | `ofb_pa_gty/sim/ofb_pa_gty_model.vhd`, `ofb_pa_gty/sim/ofb_pa_model_pkg.vhd` | Behavioural model: NoSignal 0, restart of the reset sequence on a reset, PRBS generator restarted with the transmitters, receive buffer restarts and errors, reset sequencer, RXRESETDONE, relock after a receiver reset, transmit buffer error (PA-MD-12) | Statements covered; the four branches of section 4 |
+| 0.1.3 | `ofb_pa_gty/src/ofb_pa_gty_lane_rst.vhd` (new) | Reset sequencer of a lane (PA-RS-03 to PA-RS-06) | Statements, branches and states covered by TC-PA-19 to TC-PA-25 and TC-CORE-37; the transitions of the reset by TC-PA-26 and the conditions of the request filter by TC-PA-27 (section 3) |
+| 0.1.3 | `ofb_lane/src/ofb_lane_init.vhd`, `ofb_lane/src/ofb_lane.vhd` | Initialisation timeout from the input `Cfg_InitTimeout` (24-bit timer) | Covered (TC-LN-31, TC-LN-54, TC-CORE-37) |
+| 0.1.3 | `ofb_mib/src/ofb_mib.vhd` | LANE_INIT_TIMEOUT, PA_CTRL, RX_RESET command, LANE_STATUS bits 27:24, LANE_EVENTS bits 7:4 with interrupt, RX_RESETS (MG-PA-01 to MG-PA-03) | Statements and branches covered (TC-MG-01, TC-MG-09, TC-MG-12, TC-CORE-37) |
+| 0.1.3 | `ofb_core/src/ofb_core.vhd` | Generic `InitTimeoutWords_g`, ports of the receiver reset | Covered |
+| 0.1.4 | `ofb_dl/src/ofb_dl_erb.vhd` | Admission register of the error recovery buffer (DL-ER-09) | Statements and branches covered (TC-DL-32 and the regression) |
 
 The transceiver wrapper (`ofb_pa_gty_struct.vhd`: NoSignal 0 and CDR not held in 0.1.1, the reset of the receive
 elastic buffer in 0.1.2, the reset sequencers, the CDR hold and the status crossings in 0.1.3) and the VCK190 top
-level are verified in the AMD Vivado simulator as before and are not part
-of the QuestaSim measurement. A later release repeats the full QuestaSim regression with coverage and closes this
-section.
+level are verified in the AMD Vivado simulator with the transceiver model (verification reports of `ofb_pa_gty` and
+`ofb_vck190`) and are not part of the QuestaSim measurement.

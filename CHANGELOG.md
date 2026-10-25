@@ -4,7 +4,15 @@ The notable changes of OpenFibre. The versions follow semantic versioning: 0.y.z
 version for an incompatible change of ports, generics or the register map, a minor version for a feature and a patch
 version for a fix.
 
-## [Unreleased]
+## [0.1.4] - 2026-10-25
+
+Build and timing release of the VCK190 reference design, with the QuestaSim regression and the code coverage
+measurement of all changes since 0.1.0. Laboratory builds of 0.1.1 to 0.1.3 lost the clock pair constraints between
+the lane clock and the clocks of the CIPS (the reference clock constraint was read after them): the crossings were
+timed as synchronous paths and the hold of `clk_pl_0` was not analysed. 0.1.4 reads the reference clock first, stops
+the build on a constraint that did not apply or on a missed timing, closes the remaining lane clock path (admission
+register of the error recovery buffer, one more core clock cycle from admission to transmission) and pins Open Logic
+4.7.0-ft.11. Ports, generics and the register map are unchanged.
 
 ### Changed
 
@@ -30,6 +38,24 @@ version for a fix.
   matrix fails it. The generated matrix is reproducible: test case entries of the same group and number (test names
   with their test case in brackets) were ordered by the iteration order of a set, which changes with the hash seed
   of every Python process.
+- Verification: new test cases of the reset sequencer of `ofb_pa_gty`, found by the code coverage of this release:
+  TC-PA-26, a reset of the sequencer in each state of the sequences (the reset in 11 of the 12 states was untested),
+  and TC-PA-27, a receiver reset request in each state of a receiver reset, which is dropped (PA-RS-04; the drop was
+  tested in one of the six states).
+
+### Verification
+
+- QuestaSim (time resolution 1 fs): the full regression at c413cc4, 424 of 424 with code coverage and 424 of 424
+  without; `ofb_pa_gty_lane_rst_tb` with TC-PA-26 and TC-PA-27 at 23cee55, 8 of 8 in both modes (the design sources
+  of both commits are identical). The code coverage measures every change since release 0.1.0
+  ([coverage.md](docs/coverage.md)): every statement, branch, state machine state and transition is covered except
+  the seven branches and two statements of release 0.1.0 and four branches of the behavioural model, each justified.
+- GHDL: the full regression in the CI of the release pull request, on the released tree; 424 of 424 at c413cc4
+  (run 40123879318), 425 of 425 at 6e8b270 with TC-PA-26 (run 40145201482), 426 of 426 at 23cee55 with TC-PA-27
+  (run 40155527421).
+- AMD Vivado simulator with the transceiver model, 11 of 11 runs at c413cc4: the tests of `ofb_pa_gty`, `ofb_pa_gty`
+  with two cores (one to four lanes, the lane restarts) and `ofb_vck190` (records in the verification reports of
+  `ofb_pa_gty` and `ofb_vck190`). The later commits change testbenches and documents only.
 
 ### Fixed
 
