@@ -3,8 +3,9 @@
 ## 1. Purpose
 
 This procedure tests the reference design `ofb_vck190_top` on the AMD VCK190 evaluation board against SpaceFibre
-test equipment (exit criterion of phase 2 in the [roadmap](../../../docs/roadmap.md)). It needs AMD Vivado
-2025.2 with device support for the XCVC1902. The results go into
+test equipment (exit criterion of phase 2 in the [roadmap](../../../docs/roadmap.md)). This test is the bring-up of
+the board design; the evidence for TRL 4 is the hardware test of a reference system of the family that contains
+OpenFibre. It needs AMD Vivado 2025.2 with device support for the XCVC1902. The results go into
 [verification_report.md](verification_report.md), section 3.
 
 ## 2. Material
