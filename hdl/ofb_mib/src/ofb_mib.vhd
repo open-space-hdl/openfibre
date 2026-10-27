@@ -257,6 +257,7 @@ architecture rtl of ofb_mib is
     signal CoreCfgOut : std_logic_vector(CoreCfgW_c-1 downto 0);
     signal CoreStatIn : std_logic_vector(CoreStatW_c-1 downto 0);
     signal CoreStat   : std_logic_vector(CoreStatW_c-1 downto 0);
+    signal CoreStRst  : std_logic; -- The status crossing of the core clock domain is in reset (Clk)
     signal CoreEvIn   : std_logic_vector(CoreEvW_c-1 downto 0);
     signal CoreEv     : std_logic_vector(CoreEvW_c-1 downto 0);
     signal LaneCfgIn  : std_logic_vector(LaneCfgW_c*NumLanes_g-1 downto 0);
@@ -404,8 +405,12 @@ begin
             VcFrErr      <= VcFrErr or UserEv(NumVc_g-1 downto 0);
             VcRxFrErr    <= VcRxFrErr or UserEv(2*NumVc_g-1 downto NumVc_g);
             LaneEvents   <= LaneEvents or LaneEv(LaneEvW_c*NumLanes_g-1 downto 0);
-            -- Bandwidth flags once the status crossing has transferred a value after reset
-            if StatSettle = 31 then
+            -- Bandwidth flags once the status crossing has transferred a value after its reset (MG-CC-02): the
+            -- crossing stays in reset until the core clock domain has left its reset, so the settle time counts
+            -- from the end of that reset, also when the core clock starts long after the reset of the MIB
+            if CoreStRst = '1' then
+                StatSettle <= 0;
+            elsif StatSettle = 31 then
                 VcBwOver  <= VcBwOver or CoreStat(7 + 2 * NumVc_g downto 8 + NumVc_g);
                 VcBwUnder <= VcBwUnder or CoreStat(7 + 3 * NumVc_g downto 8 + 2 * NumVc_g);
             else
@@ -890,12 +895,13 @@ begin
             SyncTmr_g => true
         )
         port map (
-            In_Clk    => CoreClk,
-            In_RstIn  => CoreRst,
-            In_Data   => CoreStatIn,
-            Out_Clk   => Clk,
-            Out_RstIn => Rst,
-            Out_Data  => CoreStat
+            In_Clk     => CoreClk,
+            In_RstIn   => CoreRst,
+            In_Data    => CoreStatIn,
+            Out_Clk    => Clk,
+            Out_RstIn  => Rst,
+            Out_RstOut => CoreStRst,
+            Out_Data   => CoreStat
         );
 
     CoreEvIn <= Dl_EvCreditOverflow & Dl_EvInputOverflow & Dl_EvBcDiscard & Dl_EvFarEndLinkReset & Dl_EvProtocolError &

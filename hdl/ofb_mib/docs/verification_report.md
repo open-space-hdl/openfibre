@@ -6,7 +6,7 @@ Run on 2026-10-13 with GHDL 6.0.0 (mcode), VUnit 5.0.0.dev7, UVVM 2026.03.20: `p
 
 | Testbench | Tests | Passed |
 | --- | --- | --- |
-| `ofb_mib_tb` | 12 | 12 |
+| `ofb_mib_tb` | 13 | 13 |
 
 Full regression of the repository: 227 of 227 tests pass (with the packet ports of the VCs and register map version
 7). VSG reports no errors and no warnings. Run on 2026-10-15 with register map version 8 (transmitter ready): 11 of
@@ -24,6 +24,17 @@ values of the two new registers at the register file and at the outputs; TC-MG-0
 receiver resets in parallel to the CRC-8 counter. Mutation checks: a MIB with a wrong PA_CTRL flag reset value fails
 TC-MG-01, one that counts the receiver reset timeouts as receiver resets, one that loses the RX_RESET command and one
 whose Interface Reset keeps LANE_INIT_TIMEOUT fail TC-MG-12.
+
+Run on 2026-10-27 with the settle time of the flags of bandwidth use from the end of the reset of the status
+crossing (MG-CC-02): 13 of 13, 0 skipped. TC-MG-13 (new) starts the core clock 5 us after the reset: VC_BW_OVER and
+VC_BW_UNDER read 0 while it stands still and after its start, the other sticky flags and counters of the core clock
+domain read 0, and over and under use afterwards set the flags. With the MIB of 0.1.4 TC-MG-13 fails: VC_BW_OVER reads
+x"0000000X" (mutation check). Together with the regression of `ofb_core` 179 of 179 tests pass in GHDL, 0 skipped.
+
+The other sticky flags and counters (DL_ERRORS, the error counters, VC_INPUT_OVERFLOW, VC_CREDIT_OVERFLOW,
+VC_FRAMING_ERROR, VC_RX_FRAMING_ERROR, LANE_EVENTS, the lane and Multi-Lane counters, the EDAC flags) take events of
+`ofb_cc_pulse`, whose output is 0 while its crossing is in reset; only the flags of bandwidth use take values of a
+status crossing.
 
 ## 2. Summary
 
@@ -64,6 +75,7 @@ Defects found during verification:
 | Finding | Fix |
 | --- | --- |
 | ECSS table audit (5.9.4e): the Link Reset command cleared only the Data Link status; the lane event flags and the flags of bandwidth use were kept | The command clears the status of all layers, the EDAC status excepted (MG-ST-01, TC-MG-04) |
+| System simulation with the core clock from the transmit clock of the transceiver model, which runs from about 64 us after the reset: a read of VC_BW_OVER and VC_BW_UNDER over RMAP returned undefined bits. The flags took the status 31 management clock cycles after the reset, before the status crossing had transferred a value, and an undefined bit stays in a sticky flag. The RMAP reply carried the bits over the link; the CRC-16 of the transmitter and that of the far end differed, every retransmission failed the check, and the reply never arrived while the link stayed initialised | The flags take the status from 31 cycles after the end of the reset of the status crossing on (`Out_RstOut` of `olo_base_cc_status`, asserted until the core clock domain has left its reset), MG-CC-02; TC-MG-13 starts the core clock 5 us after the reset, TC-CORE-26 reads both registers after the start of the cores |
 | The sticky bandwidth flags latched the undefined value of the status crossing before its first transfer (simulation) | The sticky flags accumulate the crossed status only 32 cycles after reset (first fix with `to_01` replaced: not synthesizable, found with `lint/synth_check.py`) |
 | Every event was counted twice and every command gave two pulses: `olo_ft_cc_pulse` stretches its output pulses to two cycles of the output clock | `ofb_cc_pulse` (edge detector after `olo_ft_cc_pulse`), also used in the input VC buffer of the Data Link layer, where the same effect doubled the FCT requests |
 | First build of the VCK190 design: the latches of `olo_ft_cc_pulse` can lose commands and events (gate and data follow the input pulse) | `ofb_cc_pulse` without latch: handshake with single-cycle output pulses (`ofb_pkg` report) |

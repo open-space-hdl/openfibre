@@ -29,6 +29,15 @@ the values during every transmitter reset (`olo_base_cc_bits` resets its output 
   (ECSS 5.9.4e; the EDAC status is kept); a write of one to
   `InterfaceReset` sets all configuration registers to their reset values.
 - `Irq` = OR of (sticky flags AND interrupt mask).
+- The flags of bandwidth use (VC_BW_OVER, VC_BW_UNDER) are set from the levels of the Data Link layer in the status of
+  the core clock domain. The output of an `olo_base_cc_status` holds no value before its first transfer after a reset,
+  and the crossing stays in reset (`Out_RstOut`) until the core clock domain has left its own reset, which needs the
+  core clock. The flags take the status only from 31 cycles after the end of the reset of the crossing on, when its
+  first value has arrived (MG-CC-02). A core clock that starts long after the reset, as the transmit clock of a
+  transceiver after its power-up, therefore sets no flag. A Link Reset command restarts the 31 cycles: it clears the
+  flags, and the status of the cycles before the clear can still be in the crossing. The status registers that are
+  not sticky read the output of the crossing directly; until the first transfer after the power-up they read the
+  power-up value of its registers.
 
 ## 3. Register map
 

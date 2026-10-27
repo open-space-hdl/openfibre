@@ -76,7 +76,7 @@ the standard" of the module specifications.
 | 5.8.5 to 5.8.7, 5.8.13 | Packet format, sending and receiving packets, nodes | NI-1 | NI-IF-01 | TC-CORE-02, TC-CORE-17, TC-NI-01, TC-NI-03 | Verified |
 | 5.8.12 | Broadcast messages | NI-3 | NI-IF-02, NI-RX-04 | TC-CORE-02, TC-CORE-17 | Verified |
 | 5.8.8 to 5.8.11 | Routing switch, addressing, adaptive routing, multicast | Out of scope | - | - | Out of scope (routing switch) |
-| 5.9.1 to 5.9.4 | Management Information Base | MG-1 | CORE-CC-02, DL-IF-05, MG-CF-01, MG-CF-03, MG-IF-01, MG-IF-02, MG-ST-01, MG-ST-04, MG-ST-05, MG-ST-06 | TC-CORE-01, TC-CORE-02, TC-CORE-04, TC-CORE-15, TC-CORE-21, TC-CORE-22, TC-CORE-23, TC-CORE-24, TC-CORE-25, TC-CORE-28, TC-CORE-29, TC-DL-07, TC-DL-21, TC-MG-01, TC-MG-02, TC-MG-03, TC-MG-04, TC-MG-05, TC-MG-06, TC-MG-08, TC-MG-11 | Verified |
+| 5.9.1 to 5.9.4 | Management Information Base | MG-1 | CORE-CC-02, DL-IF-05, MG-CC-02, MG-CF-01, MG-CF-03, MG-IF-01, MG-IF-02, MG-ST-01, MG-ST-04, MG-ST-05, MG-ST-06 | TC-CORE-01, TC-CORE-02, TC-CORE-04, TC-CORE-15, TC-CORE-21, TC-CORE-22, TC-CORE-23, TC-CORE-24, TC-CORE-25, TC-CORE-26, TC-CORE-28, TC-CORE-29, TC-DL-07, TC-DL-21, TC-MG-01, TC-MG-02, TC-MG-03, TC-MG-04, TC-MG-05, TC-MG-06, TC-MG-08, TC-MG-11, TC-MG-13 | Verified |
 | 6.2.2, 6.3.2 | Packet transfer and Virtual Channel services | NI-1 | NI-IF-01, NI-RX-01 | TC-CORE-02, TC-CORE-05, TC-CORE-17, TC-NI-01, TC-NI-03, TC-NI-06 | Verified |
 | 6.2.3, 6.3.3 | Broadcast message services | NI-3 | NI-IF-02, NI-RX-04 | TC-CORE-02, TC-CORE-17 | Verified |
 | 6.3.4 | Schedule synchronisation service | NI-4 | DL-QS-06, NI-SC-01 | TC-CORE-06, TC-DL-21 | Verified |
@@ -95,11 +95,11 @@ reference included).
 | `ofb_core` | 23 | 23 | - |
 | `ofb_dl` | 79 | 79 | - |
 | `ofb_lane` | 32 | 32 | - |
-| `ofb_mib` | 26 | 26 | - |
+| `ofb_mib` | 27 | 27 | - |
 | `ofb_multilane` | 72 | 72 | - |
 | `ofb_ni` | 12 | 12 | - |
 | `ofb_pa_gty` | 32 | 32 | - |
 | `ofb_pkg` | 11 | 11 | - |
 | `ofb_vck190` | 9 | 9 | - |
 
-Requirements: 296; without a test case: 0; test cases of the plans not run by a testbench: 0.
+Requirements: 297; without a test case: 0; test cases of the plans not run by a testbench: 0.
