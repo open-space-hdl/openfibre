@@ -56,6 +56,8 @@ architecture sim of ofb_mib_tb is
     signal Clk     : std_logic := '0';
     signal Rst     : std_logic := '1';
     signal CoreClk : std_logic := '0';
+    signal CoreGen : std_logic := '0'; -- Generated core clock
+    signal CoreRun : std_logic := '0'; -- CoreClk runs ('1'), taken while the generated clock is low
     signal LaneClk : std_logic := '0';
     signal UserClk : std_logic := '0';
 
@@ -181,7 +183,8 @@ begin
     i_ti_uvvm_engine : entity uvvm_vvc_framework.ti_uvvm_engine;
 
     Clk     <= not Clk after 5 ns;
-    CoreClk <= not CoreClk after 3.2 ns;
+    CoreGen <= not CoreGen after 3.2 ns;
+    CoreClk <= CoreGen when CoreRun = '1' else '0';
     LaneClk <= not LaneClk after 3.4 ns;
     UserClk <= not UserClk after 2.6 ns;
 
@@ -248,6 +251,10 @@ begin
     -- Test cases
     begin
         test_runner_setup(runner, runner_cfg);
+        -- TC-MG-13: the core clock stands still from the reset on; in all other tests it runs from the start
+        if not enabled("test_core_clock_late") then
+            CoreRun <= '1';
+        end if;
         await_uvvm_initialization(VOID);
         disable_log_msg(ALL_MESSAGES);
         enable_log_msg(ID_LOG_HDR);
@@ -948,6 +955,41 @@ begin
                 wr(RegDlCtrl_c, x"00000101");
                 chk(RegLaneTimeoutCount_c, x"00000000", "RX_RESETS cleared by Link Reset");
                 chk(RegLaneEvents_c, x"00000000", "LANE_EVENTS cleared by Link Reset");
+
+            -- TC-MG-13: the core clock starts long after the reset (a transceiver that provides it only after
+            -- its power-up): the bandwidth flags are not taken from the status crossing before it has
+            -- transferred a value, they read 0 after the start and are set by the bandwidth status afterwards
+            elsif run("test_core_clock_late") then
+                cycles(500);
+                chk(16#048#, x"00000000", "No bandwidth over use while the core clock stands still");
+                chk(16#04C#, x"00000000", "No bandwidth under use while the core clock stands still");
+                wait until falling_edge(CoreGen);
+                CoreRun <= '1';
+                cycles(200);
+                chk(16#048#, x"00000000", "No bandwidth over use after the start of the core clock");
+                chk(16#04C#, x"00000000", "No bandwidth under use after the start of the core clock");
+
+                -- The other sticky flags and counters of the core clock domain (events): DL_ERRORS to DL_SEQ_COUNT,
+                -- VC_INPUT_OVERFLOW, VC_CREDIT_OVERFLOW
+                for a in 0 to 5 loop
+                    chk(16#014# + 4 * a, x"00000000", "Register " & to_string(16#014# + 4 * a) & " after the late start");
+                end loop;
+
+                chk(16#034#, x"00000000", "No input buffer overflow after the late start");
+                chk(16#038#, x"00000000", "No credit overflow after the late start");
+                chk(16#010#, x"00000200", "Data Link status from the core clock domain after its start");
+                BwOver(1)  <= '1';
+                BwUnder(2) <= '1';
+                cycles(20);
+                BwOver(1)  <= '0';
+                BwUnder(2) <= '0';
+                cycles(20);
+                chk(16#048#, x"00000002", "Bandwidth over use VC 1 after the late start");
+                chk(16#04C#, x"00000004", "Bandwidth under use VC 2 after the late start");
+                wr(16#048#, x"00000002");
+                wr(16#04C#, x"00000004");
+                chk(16#048#, x"00000000", "Bandwidth over use cleared");
+                chk(16#04C#, x"00000000", "Bandwidth under use cleared");
 
             end if;
 

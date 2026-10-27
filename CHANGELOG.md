@@ -4,6 +4,20 @@ The notable changes of OpenFibre. The versions follow semantic versioning: 0.y.z
 version for an incompatible change of ports, generics or the register map, a minor version for a feature and a patch
 version for a fix.
 
+## [Unreleased]
+
+### Fixed
+
+- `ofb_mib`: the flags of bandwidth use (VC_BW_OVER, VC_BW_UNDER) took the status of the core clock domain from 31
+  management clock cycles after the reset on, also when the core clock had not run yet. With a core clock that starts
+  long after the reset, as the transmit clock of a transceiver after its power-up, the flags took the output of the
+  status crossing before its first transfer (undefined in simulation, the power-up value of its registers in
+  hardware) and kept it until they were cleared. The flags now take the status from 31 cycles after the end of the
+  reset of the crossing on, which lasts until the core clock domain has left its own reset (MG-CC-02). In a system
+  simulation, an RMAP reply that carried the undefined flags failed the CRC-16 check of the far end on every
+  retransmission: the link stayed initialised and the reply never arrived. New test case TC-MG-13; TC-CORE-26 reads
+  both registers after the start of the cores. Ports, generics and the register map are unchanged.
+
 ## [0.1.4] - 2026-10-25
 
 Build and timing release of the VCK190 reference design, with the QuestaSim regression and the code coverage

@@ -3,8 +3,9 @@
 ## 1. Overview
 
 The register file and the crossings are verified with a unit testbench in four clock domains (management 100 MHz,
-core 156.25 MHz, lane 147 MHz, user 192 MHz), with the UVVM AXI-Lite VVC as register master. The connection of the
-registers to the layers is verified with the core testbench.
+core 156.25 MHz, lane 147 MHz, user 192 MHz), with the UVVM AXI-Lite VVC as register master. The core clock runs from
+the start, except in TC-MG-13, where it starts long after the reset. The connection of the registers to the layers is
+verified with the core testbench.
 
 ## 2. Test configuration
 
@@ -28,3 +29,4 @@ registers to the layers is verified with the core testbench.
 | `test_pa_registers` (TC-MG-12) | LANE_INIT_TIMEOUT written (reserved bits 31:24 read as zero) and at the lane output; PA_CTRL written (reserved bits zero) and at the adapter outputs; both back to their reset values with Interface Reset. LANE_CTRL RX_RESET gives one command pulse per write of one and reads as zero, the other bits unchanged. LANE_STATUS bits 24 to 27 follow the receiver reset status inputs. A buffer error level gives one RX_BUF_ERROR flag at its rising edge, none while it stays; TX_BUF_ERROR (pulse), three receiver resets: RX_RESET flag and RX_RESETS 3; RX_RESET_TIMEOUT flag, not counted as a receiver reset; interrupt with each of the mask bits 20 to 23, cleared with the flags; RX_RESETS cleared by a write and by Link Reset, LANE_EVENTS by Link Reset | MG-PA-01, MG-PA-02, MG-PA-03 |
 | `test_prbs` (TC-MG-10) | PRBS registers of a lane: reset values; TX and RX pattern at the Physical adapter ports; lock status in LANE_STATUS; count reset and force error give one pulse each; ten words with errors counted, none while held or with the checker off; the count reset clears the counters; 65536 checked words read as 1; Interface Reset clears the control register | MG-PR-01, MG-PR-02, MG-PR-03 |
 | `test_ni_events` (TC-MG-11) | A receive framing error of VC 1 sets DL_ERRORS bit 11 and bit 1 of VC_RX_FRAMING_ERROR, not VC_FRAMING_ERROR; interrupt with mask, cleared with the flags; packets of zero length of VC 0 in three consecutive cycles and of VC 2 in the third one counted as 4; a write clears the counter; 65600 events saturate it at 0xFFFF; the Link Reset command clears the counter and the flags | MG-ST-05, MG-ST-01, MG-ST-03 |
+| `test_core_clock_late` (TC-MG-13) | The core clock stands still from the reset on and starts 5 us later (a transmit clock of a transceiver that runs only after its power-up): VC_BW_OVER and VC_BW_UNDER read 0 while it stands still and after its start, DL_STATUS shows the status of the core clock domain, the other sticky flags and counters of the core clock domain (DL_ERRORS to DL_SEQ_COUNT, VC_INPUT_OVERFLOW, VC_CREDIT_OVERFLOW) read 0; over use of VC 1 and under use of VC 2 afterwards set their flags, W1C clears them. Without the settle time from the end of the reset of the status crossing the flags take the value of the crossing before its first transfer and read undefined (mutation check) | MG-CC-02, MG-IF-02, MG-ST-01 |

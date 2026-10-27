@@ -65,6 +65,11 @@ regression at commit c413cc4 passes at a time resolution of 1 fs with coverage, 
 424 of 424; 166 of them are tests of `ofb_core_tb` and `ofb_core_cc_tb` (163 and 3). The code coverage measures every
 change since release 0.1.0.
 
+Run on 2026-10-27 with the flags of bandwidth use taken only from transferred status (MG-CC-02):
+`python run.py -p 1 "*ofb_core*" "*ofb_mib*"`, 179 of 179 tests pass in GHDL, 0 skipped (166 of `ofb_core_tb` and
+`ofb_core_cc_tb`, 13 of `ofb_mib_tb`). TC-CORE-26 reads VC_BW_OVER and VC_BW_UNDER as 0 at both cores after the
+start with stopped clocks; with the MIB of 0.1.4 it fails in `lanes4` (bits 3:0 undefined, mutation check).
+
 Run on 2026-10-18 with the behavioural adapter model, two cores pin to pin through two `ofb_pa_gty` with the
 architecture `mdl`: TC-CORE-03 passes with `CdrLockTime` 500 ns (`lanes4_pin`, no expiry of the alignment watchdog)
 and with the lock time of the transceiver model and near the ends of the interval that bounds it, 16.65 us, 16.83 us
@@ -133,7 +138,9 @@ and the transmitters ready from 65 us, the link comes up and the traffic is deli
 error flag (1 to 4 lanes). TC-CORE-26: both cores start with their lane and core clocks standing still until 64.1 us
 and their transmitters ready from 64.885 us while the MIB runs from the reset on (the timeline of the transceiver
 model): the link comes up, the traffic is delivered, and neither core reports an error flag or a retry (1 to 4
-lanes).
+lanes). TC-CORE-26 also reads VC_BW_OVER and VC_BW_UNDER as 0 at both cores after the start (MG-CC-02); with the
+MIB of 0.1.4 both read undefined bits (`lanes4`: bits 3:0 U), because the flags took the output of the status
+crossing before the core clock had run.
 
 First rows of a link (CORE-PL-06, ML-BP-04). With one lane and CoreClk at the frequency of LaneClk (`eqclk`, as in
 the reference design, where both are the transmit clock of the transceiver), TC-CORE-21 and TC-CORE-26 failed before
@@ -243,6 +250,7 @@ Defects found during verification:
 | --- | --- |
 | Simulation of two cores with the AMD transceiver model, one lane (2026-10-16): after the start both ends reported a sequence error (DL_ERRORS bit 3), all traffic was delivered. The Data Link layer held its link reset as a level while the transmitters were not ready, and the pulse crossing repeated it; the last pulse reached the Multi-Lane layer a few cycles after the Data Link layer had left Near-End Reset and discarded the first two rows (an idle frame word and the first FCT), which the single-lane bypass had taken into the column encoder although the lane was not Active. The far end received the second FCT first and requested a retransmission. Reproduced in GHDL with CoreClk at the frequency of LaneClk (TC-CORE-21, TC-CORE-26) | The crossing receives only the entry into the link reset, the lanes get the level from their hold (CORE-PL-06, TC-CORE-27); the Multi-Lane layer takes rows only while lane 0 is Active in the bypass (ML-BP-04, TC-ML-24, TC-ML-49); configuration `eqclk` |
 | Generic ranges (2026-10-15): with more than one lane and an input VC buffer of one flow control unit (`VcInDepth_g` = 64 x `NumLanes_g`, for example the default 256 with four lanes), the traffic of TC-CORE-02 stopped for good. A beat of the input VC buffer is offered when N words are available or one of them ends a packet, so up to N - 1 words of a packet wait for the next words. The FCT counter frees one block per 64 words read and requests an FCT at M free blocks; with M blocks in the buffer, one waiting word keeps the counter at M - 1, no FCT is sent, the far end sends nothing more and the word waits for good. With one lane a beat is one word and nothing waits; with two flow control units the counter reaches M as soon as the credit of the far end is used up. All earlier versions are affected; the hardware builds use 256 x `NumLanes_g` and are not | The elaboration rejects input VC buffers below 128 x `NumLanes_g` words with several lanes (DL-VI-05); the logic is unchanged. Shown with temporary configurations: 2 lanes with 128 words and 4 lanes with 256 words stop, 1 lane with 64 words and two flow control units with 30, 50 and 95 % ready at the receiver pass |
+| System simulation with the core clock from the transmit clock of the transceiver model (2026-10-27): an RMAP read of VC_BW_OVER and VC_BW_UNDER returned undefined bits, which the MIB had taken from the status crossing before the core clock ran; carried over the link, they made the CRC-16 of the transmitter and of the far end differ, and the reply failed the check on every retransmission | MIB: the flags take the status from 31 cycles after the end of the reset of the status crossing on (MG-CC-02, TC-MG-13); TC-CORE-26 reads both registers after the start |
 | Testbench: `CoreClkFreq_g` kept its default of 200 MHz while the harness generated 166.7 MHz, so the scrubbing interval of the error recovery buffer did not match its clock | The harness derives `LaneClkFreq_g` and `CoreClkFreq_g` from the generated periods (CORE-CK-02) |
 | After a Link Reset command the far end did not reset: the lane becomes active a few cycles after the capability event, and the lane active level crossed to the core clock faster than the event, so the link reset state machine saw an active lane | The Multi-Lane layer qualifies the capability event with "no lane active" at the time of the event (`Dl_FarCapabilityIdle`), and both cross in one FIFO word |
 | TC-CORE-07 (2 and 4 lanes): with the SKIP request of the Multi-Lane layer the own SKIP counter of the Lane layer kept counting and left its range (GHDL bound check) after 5000 words in Active | The own counter only counts without `SkipExternal_g` |
