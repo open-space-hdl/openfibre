@@ -17,6 +17,8 @@ version for a fix.
   simulation, an RMAP reply that carried the undefined flags failed the CRC-16 check of the far end on every
   retransmission: the link stayed initialised and the reply never arrived. New test case TC-MG-13; TC-CORE-26 reads
   both registers after the start of the cores. Ports, generics and the register map are unchanged.
+- Documentation website: builds with Python-Markdown 3.11.3 (heading anchors hook takes the new optional argument;
+  markdown pinned).
 
 ## [0.1.4] - 2026-10-25
 
