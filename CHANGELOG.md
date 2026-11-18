@@ -4,7 +4,12 @@ The notable changes of OpenFibre. The versions follow semantic versioning: 0.y.z
 version for an incompatible change of ports, generics or the register map, a minor version for a feature and a patch
 version for a fix.
 
-## [Unreleased]
+## [0.1.5] - 2026-11-18
+
+Patch release. The flags of bandwidth use of the management information base are defined from the reset on, also
+when the core clock starts long after the reset, and Open Logic is pinned to 4.8.0-ft.2 (1f4a6c3), based on Open
+Logic 4.8.0; none of the Open Logic files that OpenFibre uses changes. Ports, generics and the register map are
+unchanged.
 
 ### Changed
 
