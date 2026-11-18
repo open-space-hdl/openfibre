@@ -70,6 +70,10 @@ Run on 2026-10-27 with the flags of bandwidth use taken only from transferred st
 `ofb_core_cc_tb`, 13 of `ofb_mib_tb`). TC-CORE-26 reads VC_BW_OVER and VC_BW_UNDER as 0 at both cores after the
 start with stopped clocks; with the MIB of 0.1.4 it fails in `lanes4` (bits 3:0 undefined, mutation check).
 
+QuestaSim on 2026-11-18, release 0.1.5 ([coverage record](../../../docs/coverage.md)): the full regression at commit
+11be07f (Open Logic 4.8.0-ft.2) passes at a time resolution of 1 fs with coverage, 427 of 427; 166 of them are tests
+of `ofb_core_tb` and `ofb_core_cc_tb` (163 and 3). GHDL in the CI of the release: 427 of 427 at the same commit.
+
 Run on 2026-10-18 with the behavioural adapter model, two cores pin to pin through two `ofb_pa_gty` with the
 architecture `mdl`: TC-CORE-03 passes with `CdrLockTime` 500 ns (`lanes4_pin`, no expiry of the alignment watchdog)
 and with the lock time of the transceiver model and near the ends of the interval that bounds it, 16.65 us, 16.83 us

@@ -21,6 +21,21 @@ unchanged.
   compile. `olo_base_crc` evaluates `In_Last` and `In_Be` only for an accepted beat since 4.7.0-ft.11; its source is
   the same at both tags.
 
+### Verification
+
+- GHDL: the full regression in the CI of the release pull request, 427 of 427 at 11be07f (run 44305107474).
+- QuestaSim (time resolution 1 fs): the full regression with code coverage at 11be07f, 427 of 427. `ofb_mib.vhd`
+  has one more statement and one more branch than in release 0.1.4, both covered; every other file has the numbers
+  of release 0.1.4. Statements 3338/3340, branches 1636/1647, state machine states 43/43 and transitions 92/92; the
+  misses are the items justified in [coverage.md](docs/coverage.md), section 4.
+- `lint/synth_check.py` (synthesis of `ofb_core` with GHDL) at 11be07f: the 15 configurations synthesise without
+  error and without inferred latch, the 11 values outside the generic ranges are rejected.
+- AMD Vivado simulator with the transceiver model: not repeated. `ofb_pa_gty` and `ofb_vck190` are unchanged since
+  release 0.1.4, and their testbenches do not read the flags of bandwidth use.
+- Vivado build: not repeated. The change is the connection of `Out_RstOut` and the clear of the settle counter in
+  the management clock domain; the comparison of resources and timing follows with the next hardware build of a
+  reference system of the family.
+
 ### Fixed
 
 - `ofb_mib`: the flags of bandwidth use (VC_BW_OVER, VC_BW_UNDER) took the status of the core clock domain from 31

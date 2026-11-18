@@ -35,21 +35,22 @@ Closure rules:
 
 ## 2. Result
 
-Runs of release 0.1.4 on 2026-10-24 and 2026-10-25 on the release branch, with the behavioural model of the Physical
-adapter, on commit c413cc4 and on commit 23cee55, which adds TC-PA-26 and TC-PA-27 to the testbench of the reset
-sequencer. The design sources and the behavioural model are identical in both commits
-(`git diff c413cc4 23cee55 -- 'hdl/*/src' 'hdl/*/sim'` is empty).
+Run of release 0.1.5 on 2026-11-18 on the release branch, with the behavioural model of the Physical adapter, on
+commit 11be07f (Open Logic 4.8.0-ft.2). Release 0.1.5 changes one design source, `ofb_mib.vhd`; its QuestaSim
+regression is one run with coverage.
 
-- With coverage: the full regression at c413cc4, 424 tests, all passed; `ofb_pa_gty_lane_rst_tb` at 23cee55, 8
-  tests, all passed.
-- Without coverage: the full regression at c413cc4, 424 tests, all passed; `ofb_pa_gty_lane_rst_tb` at 23cee55,
-  8 tests, all passed.
-- The coverage below merges 426 per-test databases (`vcover merge`): the 418 tests of c413cc4 other than those of
-  `ofb_pa_gty_lane_rst_tb` (`ofb_core_tb` 163, `ofb_pa_gty_model_tb` 44, `ofb_ml_link_tb` 36, `ofb_ni_tb` 28,
-  `ofb_dl_row_tb` 23, `ofb_lane_init_tb` 15, `ofb_lane_tb` 14, `ofb_cc_pulse_tb` 12, `ofb_mib_tb` 12,
-  `ofb_ml_codec_tb` 10, `ofb_lane_rx_tb` 8, `ofb_dl_mac_tb` 7, `ofb_dl_tb` 7, `ofb_ml_align_tb` 7,
-  `ofb_pa_gty_model_core_tb` 7, `ofb_multilane_tb` 6, `ofb_pkg_tb` 6, `ofb_lane_tx_tb` 4, `ofb_tb_8b10b_tb` 4,
-  `ofb_core_cc_tb` 3, `ofb_ml_lane_mgr_tb` 2) and the 8 tests of `ofb_pa_gty_lane_rst_tb` at 23cee55.
+- With coverage: the full regression, 427 tests, all passed.
+- The coverage below merges the 427 per-test databases of this run (`ofb_core_tb` 163, `ofb_pa_gty_model_tb` 44,
+  `ofb_ml_link_tb` 36, `ofb_ni_tb` 28, `ofb_dl_row_tb` 23, `ofb_lane_init_tb` 15, `ofb_lane_tb` 14, `ofb_mib_tb` 13,
+  `ofb_cc_pulse_tb` 12, `ofb_ml_codec_tb` 10, `ofb_lane_rx_tb` 8, `ofb_pa_gty_lane_rst_tb` 8, `ofb_dl_mac_tb` 7,
+  `ofb_dl_tb` 7, `ofb_ml_align_tb` 7, `ofb_pa_gty_model_core_tb` 7, `ofb_multilane_tb` 6, `ofb_pkg_tb` 6,
+  `ofb_lane_tx_tb` 4, `ofb_tb_8b10b_tb` 4, `ofb_core_cc_tb` 3, `ofb_ml_lane_mgr_tb` 2).
+
+Compared with release 0.1.4 (426 merged databases of commits c413cc4 and 23cee55), only `ofb_mib.vhd` changes: one
+more statement and one more branch, the clear of the settle counter of the flags of bandwidth use while the status
+crossing of the core clock domain is in reset (MG-CC-02), both covered (331/331 statements, 163/163 branches). Its
+conditions (28/32) and expressions (10/15) are unchanged: the new conditions have a single term and add no bins.
+Every other file has the numbers of release 0.1.4, and the uncovered items are the same (section 4).
 
 The measurement covers every change since release 0.1.0 (section 6).
 
@@ -79,7 +80,7 @@ Numbers are covered/total bins per file; bold marks a metric with misses.
 | `ofb_lane/src/ofb_lane_loopback.vhd` | 17/17 | 6/6 |  |  |  |  |
 | `ofb_lane/src/ofb_lane_rx.vhd` | 186/186 | 73/73 |  |  | 18/18 | 6/6 |
 | `ofb_lane/src/ofb_lane_tx.vhd` | 56/56 | 24/24 |  |  | 2/2 |  |
-| `ofb_mib/src/ofb_mib.vhd` | 330/330 | 162/162 |  |  | **28/32** | **10/15** |
+| `ofb_mib/src/ofb_mib.vhd` | 331/331 | 163/163 |  |  | **28/32** | **10/15** |
 | `ofb_multilane/src/ofb_ml_align.vhd` | 199/199 | **120/121** | 3/3 | 6/6 | **45/48** | 2/2 |
 | `ofb_multilane/src/ofb_ml_col_dec.vhd` | 45/45 | 19/19 |  |  | 3/3 |  |
 | `ofb_multilane/src/ofb_ml_col_enc.vhd` | 60/60 | 23/23 |  |  | 4/4 | **6/7** |
@@ -96,7 +97,7 @@ Numbers are covered/total bins per file; bold marks a metric with misses.
 | `ofb_pa_gty/src/ofb_pa_gty_lane_rst.vhd` | 113/113 | 56/56 | 14/14 | 30/30 | 11/11 |  |
 | `ofb_pkg/src/ofb_cc_pulse.vhd` | 19/19 | 8/8 |  |  |  |  |
 | `ofb_pkg/src/ofb_pkg.vhd` | 55/55 | 10/10 |  |  | **1/2** |  |
-| Total | 3337/3339 (99.9 %) | 1635/1646 (99.3 %) | 43/43 (100.0 %) | 92/92 (100.0 %) | 500/551 (90.7 %) | 259/314 (82.5 %) |
+| Total | 3338/3340 (99.9 %) | 1636/1647 (99.3 %) | 43/43 (100.0 %) | 92/92 (100.0 %) | 500/551 (90.7 %) | 259/314 (82.5 %) |
 
 ## 3. Gaps found and closed
 
@@ -183,7 +184,7 @@ of the TX_LOST expression could not be reached, has been removed; the expression
 register of the error recovery buffer they are the guards of a row write without a free row and of a commit with
 every data item in use (`ofb_dl_erb.vhd` lines 477 and 481), which the admission excludes (DL-ER-09); in the MIB
 the EDAC flags of the quality of service registers, which are defined only together with their valid signal
-(`ofb_mib.vhd` lines 1198 and 1199).
+(`ofb_mib.vhd` lines 1204 and 1205).
 
 ## 5. Reproduction
 
@@ -197,7 +198,7 @@ The second command lists the statements, branches and state machine items that a
 ## 6. Changes since release 0.1.0
 
 Release 0.1.0 was measured on 2026-10-18 (396 tests). The measurement of section 2 includes the changes of the
-instrumented sources in releases 0.1.1 to 0.1.4:
+instrumented sources in releases 0.1.1 to 0.1.5:
 
 | Release | Location | Change | Result |
 | --- | --- | --- | --- |
@@ -210,6 +211,7 @@ instrumented sources in releases 0.1.1 to 0.1.4:
 | 0.1.3 | `ofb_mib/src/ofb_mib.vhd` | LANE_INIT_TIMEOUT, PA_CTRL, RX_RESET command, LANE_STATUS bits 27:24, LANE_EVENTS bits 7:4 with interrupt, RX_RESETS (MG-PA-01 to MG-PA-03) | Statements and branches covered (TC-MG-01, TC-MG-09, TC-MG-12, TC-CORE-37) |
 | 0.1.3 | `ofb_core/src/ofb_core.vhd` | Generic `InitTimeoutWords_g`, ports of the receiver reset | Covered |
 | 0.1.4 | `ofb_dl/src/ofb_dl_erb.vhd` | Admission register of the error recovery buffer (DL-ER-09) | Statements and branches covered (TC-DL-32 and the regression) |
+| 0.1.5 | `ofb_mib/src/ofb_mib.vhd`: settle counter of the flags of bandwidth use | Cleared while the status crossing of the core clock domain is in reset (`Out_RstOut`), MG-CC-02 | Statement and branch covered by every start of the MIB; TC-MG-13 and TC-CORE-26 check the flags after a late start of the core clock |
 
 The transceiver wrapper (`ofb_pa_gty_struct.vhd`: NoSignal 0 and CDR not held in 0.1.1, the reset of the receive
 elastic buffer in 0.1.2, the reset sequencers, the CDR hold and the status crossings in 0.1.3) and the VCK190 top
