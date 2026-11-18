@@ -4,7 +4,37 @@ The notable changes of OpenFibre. The versions follow semantic versioning: 0.y.z
 version for an incompatible change of ports, generics or the register map, a minor version for a feature and a patch
 version for a fix.
 
-## [Unreleased]
+## [0.1.5] - 2026-11-18
+
+Patch release. The flags of bandwidth use of the management information base are defined from the reset on, also
+when the core clock starts long after the reset, and Open Logic is pinned to 4.8.0-ft.2 (1f4a6c3), based on Open
+Logic 4.8.0; none of the Open Logic files that OpenFibre uses changes. Ports, generics and the register map are
+unchanged.
+
+### Changed
+
+- Open Logic pinned to `4.8.0-ft.2` (1f4a6c3), based on Open Logic 4.8.0 (was `4.7.0-ft.11`, 227eecd). None of the
+  Open Logic files that OpenFibre uses changes: the 34 files that the synthesis sources and the testbenches depend on,
+  `olo_intf_sync` of the reference design and the scoped constraints that its build reads are identical at both tags.
+  The new tag changes `olo_axi_master_full`, `olo_base_arb_wrr` and `olo_base_dyn_sft` and adds
+  `olo_ft_reset_ctrl_axi`, which OpenFibre compiles but does not use, and changes the area `fix`, which it does not
+  compile. `olo_base_crc` evaluates `In_Last` and `In_Be` only for an accepted beat since 4.7.0-ft.11; its source is
+  the same at both tags.
+
+### Verification
+
+- GHDL: the full regression in the CI of the release pull request, 427 of 427 at 11be07f (run 44305107474).
+- QuestaSim (time resolution 1 fs): the full regression with code coverage at 11be07f, 427 of 427. `ofb_mib.vhd`
+  has one more statement and one more branch than in release 0.1.4, both covered; every other file has the numbers
+  of release 0.1.4. Statements 3338/3340, branches 1636/1647, state machine states 43/43 and transitions 92/92; the
+  misses are the items justified in [coverage.md](docs/coverage.md), section 4.
+- `lint/synth_check.py` (synthesis of `ofb_core` with GHDL) at 11be07f: the 15 configurations synthesise without
+  error and without inferred latch, the 11 values outside the generic ranges are rejected.
+- AMD Vivado simulator with the transceiver model: not repeated. `ofb_pa_gty` and `ofb_vck190` are unchanged since
+  release 0.1.4, and their testbenches do not read the flags of bandwidth use.
+- Vivado build: not repeated. The change is the connection of `Out_RstOut` and the clear of the settle counter in
+  the management clock domain; the comparison of resources and timing follows with the next hardware build of a
+  reference system of the family.
 
 ### Fixed
 
