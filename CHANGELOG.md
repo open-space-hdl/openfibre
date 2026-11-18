@@ -6,6 +6,16 @@ version for a fix.
 
 ## [Unreleased]
 
+### Changed
+
+- Open Logic pinned to `4.8.0-ft.2` (1f4a6c3), based on Open Logic 4.8.0 (was `4.7.0-ft.11`, 227eecd). None of the
+  Open Logic files that OpenFibre uses changes: the 34 files that the synthesis sources and the testbenches depend on,
+  `olo_intf_sync` of the reference design and the scoped constraints that its build reads are identical at both tags.
+  The new tag changes `olo_axi_master_full`, `olo_base_arb_wrr` and `olo_base_dyn_sft` and adds
+  `olo_ft_reset_ctrl_axi`, which OpenFibre compiles but does not use, and changes the area `fix`, which it does not
+  compile. `olo_base_crc` evaluates `In_Last` and `In_Be` only for an accepted beat since 4.7.0-ft.11; its source is
+  the same at both tags.
+
 ### Fixed
 
 - `ofb_mib`: the flags of bandwidth use (VC_BW_OVER, VC_BW_UNDER) took the status of the core clock domain from 31
