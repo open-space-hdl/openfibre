@@ -31,6 +31,13 @@ VC_BW_UNDER read 0 while it stands still and after its start, the other sticky f
 domain read 0, and over and under use afterwards set the flags. With the MIB of 0.1.4 TC-MG-13 fails: VC_BW_OVER reads
 x"0000000X" (mutation check). Together with the regression of `ofb_core` 179 of 179 tests pass in GHDL, 0 skipped.
 
+QuestaSim on 2026-11-18, release 0.1.5 (commit 11be07f, Open Logic 4.8.0-ft.2): 13 of 13 within the full
+regression with coverage, 427 of 427 at a time resolution of 1 fs. The MIB covers 331 of 331 statements and 163 of
+163 branches; the clear of the settle counter while the status crossing is in reset adds one statement and one
+branch to release 0.1.4, both covered ([docs/coverage.md](../../../docs/coverage.md)). `lint/synth_check.py` at the
+same commit: `ofb_core` synthesises in all 15 configurations without error and without inferred latch, and the 11
+values outside the generic ranges are rejected.
+
 The other sticky flags and counters (DL_ERRORS, the error counters, VC_INPUT_OVERFLOW, VC_CREDIT_OVERFLOW,
 VC_FRAMING_ERROR, VC_RX_FRAMING_ERROR, LANE_EVENTS, the lane and Multi-Lane counters, the EDAC flags) take events of
 `ofb_cc_pulse`, whose output is 0 while its crossing is in reset; only the flags of bandwidth use take values of a
