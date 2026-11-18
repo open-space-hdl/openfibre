@@ -90,6 +90,8 @@ architecture sim of ofb_core_tb is
     constant RegLaneCtrl_c  : natural := 16#100#;
     constant RegLaneStat_c  : natural := 16#104#;
     constant RegMlStatus_c  : natural := 16#040#;
+    constant RegVcBwOver_c  : natural := 16#048#;
+    constant RegVcBwUnder_c : natural := 16#04C#;
     constant RegTimeSlot_c  : natural := 16#054#;
     constant RegMlCtrl_c    : natural := 16#058#;
     constant RegMlMisal_c   : natural := 16#05C#;
@@ -1508,8 +1510,9 @@ begin
 
             -- TC-CORE-26: both cores start as after the power-up of their transceivers, with the MIB running
             -- from the reset on: LaneClk and CoreClk of both cores stand still and the lines carry no signal
-            -- until 64.1 us, the transmitters are ready from 64.885 us on. The link comes up and the traffic is
-            -- delivered without an error flag or a retry at either core
+            -- until 64.1 us, the transmitters are ready from 64.885 us on. The link comes up without a flag of
+            -- bandwidth use (the MIB takes no status value before the core clock domain has delivered one), and
+            -- the traffic is delivered without an error flag or a retry at either core
             elsif run("test_tx_ready_start") then
 
                 for l in 0 to NumLanes_g-1 loop
@@ -1530,6 +1533,14 @@ begin
 
                 wait for 1 us;
                 linkUp(500 us);
+
+                for c in 0 to 1 loop
+                    rd(c, RegVcBwOver_c, Data_v);
+                    check_value(Data_v, x"00000000", error, "No bandwidth over use at core " & to_string(c));
+                    rd(c, RegVcBwUnder_c, Data_v);
+                    check_value(Data_v, x"00000000", error, "No bandwidth under use at core " & to_string(c));
+                end loop;
+
                 sendAll(5);
                 waitDelivered(2 ms);
 
